@@ -11,8 +11,8 @@ if __package__:
     from .http_stream import request_client, response_backend, save_new
     from .source import validate_manifest
 else:
-    from connector_suite.adapters.traefik.harness.i12_file.http_stream import request_client, response_backend, save_new
-    from connector_suite.adapters.traefik.harness.i12_file.source import validate_manifest
+    from http_stream import request_client, response_backend, save_new
+    from source import validate_manifest
 
 
 def private(path):

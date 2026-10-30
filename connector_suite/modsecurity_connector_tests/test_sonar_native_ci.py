@@ -4,6 +4,7 @@ from __future__ import annotations
 from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
 
 import ast
+import errno
 from copy import deepcopy
 import hashlib
 import importlib.util
@@ -11,9 +12,11 @@ import io
 import json
 import os
 from pathlib import Path
+import ssl
 import tarfile
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 
@@ -23,6 +26,14 @@ REVISION = "a" * 40
 TARGET = "traefik-engine-service"
 CONTRACT = {"commit": "b" * 40, "source_url": "https://github.com/owasp-modsecurity/ModSecurity.git",
             "release_tag": "v3.0.17", "version": "3.0.17", "framework_sha": "c" * 40}
+
+_SHARED_DOWNLOAD_SUCCESS = 'shared-download-success'
+_TRANSIENT_RETRY_SELECTION = 'transient-retry-selection'
+_TLS_FAILURE_PROPAGATES = 'tls-failure-propagates'
+_DIGEST_FAILURE_PROPAGATES = 'digest-failure-propagates'
+_HTTPS_DOWNGRADE_REJECTED = 'https-downgrade-rejected'
+_EXISTING_DESTINATION_REJECTED = 'existing-destination-rejected'
+_SYMLINK_DESTINATION_REJECTED = 'symlink-destination-rejected'
 
 
 def scope_manifest() -> dict:
@@ -111,6 +122,91 @@ class SonarNativeCiTests(unittest.TestCase):
         settings = dict(line.split("=", 1) for line in (root / "native.properties").read_text().splitlines())
         self.assertEqual(settings["sonar.cfamily.compile-commands"], str(root / "validated/compile_commands.json"))
         self.assertEqual(set(settings["sonar.sources"].split(",")), {"product.c", "product.h"})
+
+    def _host_archive_response_effects(self, label, pin, payload):
+        body = b"wrong bytes" if label == _DIGEST_FAILURE_PROPAGATES else payload
+        response = io.BytesIO(body)
+        response.geturl = lambda: ("http://example.invalid/downgrade" if label == _HTTPS_DOWNGRADE_REJECTED else pin["source_url"])
+        if label == _TRANSIENT_RETRY_SELECTION:
+            return [urllib.error.URLError(OSError(errno.ENETUNREACH, "not routed")), response]
+        if label == _TLS_FAILURE_PROPAGATES:
+            return [urllib.error.URLError(ssl.SSLCertVerificationError("certificate refused"))]
+        return [response]
+
+    def _assert_host_archive_outcome(self, label, pin, destination, payload):
+        archive = destination / ("haproxy-" + pin["version"] + ".tar.gz")
+        rejected = {
+            _TLS_FAILURE_PROPAGATES: (urllib.error.URLError, "certificate"),
+            _DIGEST_FAILURE_PROPAGATES: (ValueError, "digest differs"),
+            _HTTPS_DOWNGRADE_REJECTED: (ValueError, "redirected away from HTTPS"),
+            _EXISTING_DESTINATION_REJECTED: (FileExistsError, ""),
+            _SYMLINK_DESTINATION_REJECTED: (FileExistsError, ""),
+        }.get(label)
+        if rejected is not None:
+            with self.assertRaisesRegex(*rejected):
+                CI.host_archive("haproxy-htx", destination)
+            if label in {_TLS_FAILURE_PROPAGATES, _HTTPS_DOWNGRADE_REJECTED}:
+                self.assertFalse(archive.exists())
+            return
+        self.assertEqual(CI.host_archive("haproxy-htx", destination), archive)
+        self.assertEqual(archive.read_bytes(), payload)
+
+    def _assert_host_archive_transport_case(self, label, transport, original_pin, payload):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            pin = {**original_pin, "sha256": hashlib.sha256(payload).hexdigest()}
+            fixture = root / "version-contract.json"
+            fixture.write_text(json.dumps(pin))
+            destination = root / "downloads"
+            name = "haproxy-" + pin["version"] + ".tar.gz"
+            archive = destination / name
+            cached = root / "cached"
+            cached.mkdir(mode=0o700)
+            cached_archive = cached / name
+            cached_archive.write_bytes(payload)
+            if label == _EXISTING_DESTINATION_REJECTED:
+                destination.mkdir(mode=0o700)
+                archive.write_bytes(payload)
+            elif label == _SYMLINK_DESTINATION_REJECTED:
+                destination.symlink_to(cached, target_is_directory=True)
+
+            def resolved_fixture(logical, *, root):
+                self.assertEqual(logical, "connectors/haproxy/htx-overlay/version-contract.json")
+                self.assertEqual(root, ROOT)
+                return fixture
+
+            effects = self._host_archive_response_effects(label, pin, payload)
+            with patch.object(CI, "source_path", side_effect=resolved_fixture), \
+                    patch.object(CI, "load_tool", wraps=load_tool) as loader, \
+                    patch.object(transport, "download_archive", wraps=transport.download_archive) as shared, \
+                    patch.object(transport.urllib.request, "urlopen", side_effect=effects) as network, \
+                    patch.object(transport.time, "sleep"):
+                self._assert_host_archive_outcome(label, pin, destination, payload)
+                if label in {_EXISTING_DESTINATION_REJECTED, _SYMLINK_DESTINATION_REJECTED}:
+                    loader.assert_not_called()
+                    shared.assert_not_called()
+                    network.assert_not_called()
+                    self.assertEqual(archive.read_bytes(), payload)
+                else:
+                    loader.assert_called_once_with("ci/checks/analysis/prepare-sonar-native-context.py")
+                    shared.assert_called_once_with(pin["source_url"], archive)
+                    self.assertEqual(network.call_count, 2 if label == _TRANSIENT_RETRY_SELECTION else 1)
+                    for call in network.call_args_list:
+                        self.assertEqual(call.args[0].full_url, pin["source_url"])
+            self.assertEqual(cached_archive.read_bytes(), payload)
+
+    def test_host_archive_reuses_reviewed_transport_without_bypass(self):
+        transport = load_tool("ci/checks/analysis/prepare-sonar-native-context.py")
+        original_pin = json.loads(source_path("connectors/haproxy/htx-overlay/version-contract.json", root=ROOT).read_text())
+        payload = b"reviewed native host archive fixture"
+        for label in (
+            _SHARED_DOWNLOAD_SUCCESS, _TRANSIENT_RETRY_SELECTION,
+            _TLS_FAILURE_PROPAGATES, _DIGEST_FAILURE_PROPAGATES,
+            _HTTPS_DOWNGRADE_REJECTED, _EXISTING_DESTINATION_REJECTED,
+            _SYMLINK_DESTINATION_REJECTED,
+        ):
+            with self.subTest(transport=label):
+                self._assert_host_archive_transport_case(label, transport, original_pin, payload)
 
     def test_project_inventory_matches_real_native_producer_targets(self):
         tree = ast.parse((source_path('ci/checks/analysis/sonar-native-security/build-target.py', root=ROOT)).read_text())

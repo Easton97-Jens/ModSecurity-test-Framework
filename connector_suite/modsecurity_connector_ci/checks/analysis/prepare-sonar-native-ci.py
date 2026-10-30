@@ -19,7 +19,6 @@ import shutil
 import subprocess
 import sys
 import tarfile
-import urllib.request
 
 
 from modsecurity_test_framework.product_sources.ci.lib.framework_revision_pins import (
@@ -47,6 +46,7 @@ TARGETS = (
 NATIVE_STORAGE_ROOT = Path("/var/tmp/codex/ModSecurity-conector")
 PROJECT_PREFIX = "Easton97-Jens_ModSecurity-conector_native_"
 PROJECT_BASE_DIR = "sonar.projectBaseDir"
+SDK_PREFIX_SUBTREE = "sdk/cache-v2/shared/prefix"
 HEX40 = re.compile(r"[0-9a-f]{40}")
 
 
@@ -133,7 +133,7 @@ def prepare_sdk(root: Path, transfer: Path, revision: str) -> None:
 
 
 def fresh_transfer(root: Path, transfer: Path) -> Path:
-    prefixes = root / "sdk/cache-v2/shared/prefix"
+    prefixes = root / SDK_PREFIX_SUBTREE
     if (not transfer.is_absolute() or transfer.resolve() != transfer
             or transfer.is_relative_to(prefixes) or prefixes.is_relative_to(transfer)
             or transfer.exists() or transfer.is_symlink()
@@ -156,7 +156,7 @@ def pack_sdk(root: Path, transfer: Path, revision: str) -> None:
             or os.environ.get("MODSECURITY_SOURCE_URL") != contract["source_url"]):
         raise ValueError("prepared SDK does not match the canonical Framework source identity")
     prefix = Path(os.environ["MODSECURITY_PREFIX"]).resolve(strict=True)
-    prefixes = root / "sdk/cache-v2/shared/prefix"
+    prefixes = root / SDK_PREFIX_SUBTREE
     if not prefix.is_relative_to(prefixes / "modsecurity"):
         raise ValueError("prepared SDK prefix escapes the canonical shared cache")
     library = prefix / "lib/libmodsecurity.so"
@@ -206,7 +206,7 @@ def restore_sdk(root: Path, transfer: Path, revision: str) -> Path:
     if digest(bundle) != metadata["bundle_sha256"]:
         raise ValueError("SDK transfer archive digest mismatch")
     prefix = Path(metadata["prefix"])
-    expected = root / "sdk/cache-v2/shared/prefix"
+    expected = root / SDK_PREFIX_SUBTREE
     if prefix.resolve() != prefix or not prefix.is_relative_to(expected / "modsecurity") or expected.exists():
         raise ValueError("SDK transfer requires a fresh matching external prefix destination")
     if (metadata["provenance"]["actual_sha"] != metadata["source"]["commit"]
@@ -250,10 +250,7 @@ def host_archive(target: str, destination: Path) -> Path | None:
         raise ValueError("native host archive requires its canonical HTTPS identity and digest")
     destination.mkdir(mode=0o700)
     archive = destination / name
-    with urllib.request.urlopen(url, timeout=120) as response, archive.open("xb") as stream:
-        if not response.geturl().startswith("https://"):
-            raise ValueError("native host archive redirected away from HTTPS")
-        shutil.copyfileobj(response, stream)
+    load_tool('ci/checks/analysis/prepare-sonar-native-context.py').download_archive(url, archive)
     if digest(archive) != expected:
         raise ValueError("native host archive digest differs from its current canonical contract")
     return archive

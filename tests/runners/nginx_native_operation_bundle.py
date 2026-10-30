@@ -202,6 +202,38 @@ def required_source_paths(case_id):
     return frozenset({"parent:" + item for item in parent} | {"framework:" + item for item in framework})
 
 
+def _read_source_authority(name, sources):
+    """Read one source using its explicit reviewed Parent or Framework owner."""
+    owner, relative = name.split(":", 1)
+    root = sources.get(owner + "_root")
+    if owner == "parent":
+        # Admit the original authority with the same no-follow/owner guards.
+        descriptor = open_directory(root)
+        try:
+            metadata = os.fstat(descriptor)
+            require(metadata.st_uid == os.geteuid() and not metadata.st_mode & 0o022,
+                    "owned non-writable artifact authority required")
+        finally:
+            os.close(descriptor)
+        selected_parent = os.environ.get("CONNECTOR_ROOT")
+        if selected_parent and root.resolve() == Path(selected_parent).resolve():
+            require(sources.get("framework_root") == test_root(),
+                    "reviewed source requires the explicit selected Framework root")
+        path = source_path(relative, root=root)
+        roots = (root, sources.get("framework_root"))
+        require(all(isinstance(selected, Path) and selected.is_absolute()
+                    and ".." not in selected.parts for selected in roots),
+                "absolute artifact authority required")
+        require(any(path.is_relative_to(selected) for selected in roots),
+                "reviewed source must stay inside explicit Parent/Framework roots")
+        # Framework is a separate authority even when nested under Parent.
+        authority = roots[1] if path.is_relative_to(roots[1]) else roots[0]
+        raw = read_bounded_file(authority, path.relative_to(authority).as_posix())
+    else:
+        raw = read_bounded_file(root, relative)
+    return raw
+
+
 def verify_source_authority(record, envelope, sources):
     require(isinstance(sources, dict), "explicit source authority required")
     for field in ("parent_sha", "framework_sha", "mrts_sha"):
@@ -215,33 +247,7 @@ def verify_source_authority(record, envelope, sources):
     require(isinstance(mapping, dict) and set(mapping) == required, "closed producer/source path set mismatch")
     captured = {}
     for name in sorted(required):
-        owner, relative = name.split(":", 1)
-        root = sources.get(owner + "_root")
-        if owner == "parent":
-            # Admit the original authority with the same no-follow/owner guards.
-            descriptor = open_directory(root)
-            try:
-                metadata = os.fstat(descriptor)
-                require(metadata.st_uid == os.geteuid() and not metadata.st_mode & 0o022,
-                        "owned non-writable artifact authority required")
-            finally:
-                os.close(descriptor)
-            selected_parent = os.environ.get("CONNECTOR_ROOT")
-            if selected_parent and root.resolve() == Path(selected_parent).resolve():
-                require(sources.get("framework_root") == test_root(),
-                        "reviewed source requires the explicit selected Framework root")
-            path = source_path(relative, root=root)
-            roots = (root, sources.get("framework_root"))
-            require(all(isinstance(selected, Path) and selected.is_absolute()
-                        and ".." not in selected.parts for selected in roots),
-                    "absolute artifact authority required")
-            require(any(path.is_relative_to(selected) for selected in roots),
-                    "reviewed source must stay inside explicit Parent/Framework roots")
-            # Framework is a separate authority even when nested under Parent.
-            authority = roots[1] if path.is_relative_to(roots[1]) else roots[0]
-            raw = read_bounded_file(authority, path.relative_to(authority).as_posix())
-        else:
-            raw = read_bounded_file(root, relative)
+        raw = _read_source_authority(name, sources)
         require(mapping[name] == digest(raw), "actual producer/source bytes mismatch: " + name)
         captured[name] = raw
     for container in (record.get("provenance"), record.get("result")):

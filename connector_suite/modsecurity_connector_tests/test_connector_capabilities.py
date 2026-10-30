@@ -579,6 +579,43 @@ class ConnectorCapabilitiesTest(unittest.TestCase):
 
 
 
+class SourceContractOwnershipTests(unittest.TestCase):
+    def test_source_contract_paths_follow_their_selected_owner(self) -> None:
+        metadata = "connectors/apache/metadata.c"
+        logical = "connectors/apache/harness/run_apache_smoke.sh"
+        mapped = source_path(logical, root=ROOT)
+        original_is_file = Path.is_file
+        controls = (
+            "mapped-framework-without-product-copy",
+            "unmapped-product-source",
+            "missing-mapped-target-rejects-product-decoy",
+        )
+        for control in controls:
+            with self.subTest(control=control):
+                errors: list[str] = []
+                paths = [metadata] if control == "unmapped-product-source" else [metadata, logical]
+                data = {"metadata_source": metadata, "source_contract": paths}
+                if control == "missing-mapped-target-rejects-product-decoy":
+                    def selected_is_file(path: Path) -> bool:
+                        if path == mapped:
+                            return False
+                        if path == ROOT / logical:
+                            return True
+                        return original_is_file(path)
+                    with mock.patch.object(Path, "is_file", selected_is_file):
+                        connector_capabilities._validate_paths("apache", data, errors)
+                    self.assertEqual(errors, [f"apache: source-contract file does not exist: {logical}"])
+                else:
+                    if control == "mapped-framework-without-product-copy":
+                        self.assertFalse((ROOT / logical).exists())
+                        self.assertTrue(mapped.is_relative_to(test_root()))
+                        self.assertTrue(mapped.is_file())
+                    else:
+                        self.assertEqual(source_path(metadata, root=ROOT), ROOT / metadata)
+                    connector_capabilities._validate_paths("apache", data, errors)
+                    self.assertEqual(errors, [])
+
+
 # Parent default discovery uses the one admitted active-case inventory.
 if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
     def load_tests(loader, standard_tests, pattern):

@@ -340,7 +340,37 @@ def _validate_protected_caller(
         )
 
 
-def _validate_protected_triggers(text, document, callee, child, input_names):
+def _lighttpd_dispatch_declaration(caller, callee):
+    """Permit only the reviewed dispatch default on the required selector."""
+    caller_selector = caller.get("inputs", {}).get("on_demand")
+    callee_selector = callee.get("inputs", {}).get("on_demand")
+    if (
+        not isinstance(caller_selector, dict)
+        or not isinstance(callee_selector, dict)
+        or caller_selector.get("required") != "true"
+        or caller_selector.get("type") != "boolean"
+        or caller_selector.get("default") != "false"
+        or callee_selector.get("required") != "true"
+        or callee_selector.get("type") != "boolean"
+        or "default" in callee_selector
+    ):
+        raise WorkflowSourceError(
+            "protected Lighttpd selector must retain its exact required boolean interface"
+        )
+    return {
+        **caller,
+        "inputs": {
+            **caller["inputs"],
+            "on_demand": {
+                key: value for key, value in caller_selector.items() if key != "default"
+            },
+        },
+    }
+
+
+def _validate_protected_triggers(
+    text, document, callee, child, input_names, workflow_name
+):
     """Compare dispatch/call triggers and their full input declarations."""
     caller_on, child_on = _field(document, "on"), _field(child, "on")
     if (
@@ -354,8 +384,14 @@ def _validate_protected_triggers(text, document, callee, child, input_names):
         )
     caller_value = yaml.load(text, Loader=yaml.BaseLoader)
     child_value = yaml.load(callee, Loader=yaml.BaseLoader)
+    caller_declaration = caller_value["on"]["workflow_dispatch"]
+    child_declaration = child_value["on"]["workflow_call"]
+    if workflow_name == "run-trusted-lighttpd-namespace-dispatch.yml":
+        caller_declaration = _lighttpd_dispatch_declaration(
+            caller_declaration, child_declaration
+        )
     if (
-        caller_value["on"]["workflow_dispatch"] != child_value["on"]["workflow_call"]
+        caller_declaration != child_declaration
         or set(child_value["on"]["workflow_call"]) != {"inputs"}
         or set(child_value["on"]["workflow_call"]["inputs"]) != set(input_names)
     ):
@@ -441,7 +477,9 @@ def _protected_reusable_source(
         raise WorkflowSourceError(
             "protected callee must retain deny-default top-level permissions"
         )
-    _validate_protected_triggers(text, document, callee, child, input_names)
+    _validate_protected_triggers(
+        text, document, callee, child, input_names, workflow_name
+    )
     _validate_protected_jobs(child, permissions)
     # This view retains real inner IDs for source checks. It does not rename
     # GitHub's actual nested check contexts or authorize workflow execution.

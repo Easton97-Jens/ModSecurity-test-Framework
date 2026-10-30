@@ -100,6 +100,41 @@ class InventoryBindingsMaintenanceTests(unittest.TestCase):
             self.assertEqual(target.read_bytes(), original)
 
 
+    def test_indexed_apply_preserves_ordinals_and_all_selection_fields(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, value = self.fixture(root)
+            value["schema_version"] = 5
+            value["executions"][0]["sources"] = [0, 1]
+            path.write_text(json.dumps(value))
+            before = path.read_bytes()
+            with mock.patch.object(maintenance, "test_root", return_value=root), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(maintenance.main([]), 1)
+                self.assertEqual(path.read_bytes(), before)
+                self.assertEqual(maintenance.main(["--apply"]), 0)
+                self.assertEqual(maintenance.main(["--check"]), 0)
+            expected = copy.deepcopy(value)
+            expected["source_bindings"][0]["sha256"] = hashlib.sha256((root / "source.py").read_bytes()).hexdigest()
+            self.assertEqual(json.loads(path.read_bytes()), expected)
+            self.assertEqual(json.loads(path.read_bytes())["executions"][0]["sources"], [0, 1])
+            self.assertFalse((root / "connectors").exists())
+
+    def test_invalid_index_rejects_before_write(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, value = self.fixture(root)
+            value["schema_version"] = 5
+            value["executions"][0]["sources"] = [True, 1]
+            path.write_text(json.dumps(value))
+            before = path.read_bytes()
+            with (mock.patch.object(maintenance, "test_root", return_value=root),
+                  mock.patch.object(maintenance, "atomic_write") as write,
+                  contextlib.redirect_stderr(io.StringIO())):
+                self.assertEqual(maintenance.main(["--apply"]), 2)
+            write.assert_not_called()
+            self.assertEqual(path.read_bytes(), before)
+
+
 if os.environ.get("ON_DEMAND_TESTS") != "1":
     InventoryBindingsMaintenanceTests = unittest.skip("explicit specialist selection requires ON_DEMAND_TESTS=1")(InventoryBindingsMaintenanceTests)
 

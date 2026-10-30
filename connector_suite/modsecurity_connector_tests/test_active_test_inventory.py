@@ -472,6 +472,122 @@ class SharedSourceInventoryTests(unittest.TestCase):
         self.data["offline_unit_exceptions"][0]["groups"] = ["control"]
         self.rejected_before_child()
 
+class IndexedSourceInventoryTests(unittest.TestCase):
+    setUp = ActiveTestInventoryTests.setUp
+    load = ActiveTestInventoryTests.load
+    shared = SharedSourceInventoryTests.shared
+    offline = SharedSourceInventoryTests.offline
+
+    def indexed(self):
+        self.offline()
+        product = self.root / "product.txt"
+        product.write_text("explicit Product snapshot\n")
+        self.data.update(schema_version=5, connector_source_paths=["product.txt"])
+        for row in self.data["executions"] + self.data["offline_unit_exceptions"]:
+            row["sources"] = [0, 1]
+
+    def rejected_before_effects(self, message):
+        self.inventory_path.write_text(json.dumps(self.data))
+        before = tuple(self.output.iterdir())
+        with (patch.object(active.subprocess, "Popen") as child,
+              patch.object(active, "_output_directory") as allocate,
+              redirect_stderr(io.StringIO()) as error):
+            self.assertEqual(active.main(["--inventory", str(self.inventory_path),
+                                          "--output-root", str(self.output), "--group", "control"],
+                                         root=self.root), 2)
+        self.assertRegex(error.getvalue(), message)
+        child.assert_not_called()
+        allocate.assert_not_called()
+        self.assertEqual(tuple(self.output.iterdir()), before)
+
+    def test_schema4_and5_preserve_complete_execution_graph(self):
+        self.indexed()
+        original = copy.deepcopy(self.data)
+        indexed = self.load()
+        self.data["schema_version"] = 4
+        for row in self.data["executions"] + self.data["offline_unit_exceptions"]:
+            row["sources"] = ["tests/fixture_active.py", "product.txt"]
+        expanded = self.load()
+        self.assertEqual(indexed.executions, expanded.executions)
+        self.assertEqual(indexed.case_ids, expanded.case_ids)
+        self.assertEqual(indexed.offline_case_ids, expanded.offline_case_ids)
+        self.assertEqual(indexed.connector_source_paths, expanded.connector_source_paths)
+        self.assertEqual(indexed.default_executions, expanded.default_executions)
+        self.assertEqual(original["executions"][0]["sources"], [0, 1])
+        self.assertEqual(indexed.executions[0]["sources"], {
+            "tests/fixture_active.py": hashlib.sha256(self.source.read_bytes()).hexdigest(),
+            "product.txt": hashlib.sha256((self.root / "product.txt").read_bytes()).hexdigest()})
+
+    def test_invalid_indexed_references_reject_before_child(self):
+        self.indexed()
+        original = copy.deepcopy(self.data)
+        variants = {
+            "boolean": [True], "negative": [-1], "out-of-range": [2],
+            "float": [0.0], "string": ["0"], "null": [None],
+            "duplicate": [0, 0], "empty": [], "wrong-container": {"index": 0},
+            "mixed": [0, "product.txt"], "unselected-row": [2],
+        }
+        for label, references in variants.items():
+            with self.subTest(label=label):
+                self.data = copy.deepcopy(original)
+                section = "offline_unit_exceptions" if label == "unselected-row" else "executions"
+                self.data[section][0]["sources"] = references
+                self.rejected_before_effects("indexed sources")
+
+    def test_invalid_indexed_pool_rejects_before_child(self):
+        self.indexed()
+        original = copy.deepcopy(self.data)
+        variants = {
+            "duplicate-fixed": {"source_bindings": original["source_bindings"] * 2},
+            "cross-owner": {"connector_source_paths": ["tests/fixture_active.py"]},
+            "duplicate-product": {"connector_source_paths": ["product.txt", "product.txt"]},
+            "unused-fixed": {"source_bindings": original["source_bindings"] +
+                             [{"path": "unused.py", "sha256": "a" * 64}]},
+            "unused-product": {"connector_source_paths": ["product.txt", "unused.txt"]},
+        }
+        (self.root / "unused.txt").write_text("unused Product input\n")
+        for label, change in variants.items():
+            with self.subTest(label=label):
+                self.data = copy.deepcopy(original)
+                self.data.update(copy.deepcopy(change))
+                # Inserting a fixed binding shifts the Product index. Preserve
+                # the intended closure so this control proves the unused guard.
+                if label == "unused-fixed":
+                    for row in self.data["executions"] + self.data["offline_unit_exceptions"]:
+                        row["sources"] = [0, 2]
+                self.rejected_before_effects("duplicate reviewed source|source ownership|unused paths")
+
+    def test_indexed_core_overflow_rejects_before_child(self):
+        self.indexed()
+        self.data["executions"][0]["cases"] = [
+            {"id": f"core.case-{index}", "requirement": "Explicit indexed overflow boundary.",
+             "profiles": ["parent"]} for index in range(101)]
+        self.rejected_before_effects("101 cases; hard limit is 100")
+
+    def test_indexed_input_size_limit_rejects_before_child(self):
+        self.indexed()
+        self.data["executions"][0]["cases"][0]["requirement"] = "x" * active.MAX_INPUT_BYTES
+        self.rejected_before_effects("bounded regular non-symlink")
+
+    def test_indexed_source_expansion_is_bounded_before_source_reads(self):
+        self.indexed()
+        long_path = "modules/ModSecurity-test-Framework/" + "a" * 32768 + ".py"
+        self.data["source_bindings"].append({"path": long_path, "sha256": "a" * 64})
+        row = self.data["executions"][0]
+        row["sources"] = [0, 1, 2]
+        self.data["executions"] = [copy.deepcopy(row) for _ in range(65)]
+        self.data["offline_unit_exceptions"][0]["sources"] = [0, 1, 2]
+        self.assertLess(len(json.dumps(self.data).encode("utf-8")), active.MAX_INPUT_BYTES)
+        with patch.object(active, "read_source") as read:
+            self.rejected_before_effects("expanded indexed source paths exceed the 2 MiB size limit")
+        read.assert_not_called()
+
+    def test_legacy_index_expansion_is_noop(self):
+        original = copy.deepcopy(self.data)
+        active._expand_indexed_sources(self.data, self.data["executions"])
+        self.assertEqual(self.data, original)
+
+
 # Parent default discovery uses the one admitted active-case inventory.
 if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":
     def load_tests(loader, standard_tests, pattern):

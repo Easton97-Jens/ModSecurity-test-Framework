@@ -19,7 +19,7 @@ gepinnte Integrationsaufrufe. Getrennte Worktrees erhalten die Originalcheckouts
 ## Betroffene Komponenten und Sicherheitsgrenzen
 
 Explizite `TEST_ROOT` und `CONNECTOR_ROOT` trennen Testmechanik und geprüftes
-Produkt. Schema 4 bindet Framework-Quellhashes fest und Produktquellsnapshots an
+Produkt. Der in Schema 5 erhaltene Schema-4-Vertrag bindet Framework-Quellhashes fest und Produktquellsnapshots an
 die ausgewählte exakte Revision. Begrenzte Produktquellimporte ersetzen einen
 globalen Connector-Importpfad. Geschützte Ausführung authentifiziert geschützte
 Parent-Gitobjektkette und gepinnte Framework-Quelle vor der Codeauswahl.
@@ -94,7 +94,7 @@ Delivery werden ausdrücklich ausgewiesen und nicht aus dem Dateiumzug abgeleite
 | Laufzeitabweichungen | Zusammengeführte Apache-Duplikatheader verlangen explizite native Regelanpassung unter Erhalt von Regel `1100504` und Auditassertion; injizierte interne NGINX-Fehler verlangen HTTP 500 und Connector-Error-Semantik, fehlerhafte Clienteingabe behält HTTP 400. Tatsächliche Apache-Kontrollen und drei ausgewählte NGINX-Entwicklungs-H1-Fälle bestanden; finale Paarabnahme und vollständige Lifecycle-Qualifikation bleiben getrennt. |
 | Parallele Themen | HTTP/2, HTTP/3, Coverage und vollständige Abhängigkeitsprüfung bleiben außer erforderlichen Pfad-/Aufruferanpassungen außerhalb des Umfangs. MRTS-Paket-/Importkorrekturen gehören zum separaten Framework-Followup-Paket und gemeinsamen Integrationscheck. |
 | Gemeinsame Mechanik und Codeumfang | Native Extraktion ist Verschiebung; Loader-Konsolidierung entfernt Caller-Implementierung bei zusätzlichem gemeinsamem Helfercode. Daraus werden weder eine gleich große Gesamtreduktion noch vollständige mechanische Gleichwertigkeit abgeleitet. |
-| Validierung und Delivery | Neueste Standardbeobachtungen: 67 bestandene / 13 blockierte Ausführungen, 74 bestandene / 26 blockierte Fälle über dokumentierte Revisionen. Das eingetragene Paar e77/4391 und die explizite DEV-Probe bestanden vor den Quality-Folgekorrekturen; frühere begrenzte Apache-Nachweise bleiben erhalten. Paarabnahme nach nächsten Pins, installiertes Gate und gehostete Final-Head-Gates bleiben offen. Merge bleibt an die aktuelle Nutzerfreigabe und alle Pflicht-Gates gebunden. |
+| Validierung und Delivery | Neueste Standardbeobachtungen: 67 bestandene / 13 blockierte Ausführungen, 74 bestandene / 26 blockierte Fälle über dokumentierte Revisionen. Das eingetragene Paar 70ce/8ce und die explizite DEV-Probe bestanden vor den jüngsten Schnittstellen-/Transport-/Indexänderungen; frühere begrenzte Apache-Nachweise bleiben erhalten. Paarabnahme nach nächsten Pins, installiertes Gate und gehostete Final-Head-Gates bleiben offen. Merge bleibt an die aktuelle Nutzerfreigabe und alle Pflicht-Gates gebunden. |
 | Erweiterungsklassifikation und Datenschutz | Eine geschlossene geprüfte Menge mit Prozessausführung nutzt migration-integration; reine Kontrollen behalten Offline-Audit, ursprüngliche Baseline-Gruppen und Guard-ASTs bleiben erhalten. Private externe Ausgabe und Ausschluss von Kundennutzdaten/Zugangsdaten bleiben erforderlich. |
 
 ## Befehle und Ergebnisse
@@ -147,8 +147,8 @@ differenzielle Pfade und 94 Methoden / 286 Teilfälle bestanden. Sieben Go-Helfe
 Extraktionen in fünf Dateien erhalten nach Helfer-Inlining alle 210 ursprünglichen
 Funktions-ASTs und 112 Testdefinitionen; Normal-/Race-Läufe behalten exakt 205
 terminale Test-/Teiltestidentitäten, alle bestanden ohne Skips. Die 17 YAML-Guards
-und actionlint-/zizmor-Verträge bleiben erhalten; `default: false` des geschützten
-Callees ist wiederhergestellt. Alle 41 Trusted-/Lighttpd-Methoden / 185 Teilfälle
+und actionlint-/zizmor-Verträge bleiben erhalten. Der ungültige Callee-Default
+wurde später bei erhaltener exakter Dispatch-/Call-Schnittstelle entfernt. Alle 41 Trusted-/Lighttpd-Methoden / 185 Teilfälle
 bestanden unter Erhalt von 40 alten Methoden und 114 Assertions. Die Ausgabeprüfung
 bestand 39 Methoden und 13 Dateisystemprüfungen. HAProxy-Zuständigkeitsprüfungen
 bestanden 39 Methoden unter Erhalt von 25 bestehenden Methoden und allen Assertions.
@@ -157,18 +157,25 @@ Findings. Zwei C-Fixture-Verfeinerungen bestanden drei vorhandene Lebensdauer-/
 Mutationsmethoden in 51.935 Sekunden; alte/neue UTF-8-Smoke-Eingaben kompilierten
 und erzeugten bytegleiches stdout. Die tatsächliche native Evaluator-Übersetzungs-
 einheit und 59 kanonische Lighttpd-Ergebnisse behalten Parität zu 40 alten
-Verträgen. Dies sind lokale Nachweise für die Quality-Folgekorrekturen. Der native Lauf
-bestand 330 Tests in 162.737 Sekunden (äußerer Aufruf: 165.525 Sekunden). Erst
-danach scheiterte sein Folgeschritt, weil der Wrapper System-Python ohne PyYAML
-nutzte; der korrigierte Folgeschritt mit Framework-Interpreter bestand die exakten
-38-Dateien-Ruff-Lint-/Formatprüfungen und 19 Sonar-Vertragsmethoden in 4.838
-Sekunden ohne Installation. Ein Fünf-Connector-Konstantenmodul brauchte
-Formatierung; sein vollständiger AST ist identisch. Alle sechs Generator-/
-Prüfschritte bestanden danach erneut. Alle 15 ausgewählten öffentlichen Methoden
-und alle 15 impliziten Auswahlablehnungen bestanden ohne Skips bei bestandener
-Inventarzulassung. Diese öffentlichen Prüfungen gingen der reinen Formatkorrektur
-voraus; die erneute Zulassung danach bleibt eine separate Prüfung. Die Abnahme
-des nächsten committeten Paars und gehostete New-Head-Gates bleiben erforderlich.
+Verträgen. Dies sind lokale Nachweise für die Quality-Folgekorrekturen. Der erneuerte
+native Lauf bestand 330 Tests in 162.202 Sekunden (äußerer Aufruf: 165.353 Sekunden),
+die exakten 38-Dateien-Workflow-Ruff-Lint-/Formatprüfungen bestanden und 19 Sonar-
+Vertragsmethoden bestanden in 4.847 Sekunden. Die Prüfung indizierter Inventare
+bestand 61 Methoden / 21 Teilfälle in 18.843 Sekunden sowie zwei tatsächliche
+geschützte Kindprozesskontrollen; die frische Zulassung erfasste alle 1149
+Ausführungsdefinitionen / 2461 Fälle, nicht die Ausführung dieses Gesamtkatalogs.
+Alle 20 neuen öffentlichen Methoden / 47 expandierten Fälle und 20 impliziten
+Auswahlablehnungen bestanden ohne Skips über die ersten 16 erfolgreichen und
+vier fortgesetzten Selektoren. Der Koordinator hatte für diese vier Fixtures
+zunächst das bestehende Opt-in `ON_DEMAND_TESTS=1` ausgelassen; die strenge
+Skipprüfung lehnte diesen Versuch korrekt ab. Ihre korrigierten CLI-Aufrufe
+erhalten sowohl `--on-demand` als auch `ON_DEMAND_TESTS=1`; Umgebungs-Opt-in allein
+wurde weiterhin mit Exit 2 abgelehnt. Dafür änderten sich weder Quellen noch Tests
+oder Gates. Dies sind quellgebundene Belege der Arbeits-Folgekorrekturen:
+Die Framework-Revisionsumgebung des Kindes war ungesetzt, statt eine Abnahme
+eines künftigen committeten Paars vorzutäuschen. Unabhängiger Review von sieben
+Quellschnittstellen fand innerhalb dieses begrenzten Umfangs keinen validierten
+neu eingeführten Befund. Neue Commit-Paar- und Hosted-Head-Abnahme bleiben nötig.
 
 Die CI-Triage identifizierte drei getrennte Migrationsursachen: An der zweiten
 `sudo`-/`env -i`-Grenze verliert NGINX die vertrauenswürdige Run-ID; Envoy CRS
@@ -185,8 +192,8 @@ bestanden in 0.138 Sekunden. Das tatsächliche ausgewählte Framework-Manifest
 meldet 80 `former_xfail`- und 10 `mapped_only`-Einträge; Lese- und Fingerprint-
 SHA-256 stimmen überein. Private Framework-/Produkt-Decoy-Kontrollen und der
 bestehende `framework:`-Resolver bestanden. Dies sind lokale Grenz- und Generator-
-nachweise ohne Live-Host-Lauf. Das veröffentlichte Paar `e77`/`4391` bestand
-getrennt. Das frühere Source-Owner-Korrekturpaket mit 13 Dateien belegte diese lokalen Prüfungen:
+nachweise ohne Live-Host-Lauf. Das veröffentlichte Recorded-Paar `70ce`/`8ce` und die separate DEV-Probe
+bestanden; der ältere `e77`/`4391`-Beleg bleibt historisch gültig. Das frühere Source-Owner-Korrekturpaket mit 13 Dateien belegte diese lokalen Prüfungen:
 Start-/Remaining-/HAP-C- sowie Common-SDK-/Security-Prüfungen wählen die echten
 Framework-Make-/Quelleigentümer. Tatsächliche Common-Helfer-C/C++-Kompilierung
 erhält die drei Test-Heredocs und 679 Assertions sowie zwei Framework-Ergebnis-
@@ -197,37 +204,120 @@ getrackten regulären revisionsgebundenen Framework-Evaluator zu; acht vorhanden
 Methoden, tatsächlicher Bear-C++-Capture und öffentliches Parent-Make bestanden.
 NGINX-Request-Window-/Case-Info-Verarbeitung bindet die zugelassene Logs-Wurzel
 und unterstützt deren Geschwisterlayout: 62 vorhandene Methoden bestanden in
-30.853 Sekunden bei unveränderten strengen Lesern. Die aktuelle gehostete CI
-hat 12 bekannte Fehler durch alte Make-Orakel und den NGINX-Wurzelpfad. Die
-öffentlichen Parent-/Framework-Selektorlaufergebnisse nach erfolgreicher
-Inventaraktualisierung stehen noch aus; für das neue Harness wird kein Live-Host-PASS und kein frischer kompletter
-Standardlauf behauptet.
+30.853 Sekunden bei unveränderten strengen Lesern. Die spätere gehostete
+Triage auf `70ce` / `8ce` fand zwei andere Ursachen: actionlint lehnt das
+überflüssige `default: false` des verpflichtenden wiederverwendbaren Lighttpd-
+Inputs `on_demand` ab; rekursives HAProxy-Make löst einen relativen Pythonpfad im
+Komponentenverzeichnis auf. Der Callee lässt diesen Default nun weg; der exakte
+Parent-Dispatch-Default bleibt false, mit expliziter gleichnamiger Weitergabe,
+verpflichtenden booleschen Typen sowie unveränderten Berechtigungs-, Pin- und
+Triggerprüfungen. Acht benannte ungültige Schnittstellen werden abgelehnt. Das
+quotierte vorhandene `FRAMEWORK_PYTHON` korrigiert die rekursive Grenze: Derselbe
+gewählte relative Interpreter reproduzierte zuvor Error 127; danach bestand das
+tatsächliche Parent-HTX-Target. Alle 22 Framework-Workflows bestanden actionlint/
+ShellCheck. Erneuerte native-/Sonar-Vertragsprüfungen und die 20 öffentlichen
+Selektoren bestanden wie oben begrenzt belegt.
+
+Die erneuerte Capability-Erfassung prüft den ausgewählten Quelleigentümer:
+zugeordnete Pfade liegen im Framework, nicht zugeordnete produktive Pfade im
+Produkt; ein fehlendes zugeordnetes Ziel weist einen Produkt-Köder zurück.
+Alle 18 Modulmethoden bestanden, einschließlich der drei benannten Varianten
+der neuen Methode; die öffentliche Collector-Prüfung bestand für 6 Connectors /
+60 Capability-Einträge. Dies prüft Quellverträge und belegt keine Laufzeit-
+Hostfähigkeit. Erneute tatsächliche C17-Compilerläufe für Apache, NGINX und
+HAProxy bestanden; der NGINX-/HAProxy-Lauf dauerte mit geprüften gecachten
+Header-Eingaben 8.615 Sekunden. Die früheren fünf Source-Owner-Orakel belegten
+Verdrahtung, keine vollständige Kompilierung. Die neue öffentliche Capability-
+Methode bestand separat ihre 3 Varianten und 1 implizite Auswahlablehnung.
+Die bisherigen 20 Methoden / 47 Varianten und 20 Ablehnungen behalten ihre eigenen
+quellgebundenen Belege; ein gemeinsamer Lauf mit 21 Methoden wird nicht behauptet.
+Aktuelle Hosted-Abnahme bleibt ausstehend; die historische `8ce`-Analyse hat
+weiterhin Gate `ERROR` mit 120 OPEN-Issues.
+
+Ein tatsächlicher Parent-Aufruf `make quick-check` bestand mit Exit 0 in
+576.252 Sekunden innerhalb seiner 600-Sekunden-Grenze. Er erreichte das gesamte
+vorausgesetzte Lint, das kanonische Installed-actionlint-Modul, den Lint-Diffcheck,
+die Python-Kompilierung der Framework-Normalizer/-Runner-/CI-Quellen und den
+abschließenden Quick-check-Diffcheck. Alle 510 Quellbindungen blieben ohne Drift
+unverändert. Das Log enthält 79 bestandene Ausführungsquittungen für 18 eindeutige
+Ausführungs-IDs; dies ist keine Hostqualifikation von 80 Ausführungen. Der frühere
+Timeout des kombinierten Target-Aufrufs folgte aus der Aufrufannahme des
+Koordinators: Parents `%`-Dispatcher startet für jedes angeforderte Target ein
+eigenes Submake. Dieser Timeout war kein Quellfehler und keine Guard-Ausnahme.
+Die beiden Make-Korrekturen erhalten die quotierte Weitergabe des relativen
+Framework-Python und rufen Installed-Workflow-Lint über
+`-m modsecurity_connector_ci.tools.lint_installed_workflows` auf; 11 fokussierte
+Tests und die tatsächliche CLI bestanden. Dies belegt die lokale `70ce`/`8ce`-
+Folgekorrektur, keine Abnahme eines künftigen committeten Paars oder Hosted-Heads.
+
+Drei C++-Jobs und der native HAProxy-/Runtime-Pfad trafen auf ein nicht
+erreichbares Netzwerk. Runtime hatte bereits drei Versuche; zusätzliche
+Runtime-Wiederholungen werden nicht eingeführt. Native Beschaffung nutzt einen
+gemeinsamen Transport mit höchstens drei Versuchen nur bei vorübergehenden
+Fehlern: HTTPS/TLS und Digests bleiben verpflichtend, dauerhafte Fehler werden
+nicht wiederholt und vorhandene Ziele nicht überschrieben. Tatsächliche
+Prüfsummenparität gepinnter Cachearchive bestand, einschließlich des direkten
+verifizierten Cachepfads ohne Netzwerk; dies belegt keine gehostete
+Netzwerkerholung. Der beobachtete Apache-Job nutzte die Merge-Revision `054c`,
+nicht den wörtlichen Parent-Stand `70ce`.
+
+Vier Traefik-Source-Owner-Reparaturen erhalten alle 62 Testmethoden-ASTs; die
+beiden eigenständigen Module erhalten ihre vollständigen ursprünglichen ASTs
+abgesehen von wiederhergestellten Imports. Tatsächliche begrenzte native/
+Dateitests (9) und private Exporttests (52) bestanden. Fünf weitere Komplexitäts-
+zerlegungen bestanden dieselben 119 bestehenden Methoden vor und nach der
+Änderung bei erhaltenen Guards und Assertions. Native Gitobjekt-Authentifizierung
+bestand 28 Methoden in 144.687 Sekunden, 16 benannte Probes und eine Offline-
+Importgrenzprüfung mit dem exakt geprüften lokalen SHA1_DC-Backend. Dies sind
+begrenzte lokale/Quellnachweise, keine öffentliche Hostqualifizierung. Frischer
+Standardlauf, nächstes committetes Paar und gehostete New-Head-Abnahme bleiben
+getrennt nachzuweisen.
 
 Der Umzug von 1295 Quellpfaden ist von Deduplizierung zu unterscheiden. Die
 begrenzte Loader-Konsolidierung ersetzte 326 Blöcke und entfernte netto 1067
 Loader-Zeilen; 29 neue gemeinsame Loader-Zeilen sind separat erfasst. Dies sind
 Loader-Metriken, keine Behauptung über die gesamte Codeverkleinerung.
 
-Das registrierte kanonische Inventar enthält
-**100 Standardfälle / 80 Ausführungen**, **2314 On-demand-Fälle / 1049
-Ausführungen**, **508 feste Framework-Testquellbindungen** und **234
-Produktquellsnapshots**. Sein kompaktes JSON umfasst **2096459 Bytes** und lässt
-**693 Bytes** bis zur unveränderten Zulassungsgrenze von **2097152 Bytes (2 MiB)**.
-Alle 492 bisherigen Bindungsidentitäten bleiben erhalten, alle 508 Bindungen
-werden genutzt; die ursprünglichen 1993 Falldictionaries bleiben exakt gleich. Dies sind Auswahl-/
-Quellmengen, keine Zahlen ausgeführter oder bestandener Fälle. Die Erweiterung
-fügt 62 explizite On-demand-Methoden hinzu: 28 Clean-Pair-Methoden, 14 MRTS-Paket-
-Methoden, 3 Klassifikationsguards, 2 Prepared-/Backend-Helfermethoden, 4 Kontext-
-methoden, 2 Methoden für versiegelte Aufrufe sowie je eine Collector- und SDK-Methode und 7 unabhängige Quality-Guards; die ursprüngliche Baseline mit 1993 Fällen
-bleibt unverändert. Eine geschlossene geprüfte Menge von 155 neuen Zeilen mit
-Prozessausführung nutzt in 12 Modulen die Gruppe `migration-integration` mit
-aus dem Target abgeleiteten ID-Hashes; 55 reine Kontrollen behalten die Offline-
-Audit-Gruppe; die Prozessmodul-Allowlist bleibt unverändert. Die Gruppenzuordnungen der ursprünglichen 1993 Fälle und die ASTs
-der Guardfunktionen bleiben unverändert. Jede der sieben neuen Methoden deklariert
-einen Fall und bestand den tatsächlichen Offline-Guard vor Imports ohne Effekte,
-Quellschreibzugriffe oder Skips. Für die JSON-Größe wurde nur Zweckprosa ergänzter
-Migrationsfälle gekürzt; IDs, Varianten, Selektoren, Quellen und Tests änderten
-sich durch diese Kompaktierung nicht; die ursprünglichen 40 reinen Kontrollen, beide reinen Helfermethoden und vier geschützte Kontextmethoden bestanden.
+Das registrierte kanonische Inventar enthält **100 Standardfälle /
+80 Ausführungen**, **2364 On-demand-Fälle / 1070 Ausführungen**, **510 feste
+Framework-Testquellbindungen** und **235 Produktquellsnapshots**. Sein kompaktes
+Schema-5-JSON umfasst **1081306 Bytes** und lässt **1015846 Bytes** bis zur
+unveränderten Eingabegrenze von **2097152 Bytes (2 MiB)**. Alle 508 bisherigen
+Bindungsidentitäten bleiben erhalten; alle 510 Bindungen und alle 745 geordneten
+Pooleinträge werden genutzt. Die ursprünglichen 1993 Falldictionaries bleiben
+exakt gleich. Dies sind Auswahl-/Quellmengen, keine Zahlen ausgeführter oder
+bestandener Fälle. Expandierte UTF-8-Quellpfade umfassen 1061485 Bytes unter
+der unveränderten Grenze vor Materialisierung. Der aktuelle Katalog deklariert 1150 Ausführungsdefinitionen /
+2464 Fälle; dies behauptet keine Ausführung.
+
+Die Erweiterung enthält 83 explizite On-demand-Methoden: die bisherigen 62 plus
+21 unabhängig registrierte reine Methoden mit 50 expandierten Fällen in diesem
+Paket (9 Transportmethoden / 9 Fälle, 1 Kompositionsmethode / 8 Fälle,
+9 Methoden für indizierte Inventare / 23 Fälle, 1 gemeinsame Transportmethode /
+7 Fälle, 1 Source-Owner-Methode / 3 Fälle). Alle 21 bestanden frische vor Imports installierte Offline-Guards
+ohne Effekte, Quellschreibzugriffe oder Skips. Die 76 reinen Kontrollen behalten
+die Offline-Audit-Gruppe; 155 neue Zeilen mit Prozessausführung behalten
+`migration-integration` mit derselben Allowlist von 12 Modulen. Ursprüngliche
+Gruppen und Guardfunktions-ASTs bleiben unverändert. Der Rundlauf des gesamten
+Pfadgraphen erhält Reihenfolge und alle bisherigen Referenzen; erweitert wird
+nur die explizit geprüften neuen Map-zu-Integration-/Active- und
+Capability-Source-Owner-Closures. Kein Archiv
+wird automatisch ausgewählt und kein Standardfall ergänzt.
+
+Schema 4 führte getrennte feste Framework-Testquellprüfsummen und
+`connector_source_paths` ein. Schema 5 erhält diese geordneten Pools und speichert
+`sources` jeder Ausführung als Ganzzahlindizes in den Pool aus zunächst festen
+Framework-, danach Produktpfaden. Dies ersetzt wiederholte Pfade, nachdem das
+frühere JSON sein Budget beinahe ausgeschöpft hatte; Abhängigkeiten oder Auswahl
+werden nicht entfernt. Schemas 1–4 bleiben kompatibel. Boolesche, unbekannte,
+doppelte und ungenutzte Referenzen werden abgelehnt. Sowohl rohe JSON-Eingabe als
+auch expandierte UTF-8-Quellpfadbytes sind auf 2097152 Bytes begrenzt; die
+Expansionsgrenze wird vor Materialisierung oder Quelllesezugriffen geprüft. Die
+Grenze von 100 Standardfällen bleibt unverändert. Pflege erhält Indexreihenfolge
+und atomare Aktualisierung. Produkteingaben werden aus der explizit gewählten
+Revision erfasst, im Beleg aufgeführt und vor/nach Ausführung erneut geprüft.
+Collector-Änderungen verlangen weiterhin eine geprüfte feste Prüfsumme;
+Produkt-Updater verändern das unabhängige Framework-Inventar nicht.
 
 Die 120 neuen fokussierten Methoden bestanden ohne Skips, einschließlich der
 Ergebnisintegritäts-Teilmenge mit 56 Methoden / 131 expandierten Varianten und
@@ -331,7 +421,7 @@ mit 38 Dateien bestand.
 ## Sicherheitsauswirkung
 
 Explizite `TEST_ROOT` und `CONNECTOR_ROOT` trennen Testmechanik und geprüftes
-Produkt. Schema 4 bindet Framework-Quellhashes fest und Produktquellsnapshots an
+Produkt. Der in Schema 5 erhaltene Schema-4-Vertrag bindet Framework-Quellhashes fest und Produktquellsnapshots an
 die ausgewählte exakte Revision. Begrenzte Produktquellimporte ersetzen einen
 globalen Connector-Importpfad. Geschützte Ausführung authentifiziert geschützte
 Parent-Gitobjektkette und gepinnte Framework-Quelle vor der Codeauswahl.
@@ -429,26 +519,28 @@ Parent-Make-Target `test-framework-integration-probe` auf und validiert das exak
 zugelassene Ergebnis des Common-Headertests. Die Prüfung verlangt vorhandenes Git,
 Make, kompatibles Python und `cc` sowie vorhandenen privaten externen
 Ausgabespeicher. Uncommittete Quelländerungen werden nicht in das Paar kopiert.
-Das committete saubere Paar Connector `e77c833eef4b23e1252dbcd4c6507ded0b7e2064` /
-Framework `4391a424f34ea9c7b7ed09fd1df72a38a23cb909` bestand in 126.317 Sekunden im Recorded-Pin-Modus
-mit `standard_combination=true`, beiden Checkouts sauber vor/nach dem Lauf und
-einem bestandenen tatsächlichen Parent-Make → Common-C1-Test.
+Das committete saubere Paar Connector
+`70cefa5706b1a8339046f3f3d1f77ea9493f3cd0` / Framework
+`8ce35c1108d753986b11cb011d24fc99f262f112` bestand in 125.528 Sekunden im Recorded-
+Pin-Modus mit `standard_combination=true`, beiden Checkouts sauber vor/nach dem
+Lauf und bestandenem tatsächlichem Parent-Make → Common-C1-Test.
 
-Ein getrennter expliziter DEV-Lauf bestand mit demselben Connector und ausgewähltem
+Ein getrennter expliziter DEV-Lauf bestand mit demselben Connector und gewähltem
 Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, eingetragenem Gitlink
-`4391a42`, in 123.559 Sekunden mit `mode=development` und `standard_combination=false`. Vor/nach dem Lauf
-wich nur der erwartete Connector-Gitlink ab; Framework blieb sauber. Die echte
-UID-1001-Bridge stellte 11 Exporte bereit, das private Ausgabeverzeichnis behielt
-Modus 0700 und die Wrong-Pin-Kontrolle lehnte mit Exit 77 ab. Alle 90 Updater-
-Methoden / 216 Teilfälle bestanden ohne Skips über den 39-Methoden-Lauf
-(93.183 Sekunden) und den 51-Methoden-Lauf (77.813 Sekunden). Diese Paarnachweise
-gehen den Quality-Folgekorrekturen voraus; die Abnahme des nächsten
-committeten Paars muss erneuert werden. Der frühere
-veraltete DEV-Versuch bleibt abgelehnt. Frühere Apache-H1-Kontrollen auf
-`cfd5e49` / `e52d7d4` behalten ihren begrenzten 28.625-Sekunden-Beleg. Nach den
-nächsten Pins bleiben erneute Abnahme und aktuelle gehostete Gates für Framework
-#142 / Connector #434 erforderlich. Nachweise bleiben in privatem externem
-Ausgabespeicher; versionierte Belege dürfen keine Kundennutzdaten oder Zugangsdaten enthalten.
+`8ce35c1`, in 123.950 Sekunden mit `mode=development` und
+`standard_combination=false`. Nur der erwartete Connector-Gitlink wich vor/nach
+dem Lauf ab; Framework blieb sauber. Die echte UID-1001-Bridge stellte 11 Exporte
+bereit, erhielt privaten Ausgabemodus 0700 und lehnte den falschen Pin mit Exit
+77 ab. Alle 90 Updater-Methoden / 216 Teilfälle bestanden ohne Skips über Läufe
+mit 39 Methoden (90.988 Sekunden) und 51 Methoden (77.711 Sekunden). Diese Belege
+gelten für genau dieses veröffentlichte Paar vor den neuesten Schnittstellen-,
+Transport- und Indexinventaränderungen. Sie nehmen das nächste committete Paar
+nicht ab. Frühere Recorded-/DEV-Belege für `e77` / `4391` (126.317 / 123.559
+Sekunden), der abgelehnte veraltete DEV-Versuch und Apache H1 auf `cfd5e49` /
+`e52d7d4` (28.625 Sekunden) behalten ihren historischen Umfang. Abnahme nach den
+nächsten Pins und aktuelle gehostete Gates für Framework #142 / Connector #434
+bleiben erforderlich. Belege bleiben in privatem externem Speicher; versionierte
+Belege enthalten keine Kundennutzdaten oder Zugangsdaten.
 
 ```sh
 PYTHONSAFEPATH=1 PYTHONPATH="$FRAMEWORK_ROOT:$FRAMEWORK_ROOT/connector_suite" \
@@ -537,23 +629,34 @@ in 20.519 Sekunden mit unveränderten Guards, einschließlich der sechs tatsäch
 Root/nobody-Deskriptorfälle. Diese Beobachtungen sind kein gemeinsamer Final-Head-
 Suitenlauf und führen keine Fall-IDs ein. Das genannte committete Paar bestand
 separat; nach den nächsten Pins bleiben erneute Paarabnahme und gehostete Gates
-für Framework-PR #142 / Connector-PR #434 erforderlich. Die vollständige Exact-Head-Sonar-Analyse von Connector
-`e77c833eef4b23e1252dbcd4c6507ded0b7e2064` bestand alle fünf Gate-Bedingungen:
-2.0% Duplikation, null ungelöste Issues und null TO_REVIEW-Hotspots. Die erste
-vollständige Framework-Analyse von `4391a424f34ea9c7b7ed09fd1df72a38a23cb909`
-verfehlte ihr Gate mit Zuverlässigkeit B und Security E: 280 ungelöste Issues
-(86 von Sonar klassifizierte Schwachstellen, 193 Code-Smells, ein Bug), null
-Hotspots und 0.0% Duplikation. Diese Kategorien sind keine unabhängig validierten
-Exploits. Beide Issue-Inventare sind vollständig. Nach ausdrücklicher Nutzerfreigabe erhielten acht einzeln geprüfte Modellfehler-
-Findings issuespezifische Belegkommentare und Status `FALSE_POSITIVE`; die Server-
-Rücklesung verifizierte jede Disposition gegen unveränderte Quellhashes am exakten
-Head `4391`. Dies ist weder pauschale Disposition noch Risikoakzeptanz oder
-Regeländerung. Die frische headgebundene Rücklesung zeigt jetzt 272 ungelöste
-Issues (78 von Sonar klassifizierte Schwachstellen, 193 Code-Smells, ein Bug),
-null Hotspots und weiterhin Framework-Gate `ERROR`. Der erste Snapshot mit 280
-Issues bleibt historisch; lokale Codekorrekturen brauchen weiterhin eine neue Analyse. Die Quality-Folgekorrekturen haben
-keine erneuerte gehostete Abnahme. Framework hat kein sauberes Quality Gate und ist nicht mergebereit;
-keiner der Migrations-PRs ist gemergt.
+für Framework-PR #142 / Connector-PR #434 erforderlich. Die historische Sonar-Analyse von Connector
+`e77c833eef4b23e1252dbcd4c6507ded0b7e2064` bestand alle fünf Gate-Bedingungen mit
+2.0% Duplikation, null ungelösten Issues und null TO_REVIEW-Hotspots. Dies ist
+kein Sonar-PASS für Parent `70ce`: Die letzte Rücklesung analysierte weiterhin
+`e77`. Das historische Framework `4391` hatte zunächst 280 Issues und nach acht
+nutzerautorisierten einzeln belegten Fehlalarmen 272. Die historische Framework-
+Analyse von `8ce35c1108d753986b11cb011d24fc99f262f112` um 16:46:21 UTC hatte
+Zuverlässigkeit A, Wartbarkeit A, 0.0% Duplikation und keine Hotspots, aber Security
+E und Gate `ERROR`; ihr erstes vollständiges Issue-Inventar enthielt 178 ungelöste
+Findings. Diese Anfangszahl ist kein aktueller Restbestand. Nutzerautorisierte
+issuespezifische Kommentare und Serverrücklesungen bestätigen getrennt die
+bisherigen acht, 24 nativen, 16 Python- und weiteren 16 nativen Vertrags-
+Fehlalarmdispositionen. Zwei weitere Lifecycle-Modellfehler erhöhen die einzeln
+belegte Gesamtzahl auf 66. Die zusätzlichen 16 nativen Vertragsdispositionen
+betreffen vier Controller- und zwölf ABI-Modellfehler; elf tatsächliche C17-
+Typ-Probes bestanden mit drei positiven und acht Const-Inkompatibilitätskontrollen.
+Die vollständige Serverrücklesung um 18:38:27 UTC für die `8ce`-Analyse vom
+16:46:21 UTC zeigt 120 OPEN-Issues und null Hotspots; Gate `ERROR` und Security E
+bleiben bei Zuverlässigkeit A, Wartbarkeit A und 0.0% Duplikation. Die zwei neuen
+individuellen Rücklesungen betreffen `_7KT`s schreibgeschützte Post-Link-
+`TMPDIR`-Provenienz, keine Zulassung vor Compiler-Ausführung, und `_7MD`s
+synchronen `re.subn`-Callback. Alle 10 CLI-Autoritätsfragen bleiben offen; diese
+Dispositionen lassen keine Compilerargumente oder Werkzeuge zu. Die optionale Coverage-Bedingung meldet OK,
+ohne damit eine neue Coverage-Menge zu belegen. Python `_7Lu` und alle anderen
+unsicheren Findings bleiben offen; es gibt weder pauschale Disposition noch
+Risikoakzeptanz oder Regeländerung. Sonar-Kategorien sind keine unabhängig
+validierten Exploits. Beide Migrations-PRs bleiben Draft und ungemergt; das nächste
+committete Paar und tatsächliche Analysen/Gates des neuen Heads bleiben erforderlich.
 
 Gitleaks-Baseline-Beobachtungen und geprüfte Fehlalarmklassifikation sind
 getrennt. Die aktuelle Konfiguration enthält zwei `generic-api-key`-Allowlists,

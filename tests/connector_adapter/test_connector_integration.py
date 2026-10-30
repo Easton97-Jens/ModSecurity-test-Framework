@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -39,7 +38,11 @@ class CleanCombinationGuards(unittest.TestCase):
         )
 
     def test_object_content_cannot_borrow_another_identity(self):
-        value = b"tree " + b"b" * 40 + b"\n\nmessage\n"
+        value = (
+            b"tree " + b"b" * 40
+            + b"\nauthor Fixture <fixture@example.invalid> 0 +0000\n"
+            + b"committer Fixture <fixture@example.invalid> 0 +0000\n\nmessage\n"
+        )
         replies = [
             str(len(value)).encode(),
             b"a" * 40 + b" commit " + str(len(value)).encode() + b"\n" + value + b"\n",
@@ -51,10 +54,12 @@ class CleanCombinationGuards(unittest.TestCase):
             integration.raw_object(Path("/unused"), "a" * 40, "commit")
 
     def test_authenticated_object_uses_actual_returned_bytes(self):
-        value = b"tree " + b"b" * 40 + b"\n\nmessage\n"
-        identity = hashlib.sha1(
-            b"commit " + str(len(value)).encode() + b"\0" + value
-        ).hexdigest()
+        value = (
+            b"tree " + b"b" * 40
+            + b"\nauthor Fixture <fixture@example.invalid> 0 +0000\n"
+            + b"committer Fixture <fixture@example.invalid> 0 +0000\n\nmessage\n"
+        )
+        identity = "201332972afb6d9cb235ab1761c2776c30119a18"
         replies = [
             str(len(value)).encode(),
             identity.encode()

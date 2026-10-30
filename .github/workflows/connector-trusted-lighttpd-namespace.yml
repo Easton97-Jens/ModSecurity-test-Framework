@@ -11,7 +11,6 @@ on:
         description: Explicitly execute the archived namespace specialist tests outside the automatic active inventory.
         required: true
         type: boolean
-        default: false
 
 permissions: {}
 

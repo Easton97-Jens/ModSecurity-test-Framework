@@ -16,7 +16,7 @@ import time
 if __package__:
     from .source import MAX_FILE, SourceFailure, stream_file
 else:
-    from connector_suite.adapters.traefik.harness.i12_file.source import MAX_FILE, SourceFailure, stream_file
+    from source import MAX_FILE, SourceFailure, stream_file
 
 MAX_WIRE = 1024 * 1024
 

@@ -407,6 +407,17 @@ def _validate_stages(connector: str, data: dict[str, Any], errors: list[str]) ->
             )
 
 
+def _source_contract_file(path: Path) -> Path:
+    if ROOT != connector_root():
+        return ROOT / path
+    selected = source_path(path, root=ROOT)
+    framework = test_root()
+    authority = framework if selected.is_relative_to(framework) else ROOT
+    if not selected.resolve(strict=False).is_relative_to(authority.resolve()):
+        raise ValueError(f"source-contract path escapes its selected owner: {path}")
+    return selected
+
+
 def _validate_paths(connector: str, data: dict[str, Any], errors: list[str]) -> None:
     expected_metadata = f"connectors/{connector}/metadata.c"
     metadata_value = data.get("metadata_source")
@@ -424,7 +435,14 @@ def _validate_paths(connector: str, data: dict[str, Any], errors: list[str]) -> 
         errors.append(f"{connector}: source_contract must include metadata_source")
     for index, value in enumerate(source_contract):
         path = _relative_source_path(value, f"{connector}.source_contract[{index}]", errors)
-        if path is not None and not (ROOT / path).is_file():
+        if path is None:
+            continue
+        try:
+            selected = _source_contract_file(path)
+        except ValueError as exc:
+            errors.append(f"{connector}: {exc}")
+            continue
+        if not selected.is_file():
             errors.append(f"{connector}: source-contract file does not exist: {value}")
 
 

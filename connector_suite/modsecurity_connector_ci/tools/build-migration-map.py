@@ -21,6 +21,9 @@ import re
 import subprocess
 import sys
 
+from modsecurity_test_framework.connector_integration import git_object_identity
+from modsecurity_connector_ci.lib.active_test_inventory import _expand_indexed_sources, _keys
+
 from modsecurity_test_framework.connector_context import (
     connector_root,
     test_root,
@@ -103,8 +106,7 @@ def original_sources(root, revision, paths):
             raise ValueError("invalid Git batch boundary")
         cursor += 1
         if (
-            hashlib.sha1(b"blob " + str(size).encode() + b"\0" + body).hexdigest()
-            != header[0]
+            git_object_identity("blob", body) != header[0]
         ):
             raise ValueError("original Git source blob identity differs: " + name)
         result[name] = body
@@ -1140,6 +1142,13 @@ def generate():
     mapping = json.loads(mapping_bytes)["paths"]
     inventory_bytes = source_path(INVENTORY).read_bytes()
     inventory = json.loads(inventory_bytes)
+    if type(inventory.get("schema_version")) is not int or inventory["schema_version"] not in {4, 5}:
+        raise ValueError("current migration inventory requires schema 4 or 5")
+    _keys(inventory, {"schema_version", "executions", "offline_unit_exceptions",
+                      "source_bindings", "connector_source_paths"}, "current migration inventory")
+    _expand_indexed_sources(
+        inventory, inventory["executions"] + inventory["offline_unit_exceptions"]
+    )
     tracked = git(product, "ls-tree", "-rz", "--name-only", UPDATED_BASE).split(b"\0")
     originals = [
         name.decode()

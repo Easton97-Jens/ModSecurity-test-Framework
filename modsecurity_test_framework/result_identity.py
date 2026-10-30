@@ -37,9 +37,8 @@ def validate_result_binding(binding: Mapping[str, Any]) -> dict[str, str]:
     return validated
 
 
-def validate_request_observation(binding: Mapping[str, Any]) -> dict[str, str]:
-    """Validate the explicit, non-promoting completed-client observation mode."""
-    validated = validate_result_context(binding)
+def _validate_client_observation(binding, validated):
+    """Keep a completed client observation separate from native host evidence."""
     request = binding.get("request_id")
     if not isinstance(request, str) or re.fullmatch(r"request-[0-9a-f]{32}", request) is None:
         raise ValueError("request observation requires its own bounded request nonce")
@@ -53,6 +52,10 @@ def validate_request_observation(binding: Mapping[str, Any]) -> dict[str, str]:
     if any(binding.get(field) is not None for field in (
             "native_operation_receipt", "configtest_receipt", "first_byte_binding_path", "first_byte_evidence_path")):
         raise ValueError("client observation cannot claim native host evidence")
+
+
+def _validated_observation_proof(binding, validated):
+    """Check the closed pinned receipt context, digests and interval bounds."""
     proof = binding.get("request_observation")
     if not isinstance(proof, dict) or proof.get("state") != "completed" or proof.get("schema_version") != 2:
         raise ValueError("request observation requires a completed pinned window receipt")
@@ -70,6 +73,11 @@ def validate_request_observation(binding: Mapping[str, Any]) -> dict[str, str]:
               "start_offset", "end_offset", "receipt_sha256"}
     if set(proof) != fields:
         raise ValueError("request observation receipt fields are incomplete")
+    return proof
+
+
+def _verify_observation_hashes(proof):
+    """Bind the canonical completed receipt and begun nonce to their actual bytes."""
     receipt = {key: value for key, value in proof.items() if key != "receipt_sha256"}
     raw = (json.dumps(receipt, sort_keys=True) + "\n").encode("utf-8")
     if hashlib.sha256(raw).hexdigest() != proof["receipt_sha256"]:
@@ -80,6 +88,14 @@ def validate_request_observation(binding: Mapping[str, Any]) -> dict[str, str]:
     begin["state"] = "begun"
     if hashlib.sha256((json.dumps(begin, sort_keys=True) + "\n").encode()).hexdigest() != proof["begin_sha256"]:
         raise ValueError("request observation begin digest does not bind its nonce and context")
+
+
+def validate_request_observation(binding: Mapping[str, Any]) -> dict[str, str]:
+    """Validate the explicit, non-promoting completed-client observation mode."""
+    validated = validate_result_context(binding)
+    _validate_client_observation(binding, validated)
+    proof = _validated_observation_proof(binding, validated)
+    _verify_observation_hashes(proof)
     return validated
 
 

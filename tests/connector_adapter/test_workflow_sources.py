@@ -166,6 +166,7 @@ on:
         required: true
         type: string
       on_demand:
+        required: true
         type: boolean
         default: false
 permissions: {}
@@ -187,8 +188,8 @@ on:
         required: true
         type: string
       on_demand:
+        required: true
         type: boolean
-        default: false
 permissions: {}
 concurrency:
   group: actual-protected-namespace
@@ -278,6 +279,24 @@ jobs:
             path.write_text(original.replace(before, after))
             with self.subTest(change=after), self.assertRaises(WorkflowSourceError):
                 self.expand_protected(caller)
+
+    def test_lighttpd_dispatch_default_is_the_only_permitted_interface_difference(self):
+        caller, callee, path = self.protected_sources()
+        selector = "      on_demand:\n        required: true\n        type: boolean"
+        mutations = {
+            "caller-default-true": (caller.replace("default: false", "default: true"), callee),
+            "caller-default-missing": (caller.replace("        default: false\n", ""), callee),
+            "caller-not-required": (caller.replace(selector, selector.replace("required: true", "required: false")), callee),
+            "callee-not-required": (caller, callee.replace(selector, selector.replace("required: true", "required: false"))),
+            "wrong-type-both": (caller.replace(selector, selector.replace("type: boolean", "type: string")), callee.replace(selector, selector.replace("type: boolean", "type: string"))),
+            "callee-default-present": (caller, callee.replace(selector, selector + "\n        default: false")),
+            "other-input-change": (caller, callee.replace("type: string", "type: boolean")),
+            "nonforwarded-selector": (caller.replace("on_demand: ${{ inputs.on_demand }}", "on_demand: true"), callee),
+        }
+        for name, (changed_caller, changed_callee) in mutations.items():
+            path.write_text(changed_callee)
+            with self.subTest(variant=name), self.assertRaises(WorkflowSourceError):
+                self.expand_protected(changed_caller)
 
     def test_protected_reusable_missing_or_symlinked_source_has_no_fallback(self):
         caller, original, path = self.protected_sources()

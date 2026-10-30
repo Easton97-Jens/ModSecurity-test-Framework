@@ -19,7 +19,7 @@ integration calls. Separate worktrees preserve the original working checkouts.
 ## Affected components and security boundaries
 
 Explicit `TEST_ROOT` and `CONNECTOR_ROOT` separate test mechanics from the
-product under test. Schema 4 fixes Framework source hashes while binding
+product under test. The Schema 4 contract, retained by Schema 5, fixes Framework source hashes while binding
 product-source snapshots to the selected exact revision. Scoped product-source
 imports replace a global Connector import path. Protected execution authenticates
 the protected Parent Git object chain and pinned Framework source before code
@@ -91,7 +91,7 @@ delivery remain explicit rather than inferred from file relocation.
 | Runtime deviations | Apache merged duplicate headers require explicit native rule adaptation, retaining rule `1100504` and audit assertion; injected NGINX internal faults require HTTP 500 and connector-error semantics while malformed client input remains HTTP 400. Actual Apache controls and three selected NGINX development H1 cases passed; final committed-pair and complete lifecycle qualification remain separate. |
 | Parallel topics | HTTP/2, HTTP/3, Coverage and full dependency assessment remain outside scope except required path/caller adaptation. MRTS package/import corrections belong to the separate Framework followup packet and shared integration check. |
 | Shared mechanics and code size | Native extraction is relocation; repeated loader consolidation removes caller implementation with shared-helper overhead. No equal total code reduction or complete mechanical equivalence is inferred. |
-| Verification and delivery | Latest observed defaults: 67 passing / 13 blocked executions, 74 passing / 26 blocked cases across recorded revisions. The recorded e77/4391 pair and explicit DEV probe passed before the follow-up quality changes, retaining the earlier scoped Apache proof; next-pin pair acceptance, installed-gate proof and hosted final-head gates remain pending. Merge remains conditional on the current user authorization and all required gates. |
+| Verification and delivery | Latest observed defaults: 67 passing / 13 blocked executions, 74 passing / 26 blocked cases across recorded revisions. The recorded 70ce/8ce pair and explicit DEV probe passed before the latest interface/transport/indexing changes, retaining the earlier scoped Apache proof; next-pin pair acceptance, installed-gate proof and hosted final-head gates remain pending. Merge remains conditional on the current user authorization and all required gates. |
 | Extension classification and privacy | A closed reviewed process-bearing set uses migration-integration; pure controls retain offline audit, with original baseline groups/guard ASTs preserved. Private external output and exclusion of customer payloads/credentials remain required. |
 
 ## Commands and results
@@ -141,8 +141,8 @@ signatures, with 1322 differential paths and 94 methods / 286 subcases passing.
 Seven Go helper extractions in five files preserve all 210 original function
 ASTs after helper inlining and 112 test definitions; normal/race runs retain
 the exact 205 terminal test/subtest identities, all passing without skips.
-The 17 YAML guards and actionlint/zizmor contracts remain; the protected callee's
-`default: false` is restored. All 41 trusted/Lighttpd methods / 185 subcases
+The 17 YAML guards and actionlint/zizmor contracts remain. The invalid callee
+default was later removed while preserving the exact dispatch/call interface. All 41 trusted/Lighttpd methods / 185 subcases
 passed, preserving 40 old methods and 114 assertions. Output validation passed
 39 methods and 13 filesystem checks. HAProxy ownership checks passed 39 methods,
 preserving 25 existing methods and every assertion. Bounded independent review
@@ -150,17 +150,23 @@ passed 157 methods in 5.016 seconds without findings. Two C-fixture refinements
 passed three existing lifetime/mutation methods in 51.935 seconds; old/new UTF-8
 smoke inputs compiled and produced byte-identical stdout. The actual native
 evaluator translation unit and Lighttpd's 59 canonical results retain parity
-with 40 old contracts. These are local proofs for the follow-up quality changes. The native run passed
-330 tests in 162.737 seconds (outer invocation: 165.525 seconds). Only afterward
-did its tail fail because the wrapper used system Python without PyYAML; the
-corrected Framework-interpreter tail passed the exact 38-file Ruff lint/format
-checks and 19 Sonar-contract methods in 4.838 seconds, without installation.
-One five-connector constants module required formatting; its complete AST is
-identical. All six generator/check steps passed again afterward. All 15 selected
-public methods and all 15 implicit-selection denials passed without skips, with
-inventory admission passing. Those public checks preceded the format-only fix;
-admission renewal after it remains a separate check. Acceptance of the next
-committed pair and hosted new-head gates is still required.
+with 40 old contracts. These are local proofs for the follow-up quality changes. The renewed native
+run passed 330 tests in 162.202 seconds (outer invocation: 165.353 seconds),
+the exact 38-file workflow Ruff lint/format checks passed, and 19 Sonar-contract
+methods passed in 4.847 seconds. Indexed-inventory verification passed 61 methods /
+21 subcases in 18.843 seconds, plus two actual guarded child controls; the earlier fresh
+admission covered all 1149 execution definitions / 2461 cases, not execution of
+that whole catalog. All 20 new public methods / 47 expanded cases and 20 implicit-
+selection denials passed without skips across the initial 16 successful selectors
+and four resumed selectors. The coordinator initially omitted the existing
+`ON_DEMAND_TESTS=1` opt-in for those four fixtures; strict skip validation correctly
+rejected that attempt. Their corrected CLI calls retain both `--on-demand` and
+`ON_DEMAND_TESTS=1`; environment opt-in alone still rejected with exit 2. No source,
+test or gate changed to obtain these results. These are source-bound working-
+follow-up receipts: the child's Framework-revision environment was unset,
+not fabricated as acceptance of a future committed pair. Independent review of
+seven source seams found no validated introduced finding within that bounded
+scope. New committed-pair and hosted-head acceptance remain required.
 
 CI triage identified three separate migration causes: NGINX's second
 `sudo`/`env -i` boundary loses the trusted Run ID; Envoy CRS supplies duplicate
@@ -176,7 +182,8 @@ mismatches fail closed. Seventeen existing native-generator methods passed in
 and 10 `mapped_only` entries; read and fingerprint SHA-256 match, and private
 Framework/Product-decoy and existing `framework:` resolver controls passed.
 These are local boundary and generator proofs, without a live-host run.
-The published `e77`/`4391` pair passed separately. The earlier 13-file source-owner
+The published `70ce`/`8ce` recorded pair and separate DEV probe passed;
+the older `e77`/`4391` proof retains its historical scope. The earlier 13-file source-owner
 repair batch established these local checks: start/remaining/HAP C and Common SDK/security
 checks select the actual Framework Make/source owners. Actual Common-helper
 C/C++ compilation preserves the three test heredocs and 679 assertions, with
@@ -187,10 +194,64 @@ only the exact tracked regular, revision-bound Framework evaluator; eight
 existing methods, actual Bear C++ capture and public Parent Make passed.
 NGINX request-window/case-info handling binds the admitted logs root and supports
 its sibling layout: 62 existing methods passed in 30.853 seconds with strict
-readers unchanged. The current hosted CI has 12 known failures from old Make
-oracles and the NGINX root path. Public Parent/Framework selected-case results
-after the successful inventory refresh remain pending; there is no live-host PASS for the new
-harness and no fresh complete default-suite run.
+readers unchanged. Later hosted triage on `70ce` / `8ce` found two different
+causes: actionlint rejects the required reusable Lighttpd `on_demand` input's
+redundant `default: false`, and recursive HAProxy Make resolves a relative Python
+path in the component directory. The callee now omits that default; the exact
+Parent dispatch default remains false, with explicit same-name forwarding,
+required boolean types, permissions, pins and trigger checks retained. Eight
+named invalid interfaces reject. The quoted existing `FRAMEWORK_PYTHON` fixes
+the recursive boundary: the same selected relative interpreter reproduced
+Error 127 before the fix and the actual Parent HTX target passed afterward.
+All 22 Framework workflows passed actionlint/ShellCheck. Renewed native/Sonar-
+contract checks and the 20 public selectors passed within the scope above.
+Renewed capability collection checks the selected source owner: mapped paths
+resolve in the Framework, unmapped productive paths in Product, and a missing
+mapped target rejects a Product decoy. All 18 module methods passed, including
+the new method's three named variants; public collector validation passed for
+6 connectors / 60 capability entries. This is source-contract validation,
+not a runtime host-capability proof. Renewed actual Apache, NGINX and HAProxy
+C17 compiler runs passed; the NGINX/HAProxy run took 8.615 seconds with reviewed
+cached header inputs. The earlier five source-owner oracles proved wiring,
+not full compilation. The new public capability method separately passed
+its 3 variants and 1 implicit-selection denial. The previous 20 methods /
+47 variants and 20 denials retain their own source-bound receipts; no combined
+21-method run is claimed. Current hosted acceptance remains pending; the
+historical `8ce` analysis still has gate `ERROR` with 120 OPEN issues.
+
+One actual Parent `make quick-check` invocation passed with exit 0 in
+576.252 seconds, below its 600-second bound. It completed prerequisite lint,
+the canonical installed-actionlint module, lint's diff check, Framework
+normalizer/runner/CI Python compilation and the final quick-check diff check.
+All 510 source bindings remained unchanged without drift. The log contains
+79 passing execution receipts for 18 unique execution IDs; this is not an
+80-execution host qualification. The earlier combined-target timeout followed
+the coordinator's invocation assumption: Parent's `%` dispatcher starts a
+separate submake for each requested target. That timeout was not a source bug
+or a guard waiver. The two Make repairs retain quoted relative Framework Python
+forwarding and invoke installed workflow lint through
+`-m modsecurity_connector_ci.tools.lint_installed_workflows`; 11 focused tests
+and the actual CLI passed. This proves the local `70ce`/`8ce` working follow-up,
+not acceptance of a future committed pair or hosted head.
+
+Three C++ jobs and the HAProxy native/runtime path encountered network
+unreachability. Runtime already made three attempts; no additional runtime retry
+is introduced. Native acquisition shares a maximum-three-attempt transient-only
+transport: HTTPS/TLS and digests remain mandatory, permanent failures are not
+retried and existing destinations are not overwritten. Actual pinned cached
+archive parity passed, including the direct verified cache path without network;
+this does not prove hosted network recovery. Apache's observed job used merge
+revision `054c`, not literal Parent `70ce`.
+
+Four Traefik source-owner repairs preserve all 62 test-method ASTs; the two
+standalone modules retain their complete original ASTs apart from restored
+imports. Actual bounded native/file tests (9) and private export tests (52)
+passed. Five further complexity decompositions passed the same 119 existing
+methods before and after, preserving guards and assertions. Native Git object
+authentication passed 28 methods in 144.687 seconds, 16 named probes and an
+offline-import boundary check, using the exact verified local SHA1_DC backend.
+These are scoped local/source proofs, not public host qualification. Fresh
+default-suite, next-committed-pair and hosted new-head acceptance remain separate.
 
 Relocating 1295 source paths is distinct from deduplication. The scoped loader
 consolidation replaced 326 blocks and removed 1067 net loader lines, with 29
@@ -198,23 +259,43 @@ new shared-loader lines recorded separately. These are loader metrics, not a
 claim about total repository code reduction.
 
 The registered canonical inventory contains **100 standard
-cases / 80 executions**, **2314 on-demand cases / 1049 executions**, **508 fixed
-Framework test-source bindings** and **234 product-source snapshots**. Its compact
-JSON is **2096459 bytes**, leaving **693 bytes** below the unchanged
-**2097152-byte (2 MiB)** admission limit. All 492 prior binding identities remain
-and all 508 bindings are used; the original 1993 case dictionaries remain exact. These are
-selection/source quantities, not executed or passing case counts. The extension
-adds 62 explicit on-demand methods: 28 clean-pair methods, 14 MRTS-package
-methods, 3 classification guards, 2 prepared/backend helper methods, 4 context
-methods, 2 sealed-invocation methods, 1 collector method, 1 SDK method and 7 independent quality guards; the original 1993-case baseline remains
-unchanged. A closed reviewed set of 155 process-bearing new rows uses the
-`migration-integration` group across 12 modules with target-derived ID hashes;
-55 pure controls retain the offline-audit group; the process-module allowlist is unchanged. The original 1993 group
-assignments and guard-function ASTs are unchanged. Each of the seven new methods
-declares one case and passed the actual offline guard before imports without
-effects, source writes or skips. Only added migration-case purpose prose was
-shortened for JSON size; IDs, variants, selectors, sources and tests were unchanged
-by that compaction; the initial 40 pure controls, both pure helper methods and four guarded context methods passed.
+cases / 80 executions**, **2364 on-demand cases / 1070 executions**, **510 fixed
+Framework test-source bindings** and **235 product-source snapshots**. Its compact
+schema-5 JSON is **1081306 bytes**, leaving **1015846 bytes** below the unchanged
+**2097152-byte (2 MiB)** input limit. All 508 prior binding identities remain;
+all 510 bindings and all 745 ordered pool entries are used. The original 1993
+case dictionaries remain exact. These are selection/source quantities, not
+executed or passing case counts. Expanded UTF-8 source paths occupy 1061485
+bytes under the unchanged pre-materialization bound. The current catalog declares 1150 execution
+definitions / 2464 cases; this is not an execution claim.
+
+The extension contains 83 explicit on-demand methods: the previous 62 plus
+21 independently registered pure methods covering 50 expanded cases in this
+batch (9 transport methods / 9 cases, 1 composition method / 8 cases,
+9 indexed-inventory methods / 23 cases, 1 shared-transport method / 7 cases,
+1 source-owner method / 3 cases).
+All 21 passed fresh offline guards installed before imports, without effects,
+source writes or skips. The 76 pure controls retain the offline-audit group;
+155 process-bearing new rows retain `migration-integration` across the same
+12-module allowlist. Original groups and guard-function ASTs remain unchanged.
+The full path graph round trip preserves order and every prior reference;
+only the explicitly reviewed new map-to-integration/active and capability
+source-owner closures are extended.
+No archive is selected automatically and no standard case is added.
+
+Schema 4 introduced separate fixed Framework test-source hashes and
+`connector_source_paths`. Schema 5 retains those ordered pools and stores each
+execution's `sources` as integer indexes into the fixed-Framework-then-Product
+pool. This replaces repeated paths after the earlier JSON nearly exhausted
+its budget; it does not remove dependencies or change selection. Schemas 1–4
+remain compatible. Boolean, unknown, duplicate and unused references are
+rejected. Both raw JSON input and expanded UTF-8 source-path bytes are bounded
+at 2097152 bytes, with the expansion bound checked before materialization or
+source reads. The 100-standard-case cap is unchanged. Maintenance preserves
+ordinal order and updates atomically. Product inputs are snapshotted from the
+explicit selected revision, included in receipts and rechecked before/after
+execution. Collector changes still require a reviewed fixed digest; Product
+updaters do not change the independent Framework inventory.
 
 The 120 new focused methods passed without skips, including the result-integrity
 subset of 56 methods / 131 expanded variants and the closed path-policy subset
@@ -306,7 +387,7 @@ their ASTs; the latest full 38-file Ruff recheck passed.
 ## Security impact
 
 Explicit `TEST_ROOT` and `CONNECTOR_ROOT` separate test mechanics from the
-product under test. Schema 4 fixes Framework source hashes while binding
+product under test. The Schema 4 contract, retained by Schema 5, fixes Framework source hashes while binding
 product-source snapshots to the selected exact revision. Scoped product-source
 imports replace a global Connector import path. Protected execution authenticates
 the protected Parent Git object chain and pinned Framework source before code
@@ -396,26 +477,25 @@ entrypoints and interfaces, invokes the actual Parent Make target
 header test result. The probe requires installed Git, Make, a compatible Python
 and `cc`, plus existing private external output storage. Uncommitted source edits
 are not copied into the pair. The committed clean pair Connector
-`e77c833eef4b23e1252dbcd4c6507ded0b7e2064` / Framework
-`4391a424f34ea9c7b7ed09fd1df72a38a23cb909` passed in 126.317 seconds in recorded-pin mode with
-`standard_combination=true`, both checkouts clean before/after, and the actual
-Parent Make → Common C1 test passing.
+`70cefa5706b1a8339046f3f3d1f77ea9493f3cd0` / Framework
+`8ce35c1108d753986b11cb011d24fc99f262f112` passed in 125.528 seconds in recorded-pin
+mode with `standard_combination=true`, both checkouts clean before/after, and
+the actual Parent Make → Common C1 test passing.
 
 A distinct explicit DEV run passed for the same Connector with selected
-Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, recorded gitlink `4391a42`,
-in 123.559 seconds,
-`mode=development` and `standard_combination=false`. Only the expected Connector
-gitlink differed before/after; Framework remained clean. The real UID 1001 bridge
-exposed 11 exports, the private output directory retained mode 0700, and the
-wrong-pin control rejected with exit 77. All 90 updater methods / 216 subcases
-passed without skips across the 39-method run (93.183 seconds) and 51-method
-run (77.813 seconds). These pair proofs precede the follow-up quality
-changes; acceptance of the next committed pair must be renewed. The earlier stale DEV
-attempt remains rejected. Earlier Apache H1 controls on `cfd5e49` / `e52d7d4`
-retain their scoped 28.625-second proof. Acceptance after the next pins and
-current hosted Framework #142 / Connector #434 gates remain required. Evidence
-stays in private external output storage; versioned records must not contain
-customer payloads or credentials.
+Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, recorded gitlink `8ce35c1`,
+in 123.950 seconds, `mode=development` and `standard_combination=false`. Only the
+expected Connector gitlink differed before/after; Framework remained clean.
+The real UID 1001 bridge exposed 11 exports, retained private output mode 0700
+and rejected the wrong pin with exit 77. All 90 updater methods / 216 subcases
+passed without skips across 39-method (90.988 seconds) and 51-method (77.711
+seconds) runs. These proofs concern that exact published pair, before the latest
+interface, transport and indexed-inventory changes. They do not accept the next
+committed pair. Earlier `e77` / `4391` recorded/DEV proofs (126.317 / 123.559
+seconds), the rejected stale DEV attempt, and Apache H1 on `cfd5e49` / `e52d7d4`
+(28.625 seconds) retain their historical scope. Next-pin acceptance and current
+hosted Framework #142 / Connector #434 gates remain required. Evidence stays
+in private external storage; versioned records contain no customer payloads or credentials.
 
 ```sh
 PYTHONSAFEPATH=1 PYTHONPATH="$FRAMEWORK_ROOT:$FRAMEWORK_ROOT/connector_suite" \
@@ -499,22 +579,33 @@ methods in 20.519 seconds outside the Linux sandbox with unchanged guards,
 including the six actual Root/nobody descriptor cases. These observations are
 not one combined final-head suite run and introduce no case IDs. The named
 committed pair passed separately; acceptance after the next pins and hosted
-Framework PR #142 / Connector PR #434 gates remain required. The complete exact-head Connector `e77c833eef4b23e1252dbcd4c6507ded0b7e2064`
-Sonar analysis passed all five gate conditions: duplication 2.0%, zero unresolved
-issues and zero TO_REVIEW hotspots. The first complete Framework
-`4391a424f34ea9c7b7ed09fd1df72a38a23cb909` analysis failed its gate with reliability
-B and security E: 280 unresolved issues (86 Sonar-classified vulnerabilities,
-193 code smells, one bug), zero hotspots and 0.0% duplication. These categories
-are not independently validated exploits. Both issue inventories are complete. After explicit user authorization, eight individually reviewed model-error
-findings received issue-specific evidence comments and `FALSE_POSITIVE` status;
-server readback verified every disposition against unchanged source hashes at
-exact head `4391`. This is no blanket disposition, risk acceptance or rule
-change. Fresh head-bound readback now shows 272 unresolved issues (78
-Sonar-classified vulnerabilities, 193 code smells, one bug), zero hotspots and
-the Framework gate still `ERROR`. The initial 280-issue snapshot remains
-historical; local code fixes still require a new analysis.
-The follow-up quality changes have no renewed hosted acceptance. Framework
-has no clean quality gate and is not merge-ready; neither migration PR is merged.
+Framework PR #142 / Connector PR #434 gates remain required. The historical Connector
+`e77c833eef4b23e1252dbcd4c6507ded0b7e2064` Sonar analysis passed all five gate
+conditions, with 2.0% duplication, no unresolved issues and no TO_REVIEW hotspots.
+That is not a Sonar PASS for Parent `70ce`: the last readback still analyzed
+`e77`. Historical Framework `4391` first had 280 issues and later 272 after eight
+user-authorized, individually evidenced false positives. The historical Framework
+`8ce35c1108d753986b11cb011d24fc99f262f112` analysis at 16:46:21 UTC had reliability
+A, maintainability A, 0.0% duplication and no hotspots, but security E and gate
+`ERROR`; its initial complete issue inventory contained 178 unresolved findings.
+That initial count is not a current remainder. User-authorized issue-specific
+comments and server readbacks separately confirm the previous eight, 24 native
+and 16 Python false-positive dispositions, plus 16 further native-contract
+model errors. Two further lifecycle-model errors bring the individually evidenced
+total to 66. The additional 16 native-contract dispositions concern
+four controller and twelve ABI claims; eleven actual C17 type probes passed
+with three positive and eight const-incompatibility controls. Complete
+server readback at 18:38:27 UTC for the `8ce` analysis dated 16:46:21 UTC
+shows 120 OPEN issues and no hotspots; gate `ERROR` and security E remain,
+with reliability A, maintainability A and 0.0% duplication. The two new individual
+readbacks cover `_7KT`'s read-only post-link `TMPDIR` provenance, not precompiler
+admission, and `_7MD`'s synchronous `re.subn` callback. All 10 CLI-authority
+questions remain open; these dispositions do not admit compiler arguments or tools.
+The optional coverage condition reports OK, without establishing a new coverage
+quantity. Python `_7Lu` and all other uncertain findings remain open; there is no
+blanket disposition, risk acceptance or rule change. Sonar categories are not
+independently validated exploits. Both migration PRs remain draft and unmerged;
+the next committed pair and actual new-head analyses/gates are still required.
 
 Gitleaks baseline observations and reviewed false-positive classification are
 distinct. The current configuration has two `generic-api-key` allowlists, each

@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "c8da17068108c40cfb34dabad3380ada3c6962545a420fb144266a41f7d9fab8",
+  "inventory_sha256": "95523ddd1239827435c1c39834e56511ec2a22cfeaa00d54957e931081058833",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7816,
+  "on_demand_definition_count": 7837,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -3140,10 +3140,17 @@
         "modsecurity_connector_tests.test_active_test_inventory.SharedSourceInventoryTests.test_shared_inventory_drift_rejects_before_execution",
         "modsecurity_connector_tests.test_active_test_inventory.SharedSourceInventoryTests.test_shared_core_cap_accepts_100_plus_offline",
         "modsecurity_connector_tests.test_active_test_inventory.SharedSourceInventoryTests.test_shared_core_cap_rejects_101_before_child",
-        "modsecurity_connector_tests.test_active_test_inventory.SharedSourceInventoryTests.test_shared_offline_selector_restrictions_remain_binding"
+        "modsecurity_connector_tests.test_active_test_inventory.SharedSourceInventoryTests.test_shared_offline_selector_restrictions_remain_binding",
+        "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_schema4_and5_preserve_complete_execution_graph",
+        "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_invalid_indexed_references_reject_before_child",
+        "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_invalid_indexed_pool_rejects_before_child",
+        "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_indexed_core_overflow_rejects_before_child",
+        "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_indexed_input_size_limit_rejects_before_child",
+        "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_indexed_source_expansion_is_bounded_before_source_reads",
+        "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_legacy_index_expansion_is_noop"
       ],
       "source": "tests/test_active_test_inventory.py",
-      "source_sha256": "3cafa21209eddc5cd91a1ea2e9e83ac7acfed8a3e138a88f23d4f43ad1de93ee"
+      "source_sha256": "7b08957d3e30986d9561fb2167eafcc7e15d1a6aed9a41bcdcdee409eb3372c9"
     },
     {
       "contains_selected_definitions": [],
@@ -4647,10 +4654,11 @@
         "modsecurity_connector_tests.test_connector_capabilities.ConnectorCapabilitiesTest.test_missing_evidence_is_all_or_nothing",
         "modsecurity_connector_tests.test_connector_capabilities.ConnectorCapabilitiesTest.test_cli_renders_a_complete_validated_overlay_view",
         "modsecurity_connector_tests.test_connector_capabilities.ConnectorCapabilitiesTest.test_framework_validator_is_required_for_each_runtime_result",
-        "modsecurity_connector_tests.test_connector_capabilities.ConnectorCapabilitiesTest.test_cli_requires_evidence_root_and_run_id_together"
+        "modsecurity_connector_tests.test_connector_capabilities.ConnectorCapabilitiesTest.test_cli_requires_evidence_root_and_run_id_together",
+        "modsecurity_connector_tests.test_connector_capabilities.SourceContractOwnershipTests.test_source_contract_paths_follow_their_selected_owner"
       ],
       "source": "tests/test_connector_capabilities.py",
-      "source_sha256": "3eee247667220867ccf0040b227679a6816b14e51b9dd01068d8b2e9ded4392e"
+      "source_sha256": "d45acf7e0a51b03c845651ab37ce78443c03ed1cf4aa1728e538030d49663162"
     },
     {
       "contains_selected_definitions": [],
@@ -6779,10 +6787,12 @@
         "modsecurity_connector_tests.test_inventory_bindings_maintenance.InventoryBindingsMaintenanceTests.test_check_apply_preserves_all_selection_and_product_fields",
         "modsecurity_connector_tests.test_inventory_bindings_maintenance.InventoryBindingsMaintenanceTests.test_legacy_framework_prefix_works_without_product_checkout",
         "modsecurity_connector_tests.test_inventory_bindings_maintenance.InventoryBindingsMaintenanceTests.test_invalid_schema_duplicate_and_escaping_paths_reject_before_writes",
-        "modsecurity_connector_tests.test_inventory_bindings_maintenance.InventoryBindingsMaintenanceTests.test_symlink_sources_destinations_and_concurrent_replacement_reject"
+        "modsecurity_connector_tests.test_inventory_bindings_maintenance.InventoryBindingsMaintenanceTests.test_symlink_sources_destinations_and_concurrent_replacement_reject",
+        "modsecurity_connector_tests.test_inventory_bindings_maintenance.InventoryBindingsMaintenanceTests.test_indexed_apply_preserves_ordinals_and_all_selection_fields",
+        "modsecurity_connector_tests.test_inventory_bindings_maintenance.InventoryBindingsMaintenanceTests.test_invalid_index_rejects_before_write"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_inventory_bindings_maintenance.py",
-      "source_sha256": "5def8d920e02c3f5e70c600b2b04dd33e6bd55a0e596f1021af215e6c0a4cdd8"
+      "source_sha256": "6c61600d57ba76382c93ff837efa7fb269c896bf093723bec17caffd9a16c854"
     },
     {
       "contains_selected_definitions": [],
@@ -10486,6 +10496,7 @@
       "framework_path": "connector_suite/modsecurity_connector_tests/test_sonar_native_ci.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_analyze_exports_actual_producer_capture_directory",
+        "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_host_archive_reuses_reviewed_transport_without_bypass",
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_project_inventory_matches_real_native_producer_targets",
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_settings_preserve_parent_headers_and_full_security_depth",
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_settings_reject_missing_parent_header",
@@ -10500,7 +10511,7 @@
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_ctu_limits_reject_insufficient_resources"
       ],
       "source": "tests/test_sonar_native_ci.py",
-      "source_sha256": "ecfb96298688017758bf16954ca4da60436de065928c7f27f692b0b24ceb4a76"
+      "source_sha256": "dc2acfe6e0db40042131e51973eea01d330bd04d68f1931e9d891e980cf9c512"
     },
     {
       "contains_selected_definitions": [],
@@ -10511,6 +10522,15 @@
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_framework_gitlink_mismatch_is_rejected_before_network",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_bad_cached_checksum_cannot_reach_extraction",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_verified_cached_archive_is_read_without_mutation_or_network",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_archive_transport_recovers_after_network_unreachable",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_archive_transport_exhaustion_is_bounded",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_archive_transport_retries_partial_timeout_without_stale_bytes",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_archive_transport_retries_temporary_http_failure",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_archive_transport_does_not_retry_permanent_http_failure",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_archive_transport_does_not_retry_tls_verification_failure",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_downloaded_checksum_failure_is_not_retried",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_download_redirect_cannot_downgrade_https",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_download_failure_preserves_preexisting_destination",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_archive_cannot_escape_its_expected_source_tree",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_output_roots_reject_source_reuse_and_symlink_redirection",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_output_root_rejects_shared_ancestor_without_mutation",
@@ -10520,7 +10540,7 @@
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_nginx_generated_includes_do_not_backtrack_across_near_matches"
       ],
       "source": "tests/test_sonar_native_context.py",
-      "source_sha256": "9c814045495ddc3a86ed6124966d64ad4c80f36d327723d0ada3d35219776f9d"
+      "source_sha256": "59c34af88253537bd49571253a0436b0eff18242bf2ef86421c9bb0aa08d8fe9"
     },
     {
       "contains_selected_definitions": [],
@@ -11016,7 +11036,7 @@
         "modsecurity_connector_tests.test_traefik_i12_native_acceptance.NativeAcceptanceControls.test_sink_close_is_real_ebadf_and_once"
       ],
       "source": "tests/test_traefik_i12_native_acceptance.py",
-      "source_sha256": "05ab047843caba74ad1314c30035e01fa60116b1207cb05c974ce029c974bb2f"
+      "source_sha256": "db13cdef22da0d54d52c3365e3c9f67edfca1b25db9b0628189fb8c25522fb2a"
     },
     {
       "contains_selected_definitions": [],
@@ -12285,7 +12305,7 @@
         "modsecurity_test_framework.selftests.connector_adapter.test_connector_integration.CleanRecordedCombination.test_actual_recorded_framework_pin_runs_parent_common_execution"
       ],
       "source": "framework/tests/connector_adapter/test_connector_integration.py",
-      "source_sha256": "60c85718ea8cc4e49784cd34762cd67c2fdb5f2c7b7225cc1fd49b99b5f49c73"
+      "source_sha256": "6b904cb791313870cedd665327a26661113c9555fd9b86c4c45f2a6eb59f6ce2"
     },
     {
       "contains_selected_definitions": [],
@@ -12319,10 +12339,11 @@
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_rejects_input_permission_and_job_overrides",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_callee_changes_are_observed",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_callee_contract_changes_are_rejected",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_lighttpd_dispatch_default_is_the_only_permitted_interface_difference",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_missing_or_symlinked_source_has_no_fallback"
       ],
       "source": "framework/tests/connector_adapter/test_workflow_sources.py",
-      "source_sha256": "0eb6881838bd298fdc7d54de79716684fd3605093915b019efdb4a9969b69ab5"
+      "source_sha256": "72b4a384c5cec70cc26e00937329c9d55fea65200a05cb01cdc9db5f7f0ea183"
     },
     {
       "contains_selected_definitions": [],

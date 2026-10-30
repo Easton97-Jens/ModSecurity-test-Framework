@@ -146,6 +146,36 @@ def selected_checkout(root: Path):
                 os.environ[key] = value
 
 
+def _resolve_update_input(source_root, relative, actual_checkout):
+    """Resolve Product relocations while leaving Framework-owned inputs out of the copy."""
+    if actual_checkout:
+        source = source_path(relative, root=source_root)
+        if source.is_relative_to(test_root()):
+            return None
+        # The reviewed source map also records product-owned relocations.
+        # Copy those files at their explicit current Product paths so the
+        # private checkout retains the same ownership contract.
+        try:
+            relative = source.relative_to(source_root)
+        except ValueError as error:
+            raise product.UpdateError("proposed source is outside its explicit owner") from error
+        source = product.resolve_regular_file(source_root, relative)
+    else:
+        source = product.resolve_regular_file(source_root, relative)
+    return relative, source
+
+
+def _copy_update_input(source, destination_root, relative):
+    """Materialize one reviewed regular input exclusively with private output modes."""
+    destination = destination_root / relative
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if destination.exists() or destination.is_symlink():
+        raise product.UpdateError(f"proposed validation path already exists: {relative}")
+    with source.open("rb") as input_file, destination.open("xb") as output_file:
+        shutil.copyfileobj(input_file, output_file)
+    destination.chmod(0o600)
+
+
 def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
     """Copy only reviewed inputs, with a valid private source identity for live tests."""
     inventory = admitted_validation_inventory(source_root)
@@ -163,29 +193,13 @@ def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
     materialized = set()
     for relative_text in sorted(inputs):
         relative = Path(relative_text)
-        if actual_checkout:
-            source = source_path(relative, root=source_root)
-            if source.is_relative_to(test_root()):
-                continue
-            # The reviewed source map also records product-owned relocations.
-            # Copy those files at their explicit current Product paths so the
-            # private checkout retains the same ownership contract.
-            try:
-                relative = source.relative_to(source_root)
-            except ValueError as error:
-                raise product.UpdateError("proposed source is outside its explicit owner") from error
-            source = product.resolve_regular_file(source_root, relative)
-        else:
-            source = product.resolve_regular_file(source_root, relative)
+        resolved = _resolve_update_input(source_root, relative, actual_checkout)
+        if resolved is None:
+            continue
+        relative, source = resolved
         if relative in materialized:
             continue
-        destination = destination_root / relative
-        destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if destination.exists() or destination.is_symlink():
-            raise product.UpdateError(f"proposed validation path already exists: {relative}")
-        with source.open("rb") as input_file, destination.open("xb") as output_file:
-            shutil.copyfileobj(input_file, output_file)
-        destination.chmod(0o600)
+        _copy_update_input(source, destination_root, relative)
         materialized.add(relative)
     if actual_checkout:
         with selected_checkout(destination_root):

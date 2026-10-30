@@ -298,13 +298,60 @@ def _shared_source_references(execution: Any, bindings: dict[str, str]) -> set[s
     return local
 
 
+def _indexed_source_indices(execution: Any, count: int) -> list[int]:
+    references = execution.get("sources") if isinstance(execution, dict) else None
+    if not isinstance(references, list) or not references:
+        raise InventoryError("indexed sources require a nonempty integer array")
+    seen = set()
+    for index in references:
+        if type(index) is not int or not 0 <= index < count or index in seen:
+            raise InventoryError("indexed sources require unique in-range integer references")
+        seen.add(index)
+    return references
+
+
+def _check_indexed_source_budget(references: list[list[int]], costs: list[int]) -> None:
+    remaining = MAX_INPUT_BYTES
+    for indices in references:
+        for index in indices:
+            remaining -= costs[index]
+            if remaining < 0:
+                raise InventoryError("expanded indexed source paths exceed the 2 MiB size limit")
+
+
+def _expand_indexed_sources(value: dict[str, Any], executions: list[Any]) -> None:
+    """Expand schema-5 ordinals without I/O; older schemas remain untouched."""
+    if value.get("schema_version") != 5:
+        return
+    pool = value["source_bindings"]
+    if not isinstance(pool, list) or not pool:
+        raise InventoryError("shared source bindings must be a nonempty array")
+    bindings = _source_bindings(pool)
+    products = value["connector_source_paths"]
+    if not isinstance(products, list) or not products:
+        raise InventoryError("connector source paths must be an explicit nonempty array")
+    paths = list(bindings)
+    seen = set(paths)
+    for relative in products:
+        _relative_path(relative)
+        if relative in seen:
+            raise InventoryError("source ownership must be unique")
+        seen.add(relative)
+        paths.append(relative)
+    references = [_indexed_source_indices(execution, len(paths)) for execution in executions]
+    costs = [len(path.encode("utf-8")) for path in paths]
+    _check_indexed_source_budget(references, costs)
+    for execution, indices in zip(executions, references):
+        execution["sources"] = [paths[index] for index in indices]
+
+
 def _expand_shared_sources(value: dict[str, Any], executions: list[Any], root: Path | None = None) -> None:
     """Admit reviewed test sources and explicitly selected product snapshots."""
     pool = value["source_bindings"]
     if not isinstance(pool, list) or not pool:
         raise InventoryError("shared source bindings must be a nonempty array")
     bindings = _source_bindings(pool)
-    if value["schema_version"] == 4:
+    if value["schema_version"] >= 4:
         product_paths = value["connector_source_paths"]
         if not isinstance(product_paths, list) or not product_paths or root is None:
             raise InventoryError("connector source paths must be an explicit nonempty array")
@@ -519,14 +566,14 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
                               if _real_checkout(root) else root / INVENTORY_PATH)
     value, digest = _read_inventory(path)
     version = value.get("schema_version") if isinstance(value, dict) else None
-    if type(version) is not int or version not in {1, 2, 3, 4}:
+    if type(version) is not int or version not in {1, 2, 3, 4, 5}:
         raise InventoryError("unsupported active-inventory schema version")
     keys = {"schema_version", "executions"}
     if version >= 2:
         keys.add("offline_unit_exceptions")
     if version >= 3:
         keys.add("source_bindings")
-    if version == 4:
+    if version >= 4:
         keys.add("connector_source_paths")
     _keys(value, keys, "inventory")
     core = value["executions"]
@@ -534,6 +581,7 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
     if not isinstance(core, list) or not core or not isinstance(exceptions, list):
         raise InventoryError("inventory must contain active executions")
     executions = core + exceptions
+    _expand_indexed_sources(value, executions)
     if version >= 3:
         _expand_shared_sources(value, executions, root)
     for execution in executions:

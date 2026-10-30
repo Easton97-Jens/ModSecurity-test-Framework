@@ -174,7 +174,7 @@ def constraints(case):
 
 def file_supplements(originals):
     """Physical file-backed HTTP contrasts; never promote native File-API IDs."""
-    harness = source_path('connectors/traefik/harness')
+    harness = test_root() / 'connector_suite/adapters/traefik/harness'
     manifest_path = harness / 'fixtures/i12-file-source/manifest.json'
     plan_path = harness / 'i12_file/supplement-plan.json'
     contract_path = harness / 'i12_file/acceptance.py'

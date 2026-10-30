@@ -3,11 +3,14 @@
 from __future__ import annotations
 from modsecurity_test_framework.connector_context import connector_root, source_path, load_source
 
+import errno
 import hashlib
 import io
 from pathlib import Path
 import tarfile
 import tempfile
+import ssl
+import urllib.error
 import unittest
 from unittest import mock
 
@@ -104,6 +107,126 @@ class SonarNativeContextTests(unittest.TestCase):
             self.assertEqual(selected, archive)
             self.assertEqual(archive.read_bytes(), data)
             network.assert_not_called()
+
+    @staticmethod
+    def archive_response(data: bytes = b"reviewed archive control", *, url: str = "https://example.invalid/host.tar.gz"):
+        response = io.BytesIO(data)
+        response.geturl = lambda: url
+        return response
+
+    @staticmethod
+    def archive_item() -> dict[str, str]:
+        return {"url": "https://example.invalid/host.tar.gz",
+                "sha256": hashlib.sha256(b"reviewed archive control").hexdigest()}
+
+    def test_archive_transport_recovers_after_network_unreachable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.object(NATIVE.urllib.request, "urlopen", side_effect=[
+                    urllib.error.URLError(OSError(errno.ENETUNREACH, "unreachable")),
+                    self.archive_response()]) as network, \
+                    mock.patch.object(NATIVE.time, "sleep") as delay, \
+                    mock.patch.object(NATIVE.sys, "stderr", new_callable=io.StringIO) as diagnostic:
+                archive = NATIVE.verified_archive(self.archive_item(), root, None)
+            self.assertEqual(archive.read_bytes(), b"reviewed archive control")
+            self.assertEqual(network.call_count, 2)
+            delay.assert_called_once_with(1)
+            self.assertIn('"errno": 101', diagnostic.getvalue())
+            self.assertIn('"stage": "native-archive-download"', diagnostic.getvalue())
+
+    def test_archive_transport_exhaustion_is_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            error = urllib.error.URLError(OSError(errno.ENETUNREACH, "secret-proxy-token"))
+            with mock.patch.object(NATIVE.urllib.request, "urlopen", side_effect=error) as network, \
+                    mock.patch.object(NATIVE.time, "sleep") as delay, \
+                    mock.patch.object(NATIVE.sys, "stderr", new_callable=io.StringIO) as diagnostic:
+                with self.assertRaises(urllib.error.URLError):
+                    NATIVE.verified_archive(self.archive_item(), root, None)
+            self.assertEqual(network.call_count, 3)
+            self.assertEqual(delay.call_args_list, [mock.call(1), mock.call(2)])
+            self.assertNotIn("secret-proxy-token", diagnostic.getvalue())
+            self.assertEqual(list(root.iterdir()), [])
+
+    def test_archive_transport_retries_partial_timeout_without_stale_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            broken = mock.MagicMock()
+            broken.__enter__.return_value = broken
+            broken.geturl.return_value = self.archive_item()["url"]
+            broken.read.side_effect = [b"stale partial bytes", TimeoutError("read timed out")]
+            with mock.patch.object(NATIVE.urllib.request, "urlopen", side_effect=[
+                    broken, self.archive_response()]) as network, \
+                    mock.patch.object(NATIVE.time, "sleep") as delay:
+                archive = NATIVE.verified_archive(self.archive_item(), root, None)
+            self.assertEqual(archive.read_bytes(), b"reviewed archive control")
+            self.assertEqual(network.call_count, 2)
+            delay.assert_called_once_with(1)
+
+    def test_archive_transport_retries_temporary_http_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            error = urllib.error.HTTPError(self.archive_item()["url"], 503, "unavailable", {}, None)
+            with mock.patch.object(NATIVE.urllib.request, "urlopen", side_effect=[
+                    error, self.archive_response()]) as network, \
+                    mock.patch.object(NATIVE.time, "sleep") as delay:
+                archive = NATIVE.verified_archive(self.archive_item(), Path(temporary), None)
+            self.assertEqual(archive.read_bytes(), b"reviewed archive control")
+            self.assertEqual(network.call_count, 2)
+            delay.assert_called_once_with(1)
+
+    def test_archive_transport_does_not_retry_permanent_http_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            error = urllib.error.HTTPError(self.archive_item()["url"], 404, "not found", {}, None)
+            with mock.patch.object(NATIVE.urllib.request, "urlopen", side_effect=error) as network, \
+                    mock.patch.object(NATIVE.time, "sleep") as delay:
+                with self.assertRaises(urllib.error.HTTPError):
+                    NATIVE.verified_archive(self.archive_item(), Path(temporary), None)
+            network.assert_called_once()
+            delay.assert_not_called()
+            self.assertEqual(list(Path(temporary).iterdir()), [])
+
+    def test_archive_transport_does_not_retry_tls_verification_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            error = urllib.error.URLError(ssl.SSLCertVerificationError("untrusted certificate"))
+            with mock.patch.object(NATIVE.urllib.request, "urlopen", side_effect=error) as network, \
+                    mock.patch.object(NATIVE.time, "sleep") as delay:
+                with self.assertRaises(urllib.error.URLError):
+                    NATIVE.verified_archive(self.archive_item(), Path(temporary), None)
+            network.assert_called_once()
+            delay.assert_not_called()
+            self.assertEqual(list(Path(temporary).iterdir()), [])
+
+    def test_downloaded_checksum_failure_is_not_retried(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.object(NATIVE.urllib.request, "urlopen", return_value=self.archive_response(b"wrong")) as network, \
+                    mock.patch.object(NATIVE.time, "sleep") as delay:
+                with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
+                    NATIVE.verified_archive(self.archive_item(), Path(temporary), None)
+            network.assert_called_once()
+            delay.assert_not_called()
+
+    def test_download_redirect_cannot_downgrade_https(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.object(NATIVE.urllib.request, "urlopen", return_value=self.archive_response(url="http://example.invalid/host.tar.gz")) as network, \
+                    mock.patch.object(NATIVE.time, "sleep") as delay:
+                with self.assertRaisesRegex(ValueError, "redirected away from HTTPS"):
+                    NATIVE.verified_archive(self.archive_item(), Path(temporary), None)
+            network.assert_called_once()
+            delay.assert_not_called()
+            self.assertEqual(list(Path(temporary).iterdir()), [])
+
+    def test_download_failure_preserves_preexisting_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "host.tar.gz"
+            archive.write_bytes(b"preexisting sentinel")
+            with mock.patch.object(NATIVE.urllib.request, "urlopen", return_value=self.archive_response()) as network, \
+                    mock.patch.object(NATIVE.time, "sleep") as delay:
+                with self.assertRaises(FileExistsError):
+                    NATIVE.verified_archive(self.archive_item(), root, None)
+            self.assertEqual(archive.read_bytes(), b"preexisting sentinel")
+            network.assert_called_once()
+            delay.assert_not_called()
 
     def test_archive_cannot_escape_its_expected_source_tree(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

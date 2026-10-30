@@ -76,6 +76,6 @@
     ".github/workflows/connector-nginx-root-broker-historical.yml": "d6c7dece672be6feae9fae12f04d6ae71bdc26146860b5a86683c37b9dc7a936",
     ".github/workflows/connector-protected-nginx-exact-head.yml": "69075c4982577e1142ac25b418daf067c25195bb45a1bea14743afbead277c76",
     ".github/workflows/connector-protected-nginx-root-broker-caller.yml": "11ee98f070a5a4c088e0c10466c0e867869f1769e5832bacf6bf2c5986a2cb3c",
-    ".github/workflows/connector-trusted-lighttpd-namespace.yml": "37e9223b670faa76d3a2c501d7bec87c037879e2370e498f6110a8678a9ce94c"
+    ".github/workflows/connector-trusted-lighttpd-namespace.yml": "e3ce730eac85162fcf68dfda70ecf6f84407cee5469dc72f332761c1df0b824f"
   }
 }

@@ -8,6 +8,7 @@ No submodule is fetched and no MRTS feature or host service is executed.
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 import hashlib
 import json
 import os
@@ -117,6 +118,65 @@ def git(root: Path, *arguments: str, data: bytes | None = None) -> bytes:
     return result.stdout
 
 
+def _object_git_environment() -> dict[str, str]:
+    # No inherited Git configuration, loader injection, filters or transport.
+    # HOME is deliberately not changed or repurposed.
+    return {
+        "PATH": "/usr/bin:/bin", "LC_ALL": "C",
+        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_NO_REPLACE_OBJECTS": "1", "GIT_GRAFT_FILE": os.devnull,
+        "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": "",
+        "GIT_ATTR_NOSYSTEM": "1", "GIT_DEFAULT_HASH": "sha1",
+    }
+
+
+@lru_cache(maxsize=1)
+def _require_collision_detecting_git() -> None:
+    """Require the fixed native Git's collision-detecting SHA-1 implementation."""
+    try:
+        result = subprocess.run(
+            ["/usr/bin/git", "version", "--build-options"],
+            cwd="/", env=_object_git_environment(), capture_output=True,
+            timeout=15, check=True,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise IntegrationError("native Git SHA1_DC implementation cannot be verified") from error
+    if b"SHA-1: SHA1_DC" not in result.stdout.splitlines():
+        raise IntegrationError("native Git object authentication requires SHA1_DC")
+
+
+def git_object_identity(
+    kind: str, payload: bytes, *, repository: Path | None = None
+) -> str:
+    """Authenticate Git protocol bytes with native collision detection, without writes."""
+    if kind not in ("commit", "tree", "blob") or not isinstance(payload, bytes):
+        raise IntegrationError("native object authentication requires a fixed Git type and bytes")
+    _require_collision_detecting_git()
+    command = ["/usr/bin/git"]
+    if kind == "tree":
+        # Git validates tree entries against its repository object format.
+        # Commit/blob authentication remains independent of repository config.
+        if repository is None:
+            raise IntegrationError("native tree authentication requires an explicit repository")
+        command += [
+            "--no-replace-objects", "-c", "core.hooksPath=/dev/null",
+            "-c", "core.fsmonitor=false", "-C", str(repository),
+        ]
+    command += ["hash-object", "--no-filters", "-t", kind, "--stdin"]
+    try:
+        result = subprocess.run(
+            command,
+            input=payload, cwd="/", env=_object_git_environment(),
+            capture_output=True, timeout=15, check=True,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise IntegrationError("Git object bytes do not authenticate: native Git rejected the input") from error
+    if re.fullmatch(rb"[0-9a-f]{40}\n", result.stdout) is None:
+        raise IntegrationError("native Git returned an incompatible object identity")
+    return result.stdout[:-1].decode("ascii")
+
+
 def raw_object(root: Path, identity: str, expected_type: str) -> bytes:
     exact_revision(identity)
     size = git(root, "cat-file", "-s", identity).strip()
@@ -137,9 +197,7 @@ def raw_object(root: Path, identity: str, expected_type: str) -> bytes:
     if length > MAX_OBJECT or len(body) != length + 1 or body[-1:] != b"\n":
         raise IntegrationError("Git object framing is invalid")
     payload = body[:-1]
-    actual = hashlib.sha1(
-        expected_type.encode() + b" " + str(length).encode() + b"\0" + payload
-    ).hexdigest()
+    actual = git_object_identity(expected_type, payload, repository=root)
     if actual != identity:
         raise IntegrationError(
             "Git object bytes do not authenticate to their recorded identity"

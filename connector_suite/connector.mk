@@ -1554,7 +1554,7 @@ check-haproxy-c-standards:
 	sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/haproxy/check-haproxy-c-standards.sh
 
 check-haproxy-htx-overlay:
-	$(MAKE) -C connectors/haproxy check-htx-overlay
+	$(MAKE) -C connectors/haproxy check-htx-overlay PYTHON="$(FRAMEWORK_PYTHON)"
 
 check-haproxy-c17:
 	HAPROXY_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/haproxy/check-haproxy-c-standards.sh
@@ -1870,7 +1870,7 @@ ifeq ($(ON_DEMAND_TESTS),1)
 else
 	$(ACTIVE_TEST_RUNNER) --group common
 endif
-	if command -v actionlint >/dev/null 2>&1; then $(PYTHON) -m ci.tools.lint_installed_workflows; else echo "actionlint unavailable"; fi
+	if command -v actionlint >/dev/null 2>&1; then $(PYTHON) -m modsecurity_connector_ci.tools.lint_installed_workflows; else echo "actionlint unavailable"; fi
 	git diff --check
 
 summary: check-framework

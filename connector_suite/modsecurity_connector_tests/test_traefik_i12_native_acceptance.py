@@ -25,7 +25,9 @@ REPO = connector_root()
 from modsecurity_connector_ci.runtime.lifecycle.i12.capture_sources import Registry
 from modsecurity_connector_ci.lib.i12_process_observation import ProcessObservation
 
-NATIVE = REPO / 'connectors/traefik/harness/i12/native'
+NATIVE_SOURCE = test_root() / 'connector_suite/adapters/traefik/harness/i12/native'
+# Fixture imports, native probe compilation and file helpers are Framework-owned.
+NATIVE = NATIVE_SOURCE
 EXTERNAL = Path(os.environ.get('CODEX_TEMP_ROOT', '/var/tmp/codex/ModSecurity-conector')) / 'native-acceptance-tests'
 
 

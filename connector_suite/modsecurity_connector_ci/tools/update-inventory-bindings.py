@@ -1,4 +1,4 @@
-"""Review or refresh only existing Framework schema-4 source digest slots.
+"""Review or refresh only existing Framework schema-4/5 source digest slots.
 
 Run with explicit TEST_ROOT and the Framework package on PYTHONPATH. The default
 is --check; --apply is an explicit local maintenance write, never activation.
@@ -35,8 +35,8 @@ def planned(root: Path):
     value = decode(original)
     inventory._keys(value, {"schema_version", "executions", "offline_unit_exceptions",
                             "source_bindings", "connector_source_paths"}, "inventory")
-    if type(value["schema_version"]) is not int or value["schema_version"] != 4:
-        raise ValueError("maintenance requires schema 4")
+    if type(value["schema_version"]) is not int or value["schema_version"] not in {4, 5}:
+        raise ValueError("maintenance requires schema 4 or 5")
     pool = value["source_bindings"]
     if not isinstance(pool, list) or not pool:
         raise ValueError("source bindings must be a nonempty array")
@@ -55,6 +55,7 @@ def planned(root: Path):
     all_bindings = {**bindings, **{path: "0" * 64 for path in products}}
     used = set()
     expanded = copy.deepcopy(rows + exceptions)
+    inventory._expand_indexed_sources(value, expanded)
     for row in expanded:
         refs = inventory._shared_source_references(row, all_bindings)
         used.update(refs)

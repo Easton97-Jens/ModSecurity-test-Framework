@@ -11,6 +11,7 @@ from modsecurity_test_framework.connector_context import connector_root, test_ro
 import argparse
 import ast
 import configparser
+import errno
 import hashlib
 import json
 import os
@@ -18,9 +19,12 @@ from pathlib import Path
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import tarfile
+import time
+import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
 
@@ -225,6 +229,55 @@ def fresh_root(value: str) -> Path:
     return path
 
 
+def transient_transport_failure(error: OSError) -> bool:
+    if isinstance(error, urllib.error.HTTPError):
+        return error.code in {408, 429, 500, 502, 503, 504}
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    return isinstance(reason, TimeoutError) or (
+        isinstance(reason, OSError) and reason.errno in {
+            errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ECONNRESET,
+            errno.ECONNREFUSED, errno.ETIMEDOUT, socket.EAI_AGAIN,
+        })
+
+
+def download_archive_attempt(request: urllib.request.Request, archive: Path) -> None:
+    created = False
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            if urlsplit(response.geturl()).scheme != "https":
+                raise ValueError("native source download redirected away from HTTPS")
+            with archive.open("xb") as output:
+                created = True
+                shutil.copyfileobj(response, output)
+    except BaseException:
+        if created:
+            archive.unlink()
+        raise
+
+
+def download_archive(url: str, archive: Path) -> None:
+    """Retry transient transport only; TLS, content and local admission remain strict."""
+    request = urllib.request.Request(url, headers={"User-Agent": "Parent-Sonar-native-context"})
+    for attempt in range(1, 4):
+        try:
+            download_archive_attempt(request, archive)
+            return
+        except OSError as error:
+            reason = error.reason if isinstance(error, urllib.error.URLError) else error
+            if isinstance(error, urllib.error.HTTPError):
+                reason = error
+                error.close()
+            # Do not expose exception text: proxy URLs may contain credentials.
+            print(json.dumps({"stage": "native-archive-download", "endpoint": url,
+                              "attempt": attempt, "attempt_limit": 3,
+                              "error_type": type(reason).__name__,
+                              "errno": getattr(reason, "errno", None),
+                              "http_status": getattr(error, "code", None)}), file=sys.stderr)
+            if attempt == 3 or not transient_transport_failure(error):
+                raise
+            time.sleep(attempt)
+
+
 def verified_archive(item: dict[str, str], downloads: Path, archives_root: Path | None) -> Path:
     name = Path(urlsplit(item["url"]).path).name
     cached = archives_root / name if archives_root is not None else None
@@ -234,11 +287,7 @@ def verified_archive(item: dict[str, str], downloads: Path, archives_root: Path 
         archive = cached
     else:
         archive = downloads / name
-        request = urllib.request.Request(item["url"], headers={"User-Agent": "Parent-Sonar-native-context"})
-        with urllib.request.urlopen(request, timeout=60) as response, archive.open("xb") as output:
-            if urlsplit(response.geturl()).scheme != "https":
-                raise ValueError("native source download redirected away from HTTPS")
-            shutil.copyfileobj(response, output)
+        download_archive(item["url"], archive)
     if sha256(archive) != item["sha256"]:
         raise ValueError(f"native archive SHA-256 mismatch: {name}")
     return archive
