@@ -48,6 +48,19 @@ No-Redirect-Grenze von APR-util bleiben unverändert.
 `make test-httpd-source-recovery` führt die fokussierte Offline-Regressionssuite
 aus. Sie prüft den Quellenbezug, nicht die Runtime-Reife eines Connectors.
 
+### Konfigurierte NGINX-Header für C-Prüfungen
+
+Der gemeinsame Helfer `nginx_include_flags_or_blocked` unterstützt installierte
+Header und konfigurierte NGINX-Quellbäume. Die Include-Liste für konfigurierte
+Quellen umfasst neben den HTTP-v2/v3-Verzeichnissen auch `src/event/quic`, damit
+eine echte QUIC-fähige `objs/ngx_auto_config.h` die Datei `ngx_event_quic.h`
+einbinden kann. Vorrang installierter Header, Voraussetzungen konfigurierter
+Quellen und Fehler bei fehlenden Headern bleiben unverändert; das
+QUIC-Verzeichnis ist keine zusätzliche Pflichtvoraussetzung für ältere oder
+nicht-QUIC-fähige Quellbäume. C-Kompilierung mit diesen Flags belegt nur die
+Kompilierung, keine TLS-Linkage, keinen H2/H3-Verkehr oder Connector-Runtime-
+Qualifikation.
+
 ## Repository-Layout
 
 | Pfad | Verantwortung |
