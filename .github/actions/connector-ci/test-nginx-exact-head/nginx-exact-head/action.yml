@@ -199,6 +199,7 @@ runs:
             echo "NGINX_FUNCTIONAL_WORKER_GROUP=$NGINX_FUNCTIONAL_WORKER_GROUP"
           } >> "$GITHUB_ENV"
       - name: Provision pinned NGINX and connector runtime
+        id: provision-runtime
         shell: bash
         run: |
           set -eu
@@ -220,7 +221,10 @@ runs:
             -u NGINX_BUILD_DIR \
             make fetch-deps
           test -s "$RUNTIME_COMPONENT_ENV_SNAPSHOT"
-          echo "RUNTIME_COMPONENT_ENV_SNAPSHOT=$RUNTIME_COMPONENT_ENV_SNAPSHOT" >> "$GITHUB_ENV"
+          [[ "$RUNTIME_COMPONENT_ENV_SNAPSHOT" =~ ^/[a-zA-Z0-9_./-]+$ ]]
+          test "${RUNTIME_COMPONENT_ENV_SNAPSHOT%/*}" = "$RUNTIME_REPORT_OUTPUT_ROOT"
+          [[ "${RUNTIME_COMPONENT_ENV_SNAPSHOT##*/}" =~ ^runtime-env-snapshot\.[a-zA-Z0-9]{6}\.sh$ ]]
+          printf '%s\n' "runtime_component_env_snapshot=$RUNTIME_COMPONENT_ENV_SNAPSHOT" >> "$GITHUB_OUTPUT"
       - name: Print bounded NGINX provisioning failure diagnostics
         if: failure()
         shell: bash
@@ -231,6 +235,8 @@ runs:
             modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/provisioning/components/nginx_exact_head_diagnostics.py \
             --run-root "$RUN_ROOT"
       - name: Run isolated modsecurity_use_error_log on/off cells
+        env:
+          RUNTIME_COMPONENT_ENV_SNAPSHOT: ${{ steps.provision-runtime.outputs.runtime_component_env_snapshot }}
         shell: bash
         run: |
           set -eu

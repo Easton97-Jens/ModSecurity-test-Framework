@@ -17,7 +17,7 @@ import tempfile
 import unittest
 
 from modsecurity_connector_tests.c_source_contract import function_definition
-from tests import test_nginx_request_native_results as native_fixture
+from modsecurity_connector_tests import test_nginx_request_native_results as native_fixture
 
 ROOT = connector_root()
 ACCESS = source_path('connectors/nginx/src/ngx_http_modsecurity_access.c', root=ROOT)
@@ -295,6 +295,8 @@ class NginxRequestErrorEventsTests(unittest.TestCase):
                 self.assertEqual(evidence["body_calls"], 0)
                 event = evidence["attempted_event"]
                 self.assertEqual(event["message_id"], "MSCONN_EVENT_INVALID_ENGINE_RESPONSE")
+                self.assertEqual(event["http_status"], 500)
+                self.assertEqual(event["phase"], "request_headers")
                 self.assertEqual(event["status"], "error")
                 self.assertEqual(event["rule_id"], "")
                 self.assertEqual(event["actual_action"], "")
@@ -310,6 +312,15 @@ class NginxRequestErrorEventsTests(unittest.TestCase):
         evidence = self.run_case(side="headers", cause="none")
         self.assertEqual(evidence["writes"], 1)
         self.assertEqual(evidence["attempted_event"]["message_id"], "MSCONN_EVENT_CONNECTOR_ERROR")
+        self.assertEqual(evidence["attempted_event"]["event"], "connector_error")
+        self.assertEqual(evidence["attempted_event"]["http_status"], 500)
+        self.assertEqual(evidence["attempted_event"]["phase"], "request_headers")
+        timeout = self.run_case(side="headers", cause="timeout", result=500)
+        self.assertEqual((timeout["first"], timeout["retry"]), (504, 504))
+        self.assertEqual(timeout["attempted_event"]["http_status"], 504)
+        self.assertEqual(timeout["attempted_event"]["visible_http_status"], 0)
+        self.assertEqual(timeout["attempted_event"]["actual_action"], "")
+        self.assertEqual(timeout["attempted_event"]["transport_result"], "not_observable")
 
     def test_body_budget_and_protocol_failures_remain_distinct(self) -> None:
         for status, identifier in ((413, "MSCONN_EVENT_BODY_LIMIT"),
@@ -317,6 +328,8 @@ class NginxRequestErrorEventsTests(unittest.TestCase):
             with self.subTest(status=status):
                 evidence = self.run_case(cause="none", result=status)
                 self.assertEqual((evidence["first"], evidence["retry"]), (status, status))
+                self.assertEqual(evidence["attempted_event"]["http_status"], status)
+                self.assertEqual(evidence["attempted_event"]["phase"], "request_body")
                 self.assertEqual(evidence["attempted_event"]["message_id"], identifier)
                 self.assertEqual(evidence["attempted_event"]["rule_id"], "")
                 self.assertEqual(evidence["body_calls"], 1)
@@ -366,6 +379,7 @@ class NginxRequestErrorEventsTests(unittest.TestCase):
                 evidence = self.run_case(cause="none", result=result)
                 self.assertEqual((evidence["first"], evidence["retry"]), (result, result))
                 self.assertEqual(evidence["writes"], 0)
+                self.assertIsNone(evidence["attempted_event"])
                 self.assertEqual(evidence["cause"], 0)
 
     def test_existing_error_cannot_become_a_successful_control_return(self) -> None:
@@ -380,6 +394,9 @@ class NginxRequestErrorEventsTests(unittest.TestCase):
         self.assertEqual((evidence["first"], evidence["retry"]), (-1, -1))
         self.assertEqual(evidence["connection_error"], 1)
         self.assertEqual(evidence["attempted_event"]["visible_http_status"], 0)
+        self.assertEqual(evidence["attempted_event"]["http_status"], 0)
+        self.assertEqual(evidence["attempted_event"]["actual_action"], "")
+        self.assertEqual(evidence["attempted_event"]["transport_result"], "not_observable")
         self.assertFalse(evidence["attempted_event"]["connection_aborted"])
 
     def test_error_reentry_after_headers_never_reuses_the_unsent_http_result(self) -> None:

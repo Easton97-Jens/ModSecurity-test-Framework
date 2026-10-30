@@ -3,7 +3,7 @@ from pathlib import Path
 import subprocess
 import unittest
 
-from tests import test_haproxy_engine_response_limits as response_harness
+from modsecurity_connector_tests import test_haproxy_engine_response_limits as response_harness
 
 PROGRAM = r"""
 #include "haproxy_modsecurity_binding.h"

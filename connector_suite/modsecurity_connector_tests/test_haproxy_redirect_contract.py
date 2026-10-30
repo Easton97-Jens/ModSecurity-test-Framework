@@ -178,7 +178,7 @@ int main(int argc,char **argv) {
 class HAProxyNativeRedirect(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from tests import test_haproxy_engine_response_limits as native
+        from modsecurity_connector_tests import test_haproxy_engine_response_limits as native
         native.HaproxyRealEngineResponseLimitTests.setUpClass.__func__(cls)
         source = cls.runroot / "native-redirect.c"; source.write_text(NATIVE_PROGRAM)
         objroot = cls.build / "haproxy-modsecurity-binding"

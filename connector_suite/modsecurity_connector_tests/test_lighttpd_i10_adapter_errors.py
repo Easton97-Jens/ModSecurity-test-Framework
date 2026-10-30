@@ -4,14 +4,16 @@ These checks observe host return/status/socket output, not live lighttpd or
 client transport reset. Pinned native host headers are not required.
 """
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path
 import os
+import runpy
 from pathlib import Path
 import shlex
 import subprocess
 import tempfile
 import unittest
-from modsecurity_connector_tests.c_source_contract import function_definition, matching_delimiter
+from modsecurity_connector_tests.c_source_contract import function_definition
+MATERIALIZER = runpy.run_path(str(test_root() / "ci/checks/analysis/native-cfamily-recipes.py"))
 ROOT = connector_root()
 NATIVE = source_path('connectors/lighttpd/module/mod_msconnector.c', root=ROOT)
 
@@ -22,20 +24,10 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
         cls.addClassCleanup(cls.temporary.cleanup)
         cls.directory = Path(cls.temporary.name)
         source = NATIVE.read_text()
-        names = ("mod_msconnector_record_api_failure", "mod_msconnector_error_response", "mod_msconnector_fail_request", "mod_msconnector_apply_decision", "mod_msconnector_response_headers_committed", "mod_msconnector_response_body_committed", "mod_msconnector_finish_request_body", "mod_msconnector_finish_response_body", "mod_msconnector_handle_response_body", "mod_msconnector_handle_response_abort", "mod_msconnector_append_request_body_range", "mod_msconnector_reject_request_body_gate_conflict", "mod_msconnector_handle_request_body")
-        # Preserve productive signatures and bodies exactly.
-        definitions = []
-        for name in names:
-            value = function_definition(source, name)
-            definitions.append(value)
-        for name in ("mod_msconnector_handle_uri_clean", "mod_msconnector_handle_response_start", "mod_msconnector_handle_request_reset"):
-            anchor = "REQUEST_FUNC(" + name + ") {"
-            start = source.index(anchor)
-            opening = source.index("{", start)
-            end = matching_delimiter(source, opening, "{", "}")
-            definitions.append(source[start:end + 1])
+        parts = MATERIALIZER["lighttpd_parts"](native=source)
+        MATERIALIZER["write_lighttpd_includes"](parts, cls.directory)
         fixture = (source_path('tests/fixtures/lighttpd_i10_native.c', root=ROOT)).read_text()
-        fixture = fixture.replace("/* DEFINITIONS */", "\n".join(definitions))
+        fixture = fixture.replace('#include "native-lighttpd-definitions.inc"', parts["native-lighttpd-definitions.inc"])
         cls.binaries = {}
         variants = {"current": fixture,
                     "swallow-error": fixture.replace("return PLUGIN_BODY_HOOK_ERROR;", "return PLUGIN_BODY_HOOK_CONTINUE;"),
@@ -45,8 +37,10 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
         for variant, text in variants.items():
             path = cls.directory / (variant + ".c")
             path.write_text(text)
+            if variant == "current":
+                path = source_path('tests/fixtures/lighttpd_i10_native.c', root=ROOT)
             binary = cls.directory / variant
-            command = shlex.split(os.environ.get("CC", "cc")) + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread", "-I", str(ROOT), "-I", str(source_path('common/include', root=ROOT)), str(path)]
+            command = shlex.split(os.environ.get("CC", "cc")) + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread", "-I", str(cls.directory), "-I", str(ROOT), "-I", str(source_path('common/include', root=ROOT)), str(path)]
             command += [str(source_path('common/src', root=ROOT) / name) for name in ("decision.c", "decision_action.c", "intervention.c", "block_statuses.c", "error.c", "status.c", "late_intervention.c", "http_status.c", "event.c", "json_escape.c", "transaction_state.c")]
             command += [str(source_path('connectors/profile_registry.c', root=ROOT)), "-o", str(binary)]
             result = subprocess.run(command, capture_output=True, text=True, timeout=60)
@@ -56,12 +50,11 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
     @classmethod
     def build_sidecar(cls):
         source = (source_path('connectors/lighttpd/stock_sidecar/stock_sidecar.c', root=ROOT)).read_text()
-        types = source[source.index("typedef struct sidecar_options"):source.index("typedef struct sidecar_runtime_context")]
-        types += source[source.index("typedef enum sidecar_failure_origin"):source.index("static uint64_t sidecar_now_ms")]
-        types += source[source.index("typedef struct sidecar_exchange_payload"):source.index("static int sidecar_capture_request_endpoints")]
-        names = ("sidecar_shutdown_owned_socket", "sidecar_now_ms", "sidecar_remaining", "sidecar_wait", "sidecar_send_all_observed", "sidecar_send_all", "sidecar_recv_some_with_flags", "sidecar_recv_some", "sidecar_headers_release", "sidecar_write_error", "sidecar_record_failure_action", "sidecar_failure_error_class", "sidecar_exchange_state_init", "sidecar_release_request_spool", "sidecar_read_response_body", "sidecar_phase4_action", "sidecar_finish_strict_response", "sidecar_exchange_response", "sidecar_exchange_error", "sidecar_exchange")
-        text = (source_path('tests/fixtures/lighttpd_i10_sidecar.c', root=ROOT)).read_text().replace("/* TYPES */", types)
-        text = text.replace("/* DEFINITIONS */", "\n".join(function_definition(source, name) for name in names))
+        parts = MATERIALIZER["lighttpd_parts"](sidecar=source)
+        MATERIALIZER["write_lighttpd_includes"](parts, cls.directory)
+        text = (source_path('tests/fixtures/lighttpd_i10_sidecar.c', root=ROOT)).read_text()
+        for name, content in parts.items():
+            text = text.replace('#include "' + name + '"', content)
         variants = {"sidecar-current": text,
                     "sidecar-accept-error": text.replace("state.payload.response_headers.status_code) : 0;", "state.payload.response_headers.status_code) : sidecar_write_non_allow_receipt(&receipt_snapshot);"),
                     "sidecar-ignore-return": text.replace("&state->error) != 1)", "&state->error) == 0)"),
@@ -78,8 +71,10 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
         for variant, value in variants.items():
             path = cls.directory / (variant + ".c")
             path.write_text(value)
+            if variant == "sidecar-current":
+                path = source_path('tests/fixtures/lighttpd_i10_sidecar.c', root=ROOT)
             binary = cls.directory / variant
-            command = shlex.split(os.environ.get("CC", "cc")) + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread", "-I", str(ROOT), "-I", str(source_path('common/include', root=ROOT)), str(path)]
+            command = shlex.split(os.environ.get("CC", "cc")) + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread", "-I", str(cls.directory), "-I", str(ROOT), "-I", str(source_path('common/include', root=ROOT)), str(path)]
             command += [str(source_path('common/src', root=ROOT) / name) for name in ("error.c", "event.c", "http_status.c", "json_escape.c", "transaction_state.c", "decision.c", "decision_action.c", "intervention.c", "block_statuses.c", "status.c", "late_intervention.c")]
             command += [str(source_path('connectors/profile_registry.c', root=ROOT)), "-o", str(binary)]
             result = subprocess.run(command, capture_output=True, text=True, timeout=60)

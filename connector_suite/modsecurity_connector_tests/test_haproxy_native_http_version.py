@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 import unittest
-from tests import test_haproxy_engine_response_limits as native
+from modsecurity_connector_tests import test_haproxy_engine_response_limits as native
 
 PROGRAM = r"""
 #include "haproxy_modsecurity_binding.h"

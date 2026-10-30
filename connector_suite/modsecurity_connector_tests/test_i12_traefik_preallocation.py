@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
-from tests import test_i12_lifecycle_ledger as existing
+from modsecurity_connector_tests import test_i12_lifecycle_ledger as existing
 LEDGER = existing.LEDGER
 
 class TraefikPreallocationTests(unittest.TestCase):

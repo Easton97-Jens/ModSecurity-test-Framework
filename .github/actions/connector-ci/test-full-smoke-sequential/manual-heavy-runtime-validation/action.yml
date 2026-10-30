@@ -129,12 +129,14 @@ runs:
         git diff --check
 
     - name: Sequential full smoke
+      env:
+        CALLER_VARIANT: ${{ fromJSON(inputs.caller-matrix).variant }}
       shell: bash -e {0}
       run: |
         set -eu
         make PYTHON="$PWD/.venv/bin/python" check-bounded-smoke-runtime-contract
         make fetch-deps
-        case "${{ fromJSON(inputs.caller-matrix).variant }}" in
+        case "$CALLER_VARIANT" in
           no-crs)
             ON_DEMAND_TESTS=1 SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-no-crs
             ;;
@@ -142,7 +144,7 @@ runs:
             ON_DEMAND_TESTS=1 SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-with-crs
             ;;
           *)
-            echo "unknown test variant: ${{ fromJSON(inputs.caller-matrix).variant }}" >&2
+            echo "unknown test variant: $CALLER_VARIANT" >&2
             exit 1
             ;;
         esac

@@ -474,13 +474,42 @@ def _validate_source_definitions(root: Path, executions: list[dict[str, Any]]) -
         _validate_test_definition(root, execution, source_bytes, definitions_cache)
 
 
+MIGRATION_INTEGRATION_MODULES = frozenset({
+    "modsecurity_connector_tests.test_framework_workflow_pin_projection",
+    "modsecurity_connector_tests.test_mrts_native_package_handoff",
+    "modsecurity_connector_tests.test_python_source_isolation",
+    "modsecurity_connector_tests.test_python_version_contract",
+    "modsecurity_connector_tests.test_result_identity_contract",
+    "modsecurity_connector_tests.test_result_migration_regressions",
+    "modsecurity_connector_tests.test_trusted_framework_bridge",
+    "modsecurity_test_framework.selftests.connector_adapter.test_connector_cli",
+    "modsecurity_test_framework.selftests.connector_adapter.test_connector_integration",
+    "modsecurity_test_framework.selftests.connector_adapter.test_inventory_sources",
+    "modsecurity_test_framework.selftests.security_regression.test_mrts_definition_guard",
+    "modsecurity_test_framework.selftests.security_regression.test_mrts_package",
+})
+
+
+def _migration_integration(execution: dict[str, Any]) -> bool:
+    """Recognize reviewed process-capable fixtures; never reclassify offline cases."""
+    if set(execution["groups"]) != {"migration", "migration-integration"}:
+        return False
+    target = execution["selector"].get("target", "")
+    parts = target.split(".")
+    if ".".join(parts[:-2]) not in MIGRATION_INTEGRATION_MODULES:
+        return False
+    slug = parts[-1].removeprefix("test_").replace("_", "-")
+    expected = "offline.migration." + slug + "." + hashlib.sha256(target.encode()).hexdigest()[:8]
+    return execution["id"] == expected
+
+
 def _validate_offline_exceptions(exceptions: list[dict[str, Any]]) -> None:
     for execution in exceptions:
         if (execution["selector"]["kind"] != "python" or
-                "offline-unit" not in execution["groups"] or
+                ("offline-unit" not in execution["groups"] and not _migration_integration(execution)) or
                 not execution["id"].startswith("offline.") or
                 "expected_subtests" not in execution):
-            raise InventoryError("offline exceptions require explicit source-bound Python unit selectors")
+            raise InventoryError("on-demand exceptions require offline units or reviewed source-bound migration integrations")
 
 
 def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
@@ -894,13 +923,15 @@ def run_execution(inventory: Inventory, execution: dict[str, Any], output: Path,
     environment["ACTIVE_TEST_EXECUTION"] = execution["id"]
     environment["ACTIVE_TEST_INVENTORY_SHA256"] = inventory.digest
     environment.pop("ACTIVE_TEST_OFFLINE_I12", None)
-    if {"offline-i12", "offline-unit"}.intersection(execution["groups"]):
+    offline = bool({"offline-i12", "offline-unit"}.intersection(execution["groups"]))
+    if offline or _migration_integration(execution):
         fixture = _output_directory(inventory.root, output)
         environment.update(I12_TEST_ROOT=str(fixture), CODEX_PROJECT_STATE=str(fixture),
                            I12_NGINX_LEDGER_TEST_ROOT=str(fixture),
                            CODEX_TEST_TMP_ROOT=str(fixture), CODEX_TEMP_ROOT=str(fixture),
-                           TMPDIR=str(fixture), RUNNER_TEMP=str(fixture),
-                           ACTIVE_TEST_OFFLINE_I12="1")
+                           TMPDIR=str(fixture), RUNNER_TEMP=str(fixture))
+    if offline:
+        environment["ACTIVE_TEST_OFFLINE_I12"] = "1"
     with log.open("x", encoding="utf-8") as stream:
         returncode = _run_child(command, working_directory, environment, stream,
                                 timeout=execution_timeout(execution))

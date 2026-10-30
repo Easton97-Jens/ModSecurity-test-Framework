@@ -8,7 +8,7 @@ import unittest
 
 ROOT = connector_root()
 
-from tests import test_lighttpd_i10_adapter_errors as i10
+from modsecurity_connector_tests import test_lighttpd_i10_adapter_errors as i10
 from modsecurity_connector_tests.c_source_contract import function_definition
 
 

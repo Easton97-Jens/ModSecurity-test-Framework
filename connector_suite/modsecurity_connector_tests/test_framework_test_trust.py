@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tests import framework_test_trust as trust
+from modsecurity_connector_tests import framework_test_trust as trust
 
 
 class FrameworkTestTrustTest(unittest.TestCase):

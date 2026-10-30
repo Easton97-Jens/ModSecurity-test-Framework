@@ -21,13 +21,7 @@ REVISION = "b" * 40
 
 
 def load_review():
-    previous = list(sys.path)
-    sys.path.insert(0, str(HERE))
-    try:
-        module = load_source(HERE / 'review_runs.py')
-        return module
-    finally:
-        sys.path[:] = previous
+    return load_source(HERE / 'review_runs.py')
 
 
 REVIEW = load_review()

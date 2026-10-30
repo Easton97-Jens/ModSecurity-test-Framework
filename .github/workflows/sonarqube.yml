@@ -23,6 +23,14 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-26.04
     timeout-minutes: 60
+    env:
+      FRAMEWORK_ROOT: ${{ github.workspace }}
+      TEST_ROOT: ${{ github.workspace }}
+      PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/connector_suite
+      CONNECTOR_REVISION: cfd5e49cada3fc793ef50993147e3796a0907443
+      PYTHONSAFEPATH: "1"
+      PYTHONNOUSERSITE: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,19 +46,55 @@ jobs:
           python-version-file: ".python-version"
           check-latest: false
 
+      - name: Initialize explicit Framework paths
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/framework-build" "$RUNNER_TEMP/framework-tmp" \
+            "$RUNNER_TEMP/framework-output" "$RUNNER_TEMP/framework-state"
+          {
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/framework-pycache"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/framework-state"
+            echo "BUILD_ROOT=$RUNNER_TEMP/framework-build"
+            echo "TMP_ROOT=$RUNNER_TEMP/framework-tmp"
+            echo "TMPDIR=$RUNNER_TEMP/framework-tmp"
+            echo "OUTPUT_ROOT=$RUNNER_TEMP/framework-output"
+            echo "CONNECTOR_ROOT=$RUNNER_TEMP/framework-sonar-connector"
+            echo "FRAMEWORK_REVISION=$(git rev-parse HEAD)"
+          } >> "$GITHUB_ENV"
+
       - name: Install native analysis prerequisites
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes build-essential autoconf automake libtool pkg-config libpcre2-dev libyajl-dev libcurl4-openssl-dev libxml2-dev liblmdb-dev libssl-dev zlib1g-dev bison flex git
+          sudo apt-get install --no-install-recommends --yes build-essential apache2-dev autoconf automake libtool pkg-config libpcre2-dev libyajl-dev libcurl4-openssl-dev libxml2-dev liblmdb-dev libssl-dev zlib1g-dev bison flex git
+
+      - name: Materialize explicit Product analysis input
+        run: |
+          set -euo pipefail
+          test ! -e "$CONNECTOR_ROOT"
+          git -c credential.helper= clone --no-checkout --filter=blob:none \
+            https://github.com/Easton97-Jens/ModSecurity-conector.git "$CONNECTOR_ROOT"
+          git -C "$CONNECTOR_ROOT" -c credential.helper= fetch --no-tags origin "$CONNECTOR_REVISION"
+          git -C "$CONNECTOR_ROOT" checkout --detach "$CONNECTOR_REVISION"
+          test "$(git -C "$CONNECTOR_ROOT" rev-parse HEAD)" = "$CONNECTOR_REVISION"
+          test -z "$(git -C "$CONNECTOR_ROOT" status --porcelain --untracked-files=all)"
 
       - name: Compile all Framework native sources for security analysis
         run: |
           set -euo pipefail
           sh ci/checks/analysis/prepare-sonar-sdk.sh
+          python3 ci/checks/analysis/prepare-sonar-nginx.py \
+            --connector-root "$CONNECTOR_ROOT" --connector-revision "$CONNECTOR_REVISION" \
+            --output "$RUNNER_TEMP/framework-sonar-nginx"
+          nginx_source="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source"])' \
+            "$RUNNER_TEMP/framework-sonar-nginx/manifest.json")"
           python3 ci/checks/analysis/prepare-sonar-cfamily.py \
             --output "$RUNNER_TEMP/framework-sonar-native" \
-            --sdk "$RUNNER_TEMP/framework-sonar-sdk/build/ModSecurity_V3_build"
+            --sdk "$RUNNER_TEMP/framework-sonar-sdk/build/ModSecurity_V3_build" \
+            --connector-root "$CONNECTOR_ROOT" --connector-revision "$CONNECTOR_REVISION" \
+            --apache-include /usr/include/apache2 --apr-include /usr/include/apr-1.0 \
+            --nginx-source "$nginx_source" --nginx-build "$nginx_source/objs"
 
       - name: Analyze maintained languages and wait for the Quality Gate
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0

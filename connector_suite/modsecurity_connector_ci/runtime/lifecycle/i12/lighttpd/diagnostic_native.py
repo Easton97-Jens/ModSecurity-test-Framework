@@ -5,10 +5,12 @@ Preparation reuses the manifest's lighttpd capture variant. Execution uses its
 separate waited raw client and observed backend, not in-process projections.
 Root alone reviews oracle and lifecycle proposals with the existing qualifier.
 """
-from modsecurity_test_framework.connector_context import connector_root, test_root, load_source
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_source
 import argparse
 import hashlib
-import importlib.util
+import builtins
+import runpy
+from types import SimpleNamespace, MappingProxyType
 import json
 import re
 import os
@@ -126,6 +128,13 @@ def command(argv, directory, label, env=None):
     if result.returncode:
         raise RuntimeError(f"{label} failed: {result.returncode}")
     return result
+
+
+def repository_input(repository, relative):
+    """Map real Product source reads; preserve explicit private fixture layouts."""
+    if isinstance(repository, Path):
+        return source_path(relative, root=repository)
+    return repository / relative
 
 
 def copied_product_inputs(source, repository, stock):
@@ -298,9 +307,9 @@ def prepare(args):
         "current_product_byte_identity_after_stripping_observation": True, "additive_seams": len(deltas),
         "historical_full_module_used_as_product": False})
     module.write_text(text)
-    observer = args.repository / "ci/runtime/lifecycle/i12/lighttpd/diagnostic_native_observer.h"
+    observer = repository_input(args.repository, "ci/runtime/lifecycle/i12/lighttpd/diagnostic_native_observer.h")
     shutil.copyfile(observer, source / observer.name)
-    fault_source = args.repository / "ci/runtime/lifecycle/i12/lighttpd/diagnostic_faults.h"
+    fault_source = repository_input(args.repository, "ci/runtime/lifecycle/i12/lighttpd/diagnostic_faults.h")
     shutil.copyfile(fault_source, source / fault_source.name)
     runtime_source = source / "common/runtime/msconnector_runtime.c"
     runtime_text = "#ifndef _GNU_SOURCE\n#define _GNU_SOURCE\n#endif\n#include \"diagnostic_faults.h\"\n" + runtime_source.read_text()
@@ -313,8 +322,8 @@ def prepare(args):
     runtime_source.write_text(runtime_text)
     extension = load_source(args.repository / 'ci/runtime/lifecycle/i12/lighttpd/diagnostic_fault_capture.py')
     write(args.output / "extended-fault-overlay.json", extension.extend(source,
-        args.repository / "ci/runtime/lifecycle/i12/lighttpd/patched_faults.h"))
-    control_header = args.repository / "ci/runtime/lifecycle/i12/lighttpd/diagnostic_terminal_control.h"
+        repository_input(args.repository, "ci/runtime/lifecycle/i12/lighttpd/patched_faults.h")))
+    control_header = repository_input(args.repository, "ci/runtime/lifecycle/i12/lighttpd/diagnostic_terminal_control.h")
     shutil.copyfile(control_header, source / control_header.name)
     terminal_before = sha(module)
     terminal_anchor = "    {\n        const handler_t rc = mod_msconnector_apply_decision(r, p, ctx, &decision);"
@@ -366,11 +375,14 @@ def prepare(args):
         shutil.copyfile(captured / filename, fixtures / filename)
     raw_client = fixtures / "curl-raw-client.py"
     raw_client.write_text(numeric_loopback_client(raw_client.read_text()))
-    shutil.copyfile(args.repository / "ci/runtime/common/response_fixture_omission.py", fixtures / "response_fixture_omission.py")
+    shutil.copyfile(repository_input(args.repository, "ci/runtime/common/response_fixture_omission.py"), fixtures / "response_fixture_omission.py")
     shutil.copyfile(Path(__file__), fixtures / "diagnostic_native.py")
-    shutil.copyfile(args.repository / "ci/runtime/lifecycle/i12/lighttpd/diagnostic_transport.py", fixtures / "diagnostic_transport.py")
+    shutil.copyfile(repository_input(args.repository, "ci/runtime/lifecycle/i12/lighttpd/diagnostic_transport.py"), fixtures / "diagnostic_transport.py")
     for helper in ("i12_path_safety.py", "runtime_path_utils.py"):
-        shutil.copyfile(args.repository / "ci/lib" / helper, fixtures / helper)
+        shutil.copyfile(repository_input(args.repository, "ci/lib/" + helper), fixtures / helper)
+    write(fixtures / "backend-inputs.json", {
+        name: sha(fixtures / name)
+        for name in ("observed-backend.py", "response_fixture_omission.py")})
     write(args.output / "preparation.json", {"capture_contract_store_delivery_baseline": "8cc32dceb06121f589150a9794f28878c5e4ba2a",
         "checkout_head": args.checkout_head, "source_variant_receipt_sha256": sha(source / "i12-source-application-receipt.json"),
         "stock_module_before_diagnostic_overlay_sha256": before,
@@ -385,6 +397,7 @@ def prepare(args):
         "path_boundary_dependencies_sha256": {
             helper: sha(fixtures / helper)
             for helper in ("i12_path_safety.py", "runtime_path_utils.py")},
+        "prepared_backend_inputs_sha256": sha(fixtures / "backend-inputs.json"),
         "numeric_loopback_client_sha256": sha(raw_client),
         "observation_overlay_changes_decisions": False,
         "fault_overlay": "Only explicit declared modes alter caller pointers/stdio or Runtime boundary return, or invoke actual public timeout/cancel APIs; real native SDK returns stay separately recorded."})
@@ -567,9 +580,131 @@ def serve_numeric_loopback(server):
         server.handle_request()
 
 
+PREPARED_BACKEND_FILES = frozenset(
+    {"observed-backend.py", "response_fixture_omission.py"}
+)
+
+
+def prepared_fixture_root(root):
+    root = Path(root)
+    allowed = root == Path("/mnt/fixtures") or any(
+        root.is_relative_to(parent) for parent in (TASK_ROOT, EXTERNAL_ROOT)
+    )
+    if (
+        not root.is_absolute()
+        or ".." in root.parts
+        or not allowed
+        or root.resolve(strict=True) != root
+    ):
+        raise ValueError("Prepared backend requires a physical private fixture root")
+    details = root.stat()
+    if not stat.S_ISDIR(details.st_mode) or details.st_mode & 0o022:
+        raise ValueError("Prepared backend fixture root must not be writable by others")
+    return root
+
+
+def prepared_fixture_bytes(root, name):
+    if name not in PREPARED_BACKEND_FILES | {"backend-inputs.json"}:
+        raise ValueError("Prepared backend filename is outside the closed fixture set")
+    parent = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        descriptor = os.open(
+            name,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+            dir_fd=parent,
+        )
+        with os.fdopen(descriptor, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_nlink != 1
+                or before.st_mode & 0o022
+                or not 0 < before.st_size <= 1024 * 1024
+            ):
+                raise ValueError(
+                    "Prepared backend inputs must be bounded single-link regular files"
+                )
+            content = stream.read(1024 * 1024 + 1)
+            after = os.fstat(stream.fileno())
+            stable = (
+                "st_dev",
+                "st_ino",
+                "st_mode",
+                "st_nlink",
+                "st_uid",
+                "st_gid",
+                "st_size",
+                "st_mtime_ns",
+                "st_ctime_ns",
+            )
+            if (
+                any(getattr(before, field) != getattr(after, field) for field in stable)
+                or len(content) != before.st_size
+            ):
+                raise ValueError("Prepared backend input changed during bounded read")
+            return content
+    finally:
+        os.close(parent)
+
+
+def prepared_backend_sources(root):
+    bindings = json.loads(prepared_fixture_bytes(root, "backend-inputs.json"))
+    if (
+        not isinstance(bindings, dict)
+        or set(bindings) != PREPARED_BACKEND_FILES
+        or any(
+            not isinstance(value, str) or not re.fullmatch(r"[a-f0-9]{64}", value)
+            for value in bindings.values()
+        )
+    ):
+        raise ValueError("Prepared backend requires exact two-file SHA256 bindings")
+    sources = {
+        name: prepared_fixture_bytes(root, name)
+        for name in sorted(PREPARED_BACKEND_FILES)
+    }
+    if any(
+        hashlib.sha256(content).hexdigest() != bindings[name]
+        for name, content in sources.items()
+    ):
+        raise ValueError(
+            "Prepared backend source hash differs from its preparation binding"
+        )
+    return sources
+
+
+def load_prepared_backend(root=Path("/mnt/fixtures")):
+    """Load only the two prepared, bound files without changing global imports."""
+    root = prepared_fixture_root(root)
+    sources = prepared_backend_sources(root)  # Both are admitted before any exec.
+    support = SimpleNamespace(
+        **runpy.run_path(str(root / "response_fixture_omission.py"))
+    )
+    # The immutable captured fixture retains its original adjacent sys.path
+    # bootstrap. Give that fixture a private view instead of changing globals.
+    private_sys = SimpleNamespace(
+        **dict(vars(sys), path=list(sys.path), modules=MappingProxyType(sys.modules))
+    )
+
+    def fixture_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if level == 0 and name == "sys":
+            return private_sys
+        if level == 0 and name in {
+            "response_fixture_omission",
+            "modsecurity_connector_ci.runtime.common.response_fixture_omission",
+        }:
+            return support
+        return builtins.__import__(name, globals, locals, fromlist, level)
+
+    local_builtins = dict(vars(builtins), __import__=fixture_import)
+    namespace = runpy.run_path(
+        str(root / "observed-backend.py"), init_globals={"__builtins__": local_builtins}
+    )
+    if prepared_backend_sources(root) != sources:
+        raise ValueError("Prepared backend source changed while loading")
+    return SimpleNamespace(**namespace)
+
 def backend(port, directory):
-    sys.path.insert(0, "/mnt/fixtures")
-    module = load_source('/mnt/fixtures/observed-backend.py')
+    module = load_prepared_backend()
     case = json.loads((directory / "case.json").read_text())
     server = NumericLoopbackFixtureServer(port, backend_handler(module, directory, case))
     signal.signal(signal.SIGTERM, stop_backend)

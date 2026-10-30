@@ -1,6 +1,6 @@
 """Exercise real diagnostic preparation on private source copies, never a host."""
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, source_path
 
 import ast
 import hashlib
@@ -47,7 +47,7 @@ class RepositoryInputs:
         self.private_repository = private_repository
 
     def __truediv__(self, relative: str) -> Path:
-        return (self.private_repository if relative in (MODULE, RUNTIME) else ROOT) / relative
+        return (self.private_repository / relative if relative in (MODULE, RUNTIME) else source_path(relative, root=ROOT))
 
 
 class OfflinePreparationTests(unittest.TestCase):
@@ -67,15 +67,15 @@ class OfflinePreparationTests(unittest.TestCase):
         self.runs.mkdir(mode=0o700)
         self.repository = self.runs / "repository"
         self.repository.mkdir(mode=0o700)
-        self.original_hashes = {name: digest(ROOT / name) for name in PREPARATION_INPUTS}
+        self.original_hashes = {name: digest(source_path(name, root=ROOT)) for name in PREPARATION_INPUTS}
         for name in PREPARATION_INPUTS:
             destination = self.repository / name
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(ROOT / name, destination)
+            shutil.copyfile(source_path(name, root=ROOT), destination)
         self.environment = mock.patch.dict(os.environ, {"I12_TEST_ROOT": str(self.external)})
         self.environment.start()
         self.addCleanup(self.environment.stop)
-        spec = importlib.util.spec_from_file_location("offline_lighttpd_prepare", ROOT / NATIVE)
+        spec = importlib.util.spec_from_file_location("offline_lighttpd_prepare", source_path(NATIVE, root=ROOT))
         self.native = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.native)
         # The actual checkout can be an external worktree rather than /root/git.
@@ -101,7 +101,7 @@ class OfflinePreparationTests(unittest.TestCase):
         self.addCleanup(self.assert_checkout_unchanged)
 
     def assert_checkout_unchanged(self):
-        self.assertEqual(self.original_hashes, {name: digest(ROOT / name) for name in PREPARATION_INPUTS})
+        self.assertEqual(self.original_hashes, {name: digest(source_path(name, root=ROOT)) for name in PREPARATION_INPUTS})
 
     def materialize(self, args, stock):
         """Stand in only for source-export/observer compilation and its outputs."""
@@ -144,7 +144,7 @@ class OfflinePreparationTests(unittest.TestCase):
         materialize.assert_called_once()
 
     def test_real_overlays_strip_to_current_product_and_bind_outputs(self):
-        self.assertEqual(Path(self.native.__file__), ROOT / NATIVE)
+        self.assertEqual(Path(self.native.__file__), source_path(NATIVE, root=ROOT))
         self.prepare()
         output = self.args.output
         source = output / "source"
@@ -220,12 +220,16 @@ class OfflinePreparationTests(unittest.TestCase):
         self.assertEqual(preparation["host_module_sha256"], digest(output / "artifacts/modules/mod_msconnector.so"))
         self.assertEqual(preparation["host_sha256"], digest(self.args.host))
         self.assertEqual(preparation["sdk_sha256"], digest(self.sdk / "lib/libmodsecurity.so"))
-        self.assertEqual(preparation["fixture_source_sha256"], digest(ROOT / NATIVE))
+        self.assertEqual(preparation["fixture_source_sha256"], digest(source_path(NATIVE, root=ROOT)))
         self.assertEqual(preparation["numeric_loopback_client_sha256"], digest(output / "fixtures/curl-raw-client.py"))
         self.assertIs(preparation["observation_overlay_changes_decisions"], False)
         self.assertIs(preparation["historical_full_module_used_as_product"], False)
         for helper, expected in preparation["path_boundary_dependencies_sha256"].items():
             self.assertEqual(expected, digest(self.repository / "ci/lib" / helper))
+        bindings = json.loads((output / "fixtures/backend-inputs.json").read_text())
+        self.assertEqual(set(bindings), self.native.PREPARED_BACKEND_FILES)
+        self.assertEqual(bindings, {name: digest(output / "fixtures" / name) for name in bindings})
+        self.assertEqual(preparation["prepared_backend_inputs_sha256"], digest(output / "fixtures/backend-inputs.json"))
         self.assertEqual((output / "current-product-mod_msconnector.c").read_bytes(), (ROOT / MODULE).read_bytes())
         self.assertEqual((output / "artifacts/bin/lighttpd").read_bytes(), self.args.host.read_bytes())
         self.assertEqual((output / "artifacts/modules/mod_proxy.so").read_bytes(), self.args.proxy_module.read_bytes())

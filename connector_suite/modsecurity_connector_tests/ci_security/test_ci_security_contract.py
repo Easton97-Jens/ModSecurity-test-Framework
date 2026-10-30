@@ -20,7 +20,7 @@ import unittest
 
 import yaml
 
-from tests import test_ci_security_workflows as native_contract
+from modsecurity_connector_tests import test_ci_security_workflows as native_contract
 
 
 ROOT = connector_root()

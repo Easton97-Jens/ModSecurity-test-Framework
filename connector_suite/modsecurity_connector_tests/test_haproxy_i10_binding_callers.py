@@ -1,13 +1,15 @@
 """Full HAProxy binding compilation, real Common FSM, controlled native API."""
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path
 from pathlib import Path
 import os
 import re
+import runpy
 import subprocess
 import tempfile
 import unittest
-from tests import test_haproxy_libmodsecurity_compat as compat
+from modsecurity_connector_tests import test_haproxy_libmodsecurity_compat as compat
 
+MATERIALIZER = runpy.run_path(str(test_root() / "ci/checks/analysis/native-cfamily-recipes.py"))
 ROOT = connector_root()
 BINDING = source_path('connectors/haproxy/src/haproxy_modsecurity_binding.c', root=ROOT)
 
@@ -114,6 +116,8 @@ int verify_native_request_body_fixture(void) {
             if spop:
                 runtime_path.write_text(runtime_source if runtime_source is not None else
                     (source_path('connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c', root=ROOT)).read_text())
+                with runtime_path.open("a") as stream:
+                    stream.write("\n" + MATERIALIZER["spop_fixture_helper"]() + "\n")
             fixture_source = fixture_source.replace('"PRODUCT_RUNTIME"', '"' + str(runtime_path) + '"')
             fixture_source = fixture_source.replace("PRODUCT_RULES", str(source_path('connectors/haproxy/harness/fixtures/modsecurity-binding-lifecycle.conf', root=ROOT)))
             harness.write_text(fixture_source)

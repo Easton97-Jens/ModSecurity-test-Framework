@@ -7,8 +7,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from ci.tools import lint_workflows
-from ci.tools import lint_installed_workflows
+from modsecurity_connector_ci.tools import lint_workflows
+from modsecurity_connector_ci.tools import lint_installed_workflows
 
 
 class LintWorkflowsTests(unittest.TestCase):

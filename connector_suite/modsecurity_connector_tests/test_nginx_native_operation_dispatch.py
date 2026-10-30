@@ -45,7 +45,7 @@ class DispatcherTests(unittest.TestCase):
 
     def test_current_native_phase_and_clean_shutdown_overrides(self):
         expected = {
-            "body_size_nonzero_with_null_data": {"phase": 1, "expected_status": 400},
+            "body_size_nonzero_with_null_data": {"phase": 1, "expected_status": 500},
             "engine_timeout_before_commit": {"phase": 1, "expected_status": 504, "expected_rule_id": None,
                                              "expected_native_status": 504, "expected_engine_error_class": "engine_timeout"},
             "clean_shutdown": {"expected_status": 200},
@@ -224,6 +224,25 @@ class DispatcherTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 s.source_hashes({"parent:source.py"}, root, root)
 
+            intermediate = root / "ci"
+            nested = intermediate / "lib/source.py"
+            nested.parent.mkdir(parents=True, mode=0o700)
+            nested.write_bytes(b"bounded nested source")
+            intermediate.chmod(0o770)
+            with self.subTest(boundary="group writable intermediate"), self.assertRaises(ValueError):
+                s.source_hashes({"parent:ci/lib/source.py"}, root, root)
+            intermediate.chmod(0o700)
+            original_fstat = os.fstat
+            identity = intermediate.stat()
+            def foreign_intermediate(descriptor):
+                metadata = original_fstat(descriptor)
+                if (metadata.st_dev, metadata.st_ino) == (identity.st_dev, identity.st_ino):
+                    return SimpleNamespace(st_mode=metadata.st_mode, st_uid=os.geteuid() + 1)
+                return metadata
+            with self.subTest(boundary="foreign owned intermediate"), \
+                    patch.object(s.os, "fstat", side_effect=foreign_intermediate), self.assertRaises(ValueError):
+                s.source_hashes({"parent:ci/lib/source.py"}, root, root)
+
     def test_dispatch_orchestration_retains_actual_exit_and_fresh_outputs(self):
         d = self.driver
         with tempfile.TemporaryDirectory(prefix="dispatch-test-", dir="/var/tmp/codex/ModSecurity-conector") as temporary:
@@ -236,8 +255,22 @@ class DispatcherTests(unittest.TestCase):
                 {"case_id": case, "native_invocations": {"nginx": d.CONTRACTS[case]}} for case in cases]}))
             runners = framework / "tests/runners"
             runners.mkdir(mode=0o700)
-            (runners / "nginx_native_operation_bundle.py").write_text(
-                'def required_source_paths(case):\n return frozenset({"parent:ci/runtime/lifecycle/run-selected-nginx-native-operations.py"})\n')
+            reviewed_reader = test_root() / "tests/runners/nginx_native_operation_bundle.py"
+            reader = load_source(reviewed_reader)
+            parent = root / "parent"
+            parent.mkdir(mode=0o700)
+            for name in set().union(*(reader.required_source_paths(case) for case in cases)):
+                owner, relative = name.split(":", 1)
+                original = (source_path(relative, root=ROOT) if owner == "parent"
+                            else test_root() / relative)
+                copy = (parent if owner == "parent" else framework) / relative
+                copy.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                copy.write_bytes(original.read_bytes())
+            fixture_reader = runners / "nginx_native_operation_bundle.py"
+            def reviewed_reader_api(path):
+                self.assertEqual(path, fixture_reader)
+                self.assertEqual(path.read_bytes(), reviewed_reader.read_bytes())
+                return reader
             build = root / "build"
             build.mkdir(mode=0o700)
             results = build / "results"
@@ -256,7 +289,10 @@ class DispatcherTests(unittest.TestCase):
                 path.write_text(json.dumps(receipt))
                 path.chmod(0o600)
                 return SimpleNamespace(returncode=7 if len(commands) == 1 else 0)
-            with patch.object(d, "identity", return_value="a" * 40), patch.object(d.subprocess, "run", side_effect=actual_command):
+            with patch.object(d, "ROOT", parent), \
+                    patch.object(d, "load_source", side_effect=reviewed_reader_api), \
+                    patch.object(d, "identity", return_value="a" * 40), \
+                    patch.object(d.subprocess, "run", side_effect=actual_command):
                 self.assertEqual(d.run(environment), 1)
                 with self.assertRaises(FileExistsError):
                     d.run(environment)

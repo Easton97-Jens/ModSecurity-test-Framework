@@ -783,12 +783,15 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
 
     def test_missing_target_is_rejected_atomically(self) -> None:
         target = self.root / "connectors/envoy/config/envoy-ext-proc-versions.env"
+        original = target.read_text()
+        self.assertEqual(original.count("ENVOY_RELEASE="), 1)
         target.write_text(
-            target.read_text().replace("CRS_APPROVED_COMMIT =", "CRS_APPROVED_COMMIT_REMOVED =", 1),
+            original.replace("ENVOY_RELEASE=", "ENVOY_RELEASE_REMOVED=", 1),
             encoding="utf-8",
         )
+        self.assertNotIn("ENVOY_RELEASE=", target.read_text())
         before = self.target_bytes()
-        with self.assertRaises(SYNC.SyncError):
+        with self.assertRaisesRegex(SYNC.SyncError, "ENVOY_RELEASE"):
             SYNC.synchronize(self.root, self.common, True)
         self.assertEqual(before, self.target_bytes())
 

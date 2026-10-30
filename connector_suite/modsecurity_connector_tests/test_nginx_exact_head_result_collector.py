@@ -14,8 +14,8 @@ import types
 import unittest
 from unittest import mock
 
-from ci.runtime.broker import nginx_exact_head_result_collector as collector
-from ci.runtime.broker import protected_nginx_exact_head_builder as builder
+from modsecurity_connector_ci.runtime.broker import nginx_exact_head_result_collector as collector
+from modsecurity_connector_ci.runtime.broker import protected_nginx_exact_head_builder as builder
 
 
 SHA = "a" * 40
@@ -25,7 +25,7 @@ REPO = "Easton97-Jens/ModSecurity-conector"
 
 class CollectorPinContractTests(unittest.TestCase):
     def test_pins_match_current_parent_and_exact_head_producer(self) -> None:
-        source = connector_root() / "ci/provisioning/components/prepare-runtime-components.py"
+        source = source_path("ci/provisioning/components/prepare-runtime-components.py", root=connector_root())
         tree = ast.parse(source.read_text(encoding="utf-8"))
         pins = {
             node.targets[0].id: ast.literal_eval(node.value)

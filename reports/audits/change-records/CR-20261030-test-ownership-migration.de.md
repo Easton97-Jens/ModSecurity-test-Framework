@@ -40,7 +40,8 @@ Die erhaltene Auswahlbasis umfasst 100 Standardfälle / 80 Ausführungen und
 Abruf; die Standardgrenze bleibt 100. Testidentitäten, Assertions und Zählung
 unterschiedlicher Fälle müssen erhalten bleiben. Produkt-Builds dürfen keine
 Framework-Laufzeitabhängigkeit erhalten. Framework-Delivery geht dem abhängigen
-Connector-Pin voraus; Merge oder Master-Push sind nicht freigegeben.
+Connector-Pin voraus; die aktuelle Nutzerfreigabe erlaubt Merge nur bei sauberer
+Sonar-Analyse, keinen neuen offenen Findings und bestandenen Pflicht-Gates.
 
 ## Untersuchte Alternativen
 
@@ -90,22 +91,27 @@ Delivery werden ausdrücklich ausgewiesen und nicht aus dem Dateiumzug abgeleite
 | Vollständige Test-Ownership | Testimplementierungen, Fixtures, Orchestrierung, Provisionierung, Collectors und Reports wechselten ins Framework; produktiver Code/Build/Delivery bleiben im Connector mit kleinen gepinnten Einstiegen und zwei authentifizierten Broker-Shims. |
 | Repository-Schnittstelle | Explizite Roots, Revision, Profil und externe Ausgabe; öffentliche eindeutige Python-Namensräume und begrenzte Importe; einseitige Abhängigkeit Connector → Framework und unveränderte geschützte Vertrauensgrenzen. |
 | Auswertungsfehler | Requestlokale Identität lehnt fremde/mehrdeutige Anreicherung ab; Envoy erhält ausgeführten Traffic nach Assertion-Fehlern; Pflichtschreibfehler und leere vorgeschriebene Ergebnismengen scheitern; Wiederholungen erhöhen die Zahl eindeutiger Fälle nicht. |
-| Laufzeitabweichungen | Zusammengeführte Apache-Duplikatheader verlangen explizite native Regelanpassung unter Erhalt von Regel `1100504` und Auditassertion; injizierte interne NGINX-Fehler verlangen HTTP 500 und Connector-Error-Semantik, fehlerhafte Clienteingabe behält HTTP 400. Tatsächliche Apache-Kontrollen bestanden; NGINX-Hostvalidierung ist blockiert. |
+| Laufzeitabweichungen | Zusammengeführte Apache-Duplikatheader verlangen explizite native Regelanpassung unter Erhalt von Regel `1100504` und Auditassertion; injizierte interne NGINX-Fehler verlangen HTTP 500 und Connector-Error-Semantik, fehlerhafte Clienteingabe behält HTTP 400. Tatsächliche Apache-Kontrollen und drei ausgewählte NGINX-Entwicklungs-H1-Fälle bestanden; finale Paarabnahme und vollständige Lifecycle-Qualifikation bleiben getrennt. |
 | Parallele Themen | HTTP/2, HTTP/3, Coverage und vollständige Abhängigkeitsprüfung bleiben außer erforderlichen Pfad-/Aufruferanpassungen außerhalb des Umfangs. MRTS-Paket-/Importkorrekturen gehören zum separaten Framework-Followup-Paket und gemeinsamen Integrationscheck. |
 | Gemeinsame Mechanik und Codeumfang | Native Extraktion ist Verschiebung; Loader-Konsolidierung entfernt Caller-Implementierung bei zusätzlichem gemeinsamem Helfercode. Daraus werden weder eine gleich große Gesamtreduktion noch vollständige mechanische Gleichwertigkeit abgeleitet. |
-| Validierung und Delivery | Fokussierte Prüfungen und begrenzte Apache-Beobachtungen werden getrennt von offenen Standardlaufergebnissen, installiertem Gate-Nachweis, Final-Head-CI und abhängiger PR-Delivery dokumentiert. Framework-Integration erfolgt vor Connector-Pinintegration; kein Merge ist freigegeben. |
+| Validierung und Delivery | Neueste Standardbeobachtungen: 67 bestandene / 13 blockierte Ausführungen, 74 bestandene / 26 blockierte Fälle über dokumentierte Revisionen. Das saubere eingetragene Paar cfd5e49/e52d7d4 und drei Apache-Kontrollen bestanden; nächstes Paar, installiertes Gate, Final-Head-CI und Migrations-PR-Delivery bleiben offen. Merge bleibt an die aktuelle Nutzerfreigabe und alle Pflicht-Gates gebunden. |
+| Erweiterungsklassifikation und Datenschutz | Eine geschlossene geprüfte Menge mit Prozessausführung nutzt migration-integration; reine Kontrollen behalten Offline-Audit, ursprüngliche Baseline-Gruppen und Guard-ASTs bleiben erhalten. Private externe Ausgabe und Ausschluss von Kundennutzdaten/Zugangsdaten bleiben erforderlich. |
 
 ## Befehle und Ergebnisse
 
 Das finale kanonische Inventar enthält
-**100 Standardfälle / 80 Ausführungen**, **2250 On-demand-Fälle / 1029
-Ausführungen**, **463 feste Framework-Testquellbindungen** und **232
-Produktquellsnapshots**. Sein kompaktes JSON umfasst **2091364 Bytes** und liegt
+**100 Standardfälle / 80 Ausführungen**, **2265 On-demand-Fälle / 1034
+Ausführungen**, **486 feste Framework-Testquellbindungen** und **232
+Produktquellsnapshots**. Sein kompaktes JSON umfasst **2091536 Bytes** und liegt
 unter der unveränderten Zulassungsgrenze von **2 MiB**. Dies sind Auswahl-/
 Quellmengen, keine Zahlen ausgeführter oder bestandener Fälle. Die Erweiterung
-fügt 42 explizite On-demand-Methoden hinzu: 28 Clean-Pair-Methoden (darunter ein
-noch ausstehender tatsächlicher Lauf) und 14 MRTS-Paket-Methoden; die ursprüngliche
-Baseline mit 1993 Fällen bleibt unverändert.
+fügt 47 explizite On-demand-Methoden hinzu: 28 Clean-Pair-Methoden, 14 MRTS-Paket-
+Methoden, 3 Klassifikationsguards und 2 Prepared-/Backend-Helfermethoden; die ursprüngliche Baseline mit 1993 Fällen
+bleibt unverändert. Eine geschlossene geprüfte Menge von 153 neuen Zeilen mit
+Prozessausführung nutzt in 12 Modulen die Gruppe `migration-integration` mit
+aus dem Target abgeleiteten ID-Hashes; 42 reine Kontrollen behalten die Offline-
+Audit-Gruppe. Die Gruppenzuordnungen der ursprünglichen 1993 Fälle und die ASTs
+der Guardfunktionen bleiben unverändert; die ursprünglichen 40 reinen Kontrollen und beide neuen reinen Helfermethoden bestanden.
 
 Die 120 neuen fokussierten Methoden bestanden ohne Skips, einschließlich der
 Ergebnisintegritäts-Teilmenge mit 56 Methoden / 131 expandierten Varianten und
@@ -117,10 +123,12 @@ Das vollständige native Framework-Dokumentations-Target bestand.
 Sieben reparierte Standardfall-IDs bestanden über den öffentlichen Runner. Die
 tatsächliche öffentliche CLI-Kontrolle fremder UID/GID bestand beide Teilfälle
 in ausdrücklich autorisierter isolierter Ausführung. Alle neun Go-Ausführungen
-bestanden. Siebzehn native Ausführungen bleiben blockiert: Bei 13 fehlen
-validierte Hostvoraussetzungen, bei 4 sind Scannerfixture-Voraussetzungen
-verifiziert. Der pinabhängige Standard-Sonar-Check wartet auf den finalen
-Connector-Pin. Ein künftiger Gesamt-PASS der Standardläufe wird nicht behauptet.
+bestanden. Das Ledger der neuesten Beobachtungen enthält 67 bestandene und
+13 blockierte Standardausführungen für 74 bestandene und 26 blockierte eindeutige
+Fälle. Die vier Scannerfixtures und der pinabhängige Sonar-Check bestanden bei
+gezielten Wiederholungen; die 13 Host-/Profilvoraussetzungen bleiben blockiert.
+Diese Beobachtungen umfassen mehrere Quellrevisionen und bilden keinen
+vollständigen Standardlauf auf einem künftigen finalen Paar.
 
 Vorhandene Task-Evidence verzeichnet 56 Ergebnisintegritätsmethoden / 131
 expandierte Varianten ohne Fehler, Errors oder Skips unter Python `-P`,
@@ -216,7 +224,7 @@ Der jüngste begrenzte Ergebnisintegritätslauf bestand 56 Methoden / 131
 expandierte Varianten. Drei tatsächliche Apache-H1-Kontrollen bestanden mit
 HTTP 200 / 403 / 200 (Allow, Deny, Duplikatheader). Die Allow-Kontrolle verwendete
 eine reine Clientbeobachtung `request_bound`; sie belegt keine
-Hostfähigkeit. Der NGINX-H1-Versuch war mit Exit 77 blockiert, weil die benötigte
+Hostfähigkeit. Ein früherer NGINX-H1-Versuch war mit Exit 77 blockiert, weil die benötigte
 vorhandene Laufzeitumgebung fehlte; dies ist kein bestandener Hostlauf. Diese
 Beobachtungen qualifizieren weder einen vollständigen H1-Lifecycle noch ein
 installiertes geschütztes Host-Gate.
@@ -244,7 +252,7 @@ ohne Abschwächung des Produkts.
 
 ## Nicht ausgeführte Prüfungen
 
-Der NGINX-H1-Versuch war mit Exit 77 blockiert, weil die benötigte vorhandene
+Ein früherer NGINX-H1-Versuch war mit Exit 77 blockiert, weil die benötigte vorhandene
 Laufzeitumgebung fehlte; weder ein NGINX-Host-PASS noch ein Nachweis mit
 installiertem geschütztem Host-Gate ist hier dokumentiert. Current-Head-CI,
 finaler Gesamtdiffreview, finale Quellmap-/Inventarregenerierung und abhängige
@@ -256,7 +264,7 @@ getrennter Vertrag. MRTS bleibt schreibgeschützt. Kein Migrationsmerge wird beh
 
 ## Einschränkungen und Restrisiko
 
-Der NGINX-H1-Versuch war mit Exit 77 blockiert, weil die benötigte vorhandene
+Ein früherer NGINX-H1-Versuch war mit Exit 77 blockiert, weil die benötigte vorhandene
 Laufzeitumgebung fehlte; weder ein NGINX-Host-PASS noch ein Nachweis mit
 installiertem geschütztem Host-Gate ist hier dokumentiert. Current-Head-CI,
 finaler Gesamtdiffreview, finale Quellmap-/Inventarregenerierung und abhängige
@@ -286,8 +294,9 @@ Das MRTS-Paket gehört zu einem separaten Framework-Followup-Worktree/PR;
 `tools/MRTS` bleibt gepinnt und schreibgeschützt. Guards für verschachtelte
 Definitionen und Validierungsquellen, Regressionserhalt und Framework-Integration
 werden getrennt vom Werkzeugrepository nachverfolgt. Generierte Archiv- und Map-Ausgaben
-stimmen mit ihren eingefrorenen Quelleingaben überein: Beide Generatorläufe mit
-`--check` bestanden und erhielten alle 1993 ursprünglichen Fall-IDs. Die obigen
+wurden in dieser Reihenfolge regeneriert; beide finalen Generatorläufe mit
+`--check` bestanden und erhielten alle 1993 ursprünglichen Fall-IDs. Auch der
+finale Bindungs-`--check` und die öffentliche CLI-Inventarzulassung bestanden. Die obigen
 kanonischen Inventarzahlen beschreiben Auswahl, keine erfolgreiche Ausführung.
 
 Die Clean-Pair-CLI prüft eine committete Connector-Revision standardmäßig gegen
@@ -297,9 +306,14 @@ prüft erforderliche Einstiege und Schnittstellen, ruft das tatsächliche
 Parent-Make-Target `test-framework-integration-probe` auf und validiert das exakte
 zugelassene Ergebnis des Common-Headertests. Die Prüfung verlangt vorhandenes Git,
 Make, kompatibles Python und `cc` sowie vorhandenen privaten externen
-Ausgabespeicher. Uncommittete Quelländerungen werden nicht in das Paar kopiert.
-Quellverdrahtung und Unit-Kontrollen ersetzen keinen erfolgreichen echten
-Paarbeleg; dieser positive Lauf steht hier noch aus.
+Ausgabespeicher. Uncommittete Quelländerungen werden nicht in das Paar kopiert. Das tatsächliche frisch
+geklonte eingetragene Paar Connector `cfd5e49cada3fc793ef50993147e3796a0907443` /
+Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9` bestand diesen Probeaufruf
+und seinen Common-Fall. Drei Apache-H1-Kontrollen bestanden auf demselben Paar
+in 28.625 Sekunden. Die Wiederholung mit dem nächsten Framework-Commit und
+Connector-Pin steht noch aus; der Beleg gilt nur für das genannte Paar. Nachweise
+bleiben in privatem externem Ausgabespeicher; versionierte Belege dürfen keine
+Kundennutzdaten oder Zugangsdaten enthalten.
 
 ```sh
 PYTHONSAFEPATH=1 PYTHONPATH="$FRAMEWORK_ROOT:$FRAMEWORK_ROOT/connector_suite" \
@@ -324,6 +338,129 @@ PYTHONSAFEPATH=1 PYTHONPATH="$FRAMEWORK_ROOT:$FRAMEWORK_ROOT/connector_suite" \
 
 Ein erfolgreicher Prüflauf belegt das Repository-Schnittstellenverhalten für den tatsächlichen
 Common-Fall. Gehostetes H1 und installierte Gates verlangen eigene Nachweise.
+
+Die aktuelle Integration übernimmt außerdem Connector-Master `ee134` aus
+[Connector-PR #433](https://github.com/Easton97-Jens/ModSecurity-conector/pull/433)
+über den regulären Merge `8c7e8c44`. Alle 1993 Baseline-Fallobjekte des aktuellen
+Masters stimmen exakt mit ihren Framework-Gegenstücken überein. Ursprüngliche
+unveränderliche Baseline-Identitäten bleiben von dieser späteren Integration getrennt.
+
+Die separat veröffentlichte MRTS-Paketkorrektur `197df49` bestand 99 Methoden in
+73.152 Sekunden; unabhängige Definitionsdurchläufe und Prüfungen der
+Dateideskriptorparität bestanden. Dies ändert Framework-Paketierung und Guards;
+`tools/MRTS` bleibt gepinnt und schreibgeschützt. Der neueste native Framework-CI-
+Lauf bestand 330 Methoden in 161.603 Sekunden. Tatsächliche begrenzte Läufe
+bestanden außerdem 54 Common-Kontrollen, 29 portable Kontrollen, 23 CRS-Kontrollen
+und 13 Launcher-Kontrollen. Dies sind getrennte Suiten; ihre Anzahlen erhöhen
+nicht die eindeutigen Inventarfallzahlen.
+
+Die minimale NGINX-Configure-Probe bestand mit vorhandenen checksum-verifizierten
+Archiven; 11 bestehende Kontexttests und vier negative CLI-Kontrollen bestanden
+ebenfalls. Configure-Erfolg belegt diese Build-/Konfigurationsschicht, keinen
+Laufzeit-Lifecycle. Die tatsächliche C-Family-Erfassung wurde nach der Zerlegung zweimal abgeschlossen:
+81 Übersetzungseinheiten erzeugten 81 eindeutige Objekte; beide Läufe bestanden
+in 38.241 beziehungsweise 37.935 Sekunden. Dies sind Übersetzungseinheiten und
+Objekte, keine Testmethoden oder zusätzlich ausgewählten Fall-IDs. Die exakte Standardverteilung beträgt 76 C17-, 4 C++17- und 1 ursprüngliche
+Smoke-C99-Übersetzungseinheit. Jeder Compileraufruf behält `-Wall -Wextra -Werror`
+ohne `-Wno`-Option; der ursprüngliche Smoke-Standard bleibt unverändert. Generierte HAProxy-/Lighttpd-Includes nutzen dieselben gepflegten
+ursprünglichen Übersetzungseinheiten und exakten Produktextraktionen in tatsächlichen
+Tests und Erfassung. Alle 28 bestehenden Builder-Testmethoden-ASTs und nativen
+Funktionskörper bleiben erhalten; fünf frühere Kommentarmarker enthalten nun echte
+Includes. Auch die finale Erfassung mit exakten Quellhashes nach AST-identischer
+Formatierung und Zulassungsreparatur bestand alle 81 Einheiten in 36.126 Sekunden.
+Die unabhängige Prüfung bestand acht Tests und prüfte alle 81 Objekte.
+
+Die Produktanalyse-Eingabe des Sonar-Workflows muss den kompatiblen veröffentlichten
+Migrationscommit `cfd5e49cada3fc793ef50993147e3796a0907443` verwenden. Der Stand
+`ee134` vor der Migration enthält doppelte Testhelfer und eignet sich nicht für
+diese gemeinsame Analyse. Die Auswahl nutzt weder ein Produktsubmodul noch einen
+umgekehrten Framework-Pin. Die unabhängige Prüfung von NGINX-Wrapper und Secret-
+Verdrahtung bestand sechs Tests. Der neue fokussierte Lauf bestand alle
+36 Methoden in 246.637 Sekunden. Sechs Module mit Namespace-Reparaturen erhalten
+71 bestehende Methoden und alle 234 Assertion-ASTs. Ihre neuesten Ergebnisse je
+Methode sind 71 PASS: Das Worker-Modul hatte zunächst sechs Sandbox-UID-Mapping-
+Skips und bestand anschließend außerhalb der Linux-Sandbox alle 21 Methoden
+in 20.519 Sekunden mit unveränderten Guards, einschließlich der sechs tatsächlichen
+Root/nobody-Deskriptorfälle. Diese Beobachtungen sind kein gemeinsamer Final-Head-
+Suitenlauf und führen keine Fall-IDs ein. Das Cloud-Gate des aktuellen Migrations-Heads und die finale Abnahme des
+committeten Paars stehen noch aus; die ausgewählte Entwicklungs-H1-Prüfkette
+ist unten beschrieben.
+
+Gitleaks-Baseline-Beobachtungen und geprüfte Fehlalarmklassifikation sind
+getrennt. Die aktuelle Konfiguration enthält zwei `generic-api-key`-Allowlists,
+die jeweils zugleich den exakten öffentlichen SHA und seinen geprüften Pfad
+verlangen (AND-Verknüpfung). Der Rohbeleg mit 70 öffentlichen Hash-Fehlalarmen
+und acht positive/negative Kontrollen bleiben erhalten. Frühere Baseline-Scans
+ohne Unterdrückungen bedeuten nicht, dass die aktuelle Konfiguration keine
+Allowlists enthält. Die tatsächliche Remote-CI-Prüfung dieser Konfiguration steht
+noch aus; Zugangsdaten oder Kundennutzdaten sind in versionierten Belegen unzulässig.
+
+Der Entwicklungsversuch mit Connector `8c7e8c44` und Framework-Komposition `1aef2`
+wurde wegen einer veralteten MRTS-Paketquellbindung korrekt abgelehnt. Er ist kein
+erfolgreicher Paarlauf. Die finale Quellbindungsaktualisierung bestand; eine tatsächliche
+Wiederholung des neuen Entwicklungspaars steht noch aus. Das frühere eingetragene
+Paar `cfd5e49` / `e52d7d4` und seine drei beobachteten Apache-Kontrollen behalten
+nur ihren ausdrücklich dokumentierten Geltungsbereich.
+
+
+Die separat ausgewählte reine Backend-Isolationsregression lautet
+`offline.migration.prepared-backend-imports-are-isolated-and-reject-tampering`
+(`DiagnosticTests.test_prepared_backend_imports_are_isolated_and_reject_tampering`).
+Sie bestand über den bestehenden Offline-Hook eine Methode mit fünf Teilfällen
+und ohne Skips. Der AST der ursprünglichen Methode für deklarierte Fälle wurde
+exakt wiederhergestellt; die neue Logik erhält fünf eigene On-demand-Fall-IDs
+und erweitert keine alte ausgewählte Schleife.
+
+Die NGINX-Produktkorrektur der Beobachtbarkeit in Commit `1c1` erfasst nur einen
+bekannten Requestfehlerstatus 400..599, andernfalls null, vor dem unveränderten
+Timeout-504-Override. Nicht beobachtbarer Transport, sichtbarer Status null und
+leere tatsächliche Aktion bleiben erhalten. Echter extrahierter Producer und
+exakte Consumer bestanden nach sechs roten Statusvarianten 28 Methoden/
+156 expandierte Teilfälle; die 26 bestehenden Bundle-Methoden bestanden ebenfalls.
+Interne Pointerfehler verlangen kanonisch `connector_error`,
+`MSCONN_EVENT_CONNECTOR_ERROR`, typisiertes `request_headers` und HTTP500;
+fehlerhaftes Client-Framing bleibt HTTP400/Protokollfehler. Drei neueste
+tatsächliche H1-Treiber bestanden nach einem 198.789-Sekunden-Build auf Produkt
+`1c1`. Die zusätzliche Artefaktleserreparatur für bestehende Helfer erlaubt nun das
+strenge Wiederöffnen beider frischen Fehlerbundles mit anschließender Projektion
+und Vertragsableitung. Der unten beschriebene ausgewählte Entwicklungsnachweis
+belegt weder einen vollständigen Lifecycle noch ein Gate des finalen committeten Paars.
+
+Die aktuelle Merge-Freigabe des Nutzers gilt nur bei sauberer Sonar-Analyse,
+keinen neuen offenen Findings und bestandenen Pflicht-Gates. Ein Cloud-Gate des
+aktuellen Heads oder ein Migrationsmerge wird hier nicht behauptet.
+
+
+Der zweite explizit ausgewählte reine Guard,
+`NativeBundleRouterTests.test_worker_self_maps_require_exact_helper_and_paired_ledger`,
+bestand eine Methode mit sieben Teilfällen und ohne Skips. Die beiden neuen
+reinen Selektoren deklarieren somit fünf beziehungsweise sieben Teilfälle
+getrennt. Beide bestanden über die öffentliche CLI ohne Skips; die Auswahl
+jedes Selektors ohne `--on-demand` wurde mit Exit 2 abgelehnt. Nur das redundante Präfix `Migration regression: ` wurde aus 360
+Prüfzwecken neuer Fälle entfernt, um die Inventargrenze von 2 MiB einzuhalten;
+alle 1993 ursprünglichen Baseline-Falldictionaries bleiben unverändert.
+
+Frische echte NGINX-H1-Nachweise bestehen nun die ausgewählte vollständige
+Prüfkette: Baseline HTTP 200, beide internen Pointerfehler HTTP 500, identische
+34-Quellen-Hashmengen vor dem Start/im Envelope/nach der Ausführung sowie den
+öffentlichen strengen Bundle-Reader, die Projektion und Vertragsableitung. Beide
+Fehlerbelege behalten `layer_verified=true`, `errors=[]`, kanonisches
+`connector_error`, typisiertes `request_headers` und ganzzahliges HTTP 500. Der
+Beleg nutzt Produkt `1c1c71459ce13fc4e2741dd6c30e671cfcbe55a0` und explizite
+Framework-Entwicklungsquellen `1aef2c2268aeb38425aec1da7661baf6c449de25`; der
+eingetragene Framework-Gitlink bleibt `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`.
+Dies ist Entwicklungs-Evidence für drei ausgewählte Fälle, keine Abnahme des
+finalen committeten Paars oder aller 42 nativen Fälle. Erhaltene rohe Ergebniszeilen
+bleiben `NOT_EXECUTED`; Schichtbelege erfinden keine kanonische Ergebnis-Promotion.
+Die 13 blockierten Standardausführungen mit ihren 26 Fällen bleiben im getrennten
+Standardledger unverändert.
+
+Das MRTS-Followup [Framework-PR #141](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/141)
+hat serververifiziert saubere Sonar-Ergebnisse für den exakten Head `197df49`:
+Alle fünf Gate-Bedingungen bestanden, bei null OPEN/CONFIRMED-Issues und null
+TO_REVIEW-Hotspots. Andere Actions-Checks benötigen weiterhin eine frische
+Abfrage. Dieses Ergebnis belegt weder das Current-Head-Gate des Migrations-PRs
+noch allein die verbleibende Abnahme des committeten Paars.
 
 ## Finaler Diff- und Review-Status
 

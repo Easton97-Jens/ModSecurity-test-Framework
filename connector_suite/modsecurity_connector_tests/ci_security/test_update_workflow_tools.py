@@ -1518,7 +1518,11 @@ jobs:
             expected_root = self.copied_update_root(
                 temporary_root / "expected", freeze_checkout=False
             )
+            framework_pin = json.loads((ROOT / "ci/tooling/project-versions.lock.json").read_bytes())["framework_sha"]
+            set_framework_sha_fixture(expected_root, framework_pin)
             UPDATER.apply_candidate(expected_root, candidate)
+            self.assertEqual(json.loads((expected_root / "ci/tooling/project-versions.lock.json").read_bytes())["framework_sha"],
+                             framework_pin)
             head_lock = self.normalized_connector_lock(
                 (expected_root / "ci/tooling/security-tools.lock.yml").read_bytes()
             )
@@ -1643,9 +1647,16 @@ class WorkflowToolUpdaterIntegrationTests(WorkflowToolUpdaterFixtures, unittest.
             source_lock = (root / "ci/tooling/security-tools.lock.yml").read_bytes()
             runner_temp = temporary_root / "runner-temp"
             runner_temp.mkdir()
+            def check_product_launchers(proposed_root):
+                self.assertEqual((proposed_root / "connectors/envoy/scripts/serve_envoy_connector.sh").read_bytes(),
+                                 (ROOT / "connectors/envoy/scripts/serve_envoy_connector.sh").read_bytes())
+                self.assertEqual((proposed_root / "connectors/envoy/scripts/serve_envoy_ext_proc.sh").read_bytes(),
+                                 (ROOT / "connectors/envoy/scripts/serve_envoy_ext_proc.sh").read_bytes())
+                self.assertFalse((proposed_root / "connectors/envoy/harness/serve_envoy_connector.sh").exists())
+                self.assertFalse((proposed_root / "connectors/envoy/harness/serve_envoy_ext_proc.sh").exists())
             with (
                 patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
-                patch.object(VALIDATION, "run_proposed_tree_workflow_lints") as lint,
+                patch.object(VALIDATION, "run_proposed_tree_workflow_lints", side_effect=check_product_launchers) as lint,
             ):
                 VALIDATION.validate_proposed_tree(root, candidate)
             lint.assert_called_once()

@@ -50,12 +50,12 @@ def native_event_errors(events, transaction):
     if not isinstance(events, list) or len(events) != 1:
         return ["exactly one real native connector error is required"]
     event = events[0]
-    required = {"event": "phase1_error", "message_id": "MSCONN_EVENT_CONNECTOR_ERROR", "connector": "nginx",
+    required = {"event": "connector_error", "message_id": "MSCONN_EVENT_CONNECTOR_ERROR", "connector": "nginx",
                 "integration_mode": "native-nginx-http-module", "transaction_id": transaction,
+                "phase": "request_headers",
                 "status": "error", "reason": "connector_error", "http_status": 500,
                 "rule_id": "", "method": "", "uri": ""}
-    if (not exact_fields(event, required) or type(event.get("phase")) not in (int, str)
-            or event.get("phase") not in (1, "1", "request_headers")):
+    if not exact_fields(event, required):
         return ["native error classification must bind the actual transaction without a rule"]
     return []
 

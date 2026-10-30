@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from tests import header_driver_test_support
+from modsecurity_connector_tests import header_driver_test_support
 
 ROOT = connector_root()
 OVERRIDES = load_source(source_path('connectors/apache/harness/apache_oracle_overrides.py', root=ROOT))

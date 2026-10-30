@@ -4,7 +4,7 @@ import json
 import unittest
 
 from tests.no_crs import test_nginx_native_operation_projection as fixtures
-from tests.runners import nginx_native_operation_contract as contract
+from modsecurity_test_framework.runners import nginx_native_operation_contract as contract
 
 
 class NativeContractTests(unittest.TestCase):
@@ -24,15 +24,15 @@ class NativeContractTests(unittest.TestCase):
 
     def test_pointer_facts_keep_native_and_visible_status_separate_without_status(self):
         case, proof = self.fixture("body_size_nonzero_with_null_data")
-        proof["events"][0]["http_status"] = 400
+        proof["events"][0]["http_status"] = 500
         proof["raw_artifacts"]["main"]["phase1-events.jsonl"] = b"\n".join(json.dumps(row).encode() for row in proof["events"])
         original = deepcopy((case, proof))
         value = contract.derive_native_operation_contract(case, proof)
-        self.assertEqual(value["actual_status"], 400)
+        self.assertEqual(value["actual_status"], 500)
         self.assertEqual(value["semanticValues"]["phase"], 1)
         self.assertEqual(value["semanticValues"]["expected_result"], "mapping_error")
         self.assertEqual(value["observed_rule_ids"], [])
-        self.assertEqual(value["native_cause"][0]["http_status"], 400)
+        self.assertEqual(value["native_cause"][0]["http_status"], 500)
         self.assertEqual(value["observed_event_fields"], sorted(proof["events"][0]))
         self.assertNotIn("status", value)
         self.assertNotIn("canonical_status", value)
@@ -89,7 +89,7 @@ class NativeContractTests(unittest.TestCase):
 
     def test_unverified_and_wrong_wire_status_fail(self):
         case, proof = self.fixture("header_count_nonzero_with_null_headers")
-        for field, value in (("layer_verified", False), ("actual_status", 500), ("actual_status", True)):
+        for field, value in (("layer_verified", False), ("actual_status", 400), ("actual_status", True)):
             changed = deepcopy(proof)
             changed[field] = value
             with self.subTest(field=field), self.assertRaises(ValueError):
@@ -110,13 +110,13 @@ class NativeContractTests(unittest.TestCase):
         original = deepcopy(proof["raw_artifacts"])
         case = deepcopy(fixtures.NativeProjectionTests.cases[fixture.case])
         value = contract.derive_native_operation_contract(case, proof)
-        self.assertEqual(value["actual_status"], 400)
+        self.assertEqual(value["actual_status"], 500)
         self.assertEqual(value["native_event_origins"][0]["artifact_sha256"], contract.bundle.digest(original["main"]["phase1-events.jsonl"]))
         self.assertEqual(proof["raw_artifacts"], original)
 
     def test_strict_reader_phase4_mime_all12_mapping_origins(self):
         from tests.no_crs import test_nginx_native_operation_bundle as reader_tests
-        from tests.runners import test_nginx_phase4_operations as phase4_tests
+        from modsecurity_test_framework.runners import test_nginx_phase4_operations as phase4_tests
         from tests.no_crs import test_nginx_mime_operations as mime_tests
         fixture = reader_tests.NativeBundleRouterTests()
         fixture.setUp()
@@ -262,7 +262,7 @@ class NativeContractTests(unittest.TestCase):
 
     def test_semantic_native_event_scope_and_original_boundary_variant(self):
         for case_id, wanted in (("invalid_content_length", None), ("clean_shutdown", "transaction_cleanup"),
-                                ("body_size_nonzero_with_null_data", "protocol_error"), ("finish_failure_propagation", "invalid_engine_response")):
+                                ("body_size_nonzero_with_null_data", "connector_error"), ("finish_failure_propagation", "invalid_engine_response")):
             case, proof = self.fixture(case_id)
             value = contract.derive_native_operation_contract(case, proof)
             with self.subTest(case=case_id):

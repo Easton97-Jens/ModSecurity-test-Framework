@@ -137,10 +137,11 @@ runs:
               . "$FRAMEWORK_ROOT/ci/lib/common.sh"
               . modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/prepare-fresh-crs-source.sh
               sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"
-              # GITHUB_ENV is applied between steps.  Publish only the
-              # helper-validated, fresh run-owned CRS roots for the Make
-              # target in the following step.
-              printf '%s\n' "SOURCE_ROOT=$SOURCE_ROOT" "CRS_SOURCE_DIR=$CRS_SOURCE_DIR" >> "$GITHUB_ENV"
+              # Publish closed single-line paths as explicit step outputs.
+              [[ "$SOURCE_ROOT" =~ ^/[a-zA-Z0-9_./-]+$ ]]
+              test "$SOURCE_ROOT" = "$VERIFIED_RUN_ROOT/crs-fresh-source"
+              test "$CRS_SOURCE_DIR" = "$SOURCE_ROOT/coreruleset"
+              printf '%s\n' "source_root=$SOURCE_ROOT" "crs_source_dir=$CRS_SOURCE_DIR" >> "$GITHUB_OUTPUT"
             )
             ;;
           envoy|lighttpd|traefik)
@@ -155,6 +156,8 @@ runs:
       id: prepare-haproxy-runtime-evidence
       if: fromJSON(inputs.caller-matrix).connector == 'haproxy'
       env:
+        SOURCE_ROOT: ${{ steps.prepare-crs-source.outputs.source_root || env.SOURCE_ROOT }}
+        CRS_SOURCE_DIR: ${{ steps.prepare-crs-source.outputs.crs_source_dir || env.CRS_SOURCE_DIR }}
         PARENT_SHA: ${{ github.event.pull_request.head.sha || fromJSON(inputs.caller-inputs).parent_sha }}
         FRAMEWORK_SHA: ${{ steps.verify-revisions.outputs.framework_sha }}
         MRTS_SHA: ${{ steps.verify-revisions.outputs.mrts_sha }}
@@ -384,6 +387,8 @@ runs:
     - name: Run selected real with-CRS no-MRTS runtime
       id: runtime
       env:
+        SOURCE_ROOT: ${{ steps.prepare-crs-source.outputs.source_root || env.SOURCE_ROOT }}
+        CRS_SOURCE_DIR: ${{ steps.prepare-crs-source.outputs.crs_source_dir || env.CRS_SOURCE_DIR }}
         CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
         SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
         RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
@@ -1053,6 +1058,8 @@ runs:
       id: produce-profile-cell
       if: steps.runtime.outcome == 'success' && (fromJSON(inputs.caller-matrix).connector != 'haproxy' || steps.verify-haproxy-runtime-evidence.outcome == 'success') && (fromJSON(inputs.caller-matrix).connector != 'apache' || steps.validate-apache-runtime-evidence.outcome == 'success')
       env:
+        SOURCE_ROOT: ${{ steps.prepare-crs-source.outputs.source_root || env.SOURCE_ROOT }}
+        CRS_SOURCE_DIR: ${{ steps.prepare-crs-source.outputs.crs_source_dir || env.CRS_SOURCE_DIR }}
         CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
         PARENT_SHA: ${{ github.event.pull_request.head.sha || fromJSON(inputs.caller-inputs).parent_sha }}
         BASE_SHA: ${{ github.event.pull_request.base.sha || fromJSON(inputs.caller-inputs).base_sha }}

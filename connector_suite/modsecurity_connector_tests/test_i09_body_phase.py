@@ -16,7 +16,7 @@ import tempfile
 import unittest
 
 from modsecurity_connector_tests.c_source_contract import function_definition
-from tests import test_i09_common_routes as common_fixture
+from modsecurity_connector_tests import test_i09_common_routes as common_fixture
 from modsecurity_connector_tests.test_runtime_event_sink_failures import FUNCTIONS, INCLUDES
 
 ROOT = connector_root()

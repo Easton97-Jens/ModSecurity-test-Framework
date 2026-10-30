@@ -179,7 +179,7 @@ class InputFaultDriverTest(unittest.TestCase):
         helper = load_source(helper_path)
         transaction = "a" * 32
         path = "/no-crs/input-fault/header_count_nonzero_with_null_headers"
-        event = dict(event="phase1_error", message_id="MSCONN_EVENT_CONNECTOR_ERROR", connector="nginx",
+        event = dict(event="connector_error", message_id="MSCONN_EVENT_CONNECTOR_ERROR", connector="nginx",
                      integration_mode="native-nginx-http-module", transaction_id=transaction,
                      phase="request_headers", method="", uri="", status="error",
                      reason="connector_error", rule_id="", http_status=500)
@@ -201,6 +201,10 @@ class InputFaultDriverTest(unittest.TestCase):
             self.assertEqual(leaf.read_bytes(), raw)
             self.assertEqual(self.driver.BASE.digest(self.driver.STARTUP.bounded_capture(leaf)), before)
         for field, wrong in (("transaction_id", "b" * 32), ("phase", "response_body"),
+                             ("phase", 1), ("phase", "1"), ("phase", True),
+                             ("event", "phase1_error"), ("event", "protocol_error"),
+                             ("message_id", "MSCONN_EVENT_PROTOCOL_ERROR"),
+                             ("http_status", 0), ("http_status", 400), ("http_status", True),
                              ("uri", path), ("method", "POST"),
                              ("connector", "apache"), ("integration_mode", "synthetic")):
             with self.subTest(field=field):

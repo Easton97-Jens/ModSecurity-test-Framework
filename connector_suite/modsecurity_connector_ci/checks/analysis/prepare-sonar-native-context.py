@@ -28,7 +28,9 @@ from urllib.parse import urlsplit
 ROOT = connector_root()
 
 from modsecurity_connector_ci.lib.runtime_path_utils import is_safe_runtime_root
-from framework_revision_pins import FRAMEWORK_PATH, load_framework_revision_pins
+from modsecurity_test_framework.product_sources.ci.lib.framework_revision_pins import (
+    FRAMEWORK_PATH, load_framework_revision_pins,
+)
 
 GIT_PREFIX = ("git", "--no-replace-objects")
 

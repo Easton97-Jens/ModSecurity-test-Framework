@@ -239,19 +239,28 @@ class NginxFunctionalMaterializationLayoutTest(unittest.TestCase):
             wrapper.chmod(0o700)
             first_byte = connector / "ci/runtime/lifecycle/run-native-first-byte.sh"
             first_byte.parent.mkdir(parents=True)
-            first_byte.write_text(
-                (source_path('ci/runtime/lifecycle/run-native-first-byte.sh', root=ROOT)).read_text(encoding="utf-8"),
-                encoding="utf-8",
+            # Relocate only the external host seams in the copied real runner.
+            # Framework paths now own those seams; Product-relative fixture
+            # files alone no longer intercept them after the ownership move.
+            first_byte_source = source_path(
+                "ci/runtime/lifecycle/run-native-first-byte.sh", root=ROOT
+            ).read_text(encoding="utf-8")
+            first_byte_source = first_byte_source.replace(
+                "harness=$TEST_ROOT/connector_suite/adapters/nginx/harness/run_nginx_smoke.sh",
+                'harness="' + str(connector / "connectors/nginx/harness/run_nginx_smoke.sh") + '"',
+            ).replace(
+                '"$TEST_ROOT/connector_suite/modsecurity_connector_ci/provisioning/cache/with-runtime-components.sh"',
+                '"' + str(wrapper) + '"',
             )
+            first_byte.write_text(first_byte_source, encoding="utf-8")
             # Stop at the host seam after calling the real Framework materializer.
             # This proves paths without creating a server, sending a request or
             # claiming runtime evidence from a test double.
             harness = connector / "connectors/nginx/harness/run_nginx_smoke.sh"
             harness.parent.mkdir(parents=True)
             check_control = (
-                "import os,sys; from pathlib import Path; "
-                "sys.path.insert(0, str(Path(os.environ['FRAMEWORK_ROOT']) / 'tests/runners')); "
-                "from synchronized_upstream import _require_control_root, _resolve_control_path; "
+                "import os; "
+                "from modsecurity_test_framework.runners.synchronized_upstream import _require_control_root, _resolve_control_path; "
                 "root=_require_control_root(os.environ['SYNCHRONIZED_UPSTREAM_CONTROL_ROOT']); "
                 "_resolve_control_path(os.environ['FULL_LIFECYCLE_EVIDENCE_OUTPUT'], "
                 "control_root=root, label='evidence output'); print('control-root=' + str(root))"
@@ -269,18 +278,25 @@ class NginxFunctionalMaterializationLayoutTest(unittest.TestCase):
                 '--nginx-location-directives-file "$RUNTIME_ROOT/conf/nginx-location-directives.conf" '
                 '--nginx-runtime-config-dir "$RUNTIME_ROOT/conf"\n'
                 'printf "materialized-first-byte=%s\\n" "$RUNTIME_ROOT"\n'
-                '"$PYTHON" -c "$CONTROL_CHECK"\nexit 78\n',
+                '"$PYTHON" -P -c "$CONTROL_CHECK"\nexit 78\n',
                 encoding="utf-8",
             )
             harness.chmod(0o700)
             script = (source_path('ci/runtime/lifecycle/run-no-crs-baseline.sh', root=ROOT)).read_text(encoding="utf-8")
             call = script.split("native_first_byte_rc=0\n", 1)[1].split(
                 " || native_first_byte_rc=$?", 1
-            )[0]
+            )[0].replace(
+                '"$TEST_ROOT/connector_suite/modsecurity_connector_ci/runtime/lifecycle/run-native-first-byte.sh"',
+                '"' + str(first_byte) + '"',
+            )
             environment = {
                 "PATH": os.defpath, "PYTHON": sys.executable,
                 "PYTHONDONTWRITEBYTECODE": "1",
-                "CONNECTOR_ROOT": str(connector), "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
+                "CONNECTOR_ROOT": str(ROOT), "FRAMEWORK_ROOT": str(FRAMEWORK_ROOT),
+                "CONNECTOR_REVISION": os.environ["CONNECTOR_REVISION"],
+                "TEST_ROOT": str(FRAMEWORK_ROOT),
+                "PYTHONSAFEPATH": "1",
+                "PYTHONPATH": str(FRAMEWORK_ROOT) + os.pathsep + str(FRAMEWORK_ROOT / "connector_suite"),
                 "VERIFIED_RUN_ROOT": str(invocation), "connector": "nginx",
                 "CANONICAL_VERIFIED_RUN_ROOT": str(invocation),
                 "NO_CRS_RULES_FILE": str(RULE_PREAMBLE),

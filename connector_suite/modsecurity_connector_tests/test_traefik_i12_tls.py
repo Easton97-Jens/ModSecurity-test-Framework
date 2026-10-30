@@ -10,7 +10,7 @@ import threading
 import unittest
 from unittest import mock
 
-from tests import test_traefik_i12_quality_controls as quality
+from modsecurity_connector_tests import test_traefik_i12_quality_controls as quality
 
 AUTH = quality.AUTH
 TLS = quality.module('traefik_i12_tls_fixture', 'i12_auth/tls_fixture.py')

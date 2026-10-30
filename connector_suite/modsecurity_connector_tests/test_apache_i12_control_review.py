@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from tests import test_i12_lifecycle_ledger as shared_fixtures
+from modsecurity_connector_tests import test_i12_lifecycle_ledger as shared_fixtures
 
 
 SOURCE = connector_root() / 'ci/runtime/lifecycle/apache-i12/acceptance/review_controls.py'

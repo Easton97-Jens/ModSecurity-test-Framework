@@ -181,7 +181,7 @@ static int fixture_haproxy_modsecurity_error_event_write(
   (void)id;
   return snprintf(line, capacity, "typed technical error\n") > 0;
 }
-/* PRODUCT_STRUCTS */
+#include "native-haproxy-product-structs.inc"
 static int native_result;
 static int native_disruptive;
 static int common_result;
@@ -581,7 +581,7 @@ static int fixture_msconnector_response_companion_client_cancel_with_cause(
   (void)result(r);
   return cancel_result;
 }
-/* PRODUCT_FUNCTIONS */
+#include "native-haproxy-product-functions.inc"
 static void reset(struct haproxy_modsecurity_htx_filter_context *c,
                   struct stream *s) {
   memset(c, 0, sizeof(*c));

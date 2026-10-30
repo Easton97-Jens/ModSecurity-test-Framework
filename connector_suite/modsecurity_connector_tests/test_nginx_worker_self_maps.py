@@ -56,7 +56,6 @@ class SetupFailureTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.drivers={}
-        sys.path.insert(0,str(source_path('ci/runtime/lifecycle', root=ROOT)))
         for name in ('common-input-fault','lifecycle-sequences'):
             driver = load_source(ROOT / ('ci/runtime/lifecycle/run-nginx-' + name + '.py'))
             cls.drivers[name]=driver

@@ -1,7 +1,9 @@
 """Boundary and verdict controls for stock-native supplementary diagnostics."""
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
+from modsecurity_test_framework.connector_context import connector_root, source_path, load_source
 import json
 import hashlib
+import builtins
+import sys
 from pathlib import Path
 import tempfile
 import socket
@@ -18,8 +20,25 @@ PACKETS = load_source(source_path('ci/runtime/lifecycle/i12/lighttpd/diagnostic_
 
 
 class DiagnosticTests(unittest.TestCase):
+    def prepared_backend_fixture(self, root):
+        fixtures = root / "fixtures"
+        fixtures.mkdir(mode=0o700)
+        store = load_source(source_path("ci/runtime/lifecycle/i12/capture_sources.py"))
+        registry = store.Registry()
+        identity = registry.manifest["profiles"]["lighttpd"]["capture_files"]["stock-empty-drivers/observed-backend.py"]["sha256"]
+        (fixtures / "observed-backend.py").write_bytes(registry.content(identity))
+        shutil.copyfile(source_path("ci/runtime/common/response_fixture_omission.py"), fixtures / "response_fixture_omission.py")
+        (fixtures / "backend-inputs.json").write_text(json.dumps({
+            name: hashlib.sha256((fixtures / name).read_bytes()).hexdigest()
+            for name in NATIVE.PREPARED_BACKEND_FILES}))
+        return fixtures
+
     def backend_module(self):
-        return load_source(source_path("ci/runtime/common/response-header-test-backend.py"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixtures = self.prepared_backend_fixture(root)
+            with mock.patch.object(NATIVE, "EXTERNAL_ROOT", root):
+                return NATIVE.load_prepared_backend(fixtures)
 
     def exchange_backend(self, directory, case, method="GET", peer="127.0.0.1"):
         handler = NATIVE.backend_handler(self.backend_module(), directory, case)
@@ -141,6 +160,52 @@ class DiagnosticTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "physical single-link"):
                 NATIVE.declared_cases(alias)
 
+    def test_prepared_backend_imports_are_isolated_and_reject_tampering(self):
+        # Actual prepared backend and adjacent dependency load under safe Python
+        # without adding a checkout/global import path. Reject both files before
+        # any code executes when a bound input is tampered with or aliased.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixtures = self.prepared_backend_fixture(root)
+            with mock.patch.object(NATIVE, "EXTERNAL_ROOT", root):
+                with self.subTest(prepared_backend_positive="bound-generated-backend-isolated-imports"):
+                    before_path = list(sys.path)
+                    before_import = builtins.__import__
+                    before_alias = sys.modules.get("response_fixture_omission")
+                    module = NATIVE.load_prepared_backend(fixtures)
+                    self.assertEqual(sys.path, before_path)
+                    self.assertIs(builtins.__import__, before_import)
+                    self.assertIs(sys.modules.get("response_fixture_omission"), before_alias)
+                    self.assertIsNot(module.sys.path, sys.path)
+                    self.assertIn(str(fixtures), module.sys.path)
+                    with self.assertRaises(TypeError):
+                        module.sys.modules["unreviewed_fixture_alias"] = module
+                    self.assertNotIn("unreviewed_fixture_alias", sys.modules)
+                    self.assertEqual(module.ResponseFixture(200, ()).status, 200)
+                original = (fixtures / "response_fixture_omission.py").read_bytes()
+                for mode in ("dependency-hash-drift", "dependency-symlink", "manifest-escape", "fixture-parent-alias"):
+                    with self.subTest(prepared_backend_negative=mode):
+                        support = fixtures / "response_fixture_omission.py"
+                        support.unlink()
+                        support.write_bytes(original)
+                        bindings = {name: hashlib.sha256((fixtures / name).read_bytes()).hexdigest()
+                                    for name in NATIVE.PREPARED_BACKEND_FILES}
+                        candidate = fixtures
+                        if mode == "dependency-hash-drift":
+                            support.write_bytes(original + b"\n# drift\n")
+                        elif mode == "dependency-symlink":
+                            support.unlink()
+                            support.symlink_to(source_path("ci/runtime/common/response_fixture_omission.py"))
+                        elif mode == "manifest-escape":
+                            bindings["../outside.py"] = "a" * 64
+                        else:
+                            (root / "alias").symlink_to(fixtures, target_is_directory=True)
+                            candidate = root / "alias"
+                        (fixtures / "backend-inputs.json").write_text(json.dumps(bindings))
+                        with mock.patch.object(NATIVE.runpy, "run_path", side_effect=AssertionError("must reject before exec")):
+                            with self.assertRaises((ValueError, OSError)):
+                                NATIVE.load_prepared_backend(candidate)
+
     def test_waited_parser_receipt_preserves_exact_exit_and_real_rules_absence(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -228,8 +293,7 @@ class DiagnosticTests(unittest.TestCase):
                 DIAGNOSTIC.fresh_output(actual)
 
     def test_numeric_loopback_client_keeps_origin_form_contract(self):
-        source = (connector_root()
-                  / "ci/runtime/lifecycle/i12/lighttpd/stock_raw_client.py").read_text()
+        source = source_path("ci/runtime/lifecycle/i12/lighttpd/stock_raw_client.py", root=connector_root()).read_text()
         generated = NATIVE.numeric_loopback_client(source)
         self.assertNotIn("urlsplit", generated)
         self.assertIn("socket.create_connection(('127.0.0.1',port)", generated)

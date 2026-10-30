@@ -62,7 +62,7 @@ def select_mapper_error_events(rows, transaction):
     recorded, so the source event must retain exact empty method/URI values.
     Access, fault-ledger, configuration and cleanup evidence bind the request.
     """
-    identity = {"event": "phase1_error", "message_id": "MSCONN_EVENT_CONNECTOR_ERROR",
+    identity = {"event": "connector_error", "message_id": "MSCONN_EVENT_CONNECTOR_ERROR",
                 "connector": "nginx", "integration_mode": "native-nginx-http-module",
                 "phase": "request_headers", "transaction_id": transaction,
                 "status": "error", "reason": "connector_error", "http_status": 500,

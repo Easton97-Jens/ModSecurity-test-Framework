@@ -35,7 +35,7 @@
 #define msconnector_runtime_transaction_set_response_commit_state_checked      \
   fixture_msconnector_runtime_transaction_set_response_commit_state_checked
 #define SIDECAR_IO_CHUNK 2048U
-/* TYPES */
+#include "native-lighttpd-sidecar-types.inc"
 struct msconnector_runtime {
   int mode;
 };
@@ -268,7 +268,7 @@ int fixture_msconnector_runtime_transaction_finish_response_body(
   }
   return 1;
 }
-/* DEFINITIONS */
+#include "native-lighttpd-sidecar-definitions.inc"
 
 static void fixture_body(sidecar_exchange_state *state, const int *client,
                          const int *upstream, int committed) {

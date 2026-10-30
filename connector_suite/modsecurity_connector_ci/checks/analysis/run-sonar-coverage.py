@@ -6,11 +6,10 @@ claim that every existing test executes. Test ownership and coverage are separat
 """
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, source_path, load_tool
 
 import argparse
 import ast
-import importlib.util
 import hashlib
 import json
 import os
@@ -111,7 +110,7 @@ def validate_python_report(path: Path) -> int:
         raise ValueError("Python coverage has no measured execution")
     for entry in classes:
         filename = Path(entry.attrib["filename"])
-        if filename.is_absolute() or ".." in filename.parts or not (ROOT / filename).is_file():
+        if filename.is_absolute() or ".." in filename.parts or not source_path(filename, root=ROOT).is_file():
             raise ValueError(f"Python coverage path is not a repository file: {filename}")
     return len(classes)
 
@@ -140,25 +139,14 @@ def publish_python_report(output: Path, env: dict[str, str]) -> dict[str, object
 
 def admitted_offline_inventory():
     """Use the existing Parent admission API; never discover extra tests."""
-    name = "sonar_coverage_inventory"
-    specification = importlib.util.spec_from_file_location(name, ROOT / ACTIVE_INVENTORY_SOURCE)
-    if specification is None or specification.loader is None:
-        raise ValueError("cannot load the authoritative Parent inventory admission")
-    module = importlib.util.module_from_spec(specification)
-    previous = sys.modules.get(name)
-    sys.modules[name] = module
-    try:
-        specification.loader.exec_module(module)
-        inventory = module.load_inventory(ROOT)
-        if not inventory.offline_case_ids:
-            raise ValueError("coverage requires explicitly admitted offline Python cases")
-        selected = module.select_executions(inventory, case_ids=inventory.offline_case_ids, on_demand=True)
-        return inventory, selected
-    finally:
-        if previous is None:
-            sys.modules.pop(name, None)
-        else:
-            sys.modules[name] = previous
+    module = load_tool(ACTIVE_INVENTORY_SOURCE)
+    inventory = module.load_inventory(ROOT)
+    if not inventory.offline_case_ids:
+        raise ValueError("coverage requires explicitly admitted offline Python cases")
+    selected = module.select_executions(
+        inventory, case_ids=inventory.offline_case_ids, on_demand=True
+    )
+    return inventory, selected
 
 
 def offline_partitions(selected: tuple[dict, ...]) -> tuple[tuple[dict, ...], tuple[dict, ...]]:
@@ -200,7 +188,7 @@ def parallel_python_files(output: Path) -> set[Path]:
 
 def python_child_witness_line() -> int:
     """Locate an actual body statement that only the guarded child executes."""
-    tree = ast.parse((ROOT / ACTIVE_INVENTORY_SOURCE).read_bytes())
+    tree = ast.parse(source_path(ACTIVE_INVENTORY_SOURCE, root=ROOT).read_bytes())
     child = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
                  and node.name == "python_child")
     return next(node.lineno for node in child.body if isinstance(node, ast.Assign)
@@ -224,6 +212,8 @@ def child_file_has_witness(path: Path, witness: int) -> bool:
     for filename in data.measured_files():
         source = Path(filename)
         if source.is_absolute():
+            if source == source_path(ACTIVE_INVENTORY_SOURCE, root=ROOT):
+                return witness in (data.lines(filename) or [])
             source = source.relative_to(ROOT)
         if source.as_posix() == ACTIVE_INVENTORY_SOURCE:
             return witness in (data.lines(filename) or [])

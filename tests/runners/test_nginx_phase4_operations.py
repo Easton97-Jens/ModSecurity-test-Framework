@@ -90,7 +90,7 @@ def rejection_fixture(committed=True):
 
 class Phase4OperationsTest(unittest.TestCase):
     def validate(self, record, receipt, raw):
-        helper = importlib.import_module("nginx_phase4_operations")
+        helper = importlib.import_module("modsecurity_test_framework.runners.nginx_phase4_operations")
         return helper.validate_phase4_operation(record, receipt, raw)
 
     def test_closed_nonreject_operations_accept_complete_observed_inputs(self):

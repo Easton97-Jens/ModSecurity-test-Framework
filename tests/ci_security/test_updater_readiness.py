@@ -226,4 +226,7 @@ class UpdaterReadinessTests(unittest.TestCase):
 
     def test_actionlint_only_adds_the_exact_official_runner_label(self):
         config = yaml.safe_load((ROOT / ".github/actionlint.yaml").read_text())
-        self.assertEqual(config, {"self-hosted-runner": {"labels": ["ubuntu-26.04"]}})
+        self.assertEqual(config, {"self-hosted-runner": {"labels": [
+            "ubuntu-26.04", "protected-exact-head-candidate-build",
+            "protected-exact-head-nginx",
+        ]}})

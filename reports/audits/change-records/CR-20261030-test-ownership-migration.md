@@ -40,7 +40,8 @@ The retained selection baseline is 100 standard cases / 80 executions and
 demand; the standard cap stays 100. Test identities, assertions and distinct-case
 counting must survive relocation. Product builds must not acquire a Framework
 runtime dependency. Framework delivery must precede the dependent Connector pin;
-no merge or master push is authorized.
+the current user authorization permits merge only after clean Sonar analysis,
+no new open findings and all required gates pass.
 
 ## Alternatives considered
 
@@ -87,21 +88,25 @@ delivery remain explicit rather than inferred from file relocation.
 | Complete test ownership | Test implementations, fixtures, orchestration, provisioning, collectors and reports moved to Framework; productive code/build/delivery remain in Connector with small pinned entrypoints and two authenticated broker shims. |
 | Repository interface | Explicit roots, revision, profile and external output; public unique Python namespaces and scoped imports; one-way Connector → Framework dependency and unchanged protected trust boundaries. |
 | Result defects | Request-local identity rejects foreign/ambiguous enrichment; Envoy retains executed traffic after assertion failure; mandatory writes and empty required result sets fail; retries do not add unique cases. |
-| Runtime deviations | Apache merged duplicate headers require explicit native rule adaptation, retaining rule `1100504` and audit assertion; injected NGINX internal faults require HTTP 500 and connector-error semantics while malformed client input remains HTTP 400. Actual Apache controls passed; NGINX host verification is blocked. |
+| Runtime deviations | Apache merged duplicate headers require explicit native rule adaptation, retaining rule `1100504` and audit assertion; injected NGINX internal faults require HTTP 500 and connector-error semantics while malformed client input remains HTTP 400. Actual Apache controls and three selected NGINX development H1 cases passed; final committed-pair and complete lifecycle qualification remain separate. |
 | Parallel topics | HTTP/2, HTTP/3, Coverage and full dependency assessment remain outside scope except required path/caller adaptation. MRTS package/import corrections belong to the separate Framework followup packet and shared integration check. |
 | Shared mechanics and code size | Native extraction is relocation; repeated loader consolidation removes caller implementation with shared-helper overhead. No equal total code reduction or complete mechanical equivalence is inferred. |
-| Verification and delivery | Focused checks and bounded Apache observations are recorded separately from the pending default-run outcomes, installed-gate proof, final-head CI and dependent PR delivery. Framework integration precedes Connector pin integration; no merge is authorized. |
+| Verification and delivery | Latest observed defaults: 67 passing / 13 blocked executions, 74 passing / 26 blocked cases across recorded revisions. The clean recorded cfd5e49/e52d7d4 pair and three Apache controls passed; the next pair, installed-gate proof, final-head CI and migration PR delivery remain pending. Merge remains conditional on the current user authorization and all required gates. |
+| Extension classification and privacy | A closed reviewed process-bearing set uses migration-integration; pure controls retain offline audit, with original baseline groups/guard ASTs preserved. Private external output and exclusion of customer payloads/credentials remain required. |
 
 ## Commands and results
 
 The final canonical inventory contains **100 standard
-cases / 80 executions**, **2250 on-demand cases / 1029 executions**, **463 fixed
+cases / 80 executions**, **2265 on-demand cases / 1034 executions**, **486 fixed
 Framework test-source bindings** and **232 product-source snapshots**. Its compact
-JSON is **2091364 bytes**, below the unchanged **2 MiB** admission limit. These are
+JSON is **2091536 bytes**, below the unchanged **2 MiB** admission limit. These are
 selection/source quantities, not executed or passing case counts. The extension
-adds 42 explicit on-demand methods: 28 clean-pair methods (including one actual
-run still pending) and 14 MRTS-package methods; the original 1993-case baseline
-remains unchanged.
+adds 47 explicit on-demand methods: 28 clean-pair methods, 14 MRTS-package
+methods, 3 classification guards and 2 prepared/backend helper methods; the original 1993-case baseline remains
+unchanged. A closed reviewed set of 153 process-bearing new rows uses the
+`migration-integration` group across 12 modules with target-derived ID hashes;
+42 pure controls retain the offline-audit group. The original 1993 group
+assignments and guard-function ASTs are unchanged; the initial 40 pure controls and both new pure helper methods passed.
 
 The 120 new focused methods passed without skips, including the result-integrity
 subset of 56 methods / 131 expanded variants and the closed path-policy subset
@@ -111,10 +116,12 @@ passed. The complete native Framework documentation target passed.
 
 Seven repaired default case IDs passed through the public runner. The actual
 public CLI foreign-UID/GID control passed both subcases in explicitly authorized
-isolated execution. All nine Go executions passed. Seventeen native executions
-remain blocked: 13 have validated missing host prerequisites, and 4 have verified
-scanner-fixture prerequisites. The pin-sensitive standard Sonar check awaits
-the final Connector pin. No prospective aggregate default-run PASS is claimed.
+isolated execution. All nine Go executions passed. The latest observed ledger
+contains 67 passing and 13 blocked standard executions, covering 74 passing and
+26 blocked unique cases. The four scanner fixtures and the pin-sensitive Sonar
+check passed on targeted reruns; the 13 host/profile prerequisites remain blocked.
+These observations span source revisions and do not constitute one complete
+standard run on a future final pair.
 
 Existing task evidence records 56 result-integrity methods / 131 expanded
 variants passing with no failures, errors or skips under Python `-P`,
@@ -202,7 +209,7 @@ The latest bounded result-integrity run passed 56 methods / 131 expanded
 variants. Three actual Apache H1 controls passed with HTTP 200 / 403 / 200
 (allow, deny, duplicate header). The allow control used the client-only
 `request_bound` observation; it does not prove a host capability.
-The NGINX H1 attempt was blocked with exit 77 because the required existing
+An earlier NGINX H1 attempt was blocked with exit 77 because the required existing
 runtime was unavailable; this is not a passing host run. These observations do
 not qualify a complete H1 lifecycle or an installed protected-host gate.
 
@@ -227,7 +234,7 @@ retains HTTP 400. These correct stale test contracts without product weakening.
 
 ## Checks not run
 
-The NGINX H1 attempt was blocked with exit 77 because the required existing
+An earlier NGINX H1 attempt was blocked with exit 77 because the required existing
 runtime was unavailable; no NGINX host PASS or installed protected-host gate
 proof is recorded here. Current-head CI, final complete-diff review, final source-map /
 inventory regeneration and dependent PR delivery require separate observed
@@ -238,7 +245,7 @@ are a separate contract. MRTS remains read-only. No migration merge is claimed.
 
 ## Limitations and residual risk
 
-The NGINX H1 attempt was blocked with exit 77 because the required existing
+An earlier NGINX H1 attempt was blocked with exit 77 because the required existing
 runtime was unavailable; no NGINX host PASS or installed protected-host gate
 proof is recorded here. Current-head CI, final complete-diff review, final source-map /
 inventory regeneration and dependent PR delivery require separate observed
@@ -265,8 +272,9 @@ The same artifact maps five stable requirement IDs to current file ownership:
 Framework followup worktree/PR; `tools/MRTS` remains pinned and read-only. Its
 nested-definition and validation-source guards, regression preservation and
 Framework integration are traced separately from the tool repository. Generated
-archive and map outputs match their frozen source inputs: both generator
-`--check` runs passed, preserving all 1993 original case IDs. The canonical
+archive and map outputs were regenerated in that order and both final generator
+`--check` runs passed, preserving all 1993 original case IDs. The final binding
+`--check` and public CLI inventory admission also passed. The canonical
 inventory counts above describe selection, not successful execution.
 
 The clean-pair CLI verifies a committed Connector revision against its recorded
@@ -276,8 +284,13 @@ entrypoints and interfaces, invokes the actual Parent Make target
 `test-framework-integration-probe`, and validates the exact admitted Common
 header test result. The probe requires installed Git, Make, a compatible Python
 and `cc`, plus existing private external output storage. Uncommitted source edits
-are not copied into the pair. Source wiring and unit controls do not substitute
-for a successful real-pair receipt; that positive run remains pending here.
+are not copied into the pair. The actual fresh-clone recorded pair
+Connector `cfd5e49cada3fc793ef50993147e3796a0907443` / Framework
+`e52d7d44c81e997a296b7ffdfb33f12bf85455b9` passed this probe and its Common
+case. Three Apache H1 controls also passed on that pair in 28.625 seconds.
+A rerun against the next Framework commit and Connector pin remains pending;
+this receipt establishes only the named pair. Evidence stays in private external
+output storage; versioned records must not contain customer payloads or credentials.
 
 ```sh
 PYTHONSAFEPATH=1 PYTHONPATH="$FRAMEWORK_ROOT:$FRAMEWORK_ROOT/connector_suite" \
@@ -302,6 +315,122 @@ PYTHONSAFEPATH=1 PYTHONPATH="$FRAMEWORK_ROOT:$FRAMEWORK_ROOT/connector_suite" \
 
 A successful probe establishes repository-interface behavior for the actual Common case.
 Hosted H1 and installed-gate qualifications require their own evidence.
+
+Current integration also incorporates Connector master `ee134` from
+[Connector PR #433](https://github.com/Easton97-Jens/ModSecurity-conector/pull/433)
+through the ordinary merge `8c7e8c44`. All 1993 latest-master baseline case
+objects exactly match their Framework counterparts. Initial immutable baseline
+identities remain separate from this later integration.
+
+The separately published MRTS-package correction `197df49` passed 99 methods
+in 73.152 seconds; independent definition walking and file-descriptor parity
+checks passed. This changes Framework packaging and guards, with `tools/MRTS`
+pinned and read-only. The latest native Framework CI run passed 330 methods in
+161.603 seconds. Actual bounded runs also passed 54 Common controls, 29 portable
+controls, 23 CRS controls and 13 launcher controls. These are separate suites;
+their counts are not added to unique inventory case totals.
+
+The minimal NGINX configure probe passed with checksum-verified existing archives;
+11 existing context tests and four CLI negative controls also passed. Configure
+success establishes this build/configuration layer, not a runtime lifecycle.
+The actual C-family capture completed twice after decomposition: 81 translation
+units produced 81 unique objects, passing in 38.241 and 37.935 seconds. These are
+translation units and objects, not test methods or extra selected case IDs.
+The exact standard distribution is 76 C17, 4 C++17 and 1 original smoke C99
+translation unit. Every compiler command retains `-Wall -Wextra -Werror` and no
+`-Wno` option; the original smoke standard is unchanged. HAProxy/Lighttpd generated includes use the same
+maintained original translation units and exact Product extractions in actual
+tests and capture. All 28 existing builder test-method ASTs and native function
+bodies are preserved; five former comment markers now contain real includes.
+The final exact-source-hash capture after AST-identical formatting and admission
+repair also passed all 81 units in 36.126 seconds. Independent review passed
+eight tests and reviewed all 81 objects.
+
+The Sonar workflow Product analysis input must use compatible published migration
+commit `cfd5e49cada3fc793ef50993147e3796a0907443`. Pre-migration `ee134` contains
+duplicate test helpers and is unsuitable for this combined analysis. Selection
+does not use a Product submodule or a reverse Framework pin. Independent NGINX
+wrapper/secret-wiring review passed six tests. The fresh focused run passed all
+36 methods in 246.637 seconds. Six namespace-repair modules preserve 71 existing
+methods and all 234 assertion ASTs. Their latest per-method outcomes are 71 PASS:
+the worker module first had six sandbox UID-mapping skips, then passed all 21
+methods in 20.519 seconds outside the Linux sandbox with unchanged guards,
+including the six actual Root/nobody descriptor cases. These observations are
+not one combined final-head suite run and introduce no case IDs. The migration current-head cloud gate and final committed-pair acceptance remain
+pending; the selected development H1 chain is described below.
+
+Gitleaks baseline observations and reviewed false-positive classification are
+distinct. The current configuration has two `generic-api-key` allowlists, each
+requiring both its exact public SHA and its reviewed path to match (AND scope).
+The raw receipt retaining 70 public-hash false positives and eight positive/
+negative controls remain preserved. Earlier unsuppressed baseline scans do not
+mean the current configuration has no allowlists. Actual remote CI verification
+of this configuration remains pending; no credentials or customer payloads are
+permitted in versioned evidence.
+
+The development attempt using Connector `8c7e8c44` and Framework composition
+`1aef2` was correctly rejected because the MRTS package source binding was stale.
+It is not a successful pair run. The final source-binding refresh passed; an actual
+new development-pair rerun remains pending. The earlier recorded pair
+`cfd5e49` / `e52d7d4` and its three observed Apache controls retain only their
+explicitly recorded scope.
+
+
+The separately selected pure backend-isolation regression is
+`offline.migration.prepared-backend-imports-are-isolated-and-reject-tampering`
+(`DiagnosticTests.test_prepared_backend_imports_are_isolated_and_reject_tampering`).
+It passed one method with five subcases and no skips through the existing offline
+hook. The original declared-case method AST was restored exactly; the new logic
+has its own five on-demand case IDs and does not extend an old selected loop.
+
+The NGINX Product observability repair in commit `1c1` records only a known
+400..599 request-error status, otherwise zero, before the existing timeout 504
+override. It preserves unobservable transport, visible status zero and empty
+actual action. The real extracted producer and exact consumers passed 28 methods/
+156 expanded subtests after six red status variants; the bundle's 26 existing
+methods also passed. Canonical internal pointer faults require
+`connector_error`, `MSCONN_EVENT_CONNECTOR_ERROR`, typed `request_headers` and
+HTTP500; malformed client framing remains HTTP400/protocol error. Three latest
+actual H1 drivers passed after a 198.789-second build on Product `1c1`. The
+additional existing-helper artifact-reader repair now permits strict reopening
+of both fresh fault bundles, followed by projection and contract derivation.
+The selected development-chain proof below does not establish a full lifecycle
+or a final committed-pair gate PASS.
+
+The user's current merge authorization is conditional on clean Sonar analysis,
+no new open findings and every required gate passing. A current-head cloud gate
+or migration merge result is not claimed here.
+
+
+The second explicitly selected pure guard,
+`NativeBundleRouterTests.test_worker_self_maps_require_exact_helper_and_paired_ledger`,
+passed one method with seven subcases and no skips. The two new pure selectors
+therefore declare five and seven subcases separately. Both passed via the public
+CLI without skips; selecting either without `--on-demand` was rejected with
+exit 2. Removing only the redundant
+`Migration regression: ` prefix from 360 new-case purposes preserves the 2 MiB
+inventory bound; all 1993 original baseline case dictionaries remain unchanged.
+
+Fresh real NGINX H1 evidence now passes the selected full verification chain:
+baseline HTTP 200, both internal pointer faults HTTP 500, identical 34-source
+hash sets before launch/in the envelope/after execution, and the public strict
+bundle reader, projection and contract derivation. Both fault proofs retain
+`layer_verified=true`, `errors=[]`, canonical `connector_error`, typed
+`request_headers` and integer HTTP 500. The receipt uses Product
+`1c1c71459ce13fc4e2741dd6c30e671cfcbe55a0` and explicit Framework development
+working source `1aef2c2268aeb38425aec1da7661baf6c449de25`; the recorded Framework
+gitlink remains `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`. This is development
+evidence for three selected cases, not final committed-pair acceptance or all
+42 native cases. Preserved raw result rows remain `NOT_EXECUTED`; layer proof
+does not fabricate canonical result promotion. The 13 blocked standard
+executions and their 26 cases remain unchanged in the separate default ledger.
+
+The MRTS followup [Framework PR #141](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/141)
+has server-verified clean Sonar results for exact head `197df49`: all five gate
+conditions passed, with zero OPEN/CONFIRMED issues and zero TO_REVIEW hotspots.
+Other Actions checks still require a fresh query. This result does not establish
+the migration PR's current-head gate or satisfy the remaining committed-pair
+acceptance by itself.
 
 ## Final diff and review status
 

@@ -1,6 +1,8 @@
 """Seal original owned native receipts as NOT_EXECUTED canonical input."""
 from __future__ import annotations
 
+from modsecurity_test_framework.connector_context import source_path, test_root
+
 import hashlib
 import json
 import os
@@ -101,10 +103,30 @@ def source_hashes(paths, parent_root, framework_root):
         if (not separator or namespace not in roots or relative.startswith("/")
                 or any(part in ("", ".", "..") for part in relative.split("/"))):
             raise ValueError("source must use a closed namespaced relative path")
-        path = roots[namespace] / relative
-        descriptor = directory(path.parent, external=False)
+        # Preserve admission of the original supplied namespace before remapping.
+        os.close(directory(roots[namespace], external=False))
+        selected_parent = os.environ.get("CONNECTOR_ROOT")
+        if (namespace == "parent" and selected_parent
+                and roots["parent"].resolve() == Path(selected_parent).resolve()
+                and roots["framework"] != test_root()):
+            raise ValueError("reviewed source requires the explicit selected Framework root")
+        path = (source_path(relative, root=roots["parent"]) if namespace == "parent"
+                else roots["framework"] / relative)
+        if not any(path.is_relative_to(root) for root in roots.values()):
+            raise ValueError("reviewed source must stay inside explicit Parent/Framework roots")
+        authority = (roots["framework"] if path.is_relative_to(roots["framework"])
+                     else roots["parent"])
+        parts = path.relative_to(authority).parts
+        descriptor = directory(authority, external=False)
         try:
-            leaf = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
+            for part in parts[:-1]:
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+                os.close(descriptor)
+                descriptor = child
+                metadata = os.fstat(descriptor)
+                if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) & 0o022:
+                    raise ValueError("source directory must be owned and nonwritable by others")
+            leaf = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
             with os.fdopen(leaf, "rb") as stream:
                 metadata = os.fstat(stream.fileno())
                 if (not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_BYTES

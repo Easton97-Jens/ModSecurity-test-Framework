@@ -160,15 +160,25 @@ def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
                                 capture_output=True, text=True, check=False, timeout=60)
         if result.returncode:
             raise product.UpdateError("cannot establish private candidate source identity")
+    materialized = set()
     for relative_text in sorted(inputs):
         relative = Path(relative_text)
         if actual_checkout:
             source = source_path(relative, root=source_root)
             if source.is_relative_to(test_root()):
                 continue
+            # The reviewed source map also records product-owned relocations.
+            # Copy those files at their explicit current Product paths so the
+            # private checkout retains the same ownership contract.
+            try:
+                relative = source.relative_to(source_root)
+            except ValueError as error:
+                raise product.UpdateError("proposed source is outside its explicit owner") from error
             source = product.resolve_regular_file(source_root, relative)
         else:
             source = product.resolve_regular_file(source_root, relative)
+        if relative in materialized:
+            continue
         destination = destination_root / relative
         destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         if destination.exists() or destination.is_symlink():
@@ -176,6 +186,7 @@ def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
         with source.open("rb") as input_file, destination.open("xb") as output_file:
             shutil.copyfileobj(input_file, output_file)
         destination.chmod(0o600)
+        materialized.add(relative)
     if actual_checkout:
         with selected_checkout(destination_root):
             admitted_validation_inventory(destination_root)

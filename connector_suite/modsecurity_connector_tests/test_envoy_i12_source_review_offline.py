@@ -18,13 +18,7 @@ HERE = source_path('ci/runtime/lifecycle/i12/envoy', root=ROOT)
 
 
 def load_validator():
-    previous = list(sys.path)
-    sys.path.insert(0, str(HERE))
-    try:
-        module = load_source(HERE / 'validate_oracles.py')
-        return module
-    finally:
-        sys.path[:] = previous
+    return load_source(HERE / 'validate_oracles.py')
 
 
 VALIDATOR = load_validator()

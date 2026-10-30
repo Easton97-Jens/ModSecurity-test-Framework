@@ -178,7 +178,7 @@ EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS: Mapping[JobIdentity, str] = {
 TRUSTED_SYSTEM_PYTHON_JOB = JobIdentity(
     "run-trusted-lighttpd-namespace-dispatch.yml", "trusted-lighttpd-namespace"
 )
-TRUSTED_SYSTEM_WORKFLOW_SHA256 = "e55cd28bd7cce7ca393aa0a6bccec4cc51fe362e07fe780b7d952a038f37f730"
+TRUSTED_SYSTEM_WORKFLOW_SHA256 = "6ce0366fdd0a0c33b1fc807d53b27b738ebc58f01452dccc6497bbf145fc94a1"
 EXPECTED_SYSTEM_PYTHON_JOBS = frozenset({TRUSTED_SYSTEM_PYTHON_JOB})
 
 

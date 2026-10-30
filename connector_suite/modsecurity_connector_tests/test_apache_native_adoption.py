@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
-from tests import test_apache_common_adoption as adoption
+from modsecurity_connector_tests import test_apache_common_adoption as adoption
 
 FLOW = "Apache validates the native intervention result and preserves both redirect and non-redirect enforcement sinks"
 STORAGE = "Apache preserves redirect through the canonical decision mapper and native Location sink"

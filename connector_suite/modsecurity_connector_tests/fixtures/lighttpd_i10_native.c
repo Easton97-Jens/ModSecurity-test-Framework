@@ -385,7 +385,7 @@ int lighttpd_modsecurity_visit_body_range(
   (void)n;
   return c(u, (const unsigned char *)"x", 1, e, l);
 }
-/* DEFINITIONS */
+#include "native-lighttpd-definitions.inc"
 static int fixture_dispatch(int operation, request_st *r, plugin_data *p,
                             handler_ctx *ctx, msconnector_runtime *runtime) {
   int result;

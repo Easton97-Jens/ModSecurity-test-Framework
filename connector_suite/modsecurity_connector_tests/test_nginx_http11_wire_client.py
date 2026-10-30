@@ -3,8 +3,8 @@ import socketserver
 import threading
 import unittest
 
-from tests import test_nginx_sequence_client as client_tests
-from tests import test_nginx_sequence_driver as driver_tests
+from modsecurity_connector_tests import test_nginx_sequence_client as client_tests
+from modsecurity_connector_tests import test_nginx_sequence_driver as driver_tests
 
 
 class WireHandler(socketserver.StreamRequestHandler):

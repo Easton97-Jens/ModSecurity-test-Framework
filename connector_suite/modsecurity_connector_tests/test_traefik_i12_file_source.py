@@ -1,10 +1,10 @@
 """Physical file transport contracts; no host lifecycle or oracle qualification."""
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, source_path
 
 import contextlib
 import errno
 import hashlib
-import importlib.util
+import importlib
 import json
 import os
 from pathlib import Path
@@ -17,23 +17,17 @@ import unittest
 from unittest import mock
 
 ROOT = connector_root()
-HERE = source_path('connectors/traefik/harness/i12_file', root=ROOT)
-FIXTURES = source_path('connectors/traefik/harness/fixtures/i12-file-source', root=ROOT)
+HERE = source_path('connectors/traefik/harness/i12_file/source.py', root=ROOT).parent
+FIXTURES = source_path('connectors/traefik/harness/fixtures/i12-file-source/manifest.json', root=ROOT).parent
 
 
 def load(name):
-    spec = importlib.util.spec_from_file_location("file_source_" + name, HERE / (name + ".py"))
-    module = importlib.util.module_from_spec(spec)
-    # The isolated staged CLI uses these same adjacent module names.
-    with mock.patch.dict(sys.modules, {"source": SOURCE} if name != "source" else {}):
-        spec.loader.exec_module(module)
-    return module
+    return importlib.import_module("connector_suite.adapters.traefik.harness.i12_file." + name)
 
 
 SOURCE = load("source")
 HTTP = load("http_stream")
-with mock.patch.dict(sys.modules, {"source": SOURCE, "http_stream": HTTP}):
-    RUN = load("run")
+RUN = load("run")
 SDK = load("sdk_capability")
 ACCEPTANCE = load("acceptance")
 
@@ -202,8 +196,8 @@ class FileSourceTests(unittest.TestCase):
             RUN.stage(FIXTURES, self.private, self.manifest)
 
     def test_actual_reader_child_process_receipt(self):
-        command = "import sys,json; sys.path.insert(0,sys.argv[1]); import source; print(json.dumps(source.stream_file(sys.argv[2],json.loads(sys.argv[3]),lambda data,event:None)))"
-        process = subprocess.run([sys.executable, "-I", "-c", command, str(HERE), str(self.private), json.dumps(self.spec)],
+        command = "import sys,json,runpy; from pathlib import Path; from types import SimpleNamespace; source=SimpleNamespace(**runpy.run_path(str(Path(sys.argv[1]).resolve(strict=True)))); print(json.dumps(source.stream_file(sys.argv[2],json.loads(sys.argv[3]),lambda data,event:None)))"
+        process = subprocess.run([sys.executable, "-I", "-c", command, str((HERE / "source.py").resolve(strict=True)), str(self.private), json.dumps(self.spec)],
                                  capture_output=True, text=True, check=True, timeout=10)
         result = json.loads(process.stdout)
         self.assertNotEqual(result["pid"], os.getpid())
@@ -211,10 +205,10 @@ class FileSourceTests(unittest.TestCase):
         self.assertEqual(result["bytes"], self.spec["size"])
 
     def test_actual_reader_child_negative_processes(self):
-        command = """import sys,json,os
-sys.path.insert(0,sys.argv[1])
-import source
+        command = """import sys,json,os,runpy
 from pathlib import Path
+from types import SimpleNamespace
+source=SimpleNamespace(**runpy.run_path(str(Path(sys.argv[1]).resolve(strict=True))))
 root=Path(sys.argv[2]); spec=json.loads(sys.argv[3]); mode=sys.argv[4]
 path=root/spec['relative_path']
 def consume(data,event):
@@ -240,7 +234,7 @@ sys.exit(0)
                 elif mode == "mutation":
                     path.write_bytes(original)
                     path.chmod(0o600)
-                process = subprocess.run([sys.executable, "-I", "-c", command, str(HERE), str(self.private),
+                process = subprocess.run([sys.executable, "-I", "-c", command, str((HERE / "source.py").resolve(strict=True)), str(self.private),
                                           json.dumps(self.spec), mode], capture_output=True, text=True, timeout=10)
                 self.assertEqual(process.returncode, 7, process.stderr)
                 receipt = json.loads(process.stdout)

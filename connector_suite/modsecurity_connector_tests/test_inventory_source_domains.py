@@ -10,6 +10,39 @@ from modsecurity_connector_ci.lib import active_test_inventory as inventory
 
 
 class InventorySourceDomainsTests(unittest.TestCase):
+    def migration_integration(self):
+        target = ("modsecurity_test_framework.selftests.connector_adapter.test_connector_integration."
+                  "CleanRecordedCombination.test_actual_recorded_framework_pin_runs_parent_common_execution")
+        slug = target.split(".")[-1].removeprefix("test_").replace("_", "-")
+        return {"id": "offline.migration." + slug + "." + hashlib.sha256(target.encode()).hexdigest()[:8],
+                "groups": ["migration", "migration-integration"],
+                "selector": {"kind": "python", "target": target}, "expected_subtests": 0}
+
+    def test_process_fixture_requires_its_exact_reviewed_selector_identity(self):
+        entry = self.migration_integration()
+        inventory._validate_offline_exceptions([entry])
+        self.assertFalse(inventory._offline_execution(entry))
+        entry["id"] += "-foreign"
+        with self.assertRaises(inventory.InventoryError):
+            inventory._validate_offline_exceptions([entry])
+
+    def test_integration_group_cannot_reclassify_an_original_offline_case(self):
+        entry = self.migration_integration()
+        entry["id"] = "offline.original-contract"
+        with self.assertRaises(inventory.InventoryError):
+            inventory._validate_offline_exceptions([entry])
+        entry["groups"] = ["offline-unit"]
+        inventory._validate_offline_exceptions([entry])
+        self.assertTrue(inventory._offline_execution(entry))
+
+    def test_unreviewed_module_cannot_enable_process_fixtures(self):
+        entry = self.migration_integration()
+        target = "modsecurity_connector_tests.unreviewed.Example.test_one"
+        entry["selector"]["target"] = target
+        entry["id"] = "offline.migration.one." + hashlib.sha256(target.encode()).hexdigest()[:8]
+        with self.assertRaises(inventory.InventoryError):
+            inventory._validate_offline_exceptions([entry])
+
     def fixture(self, root):
         test = root / "tests/sample.py"
         test.parent.mkdir()

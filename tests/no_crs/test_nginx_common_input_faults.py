@@ -29,7 +29,7 @@ class CommonInputFaultContractTest(unittest.TestCase):
                                  "body_data_null": True, "header_count": 1, "headers_null": case.startswith("header_")},
                 "native_diagnostic": "modsecurity common request mapper validation failed: " +
                    ("missing body data" if case.startswith("body_") else "missing headers"),
-                "native_events": [{"event": "phase1_error", "message_id": "MSCONN_EVENT_CONNECTOR_ERROR",
+                "native_events": [{"event": "connector_error", "message_id": "MSCONN_EVENT_CONNECTOR_ERROR",
                     "connector": "nginx", "integration_mode": "native-nginx-http-module", "phase": "request_headers",
                     "transaction_id": transaction, "status": "error", "reason": "connector_error", "rule_id": "", "http_status": 500,
                     "method": "", "uri": ""}]}
@@ -93,8 +93,10 @@ class CommonInputFaultContractTest(unittest.TestCase):
         for case in self.contract.CONTRACTS:
             for field, value in (("transaction_id", "b" * 32), ("message_id", "OTHER"),
                                  ("connector", "apache"), ("reason", "engine_error"), ("reason", "protocol_error"),
+                                 ("event", "phase1_error"), ("http_status", 0),
                                  ("http_status", 400), ("http_status", True),
-                                 ("status", "ok"), ("phase", 2),
+                                 ("status", "ok"), ("phase", 2), ("phase", 1),
+                                 ("phase", "1"), ("phase", True),
                                  ("integration_mode", "external"), ("method", "POST"),
                                  ("uri", "/no-crs/input-fault/foreign")):
                 row = self.observation(case)
