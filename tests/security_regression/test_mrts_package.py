@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -136,6 +138,69 @@ class MrtsPackageTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("artifact hash mismatch", result.stderr)
 
+    def test_foreign_framework_cannot_select_executable_helpers(self) -> None:
+        result = self.cli("prepare", extra=("--framework-root", str(self.connector)))
+        self.assertEqual(result.returncode, 77)
+        self.assertIn("executing checkout", result.stderr)
+        self.assertFalse(self.package.exists())
+
+    def test_build_root_rejects_traversal_source_and_public_directories(self) -> None:
+        public = self.root / "public"
+        public.mkdir(mode=0o777)
+        public.chmod(0o777)
+        for candidate in (self.root / "build/../escape", self.framework, public, Path("/etc")):
+            with self.subTest(candidate=candidate):
+                result = self.cli("prepare", extra=("--build-root", str(candidate)))
+                self.assertEqual(result.returncode, 77)
+                self.assertFalse(self.package.exists())
+
+    def test_publication_rejects_outside_sibling_and_symlink_ancestor(self) -> None:
+        outside = self.root / "foreign"
+        outside.mkdir()
+        marker = outside / "marker"
+        marker.write_text("unchanged", encoding="utf-8")
+        self.build.mkdir()
+        link = self.build / "linked"
+        link.symlink_to(outside, target_is_directory=True)
+        for target in (outside / "package", link / "package"):
+            with self.subTest(target=target):
+                result = self.cli("prepare", extra=("--package-root", str(target)))
+                self.assertEqual(result.returncode, 77)
+                self.assertFalse((outside / "package").exists())
+                self.assertEqual(marker.read_text(encoding="utf-8"), "unchanged")
+
+    def test_manifest_symlink_is_rejected_before_reading_external_json(self) -> None:
+        self.prepare()
+        outside = self.root / "foreign.json"
+        outside.write_text("This must not be parsed as JSON", encoding="utf-8")
+        manifest = self.package / "manifest.json"
+        manifest.unlink()
+        manifest.symlink_to(outside)
+        result = self.cli("verify")
+        self.assertEqual(result.returncode, 77)
+        self.assertIn("contained regular file", result.stderr)
+        self.assertEqual(outside.read_text(encoding="utf-8"), "This must not be parsed as JSON")
+
+    def test_artifact_symlink_cannot_rewrite_foreign_file(self) -> None:
+        self.prepare()
+        outside = self.root / "foreign.yaml"
+        outside.write_text("unchanged: true\n", encoding="utf-8")
+        artifact = next((self.package / "upstream-config-tests/framework-cases").glob("*.yaml"))
+        artifact.unlink()
+        artifact.symlink_to(outside)
+        target = self.build / "run"
+        result = self.cli("materialize", extra=("--output-root", str(target), "--port", "19321"))
+        self.assertEqual(result.returncode, 77)
+        self.assertIn("unsafe filesystem object", result.stderr)
+        self.assertFalse(target.exists())
+        self.assertEqual(outside.read_text(encoding="utf-8"), "unchanged: true\n")
+
+    def test_shell_metacharacters_in_paths_remain_data(self) -> None:
+        self.build = self.root / "build; echo injected"
+        self.package = self.build / "mrts/prepared"
+        self.prepare()
+        self.assertEqual(self.cli("verify").returncode, 0)
+
     def test_selection_and_revision_mismatches_are_rejected(self) -> None:
         self.prepare()
         result = self.cli("verify", demo=1)
@@ -231,6 +296,31 @@ class MrtsPackageTests(unittest.TestCase):
         for runtime, roots, preamble in rows:
             self.assertEqual(roots, str(Path(runtime) / "upstream-config-tests/framework-cases"))
             self.assertEqual(preamble, str(Path(runtime) / "upstream-config-tests/mrts.load"))
+
+
+class MrtsPackageExecutableTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        spec = importlib.util.spec_from_file_location("mrts_package_under_test", ROOT / "ci/provisioning/mrts-package.py")
+        cls.package = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.package)
+
+    def test_trusted_python_preserves_framework_virtual_environment(self) -> None:
+        result = subprocess.run(
+            [self.package.trusted_executable("python"), "-c", "import sys, yaml; print(sys.prefix)"],
+            check=True, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.stdout.strip(), sys.prefix)
+
+    def test_closed_subprocess_selectors_reject_unapproved_operations(self) -> None:
+        with mock.patch.object(self.package.subprocess, "run") as run:
+            with self.assertRaisesRegex(ValueError, "unsupported shell preparation step"):
+                self.package.run_shell_step("../../foreign.sh", {})
+            run.assert_not_called()
+        with mock.patch.object(self.package.subprocess, "check_output") as output:
+            with self.assertRaisesRegex(ValueError, "unsupported Git inspection"):
+                self.package.git(ROOT, "--exec-path=foreign")
+            output.assert_not_called()
 
 
 if __name__ == "__main__":

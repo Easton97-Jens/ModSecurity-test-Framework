@@ -29,6 +29,26 @@ destination for regeneration. A failure preserves an earlier package but does
 not select or reuse it. Successful commands print the resulting root on stdout
 and preparation diagnostics on stderr.
 
+Package preparation and result handling share the external-root checks in
+`ci/lib/mrts_path_safety.py`. Select the runtime root independently of incoming
+definition, result and manifest paths. It must be separate from the executing
+Framework checkout and configured source checkouts, including their ancestors;
+system directories and the general temporary directory are rejected. The
+nearest existing directory must belong to the current user and permit no group
+or public writes. Ancestors must belong to the current user or root; a writable
+shared ancestor requires sticky-directory protection. If `CODEX_TEMP_ROOT` or
+`RUNNER_TEMP` is configured, the runtime root must be a proper descendant of at
+least one of them. Traversal and symlink components are rejected before path
+resolution.
+
+`--framework-root` must match the checkout containing the executing package
+script. Preparation invokes only its fixed generator, importer and load-writer
+entry points, using validated absolute operands. Shell and Git executables are
+selected from system search directories; the importer uses the current Python
+interpreter. Executables must be regular, executable files owned by the current
+user or root without group or public write permission. Caller-controlled `PATH`
+entries do not select those Shell and Git executables.
+
 `--upstream-definitions DIR` and `--feature-demo-definitions DIR` select explicit
 definition directories instead of the pinned defaults. Only selected corpora
 are accessed. With `--include-feature-demo 0`, demo generation and import do not
@@ -100,7 +120,20 @@ structured source rather than trusting a cached job PASS. Legacy text without
 selection-bound observations remains incomplete. A valid prepared manifest is
 not host-runtime evidence.
 
+When invoking the result writer as a standalone CLI, explicitly export the
+trusted `BUILD_ROOT` selected for the run (`export BUILD_ROOT`). The result CLI
+has no build-root argument and does not derive authority from a supplied
+result, FTW directory or output path. All result inputs and destinations must
+be children of that approved root, with owned directories that permit no group
+or public writes and without traversal or symlink components. Missing
+`BUILD_ROOT` or an invalid path fails the writer. The package CLI continues to
+take the explicit `--build-root` argument shown above.
+
 ## Integration order and scope
+
+Parent PR #432 has already merged. Framework PR #139 continues separately;
+the sequence below describes the original dependency plan. A Framework pin
+update remains a separate action after the Framework merge.
 
 Deliver Framework changes first. Then review the separate Connector caller and
 result changes against this interface. After a separately authorized Framework

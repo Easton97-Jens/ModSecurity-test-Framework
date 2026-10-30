@@ -12,15 +12,50 @@ import os
 from pathlib import Path
 import re
 import sys
+import stat
 import tempfile
 from typing import Any
 
+from runtime_path_safety import absolute_path_without_traversal, has_symlink_component
+from mrts_path_safety import approved_runtime_root
+
 MAX_RESULT_BYTES = 1024 * 1024
-CASE_ID = re.compile(r"[0-9]+-[0-9]+\Z")
+CASE_ID = re.compile(r"\d+-\d+\Z", re.ASCII)
 RESULT_FIELDS = {
     "success": "PASS", "failed": "FAIL", "skipped": "SKIP",
     "ignored": "IGNORED", "forced-pass": "FORCED_PASS", "forced-fail": "FORCED_FAIL",
 }
+
+
+def valid_case_ids(items: object) -> bool:
+    return isinstance(items, list) and all(isinstance(item, str) and CASE_ID.fullmatch(item) for item in items)
+
+
+def collect_observed_ids(stats: dict[str, Any]) -> dict[str, list[str]]:
+    observed: dict[str, list[str]] = {}
+    for field, outcome in RESULT_FIELDS.items():
+        items = stats.get(field, [])
+        if items is None:
+            items = []
+        if not valid_case_ids(items):
+            raise ValueError(f"invalid go-ftw {field} result IDs")
+        for case_id in items:
+            observed.setdefault(case_id, []).append(outcome)
+    return observed
+
+
+def classify_observed_ids(observed: dict[str, list[str]], expected: set[str], errors: list[str]) -> dict[str, str]:
+    outcomes = {}
+    for case_id, values in observed.items():
+        outcome = values[0]
+        if len(values) != 1:
+            errors.append(f"duplicate or conflicting result: {case_id}")
+            outcome = "INVALID"
+        if expected and case_id not in expected:
+            errors.append(f"unexpected result: {case_id}")
+            outcome = "UNEXPECTED"
+        outcomes[case_id] = outcome
+    return outcomes
 
 
 def observed_results(selected: list[str], stats: dict[str, Any]) -> dict[str, Any]:
@@ -28,30 +63,13 @@ def observed_results(selected: list[str], stats: dict[str, Any]) -> dict[str, An
     errors: list[str] = []
     if not selected:
         errors.append("required case selection is empty or unavailable")
-    if any(not isinstance(item, str) or not CASE_ID.fullmatch(item) for item in selected):
+    if not valid_case_ids(selected):
         raise ValueError("invalid selected MRTS case ID")
-    if len(set(selected)) != len(selected):
-        errors.append("duplicate selected case ID")
-    observed: dict[str, list[str]] = {}
-    for field, outcome in RESULT_FIELDS.items():
-        items = stats.get(field, [])
-        if items is None:
-            items = []
-        if not isinstance(items, list) or any(not isinstance(item, str) or not CASE_ID.fullmatch(item) for item in items):
-            raise ValueError(f"invalid go-ftw {field} result IDs")
-        for case_id in items:
-            observed.setdefault(case_id, []).append(outcome)
     expected = set(selected)
-    outcomes = {}
-    for case_id, values in observed.items():
-        if len(values) != 1:
-            errors.append(f"duplicate or conflicting result: {case_id}")
-            outcomes[case_id] = "INVALID"
-        else:
-            outcomes[case_id] = values[0]
-        if selected and case_id not in expected:
-            errors.append(f"unexpected result: {case_id}")
-            outcomes[case_id] = "UNEXPECTED"
+    if len(expected) != len(selected):
+        errors.append("duplicate selected case ID")
+    observed = collect_observed_ids(stats)
+    outcomes = classify_observed_ids(observed, expected, errors)
     reported = stats.get("run", 0)
     if type(reported) is not int or reported < 0:
         raise ValueError("invalid go-ftw run count")
@@ -81,10 +99,10 @@ def results_from_log(text: str) -> dict[str, Any]:
     stats: dict[str, Any] = {field: [] for field in RESULT_FIELDS}
     current = None
     for line in text.splitlines():
-        running = re.search(r"\brunning ([0-9]+-[0-9]+):", line)
+        running = re.search(r"\brunning (\d+-\d+):", line, re.ASCII)
         if running:
             current = running.group(1)
-        failed = re.search(r"\b([0-9]+-[0-9]+)\s+failed\b", line)
+        failed = re.search(r"\b(\d+-\d+)\s+failed\b", line, re.ASCII)
         if failed:
             stats["failed"].append(failed.group(1))
             current = None
@@ -93,29 +111,73 @@ def results_from_log(text: str) -> dict[str, Any]:
             current = None
     payload = re.search(r"failed to run:\s*\[(.*?)\]", text)
     if payload:
-        for case_id in re.findall(r"[0-9]+-[0-9]+", payload.group(1)):
-            if case_id not in stats["failed"]:
+        failed_ids = set(stats["failed"])
+        for item in re.split(r"[\s,]+", payload.group(1)):
+            case_id = item.strip("\"'")
+            if CASE_ID.fullmatch(case_id) and case_id not in failed_ids:
                 stats["failed"].append(case_id)
+                failed_ids.add(case_id)
     stats["run"] = sum(len(stats[field]) for field in RESULT_FIELDS)
     result = observed_results([], stats)
-    total = re.search(r"\brun\s+([0-9]+)\s+total tests", text)
+    total = re.search(r"\brun\s+(\d+)\s+total tests", text, re.ASCII)
     result["attempted"] = int(total.group(1)) if total else stats["run"]
     return result
 
 
-def read_bounded(path: Path) -> str:
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_RESULT_BYTES:
-        raise ValueError(f"missing, linked or oversized MRTS result: {path.name}")
-    return path.read_text(encoding="utf-8")
+def private_owned_directory(path: Path) -> None:
+    metadata = path.lstat()
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid():
+        raise ValueError("MRTS result directories must be owned by the current user")
+    if metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise ValueError("MRTS result directories must not allow group or public writes")
 
 
-def selected_ftw_ids(root: Path) -> list[str]:
+def approved_result_root(value: Path | str | None = None) -> Path:
+    """Authorize a dedicated external runtime root, never an input-derived parent."""
+    configured = value if value is not None else os.environ.get("BUILD_ROOT")
+    if not configured:
+        raise ValueError("BUILD_ROOT is required to authorize MRTS result paths")
+    return approved_runtime_root(configured, "MRTS result root")
+
+
+def safe_result_path(path: Path, approved_root: Path | str | None = None) -> Path:
+    root = approved_result_root(approved_root)
+    candidate = absolute_path_without_traversal(path, "MRTS result path")
+    if has_symlink_component(candidate):
+        raise ValueError("MRTS result path must not contain a symlink component")
+    resolved = candidate.resolve(strict=False)
+    if resolved == root or not str(resolved).startswith(str(root) + os.sep):
+        raise ValueError("MRTS result path is outside the approved runtime root")
+    private_owned_directory(resolved.parent)
+    for directory in resolved.parent.relative_to(root).parents:
+        private_owned_directory(root / directory)
+    return resolved
+
+
+def read_bounded(path: Path, approved_root: Path | str | None = None) -> str:
+    validated = safe_result_path(path, approved_root)
+    descriptor = os.open(validated, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as handle:
+        metadata = os.fstat(handle.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_RESULT_BYTES:
+            raise ValueError(f"missing, non-regular or oversized MRTS result: {validated.name}")
+        content = handle.read(MAX_RESULT_BYTES + 1)
+    if len(content) > MAX_RESULT_BYTES:
+        raise ValueError(f"oversized MRTS result: {validated.name}")
+    return content.decode("utf-8")
+
+
+def selected_ftw_ids(root: Path, approved_root: Path | str | None = None) -> list[str]:
     import yaml
 
+    allowed = approved_result_root(approved_root)
+    root = safe_result_path(root, allowed)
+    if root.exists():
+        private_owned_directory(root)
     selected = []
     for path in sorted(root.rglob("*.yaml")):
         try:
-            data = yaml.safe_load(read_bounded(path))
+            data = yaml.safe_load(read_bounded(path, allowed))
         except yaml.YAMLError as exc:
             raise ValueError("invalid FTW YAML selection") from exc
         if not isinstance(data, dict) or not isinstance(data.get("tests"), list):
@@ -127,14 +189,14 @@ def selected_ftw_ids(root: Path) -> list[str]:
     return selected
 
 
-def attach_corpora(results: dict[str, Any], ftw_root: Path) -> None:
+def attach_corpora(results: dict[str, Any], ftw_root: Path, approved_root: Path | str | None = None) -> None:
     """Retain corpus origin for the private, combined native selection."""
     corpora = {}
     for corpus in ("upstream-config-tests", "feature-demo"):
-        root = ftw_root / corpus
+        root = safe_result_path(ftw_root / corpus, approved_root)
         if not root.is_dir():
             continue
-        selected = selected_ftw_ids(root)
+        selected = selected_ftw_ids(root, approved_root)
         outcomes = {case_id: results["outcomes"].get(case_id, "MISSING") for case_id in selected}
         counts = Counter(outcomes.values())
         corpora[corpus] = {
@@ -145,22 +207,28 @@ def attach_corpora(results: dict[str, Any], ftw_root: Path) -> None:
     results["corpora"] = corpora
 
 
-def read_results(stats_file: Path, selected: list[str], ftw_root: Path | None = None) -> dict[str, Any]:
-    stats = json.loads(read_bounded(stats_file))
+def read_results(stats_file: Path, selected: list[str], ftw_root: Path | None = None,
+                 approved_root: Path | str | None = None) -> dict[str, Any]:
+    stats = json.loads(read_bounded(stats_file, approved_root))
     if not isinstance(stats, dict):
         raise ValueError("go-ftw result is not an object")
     results = observed_results(selected, stats)
     if ftw_root is not None:
-        attach_corpora(results, ftw_root)
+        attach_corpora(results, ftw_root, approved_root)
     return results
 
 
-def write_job(args: argparse.Namespace) -> int:
-    log = read_bounded(args.run_log)
+def write_job(args: argparse.Namespace, approved_root: Path | str | None = None) -> int:
+    allowed = approved_result_root(approved_root)
+    output = safe_result_path(args.output, allowed)
+    safe_result_path(args.summary_path, allowed)
+    if output.exists() and not stat.S_ISREG(output.lstat().st_mode):
+        raise ValueError("MRTS job output must be a regular file")
+    log = read_bounded(args.run_log, allowed)
     selected: list[str] = []
     try:
-        selected = selected_ftw_ids(args.ftw_dir)
-        results = read_results(args.stats_file, selected, args.ftw_dir)
+        selected = selected_ftw_ids(args.ftw_dir, allowed)
+        results = read_results(args.stats_file, selected, args.ftw_dir, allowed)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         results = observed_results(selected, {}) if selected else results_from_log(log)
         results["errors"].append(str(exc))
@@ -185,11 +253,11 @@ def write_job(args: argparse.Namespace) -> int:
     }
     temporary = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=args.output.parent, prefix=".mrts-job-", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent, prefix=".mrts-job-", delete=False) as handle:
             temporary = Path(handle.name)
             json.dump(data, handle, indent=2, sort_keys=True)
             handle.write("\n")
-        os.replace(temporary, args.output)
+        os.replace(temporary, output)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

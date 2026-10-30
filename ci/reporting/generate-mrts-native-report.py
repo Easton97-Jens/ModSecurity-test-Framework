@@ -18,7 +18,7 @@ if str(FRAMEWORK_LIB) not in sys.path:
     sys.path.insert(0, str(FRAMEWORK_LIB))
 
 from generated_report_utils import write_generated_report_file
-from mrts_results import observed_results, read_results, results_from_log, selected_ftw_ids
+from mrts_results import approved_result_root, observed_results, read_results, results_from_log, selected_ftw_ids
 
 try:
     import yaml
@@ -190,17 +190,17 @@ def collect_run_counts(
     run_log: Path, status: str, allowed_roots: list[Path] | None = None,
     *, ftw_dir: Path | None = None, stats_file: Path | None = None,
 ) -> dict[str, Any]:
-    roots = allowed_roots or [run_log.parent]
+    roots = [approved_result_root(root) for root in (allowed_roots or [run_log.parent])]
     results = results_from_log(read_bounded_run_log(run_log, roots))
     if ftw_dir is not None and stats_file is not None:
         safe_ftw = canonical_under(ftw_dir, roots)
         safe_stats = canonical_under(stats_file, roots)
         if safe_ftw is not None:
             try:
-                selected = selected_ftw_ids(safe_ftw)
+                selected = selected_ftw_ids(safe_ftw, approved_root=roots[0])
                 results = observed_results(selected, {})
                 if safe_stats is not None:
-                    results = read_results(safe_stats, selected, safe_ftw)
+                    results = read_results(safe_stats, selected, safe_ftw, approved_root=roots[0])
             except (OSError, ValueError, KeyError, TypeError) as exc:
                 results["errors"].append(str(exc))
     return {

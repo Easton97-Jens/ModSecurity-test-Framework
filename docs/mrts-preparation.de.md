@@ -31,6 +31,29 @@ ein neues Ziel. Ein Fehler erhält ein früheres Paket, wählt oder verwendet es
 aber nicht. Erfolgreiche Befehle geben den resultierenden Root auf stdout und
 Vorbereitungsdiagnosen auf stderr aus.
 
+Paketvorbereitung und Ergebnisverarbeitung verwenden gemeinsam die Prüfungen
+für externe Roots in `ci/lib/mrts_path_safety.py`. Wähle den Laufzeitroot
+unabhängig von eingehenden Definitions-, Ergebnis- und Manifestpfaden. Er muss
+vom ausführenden Framework-Checkout und konfigurierten Quellcheckouts sowie
+deren übergeordneten Verzeichnissen getrennt sein; Systemverzeichnisse und das
+allgemeine temporäre Verzeichnis werden abgewiesen. Das nächste vorhandene
+Verzeichnis muss dem aktuellen Benutzer gehören und darf keine Gruppen- oder
+öffentlichen Schreibrechte gewähren. Übergeordnete Verzeichnisse müssen dem
+aktuellen Benutzer oder root gehören; ein gemeinsam schreibbares
+übergeordnetes Verzeichnis benötigt Sticky-Bit-Schutz. Wenn `CODEX_TEMP_ROOT`
+oder `RUNNER_TEMP` konfiguriert ist, muss der Laufzeitroot ein echtes
+Unterverzeichnis mindestens eines dieser Roots sein. Traversal und
+Symlinkkomponenten werden vor der Pfadauflösung abgewiesen.
+
+`--framework-root` muss dem Checkout des ausführenden Paketskripts entsprechen.
+Die Vorbereitung ruft ausschließlich dessen feste Generator-, Importer- und
+Load-Writer-Einstiege mit geprüften absoluten Operanden auf. Shell und Git
+werden aus System-Suchverzeichnissen gewählt; der Importer verwendet den
+aktuellen Python-Interpreter. Ausführbare Programme müssen reguläre,
+ausführbare Dateien sein, dem aktuellen Benutzer oder root gehören und dürfen
+keine Gruppen- oder öffentlichen Schreibrechte gewähren. Vom Aufrufer gesetzte
+`PATH`-Einträge wählen diese Shell- und Git-Programme nicht aus.
+
 `--upstream-definitions DIR` und `--feature-demo-definitions DIR` wählen
 ausdrückliche Definitionsverzeichnisse statt der gepinnten Vorgaben. Nur
 gewählte Korpora werden gelesen. Mit `--include-feature-demo 0` entfallen
@@ -109,7 +132,22 @@ statt einem gespeicherten Job-PASS zu vertrauen. Historischer Text ohne an die
 Auswahl gebundene Beobachtungen bleibt unvollständig. Ein gültiges vorbereitetes
 Manifest ist keine Host-Laufzeitevidence.
 
+Beim eigenständigen CLI-Aufruf des Ergebnis-Writers muss der für den Lauf
+gewählte vertrauenswürdige `BUILD_ROOT` ausdrücklich exportiert werden
+(`export BUILD_ROOT`). Die Ergebnis-CLI besitzt kein Build-Root-Argument und
+leitet ihre Berechtigung nicht aus einem übergebenen Ergebnis-, FTW-Verzeichnis-
+oder Ausgabepfad ab. Alle Ergebniseingaben und -ziele müssen Unterpfade dieses
+geprüften Roots sein; ihre Verzeichnisse müssen dem aktuellen Benutzer gehören,
+dürfen keine Gruppen- oder öffentlichen Schreibrechte gewähren und keine
+Traversal- oder Symlinkkomponenten enthalten. Ein fehlender `BUILD_ROOT` oder
+ungültiger Pfad lässt den Writer fehlschlagen. Die Paket-CLI erhält weiterhin
+das oben gezeigte ausdrückliche Argument `--build-root`.
+
 ## Integrationsreihenfolge und Umfang
+
+Parent-PR #432 ist bereits gemergt. Framework-PR #139 wird getrennt fortgesetzt;
+die folgende Reihenfolge beschreibt den ursprünglichen Abhängigkeitsplan. Ein
+Framework-Pin-Update bleibt eine separate Aktion nach dem Framework-Merge.
 
 Liefere zuerst die Framework-Änderungen. Prüfe danach die getrennten
 Connector-Aufrufer- und Ergebnisänderungen gegen diese Schnittstelle. Nach einem
