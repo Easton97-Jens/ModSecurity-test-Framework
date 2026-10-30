@@ -104,6 +104,22 @@ This contract proves only target-to-tool resolution. H1, H2, and H3 outcomes
 still require the applicable client, host, and artifact prerequisites and are
 reported separately as runtime evidence.
 
+Protocol artifacts require integer `schema_version: 1`. A normal client `PASS`
+also requires an observed HTTP status and a terminal Curl result consistent
+with the managed producer: exit `0` / `transport_error: none`, or exit `22` /
+`transport_error: http_response_error` with an HTTP error status. This preserves
+visible WAF denials without accepting truncated or failed transfers as `PASS`.
+A `PASS` follow-up requires exit `0` / `none`; strict evidence additionally
+requires its existing healthy, independently correlated follow-up. The strict
+primary requires a failed integer Curl result other than `0`/`22`, with its
+producer-compatible failure category, in addition to a committed, partial
+response and observed reset. Known exit codes must match their fixed category;
+unknown subprocess outcomes retain the producer's bounded failure vocabulary.
+Do not require `response_complete: true` for ordinary success: Curl write-out
+may omit content length, including in the supported legacy field format.
+These admission checks do not authenticate externally supplied observations
+or prove connector runtime support on their own.
+
 ## CRS source provenance contract
 
 `make test-crs-provenance-contract`, which is also part of `make lint`, runs

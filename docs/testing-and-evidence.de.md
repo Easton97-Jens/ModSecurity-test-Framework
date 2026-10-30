@@ -108,6 +108,24 @@ Dieser Vertrag beweist nur die Auflösung von Target zu Tool. H1-, H2- und
 H3-Ergebnisse benötigen weiterhin die jeweiligen Client-, Host- und
 Artefaktvoraussetzungen und werden getrennt als Runtime-Evidence berichtet.
 
+Protokollartefakte benötigen ganzzahliges `schema_version: 1`. Ein normaler
+Client-`PASS` benötigt außerdem einen beobachteten HTTP-Status und ein zum
+verwalteten Produzenten passendes Curl-Abschlussergebnis: Exit `0` /
+`transport_error: none` oder Exit `22` / `transport_error: http_response_error`
+mit einem HTTP-Fehlerstatus. Sichtbare WAF-Ablehnungen bleiben damit zulässig,
+abgeschnittene oder fehlgeschlagene Transfers werden jedoch nicht als `PASS`
+akzeptiert. Ein `PASS`-Follow-up benötigt Exit `0` / `none`; strikte Evidence
+verlangt zusätzlich das bestehende gesunde, unabhängig korrelierte Follow-up.
+Die strikte Primärbeobachtung benötigt zusätzlich zur bereits committeten,
+partiellen Antwort mit beobachtetem Reset einen fehlgeschlagenen ganzzahligen
+Curl-Abschluss außer `0`/`22` mit passender Produzenten-Fehlerkategorie. Bekannte
+Exit-Codes müssen zu ihrer festen Kategorie passen; unbekannte Prozessausgänge
+behalten das begrenzte Fehlervokabular des Produzenten. Für gewöhnlichen Erfolg ist
+`response_complete: true` nicht zwingend: Curl-Write-out kann die Inhaltslänge
+auslassen, auch im unterstützten älteren Feldformat. Diese Eingangsprüfungen
+authentifizieren keine extern gelieferten Beobachtungen und beweisen allein
+keine Connector-Runtime-Unterstützung.
+
 ## CRS-Quellherkunftsvertrag
 
 `make test-crs-provenance-contract`, das ebenfalls Bestandteil von `make lint`
