@@ -1,0 +1,40 @@
+ngx_addon_name=ngx_http_body_buffer_fixture_module
+
+if test -n "$ngx_module_link"; then
+    ngx_module_type=HTTP_FILTER
+    ngx_module_name=ngx_http_body_buffer_fixture_module
+    ngx_module_srcs="$ngx_addon_dir/ngx_http_body_buffer_fixture_module.c"
+    ngx_module_order="$ngx_module_name"
+    . auto/module
+
+    if [ "$ngx_module_link" = ADDON ]; then
+        # The fixture is a test-only body filter. It must be initialized
+        # directly after the statically linked connector, so its call to the
+        # saved next filter surrounds the connector rather than an upstream
+        # copy/postpone filter that may defer output. The runner configures the
+        # connector first; fail the build instead of silently emitting a
+        # non-native fault test when that invariant is not true.
+        modules=
+        found=
+        for module in $HTTP_FILTER_MODULES; do
+            if [ "$module" = "ngx_http_body_buffer_fixture_module" ]; then
+                continue
+            fi
+            modules="$modules $module"
+            if [ "$module" = "ngx_http_modsecurity_module" ]; then
+                modules="$modules ngx_http_body_buffer_fixture_module"
+                found=1
+            fi
+        done
+        if [ -z "$found" ]; then
+            echo "$0: error: nginx body-buffer fixture requires static ngx_http_modsecurity_module ordering"
+            exit 1
+        fi
+        HTTP_FILTER_MODULES="$modules"
+    fi
+else
+    # Kept for NGINX configuration paths without ngx_module_link.
+    HTTP_FILTER_MODULES="$HTTP_FILTER_MODULES ngx_http_body_buffer_fixture_module"
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS \
+        $ngx_addon_dir/ngx_http_body_buffer_fixture_module.c"
+fi

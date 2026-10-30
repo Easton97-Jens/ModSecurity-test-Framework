@@ -44,6 +44,7 @@ if str(FRAMEWORK_ROOT) in sys.path:
     sys.path.remove(str(FRAMEWORK_ROOT))
 sys.path.insert(0, str(FRAMEWORK_ROOT))
 
+from modsecurity_test_framework.result_identity import validate_request_observation  # noqa: E402
 from msconnector_models import STATUS_MODEL, operation_status  # noqa: E402
 from synchronized_upstream import first_byte_evidence_errors  # noqa: E402
 from nginx_migration_config_contracts import nginx_migration_config_contracts  # noqa: E402
@@ -4733,7 +4734,7 @@ def build_normalized_case_record(
     status: str,
     details: NormalizedCaseRecordDetails,
 ) -> dict[str, Any]:
-    return {
+    record = {
         "schema_version": 1,
         "connector": connector,
         "run_id": details["run_id"],
@@ -4760,6 +4761,12 @@ def build_normalized_case_record(
         "exit_code": optional_int(raw.get("exit_code")),
         "artifacts": raw.get("artifacts") if isinstance(raw.get("artifacts"), Mapping) else {},
     }
+    if raw.get("evidence_identity") == "request_bound":
+        record.update(validate_request_observation(raw))
+        record.update(transaction_id=None, transaction_ids=[], evidence_identity="request_bound",
+                      runtime_verified=False, promotion_allowed=False,
+                      request_observation=dict(raw["request_observation"]))
+    return record
 
 
 def non_phase4_case_pass_errors(
@@ -5206,6 +5213,46 @@ def configtest_artifact_errors(record: Mapping[str, Any], authority: Path | None
     return []
 
 
+def _validate_request_bound_case(raw, request_bound):
+    if request_bound:
+        validate_request_observation(raw)
+        source_errors = client_case_source_errors(raw)
+        if source_errors:
+            raise ValueError("; ".join(source_errors))
+
+
+def _bind_normalized_case_event_evidence(
+    matching_event,
+    rule_witness,
+    observed_rule_ids,
+    transaction_ids,
+):
+    observed_event_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
+        matching_event, observed_rule_ids, transaction_ids,
+    )
+    if rule_witness is not None:
+        witness_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
+            rule_witness, observed_rule_ids, transaction_ids,
+        )
+        observed_event_fields = sorted(set(observed_event_fields).union(witness_fields))
+    return observed_event_fields, observed_rule_ids, transaction_ids
+
+
+def _matching_case_event(
+    configuration,
+    request_bound,
+    events,
+    expected_rule_id,
+    case,
+    transaction_ids,
+    integration_mode,
+):
+    matching_event = None if configuration is not None or request_bound else event_for_case(
+        events, expected_rule_id, case, transaction_ids, integration_mode,
+    )
+    return matching_event
+
+
 def normalize_case_record(
     raw: Mapping[str, Any],
     connector: str,
@@ -5220,6 +5267,8 @@ def normalize_case_record(
     if not case_id or case_id not in case_by_id:
         return None
     case = case_by_id[case_id]
+    request_bound = raw.get("evidence_identity") == "request_bound"
+    _validate_request_bound_case(raw, request_bound)
     if "native_operation_receipt" in raw:
         return normalize_native_operation_record(raw, case, connector, native_operation_authority)
     status = normalize_status(raw.get("status"))
@@ -5231,8 +5280,8 @@ def normalize_case_record(
     expected_rule_id = optional_int(case.get("expected_rule_id"))
     transaction_ids = supplied_transaction_ids(raw)
     configuration = config_invocation_for_case(case, connector)
-    matching_event = None if configuration is not None else event_for_case(
-        events, expected_rule_id, case, transaction_ids, integration_mode,
+    matching_event = _matching_case_event(
+        configuration, request_bound, events, expected_rule_id, case, transaction_ids, integration_mode,
     )
     barrier, rule_witness, pair_errors = first_byte_case_event_pair(
         raw, case, events, connector, integration_mode,
@@ -5242,17 +5291,16 @@ def normalize_case_record(
     semantic_values, runtime_evidence_errors = semantic_runtime_fields(
         raw, matching_event, first_byte_rule_witness=rule_witness,
     )
+    if request_bound:
+        observed_rule_ids, transaction_ids = [], []
+        semantic_values = dict.fromkeys(PHASE4_SEMANTIC_FIELDS)
+        semantic_values["visible_http_status"] = raw["actual_status"]
     runtime_evidence_errors.extend(pair_errors)
     actual_status_value = normalized_actual_status_value(raw, case, semantic_values)
     actual_status = optional_int(actual_status_value) if actual_status_value is not _MISSING else None
-    observed_event_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
-        matching_event, observed_rule_ids, transaction_ids,
+    observed_event_fields, observed_rule_ids, transaction_ids = _bind_normalized_case_event_evidence(
+        matching_event, rule_witness, observed_rule_ids, transaction_ids,
     )
-    if rule_witness is not None:
-        witness_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
-            rule_witness, observed_rule_ids, transaction_ids,
-        )
-        observed_event_fields = sorted(set(observed_event_fields).union(witness_fields))
     expected_fields = [str(item) for item in case.get("expected_event_fields", [])]
     expected_status = optional_int(case.get("expected_status"))
     event_errors = (
@@ -6139,6 +6187,10 @@ def resolve_deprecated_alias(
     if not target_id:
         return
     target = deprecated_alias_record(records, positions, target_id)
+    if target is not None and target.get("evidence_identity") == "request_bound":
+        # The completed nonce belongs to the original case, not another
+        # catalog identity. An alias must not add a second observed request.
+        return
     alias_index = positions.get(alias_id)
     alias = records[alias_index] if alias_index is not None else None
     if target is not None and target.get("status") == "PASS":
@@ -7549,6 +7601,11 @@ def normalized_finalize_case_records(
 def normalized_finalize_case_record(
     context: FinalizeContext, raw: Mapping[str, Any], events: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any] | None:
+    if raw.get("evidence_identity") == "request_bound":
+        identity = validate_request_observation(raw)
+        if (identity["run_id"] != context.manifest.get("run_id")
+                or identity["source_revision"] != context.manifest.get("connector_commit")):
+            raise ContractError("client request observation differs from the canonical run or source revision")
     case = context.case_by_id.get(str(case_identifier(raw)), {})
     configuration = config_invocation_for_case(case, context.connector)
     if "configtest_receipt" in raw:
@@ -7860,7 +7917,7 @@ def finalize_capability_sets(
     records: Sequence[Mapping[str, Any]], capabilities: Mapping[str, Any],
 ) -> tuple[list[str], list[str], list[str]]:
     verified = sorted({
-        capability for record in records if record["status"] == "PASS"
+        capability for record in records if record["status"] == "PASS" and record.get("promotion_allowed") is not False
         for capability in record["required_capabilities"]
     })
     declared = capabilities.get("capabilities", {})
@@ -7966,6 +8023,118 @@ def live_http_request_executed(
     )
 
 
+def _validate_request_observation_ledger_metadata(row):
+    for field in ("response_body_completed", "redirect_location_verified", "composite_lease_header_present", "promotion_allowed"):
+        if field in row and not isinstance(row[field], bool):
+            raise ContractError("request observation ledger has an invalid metadata flag")
+    for field in ("case_id", "decision_log_path", "transaction_id", "identity_error"):
+        if field in row and (not isinstance(row[field], str) or len(row[field]) > 4096):
+            raise ContractError("request observation ledger has unbounded metadata")
+    if "transaction_ids" in row and (not isinstance(row["transaction_ids"], list)
+            or len(row["transaction_ids"]) > 1
+            or any(not isinstance(value, str) or len(value) > 256 for value in row["transaction_ids"])):
+        raise ContractError("request observation ledger has invalid transaction metadata")
+
+
+def _validate_request_observation_ledger_row(row, allowed, identity):
+    if not isinstance(row, Mapping) or set(row) - allowed:
+        raise ContractError("request observation ledger contains undeclared fields")
+    if (type(row.get("schema_version")) is not int or row["schema_version"] != 1
+            or row.get("evidence_type") != "envoy_http_client_probe"
+            or row.get("run_id") != identity.get("run_id") or not row.get("run_id")
+            or row.get("source_revision") != identity.get("connector_commit")
+            or re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", str(row.get("source_revision"))) is None
+            or re.fullmatch(r"[A-Za-z0-9:._/-]{1,256}", str(row.get("request_id") or "")) is None
+            or row.get("status") not in {"PASS", "FAIL"}
+            or row.get("response_headers_observed") is not True
+            or row.get("body_payload_persisted") is not False
+            or type(row.get("actual_status")) is not int
+            or not 100 <= row["actual_status"] <= 599
+            or row.get("http_status") != row["actual_status"]
+            or type(row.get("response_bytes")) is not int or row["response_bytes"] < 0):
+        raise ContractError("request observation ledger identity or client observation is invalid")
+    _validate_request_observation_ledger_metadata(row)
+
+
+def validated_source_request_observed(
+    payloads: Sequence[Mapping[str, Any]], identity: Mapping[str, Any],
+) -> bool:
+    """Recognize durable, run-bound client observations without inventing cases.
+
+    These observations can establish that traffic happened after an assertion
+    failed. They cannot add a case, rule, capability or passing qualification.
+    """
+    observed = False
+    allowed = {
+        "schema_version", "evidence_type", "http_status", "actual_status", "status",
+        "live_executed", "response_bytes", "response_body_completed", "response_headers_observed",
+        "body_payload_persisted", "run_id", "source_revision", "request_id", "case_id",
+        "redirect_location_verified", "composite_lease_header_present", "decision_log_path",
+        "transaction_id", "transaction_ids", "promotion_allowed", "identity_error",
+    }
+    for payload in payloads:
+        rows = payload.get("executed_request_observations")
+        if rows is None:
+            continue
+        if not isinstance(rows, list) or len(rows) > 10000:
+            raise ContractError("request observation ledger must be a bounded array")
+        digest = hashlib.sha256(json.dumps(rows, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+        if payload.get("executed_request_observations_sha256") != digest:
+            raise ContractError("request observation ledger digest mismatch")
+        for row in rows:
+            _validate_request_observation_ledger_row(row, allowed, identity)
+            observed = observed or row.get("live_executed") is True
+    return observed
+
+
+def _read_retained_request_source(run_dir, artifact):
+    relative = artifact.get("path")
+    if not isinstance(relative, str) or Path(relative).is_absolute() or ".." in Path(relative).parts:
+        raise ContractError("retained request source has an unsafe artifact path")
+    path = run_dir / relative
+    if (path.parent != run_dir / "inventory"
+            or any(component.is_symlink() for component in (path, *path.parents))
+            or not path.is_file() or path.stat().st_size > 16 * 1024 * 1024):
+        raise ContractError("retained request source must be a bounded regular inventory artifact")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 16 * 1024 * 1024:
+            raise ContractError("retained request source must be a bounded regular file")
+        data = stream.read(16 * 1024 * 1024 + 1)
+    if len(data) > 16 * 1024 * 1024:
+        raise ContractError("retained request source exceeds its size limit")
+    if hashlib.sha256(data).hexdigest() != artifact.get("sha256"):
+        raise ContractError("retained request source artifact digest mismatch")
+    return data, path
+
+
+def _append_retained_request_payloads(loaded, manifest, path, payloads):
+    candidates = loaded if isinstance(loaded, list) else [loaded]
+    for candidate in candidates:
+        payload = summary_connector_payload(candidate, str(manifest.get("connector") or ""))
+        if isinstance(payload, Mapping):
+            validate_source_payload(payload, manifest, str(path))
+            payloads.append(payload)
+
+
+def retained_request_observation_sources(run_dir: Path, manifest: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Reopen the existing digest-pinned retained source artifacts for readback."""
+    payloads: list[Mapping[str, Any]] = []
+    for name, artifact in manifest.get("artifacts", {}).items():
+        if re.fullmatch(r"source_(?:result|summary)_\d+", str(name)) is None:
+            continue
+        if not isinstance(artifact, Mapping) or artifact.get("state") != "produced":
+            continue
+        data, path = _read_retained_request_source(run_dir, artifact)
+        try:
+            loaded = json.loads(data)
+        except json.JSONDecodeError:
+            loaded = [json.loads(line) for line in data.decode("utf-8").splitlines() if line.strip()]
+        _append_retained_request_payloads(loaded, manifest, path, payloads)
+    return payloads
+
+
 def build_finalize_summary(
     context: FinalizeContext,
     args: argparse.Namespace,
@@ -7991,7 +8160,8 @@ def build_finalize_summary(
     })
     pass_ids = {record["case_id"] for record in records if record["status"] == "PASS"}
     verified, unsupported, not_exercised = finalize_capability_sets(records, context.capabilities)
-    requests_sent = any(live_http_request_executed(record, context.case_by_id) for record in records)
+    source_request_observed = validated_source_request_observed(source_payloads, context.manifest)
+    requests_sent = any(live_http_request_executed(record, context.case_by_id) for record in records) or source_request_observed
     source_started = any(payload.get("started") is True for payload in source_payloads)
     event_metadata_verified, body_payload_absent = canonical_core_event_contract(
         events, context.connector, context.event_integration_mode,
@@ -8796,7 +8966,43 @@ def case_result_identity_errors(
     if case_id in seen:
         errors.append(f"{label}: duplicate case_id {case_id}")
     seen.add(case_id)
+    errors.extend(client_case_identity_errors(record, label))
     return errors
+
+
+def client_case_identity_errors(record: Mapping[str, Any], label: str) -> list[str]:
+    errors: list[str] = []
+    if record.get("evidence_identity") == "request_bound":
+        try:
+            validate_request_observation(record)
+        except ValueError as exc:
+            errors.append(f"{label}: {exc}")
+        errors.extend(f"{label}: {error}" for error in client_case_source_errors(record))
+        if (record.get("transaction_ids") or record.get("observed_rule_ids")
+                or record.get("observed_event_fields") or record.get("event_metadata_verified") is not False):
+            errors.append(f"{label}: client observation cannot contain host event evidence")
+        if any(record.get(field) is not None for field in PHASE4_SEMANTIC_FIELDS if field != "visible_http_status"):
+            errors.append(f"{label}: client observation cannot enrich host runtime semantics")
+        if record.get("visible_http_status") != record.get("actual_status"):
+            errors.append(f"{label}: client observation visible response differs from its actual response")
+    elif any(field in record for field in ("request_observation", "runtime_verified", "promotion_allowed",
+                                          "request_id", "transaction_id", "source_revision", "evidence_identity")):
+        errors.append(f"{label}: client observation fields require the explicit identity mode")
+    return errors
+
+
+def client_case_source_errors(record: Mapping[str, Any]) -> list[str]:
+    case = next((case for case in catalog_cases(load_catalog()) if case["case_id"] == record.get("case_id")), {})
+    runner = case.get("runner_case")
+    if not isinstance(runner, str) or not runner:
+        return ["client observation requires the pinned catalog runner case"]
+    source = (CATALOG_PATH.parent / runner).resolve()
+    if not source.is_relative_to(CATALOG_PATH.parent.resolve()) or not source.is_file():
+        return ["client observation runner source is outside the catalog"]
+    proof = record.get("request_observation")
+    if not isinstance(proof, Mapping) or proof.get("case_sha256") != sha256_file(source):
+        return ["client observation case digest differs from the pinned runner case"]
+    return []
 
 
 def event_schema_validation_errors(
@@ -8939,6 +9145,8 @@ def matching_case_event_for_validation(
     events: Sequence[Mapping[str, Any]],
     integration_mode: str | None,
 ) -> Mapping[str, Any] | None:
+    if record.get("evidence_identity") == "request_bound":
+        return None
     return event_for_case(
         events,
         optional_int(record.get("expected_rule_id")),
@@ -9004,6 +9212,11 @@ def generic_pass_case_completeness_errors(
     observed_fields = set(record.get("observed_event_fields", []))
     if expected_fields and not expected_fields.issubset(observed_fields):
         errors.append(f"{case_id}: PASS missing expected event fields")
+    if record.get("evidence_identity") == "request_bound":
+        # This mode certifies the completed client assertion, never a host
+        # event. Required rule/field assertions above remain mandatory.
+        errors.extend(client_case_identity_errors(record, str(case_id)))
+        return errors
     matching_event = matching_case_event_for_validation(record, events, integration_mode)
     matching_event, _, pair_errors = first_byte_pass_event_context(record, matching_event, events, integration_mode)
     errors.extend(f"{case_id}: {error}" for error in pair_errors)
@@ -9379,7 +9592,9 @@ def status_count_errors(result: Mapping[str, Any], records: Sequence[Mapping[str
 
 def status_record_facts(
     records: Sequence[Mapping[str, Any]],
+    *, source_payloads: Sequence[Mapping[str, Any]] = (), identity: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, object], set[str]]:
+    source_request_observed = validated_source_request_observed(source_payloads, identity or {})
     records_by_id = {
         str(record.get("case_id") or ""): record
         for record in records
@@ -9393,7 +9608,7 @@ def status_record_facts(
     verified_capabilities = sorted({
         str(capability)
         for record in records
-        if record.get("status") == "PASS"
+        if record.get("status") == "PASS" and record.get("promotion_allowed") is not False
         for capability in record.get("required_capabilities", [])
     })
     return {
@@ -9407,7 +9622,7 @@ def status_record_facts(
             for record in records
             for transaction_id in record.get("transaction_ids", [])
         }),
-        "requests_sent": any(live_http_request_executed(record) for record in records),
+        "requests_sent": any(live_http_request_executed(record) for record in records) or source_request_observed,
         "request_headers_verified": {
             "allow_without_marker", "deny_header_marker_403",
         }.issubset(pass_ids),
@@ -9432,9 +9647,21 @@ def status_record_facts(
 
 def status_record_consistency_errors(
     result: Mapping[str, Any], records: Sequence[Mapping[str, Any]],
+    *, source_payloads: Sequence[Mapping[str, Any]] = (),
 ) -> tuple[list[str], set[str]]:
-    expected_fields, pass_ids = status_record_facts(records)
-    return [
+    errors: list[str] = []
+    for record in records:
+        errors.extend(client_case_identity_errors(record, str(record.get("case_id") or "")))
+        if record.get("evidence_identity") == "request_bound":
+            if (record.get("run_id") != result.get("run_id")
+                    or record.get("source_revision") != result.get("connector_commit")):
+                errors.append("client request observation differs from the canonical run or source revision")
+    try:
+        expected_fields, pass_ids = status_record_facts(records, source_payloads=source_payloads, identity=result)
+    except ContractError as exc:
+        errors.append(str(exc))
+        expected_fields, pass_ids = status_record_facts(records)
+    return errors + [
         f"{field} is inconsistent with canonical case records"
         for field, expected in expected_fields.items()
         if result.get(field) != expected
@@ -9578,7 +9805,12 @@ def status_errors(run_dir: Path) -> list[str]:
             str(result.get("artifact_profile") or DEFAULT_ARTIFACT_PROFILE),
         ))
     errors.extend(status_count_errors(result, records))
-    record_errors, pass_ids = status_record_consistency_errors(result, records)
+    try:
+        source_payloads = retained_request_observation_sources(run_dir, manifest)
+    except (OSError, ValueError) as exc:
+        errors.append(str(exc))
+        source_payloads = []
+    record_errors, pass_ids = status_record_consistency_errors(result, records, source_payloads=source_payloads)
     errors.extend(record_errors)
     errors.extend(status_group_errors(result, records))
     errors.extend(status_source_failure_errors(result))

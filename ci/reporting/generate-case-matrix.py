@@ -54,7 +54,7 @@ MRTS_ROOT = Path(os.environ.get("MRTS_ROOT", str(FRAMEWORK_ROOT / "tools/MRTS"))
 MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(BUILD_ROOT / "mrts"))).resolve()
 MRTS_UPSTREAM_BUILD_ROOT = MRTS_BUILD_ROOT / "upstream-config-tests"
 MRTS_FEATURE_DEMO_BUILD_ROOT = MRTS_BUILD_ROOT / "feature-demo"
-IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
+IMPORT_STATUS = FRAMEWORK_ROOT / "connector_suite/config/testing/import-status.json"
 FRAMEWORK_REPORT_DIR = "docs/testing"
 CONNECTOR_REPORT_DIR = "reports/testing"
 GENERATED_DIR = "generated"
@@ -418,7 +418,7 @@ def configure_paths(
     OUTPUT_ROOT = resolve_allowed_output_root(output_root)
     REPORT_LAYOUT = build_safe_report_layout(OUTPUT_ROOT, write_root_summary=write_root_summary)
     REPORT_ROOT = REPORT_LAYOUT.report_root
-    IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
+    IMPORT_STATUS = FRAMEWORK_ROOT / "connector_suite/config/testing/import-status.json"
     RUNTIME_SNAPSHOT = REPORT_LAYOUT.runtime_snapshot
     OUT = REPORT_LAYOUT.generated_root
     GENERATED_REPORT_ROOT = REPORT_LAYOUT.generated_root
@@ -1165,7 +1165,7 @@ def render_gap_summary(cases: list[dict], import_status: dict) -> str:
     for key in ["connector_specific", "runtime_blocked", "mapped_only", "blocked"]:
         for item in import_status.get(key, []):
             if isinstance(item, dict):
-                rows.append(f"| {item.get('case') or item.get('source') or 'unknown'} | `config/testing/import-status.json` | {key} | - | - | {item.get('source', 'unknown')} | {item.get('reason', '')} |")
+                rows.append(f"| {item.get('case') or item.get('source') or 'unknown'} | `framework:connector_suite/config/testing/import-status.json` | {key} | - | - | {item.get('source', 'unknown')} | {item.get('reason', '')} |")
     return "\n".join(rows)
 
 
@@ -2554,7 +2554,7 @@ def render_haproxy_mapped_only_details(snapshot: dict, heading_level: int) -> li
     for row in rows:
         if not isinstance(row, dict):
             continue
-        lines.append(f"| {md(row.get('source', 'unknown'))} | {md(row.get('reason', ''))} | `config/testing/import-status.json` |")
+        lines.append(f"| {md(row.get('source', 'unknown'))} | {md(row.get('reason', ''))} | `framework:connector_suite/config/testing/import-status.json` |")
     return lines
 
 
@@ -3040,7 +3040,7 @@ def render_root_summary(
         f"- This framework-owned file is the source of truth for root coverage reporting: `{ROOT_SUMMARY_FILENAME}` in `ModSecurity-test-Framework`.",
         "- Connector repositories should link to this Framework summary instead of maintaining their own root coverage summary.",
         "- Shared YAML cases, runners, normalizers, generators, and detailed testing documentation are owned by `ModSecurity-test-Framework`.",
-        "- The connector repository owns connector source, harnesses, adapter metadata, `config/testing/import-status.json`, and connector-specific generated evidence under `reports/testing/`.",
+        "- The Framework owns harnesses, adapter metadata, and `connector_suite/config/testing/import-status.json`; the connector repository owns connector source and connector-specific generated evidence under `reports/testing/`.",
         "- `FRAMEWORK_ROOT` and `CONNECTOR_ROOT` are explicit integration paths; there is no absolute workspace fallback.",
         "",
         "## Case Inventory",

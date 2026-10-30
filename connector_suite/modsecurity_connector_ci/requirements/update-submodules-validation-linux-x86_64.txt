@@ -1,0 +1,5 @@
+# Immutable CI dependency lock for the GitHub-hosted Linux x86_64 validator.
+# Source: official PyPI PyYAML 6.0.3 release metadata, reviewed 2026-07-23.
+# Keep requirements-dev.txt as the cross-platform development declaration.
+PyYAML==6.0.3 \
+    --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5

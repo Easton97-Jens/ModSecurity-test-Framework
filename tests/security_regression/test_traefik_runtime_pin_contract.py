@@ -180,6 +180,8 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         shutil.copy2(PREPARE_TRAEFIK, fixture_prepare)
         (fixture_root / "Makefile").write_text("# fixture\n", encoding="utf-8")
         (fixture_root / "tests").mkdir()
+        (fixture_root / "modsecurity_test_framework").mkdir()
+        (fixture_root / "modsecurity_test_framework/__init__.py").touch()
         return fixture_root, fixture_common, fixture_prepare
 
     def write_fake_traefik_archive(self, root: Path, archive: Path) -> str:
@@ -215,6 +217,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
             environment.pop(name, None)
         environment.update(
             {
+                "TEST_ROOT": str(fixture_root),
                 "FRAMEWORK_ROOT": str(fixture_root),
                 "CONNECTOR_ROOT": str(fixture_root),
                 "VERIFIED_RUN_ROOT": str(verified_root),

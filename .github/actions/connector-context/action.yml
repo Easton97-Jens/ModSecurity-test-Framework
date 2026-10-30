@@ -1,0 +1,21 @@
+name: Explicit connector test context
+description: Validate the Parent gitlink and Framework action pin before any migrated Python test bootstrap.
+inputs:
+  framework-revision:
+    description: Exact Framework action revision, which must equal the checked-out Parent gitlink.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Bind source revisions and private external test output
+      shell: bash
+      env:
+        EXPECTED_FRAMEWORK_REVISION: ${{ inputs.framework-revision }}
+      run: |
+        set -euo pipefail
+        connector_root="${GITHUB_WORKSPACE:?}"
+        connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+        python3 -I "$GITHUB_ACTION_PATH/../../../connector_suite/modsecurity_connector_ci/tools/connector-context.py" \
+          --connector-root "$connector_root" \
+          --connector-revision "$connector_revision" \
+          --framework-revision "$EXPECTED_FRAMEWORK_REVISION"

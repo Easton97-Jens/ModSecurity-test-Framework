@@ -8,7 +8,7 @@ import types
 import unittest
 from unittest import mock
 
-from tests.runners import nginx_native_operation_authority as authority
+from modsecurity_test_framework.runners import nginx_native_operation_authority as authority
 
 
 class NativeAuthorityTests(unittest.TestCase):

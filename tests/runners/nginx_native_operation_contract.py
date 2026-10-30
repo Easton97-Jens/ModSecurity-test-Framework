@@ -9,11 +9,11 @@ from copy import deepcopy
 import re
 from types import MappingProxyType
 
-from tests.runners import nginx_native_operation_bundle as bundle
-from tests.runners import nginx_native_operation_projection as projection
-from tests.runners import nginx_http11_framing as framing
-from tests.runners import nginx_lifecycle_sequence as sequence
-from tests.runners import nginx_phase4_contracts as phase4
+from modsecurity_test_framework.runners import nginx_native_operation_bundle as bundle
+from modsecurity_test_framework.runners import nginx_native_operation_projection as projection
+from modsecurity_test_framework.runners import nginx_http11_framing as framing
+from modsecurity_test_framework.runners import nginx_lifecycle_sequence as sequence
+from modsecurity_test_framework.runners import nginx_phase4_contracts as phase4
 
 
 CASE_RESULTS = MappingProxyType({

@@ -9,6 +9,7 @@ import json
 from pathlib import Path, PurePosixPath
 import re
 import sys
+import runpy
 from typing import Any, Iterable
 from urllib.parse import urlparse
 
@@ -4560,6 +4561,9 @@ def configure_canonical_actions(root: Path) -> None:
 
 
 def validate(root: Path, lock_path: Path) -> list[str]:
+    integration = runpy.run_path(
+        str(Path(__file__).with_name("connector_action_pins.py"))
+    )
     try:
         configure_canonical_actions(root)
     except ValueError as exc:
@@ -4575,6 +4579,11 @@ def validate(root: Path, lock_path: Path) -> list[str]:
         errors.extend(ci_dependency_installer_errors(root))
     for path in paths:
         text = path.read_text(encoding="utf-8")
+        if path.name in integration["WORKFLOWS"]:
+            errors.extend(
+                integration["validate_source"](root, str(path.relative_to(root)), text)
+            )
+            continue
         try:
             data = load_yaml(path)
         except ValueError as exc:

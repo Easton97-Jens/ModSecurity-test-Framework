@@ -3,7 +3,7 @@ set -u
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/path-bootstrap.sh"
-CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:?CONNECTOR_ROOT is required explicitly}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
 . "$CI_ROOT/lib/mrts-common.sh"

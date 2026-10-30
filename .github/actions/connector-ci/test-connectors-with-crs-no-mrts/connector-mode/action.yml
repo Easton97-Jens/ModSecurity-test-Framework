@@ -1,0 +1,1366 @@
+name: test-connectors-with-crs-no-mrts / connector-mode
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+  caller-inputs:
+    description: Caller inputs context, passed explicitly
+    required: true
+  caller-matrix:
+    description: Caller matrix context, passed explicitly
+    required: true
+  checkout-outcome:
+    description: Actual Parent checkout outcome
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up locked Python toolchain
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+
+    - name: Verify Python interpreter contract
+      id: verify-python
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+    - name: Set up canonical Go for Envoy and Traefik builds
+      if: ${{ fromJSON(inputs.caller-matrix).connector == 'envoy' || fromJSON(inputs.caller-matrix).connector == 'traefik' }}
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: .go-version
+        check-latest: false
+        cache: false
+
+    - name: Verify pinned Parent, Framework, and MRTS revisions
+      id: verify-revisions
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        for expected_sha in "$EXPECTED_PARENT_SHA" "$EXPECTED_BASE_SHA"; do
+          case "$expected_sha" in ''|*[!0-9a-f]*) echo "FAIL: invalid exact revision" >&2; exit 2 ;; *) : ;; esac
+          test "${#expected_sha}" -eq 40
+        done
+        test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"
+        parent_commit=$(git rev-parse HEAD)
+        base_commit=$(git rev-parse "${EXPECTED_BASE_SHA}^{commit}")
+        test "$parent_commit" = "$EXPECTED_PARENT_SHA"
+        test "$base_commit" = "$EXPECTED_BASE_SHA"
+        python3 -I ci/tools/read-framework-revisions.py \
+          --parent-sha "$EXPECTED_PARENT_SHA" --format github-output >> "$GITHUB_OUTPUT"
+
+    - name: Install hash-locked Framework CI dependency
+      id: install-framework-ci
+      env:
+        SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        # Parent owns the CPython 3.15 artifact; preserve Framework dependency versions.
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache \
+          --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
+        python3 -P -m pip check
+
+    - name: Verify exact real-runtime cell
+      id: verify-runtime-cell
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        case "$CONNECTOR:$CRS:$MRTS" in
+          apache:with-crs:no-mrts|envoy:with-crs:no-mrts|haproxy:with-crs:no-mrts|lighttpd:with-crs:no-mrts|traefik:with-crs:no-mrts) ;;
+          *) echo "FAIL: connector is outside the fixed with-CRS/no-MRTS runtime set: $CONNECTOR" >&2; exit 2 ;;
+        esac
+
+    - name: Initialize private runtime roots
+      id: initialize-runtime-roots
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+        SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
+        case "$CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+        case "$CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; *) : ;; esac
+        test "${#CRS_RUNTIME_RUN_ID}" -le 48
+        case "$SETUP_PYTHON_PATH" in /*) ;; *) echo "FAIL: setup Python is not absolute" >&2; exit 2 ;; esac
+        case "$SETUP_PYTHON_PATH" in *[!A-Za-z0-9_./-]*) echo "FAIL: setup Python path is unsafe" >&2; exit 2 ;; *) : ;; esac
+        test -x "$SETUP_PYTHON_PATH"
+        parent_commit=$(git rev-parse HEAD)
+        case "$parent_commit" in *[!0-9a-f]*|"") echo "FAIL: invalid Parent revision" >&2; exit 2 ;; *) : ;; esac
+        test "${#parent_commit}" -eq 40
+        cell_parent="$RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts/$parent_commit"
+        cell_root="$cell_parent/$CRS_RUNTIME_RUN_ID"
+        verified_root="$cell_root/verified"
+        case "$cell_root" in "$RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe runner path" >&2; exit 2 ;; esac
+        umask 077
+        mkdir -p "$cell_parent"
+        test ! -e "$cell_root"
+        test ! -L "$cell_root"
+        mkdir "$cell_root"
+        chmod 700 "$cell_parent" "$cell_root"
+        {
+          printf '%s\n' "VERIFIED_RUN_ROOT=$verified_root"
+          printf '%s\n' "BUILD_ROOT=$verified_root/build"
+          printf '%s\n' "SOURCE_ROOT=$verified_root/src"
+          printf '%s\n' "TMP_ROOT=$verified_root/tmp"
+          printf '%s\n' "LOG_ROOT=$verified_root/logs"
+          printf '%s\n' "CACHE_ROOT=$verified_root/cache-v2"
+          printf '%s\n' "CONNECTOR_COMPONENT_CACHE=$verified_root/cache-v2/shared"
+          printf '%s\n' "FRAMEWORK_ROOT=$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"
+          printf '%s\n' "PYTHON=$SETUP_PYTHON_PATH"
+          printf '%s\n' "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+        } >> "$GITHUB_ENV"
+
+    - name: Prepare fresh CRS source for Apache and HAProxy
+      id: prepare-crs-source
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        case "$CONNECTOR" in
+          apache|haproxy)
+            (
+              . "$FRAMEWORK_ROOT/ci/lib/common.sh"
+              . modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/prepare-fresh-crs-source.sh
+              sh "$FRAMEWORK_ROOT/ci/provisioning/fetch-crs.sh"
+              # Publish closed single-line paths as explicit step outputs.
+              [[ "$SOURCE_ROOT" =~ ^/[a-zA-Z0-9_./-]+$ ]]
+              test "$SOURCE_ROOT" = "$VERIFIED_RUN_ROOT/crs-fresh-source"
+              test "$CRS_SOURCE_DIR" = "$SOURCE_ROOT/coreruleset"
+              printf '%s\n' "source_root=$SOURCE_ROOT" "crs_source_dir=$CRS_SOURCE_DIR" >> "$GITHUB_OUTPUT"
+            )
+            ;;
+          envoy|lighttpd|traefik)
+            ;;
+          *)
+            echo "FAIL: connector is outside the fixed runtime set: $CONNECTOR" >&2
+            exit 2
+            ;;
+        esac
+
+    - name: Prepare HAProxy runtime evidence boundary
+      id: prepare-haproxy-runtime-evidence
+      if: fromJSON(inputs.caller-matrix).connector == 'haproxy'
+      env:
+        SOURCE_ROOT: ${{ steps.prepare-crs-source.outputs.source_root || env.SOURCE_ROOT }}
+        CRS_SOURCE_DIR: ${{ steps.prepare-crs-source.outputs.crs_source_dir || env.CRS_SOURCE_DIR }}
+        PARENT_SHA: ${{ github.event.pull_request.head.sha || fromJSON(inputs.caller-inputs).parent_sha }}
+        FRAMEWORK_SHA: ${{ steps.verify-revisions.outputs.framework_sha }}
+        MRTS_SHA: ${{ steps.verify-revisions.outputs.mrts_sha }}
+        SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+        TRUSTED_RUNNER_TEMP: ${{ runner.temp }}
+        TRUSTED_EVIDENCE_STAGE_ROOT: /tmp
+        FRAMEWORK_ACTION_REVISION: ${{ inputs.framework-revision }}
+        TRUSTED_CRS_RUNTIME_RUN_ID: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        require_sha() {
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
+        }
+        require_decimal() {
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
+        }
+        case "$TRUSTED_RUNNER_TEMP:$TRUSTED_EVIDENCE_STAGE_ROOT:$RUNNER_TEMP:$GITHUB_WORKSPACE:$SETUP_PYTHON_PATH" in /*:/*:/*:/*:/*) ;; *) echo "FAIL: unsafe evidence boundary path" >&2; exit 2 ;; esac
+        test "$RUNNER_TEMP" = "$TRUSTED_RUNNER_TEMP"
+        test "$CRS_RUNTIME_RUN_ID" = "$TRUSTED_CRS_RUNTIME_RUN_ID"
+        case "$TRUSTED_CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+        case "$TRUSTED_CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; *) : ;; esac
+        test "${#TRUSTED_CRS_RUNTIME_RUN_ID}" -le 48
+        test "$CRS" = with-crs
+        test "$MRTS" = no-mrts
+        require_sha "$PARENT_SHA"
+        require_sha "$FRAMEWORK_SHA"
+        require_sha "$MRTS_SHA"
+        parent_commit=$(git rev-parse HEAD)
+        test "$parent_commit" = "$PARENT_SHA"
+        runtime_uid=$(/usr/bin/id -u)
+        runtime_gid=$(/usr/bin/id -g)
+        require_decimal "$runtime_uid"
+        require_decimal "$runtime_gid"
+        evidence_uid=$(/usr/bin/getent passwd nobody | /usr/bin/cut -d: -f3)
+        evidence_gid=$(/usr/bin/getent group nogroup | /usr/bin/cut -d: -f3)
+        require_decimal "$evidence_uid"
+        require_decimal "$evidence_gid"
+        test "$evidence_uid" -ne "$runtime_uid"
+        test "$evidence_gid" -ne "$runtime_gid"
+        test "$(/usr/bin/id -g nobody)" = "$evidence_gid"
+        for system_binary in /usr/bin/chmod /usr/bin/chown /usr/bin/env /usr/bin/git /usr/bin/head /usr/bin/id /usr/bin/install /usr/bin/mkdir /usr/bin/mktemp /usr/bin/python3 /usr/bin/realpath /usr/bin/rm /usr/bin/setpriv /usr/bin/stat /usr/bin/sudo /usr/bin/tee /usr/bin/unshare; do
+          test -x "$system_binary"
+        done
+        framework_source_root="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"
+        test -d "$framework_source_root"
+        test ! -L "$framework_source_root"
+        test "$(/usr/bin/realpath -e -- "$framework_source_root")" = "$framework_source_root"
+        test "$FRAMEWORK_SHA" = "$FRAMEWORK_ACTION_REVISION"
+        authenticated_projector() {
+          local operation="$1"
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C \
+            /usr/bin/python3 -I - "$GITHUB_WORKSPACE" "$PARENT_SHA" "$FRAMEWORK_ACTION_REVISION" "$operation" <<'AUTHENTICATED_PROJECTOR'
+        import hashlib
+        import os
+        from pathlib import Path
+        import stat
+        import sys
+
+        root, revision, framework_revision, operation = sys.argv[1:]
+        descriptor = os.open(Path(root) / "ci/run-trusted-framework.py", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as stream:
+            metadata = os.fstat(stream.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or not 0 < metadata.st_size < 65536:
+                raise ValueError("trusted bridge must be a bounded regular file")
+            source = stream.read(65536)
+        if hashlib.sha256(source).hexdigest() != "1ef4d6fb021605f52c63fef3bf522a325736ceb40457d48c94c091b1e3efc5eb":
+            raise ValueError("projector bootstrap bridge does not match its immutable source digest")
+        bridge = {"__name__": "_authenticated_projector_bridge"}
+        exec(compile(source, "trusted-projector-bridge", "exec"), bridge)
+        connector = bridge["_absolute"](root)
+        pin = bridge["verified_path"](connector, revision, bridge["GITLINK"], [], gitlink=True)
+        if pin != framework_revision:
+            raise ValueError("projector Framework source differs from the immutable action pin")
+        relative = "connector_suite/modsecurity_connector_ci/runtime/lifecycle/project-haproxy-runtime-evidence.py"
+        _path, source = bridge["authenticated_source"](connector, revision, relative, [])
+        if not 0 < len(source) <= 131072:
+            raise ValueError("authenticated projector exceeds its source limit")
+        blob = bridge["verified_path"](connector / bridge["GITLINK"], pin, relative, [])
+        if operation == "oid":
+            print(blob)
+        elif operation == "source":
+            sys.stdout.buffer.write(source)
+        else:
+            raise ValueError("unknown fixed projector acquisition operation")
+        AUTHENTICATED_PROJECTOR
+        }
+        projector_blob=$(authenticated_projector oid)
+        require_sha "$projector_blob"
+        runner_temp_identity=$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")
+        case "$runner_temp_identity" in [0-9]*:[0-9]*:[0-9]*:[0-9]*:[0-7][0-7][0-7]) ;; *) echo "FAIL: unsafe RUNNER_TEMP identity" >&2; exit 2 ;; esac
+        test ! -L "$TRUSTED_RUNNER_TEMP"
+        test "$(/usr/bin/realpath -e -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP"
+        test "$TRUSTED_EVIDENCE_STAGE_ROOT" = /tmp
+        test -d "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test ! -L "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test "$(/usr/bin/realpath -e -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = 0:0:1777
+        stage_parent=''
+        cleanup_stage_parent() {
+          case "$stage_parent" in
+            '') return 0 ;;
+            "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;;
+            *) return 2 ;;
+          esac
+          test ! -L "$stage_parent"
+          case "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" in
+            0:0:700|0:0:710|0:0:755) ;;
+            *) return 2 ;;
+          esac
+          /usr/bin/sudo -n /usr/bin/rm -rf -- "$stage_parent"
+          test ! -e "$stage_parent"
+          test ! -L "$stage_parent"
+        }
+        trap cleanup_stage_parent EXIT
+        stage_parent=$(/usr/bin/sudo -n /usr/bin/mktemp -d -- "$TRUSTED_EVIDENCE_STAGE_ROOT/haproxy-runtime-evidence-parent.XXXXXXXX")
+        case "$stage_parent" in "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+        test ! -L "$stage_parent"
+        test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$stage_parent")" = "$stage_parent"
+        test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" = 0:0:700
+        projector_source="$stage_parent/verified-projector.py"
+        test ! -e "$projector_source"
+        test ! -L "$projector_source"
+        # Keep the capsule root-owned throughout acquisition. The runtime UID
+        # never owns or opens a writable descriptor to its future root source.
+        /usr/bin/sudo -n /usr/bin/install -m 0600 /dev/null "$projector_source"
+        authenticated_projector source | /usr/bin/sudo -n /usr/bin/tee -- "$projector_source" >/dev/null
+        projector_source_size=$(/usr/bin/sudo -n /usr/bin/stat -Lc '%s' -- "$projector_source")
+        require_decimal "$projector_source_size"
+        test "$projector_source_size" -le 131072
+        projector_source_blob=$(
+          /usr/bin/sudo -n /usr/bin/head -c 131073 -- "$projector_source" |
+          /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            GIT_CONFIG_SYSTEM=/dev/null \
+            GIT_OPTIONAL_LOCKS=0 \
+            /usr/bin/git --no-pager -C "$GITHUB_WORKSPACE" hash-object -t blob --stdin
+        )
+        require_sha "$projector_source_blob"
+        test "$projector_source_blob" = "$projector_blob"
+        /usr/bin/sudo -n /usr/bin/chown --no-dereference 0:0 -- "$projector_source"
+        /usr/bin/sudo -n /usr/bin/chmod 0444 -- "$projector_source"
+        /usr/bin/sudo -n /usr/bin/chown --no-dereference 0:0 -- "$stage_parent"
+        /usr/bin/sudo -n /usr/bin/chmod 0700 -- "$stage_parent"
+        test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$stage_parent")" = 0:0:700
+        test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$projector_source")" = "$projector_source"
+        test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a:%h:%s' -- "$projector_source")" = "0:0:444:1:$projector_source_size"
+        expected_runtime_root="$TRUSTED_RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts"
+        expected_cell_parent="$expected_runtime_root/$PARENT_SHA"
+        expected_cell_root="$expected_cell_parent/$TRUSTED_CRS_RUNTIME_RUN_ID"
+        expected_verified_root="$expected_cell_root/verified"
+        expected_build_root="$expected_verified_root/build"
+        expected_tmp_root="$expected_verified_root/tmp"
+        expected_log_root="$expected_verified_root/logs"
+        expected_cache_root="$expected_verified_root/cache-v2"
+        expected_component_cache="$expected_cache_root/shared"
+        expected_crs_source_root="$expected_verified_root/crs-fresh-source"
+        expected_crs_source_dir="$expected_crs_source_root/coreruleset"
+        expected_framework_root="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"
+        expected_pycache_root="$TRUSTED_RUNNER_TEMP/python-pycache"
+        for runtime_path in "$TRUSTED_RUNNER_TEMP" "$expected_runtime_root" "$expected_cell_parent" "$expected_cell_root" "$expected_verified_root"; do
+          test -d "$runtime_path"
+          test ! -L "$runtime_path"
+          test "$(/usr/bin/realpath -e -- "$runtime_path")" = "$runtime_path"
+        done
+        test "$VERIFIED_RUN_ROOT" = "$expected_verified_root"
+        test "$BUILD_ROOT" = "$expected_build_root"
+        test "$TMP_ROOT" = "$expected_tmp_root"
+        test "$LOG_ROOT" = "$expected_log_root"
+        test "$CACHE_ROOT" = "$expected_cache_root"
+        test "$CONNECTOR_COMPONENT_CACHE" = "$expected_component_cache"
+        test "$SOURCE_ROOT" = "$expected_crs_source_root"
+        test "$CRS_SOURCE_DIR" = "$expected_crs_source_dir"
+        test "$FRAMEWORK_ROOT" = "$expected_framework_root"
+        test "$PYTHONPYCACHEPREFIX" = "$expected_pycache_root"
+        test -d "$expected_crs_source_root"
+        test -d "$expected_crs_source_dir"
+        cell_root_identity=$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$expected_cell_root")
+        case "$cell_root_identity" in [0-9]*:[0-9]*:[0-9]*:[0-9]*:[0-7][0-7][0-7]) ;; *) echo "FAIL: unsafe runtime cell identity" >&2; exit 2 ;; esac
+        probe_uid=$(
+          /usr/bin/sudo -n /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            /usr/bin/unshare \
+              --mount \
+              --pid \
+              --fork \
+              --kill-child=SIGKILL \
+              --mount-proc=/proc \
+              --propagation private \
+              /usr/bin/setpriv \
+                --reuid="$runtime_uid" \
+                --regid="$runtime_gid" \
+                --clear-groups \
+                --no-new-privs \
+                --inh-caps=-all \
+                --ambient-caps=-all \
+                --bounding-set=-all \
+                -- /usr/bin/id -u
+        )
+        test "$probe_uid" = "$runtime_uid"
+        source_root="$expected_build_root/verified-haproxy-case/with-crs-no-mrts-haproxy/logs/haproxy-runtime/haproxy-runtime-evidence-source"
+        case "$source_root" in "$TRUSTED_RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe evidence source root" >&2; exit 2 ;; esac
+        {
+          printf '%s\n' "runtime_uid=$runtime_uid"
+          printf '%s\n' "runtime_gid=$runtime_gid"
+          printf '%s\n' "evidence_uid=$evidence_uid"
+          printf '%s\n' "evidence_gid=$evidence_gid"
+          printf '%s\n' "runner_temp=$TRUSTED_RUNNER_TEMP"
+          printf '%s\n' "runner_temp_identity=$runner_temp_identity"
+          printf '%s\n' "runtime_run_id=$TRUSTED_CRS_RUNTIME_RUN_ID"
+          printf '%s\n' "cell_root_identity=$cell_root_identity"
+          printf '%s\n' "source_root=$source_root"
+          printf '%s\n' "stage_parent=$stage_parent"
+          printf '%s\n' "projector_source=$projector_source"
+          printf '%s\n' "projector_blob=$projector_blob"
+          printf '%s\n' "parent_sha=$PARENT_SHA"
+          printf '%s\n' "framework_sha=$FRAMEWORK_SHA"
+          printf '%s\n' "mrts_sha=$MRTS_SHA"
+        } >> "$GITHUB_OUTPUT"
+        trap - EXIT
+
+    - name: Run selected real with-CRS no-MRTS runtime
+      id: runtime
+      env:
+        SOURCE_ROOT: ${{ steps.prepare-crs-source.outputs.source_root || env.SOURCE_ROOT }}
+        CRS_SOURCE_DIR: ${{ steps.prepare-crs-source.outputs.crs_source_dir || env.CRS_SOURCE_DIR }}
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+        SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+        RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
+        RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
+        RUNTIME_PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
+        RUNTIME_FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
+        RUNTIME_MRTS_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.mrts_sha }}
+        TRUSTED_RUNNER_TEMP: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp }}
+        TRUSTED_RUNNER_TEMP_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp_identity }}
+        TRUSTED_CRS_RUNTIME_RUN_ID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_run_id }}
+        RUNTIME_CELL_ROOT_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.cell_root_identity }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        require_sha() {
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
+        }
+        require_decimal() {
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
+        }
+        case "$CONNECTOR" in
+          apache)
+            test ! -e "$VERIFIED_RUN_ROOT/apache-profile-cleanup-receipt.json"
+            test ! -L "$VERIFIED_RUN_ROOT/apache-profile-cleanup-receipt.json"
+            RUN_ONE_CASE=1 \
+            APACHE_PROFILE_CLEANUP_RECEIPT="$VERIFIED_RUN_ROOT/apache-profile-cleanup-receipt.json" \
+            APACHE_PROFILE_CELL_RUN_ID="$CRS_RUNTIME_RUN_ID" \
+            APACHE_PROFILE_GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            APACHE_PROFILE_GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            EVIDENCE_ROOT='' python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group runtime-crs-apache
+            ;;
+          haproxy)
+            require_decimal "$RUNTIME_UID"
+            require_decimal "$RUNTIME_GID"
+            require_sha "$RUNTIME_PARENT_SHA"
+            require_sha "$RUNTIME_FRAMEWORK_SHA"
+            require_sha "$RUNTIME_MRTS_SHA"
+            case "$TRUSTED_RUNNER_TEMP:$RUNNER_TEMP:$SETUP_PYTHON_PATH" in /*:/*:/*) ;; *) echo "FAIL: unsafe runtime path" >&2; exit 2 ;; esac
+            test "$RUNNER_TEMP" = "$TRUSTED_RUNNER_TEMP"
+            test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
+            test "$CRS_RUNTIME_RUN_ID" = "$TRUSTED_CRS_RUNTIME_RUN_ID"
+            case "$TRUSTED_CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+            case "$TRUSTED_CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; *) : ;; esac
+            test "${#TRUSTED_CRS_RUNTIME_RUN_ID}" -le 48
+            expected_runtime_root="$TRUSTED_RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts"
+            expected_cell_parent="$expected_runtime_root/$RUNTIME_PARENT_SHA"
+            expected_cell_root="$expected_cell_parent/$TRUSTED_CRS_RUNTIME_RUN_ID"
+            expected_verified_root="$expected_cell_root/verified"
+            expected_build_root="$expected_verified_root/build"
+            expected_tmp_root="$expected_verified_root/tmp"
+            expected_log_root="$expected_verified_root/logs"
+            expected_cache_root="$expected_verified_root/cache-v2"
+            expected_component_cache="$expected_cache_root/shared"
+            expected_crs_source_root="$expected_verified_root/crs-fresh-source"
+            expected_crs_source_dir="$expected_crs_source_root/coreruleset"
+            expected_pycache_root="$TRUSTED_RUNNER_TEMP/python-pycache"
+            for runtime_path in "$TRUSTED_RUNNER_TEMP" "$expected_runtime_root" "$expected_cell_parent" "$expected_cell_root" "$expected_verified_root"; do
+              test -d "$runtime_path"
+              test ! -L "$runtime_path"
+              test "$(/usr/bin/realpath -e -- "$runtime_path")" = "$runtime_path"
+            done
+            test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$expected_cell_root")" = "$RUNTIME_CELL_ROOT_IDENTITY"
+            test "$VERIFIED_RUN_ROOT" = "$expected_verified_root"
+            test "$BUILD_ROOT" = "$expected_build_root"
+            test "$TMP_ROOT" = "$expected_tmp_root"
+            test "$LOG_ROOT" = "$expected_log_root"
+            test "$CACHE_ROOT" = "$expected_cache_root"
+            test "$CONNECTOR_COMPONENT_CACHE" = "$expected_component_cache"
+            test "$SOURCE_ROOT" = "$expected_crs_source_root"
+            test "$CRS_SOURCE_DIR" = "$expected_crs_source_dir"
+            test "$PYTHONPYCACHEPREFIX" = "$expected_pycache_root"
+            test -d "$expected_crs_source_root"
+            test -d "$expected_crs_source_dir"
+            test ! -e "$expected_tmp_root"
+            test ! -L "$expected_tmp_root"
+            /usr/bin/install -d -m 0700 -- "$expected_tmp_root"
+            /usr/bin/chmod 0700 -- "$expected_verified_root" "$expected_tmp_root"
+            test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$expected_verified_root")" = "$RUNTIME_UID:$RUNTIME_GID:700"
+            test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$expected_tmp_root")" = "$RUNTIME_UID:$RUNTIME_GID:700"
+            /usr/bin/sudo -n /usr/bin/env -i \
+              PATH=/usr/bin:/bin \
+              HOME=/nonexistent \
+              /usr/bin/unshare \
+                --mount \
+                --pid \
+                --fork \
+                --kill-child=SIGKILL \
+                --mount-proc=/proc \
+                --propagation private \
+                /usr/bin/setpriv \
+                  --reuid="$RUNTIME_UID" \
+                  --regid="$RUNTIME_GID" \
+                  --clear-groups \
+                  --no-new-privs \
+                  --inh-caps=-all \
+                  --ambient-caps=-all \
+                  --bounding-set=-all \
+                  -- /usr/bin/env -i \
+                    PATH=/usr/bin:/bin \
+                    HOME=/nonexistent \
+                    LANG=C \
+                    LC_ALL=C \
+                    TMPDIR="$expected_tmp_root" \
+                    ALLOW_RUNTIME_BUILDS=1 \
+                    ALLOW_RUNTIME_DOWNLOADS=1 \
+                    CRS=with-crs \
+                    MRTS=no-mrts \
+                    RUNTIME_COMPONENT_TARGET=haproxy \
+                    CRS_RUNTIME_RUN_ID="$TRUSTED_CRS_RUNTIME_RUN_ID" \
+                    EXPECTED_PARENT_SHA="$RUNTIME_PARENT_SHA" \
+                    EXPECTED_FRAMEWORK_SHA="$RUNTIME_FRAMEWORK_SHA" \
+                    EXPECTED_MRTS_SHA="$RUNTIME_MRTS_SHA" \
+                    EVIDENCE_ROOT='' \
+                    PYTHONDONTWRITEBYTECODE=1 \
+                    PYTHON="$SETUP_PYTHON_PATH" \
+                    PYTHONPYCACHEPREFIX="$expected_pycache_root" \
+                    GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+                    RUNNER_TEMP="$TRUSTED_RUNNER_TEMP" \
+                    VERIFIED_RUN_ROOT="$expected_verified_root" \
+                    BUILD_ROOT="$expected_build_root" \
+                    SOURCE_ROOT="$expected_crs_source_root" \
+                    CRS_SOURCE_DIR="$expected_crs_source_dir" \
+                    TMP_ROOT="$expected_tmp_root" \
+                    LOG_ROOT="$expected_log_root" \
+                    CACHE_ROOT="$expected_cache_root" \
+                    CONNECTOR_COMPONENT_CACHE="$expected_component_cache" \
+                    FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+                    TEST_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+                    FRAMEWORK_REVISION="$RUNTIME_FRAMEWORK_SHA" \
+                    CONNECTOR_ROOT="$GITHUB_WORKSPACE" \
+                    CONNECTOR_REVISION="$RUNTIME_PARENT_SHA" \
+                    CONNECTOR_TEST_PROFILE=h1 \
+                    CONNECTOR_TEST_OUTPUT_ROOT="$expected_tmp_root" \
+                    PYTHONPATH="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework:$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite" \
+                    PYTHONSAFEPATH=1 PYTHONNOUSERSITE=1 \
+                    HAPROXY_EVIDENCE_RECEIPT=1 \
+                    HAPROXY_EVIDENCE_RECEIPT_PROJECTOR="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/project-haproxy-runtime-evidence.py" \
+                    /usr/bin/python3 -P "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --group runtime-crs-haproxy
+            ;;
+          envoy|lighttpd|traefik)
+            EVIDENCE_ROOT='' python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group "runtime-crs-$CONNECTOR"
+            ;;
+          *)
+            echo "FAIL: runtime path is not permitted for $CONNECTOR" >&2
+            exit 2
+            ;;
+        esac
+
+    - name: Project HAProxy runtime evidence
+      id: project-haproxy-runtime-evidence
+      if: fromJSON(inputs.caller-matrix).connector == 'haproxy' && steps.runtime.outcome == 'success'
+      env:
+        TRUSTED_SOURCE_ROOT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.source_root }}
+        TRUSTED_RUNNER_TEMP: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp }}
+        TRUSTED_RUNNER_TEMP_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp_identity }}
+        TRUSTED_EVIDENCE_STAGE_ROOT: /tmp
+        RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
+        RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
+        EVIDENCE_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_uid }}
+        EVIDENCE_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_gid }}
+        STAGE_PARENT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.stage_parent }}
+        PROJECTOR_SOURCE: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_source }}
+        PROJECTOR_BLOB: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_blob }}
+        PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
+        FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
+        MRTS_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.mrts_sha }}
+        TRUSTED_CRS_RUNTIME_RUN_ID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_run_id }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        require_sha() {
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
+        }
+        require_decimal() {
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
+        }
+        require_sha "$PROJECTOR_BLOB"
+        require_decimal "$RUNTIME_UID"
+        require_decimal "$RUNTIME_GID"
+        require_decimal "$EVIDENCE_UID"
+        require_decimal "$EVIDENCE_GID"
+        test "$RUNTIME_UID" -ne "$EVIDENCE_UID"
+        test "$RUNTIME_GID" -ne "$EVIDENCE_GID"
+        test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
+        case "$TRUSTED_SOURCE_ROOT" in "$TRUSTED_RUNNER_TEMP"/*) ;; *) echo "FAIL: unsafe evidence source root" >&2; exit 2 ;; esac
+        test "$TRUSTED_EVIDENCE_STAGE_ROOT" = /tmp
+        test -d "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test ! -L "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test "$(/usr/bin/realpath -e -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = 0:0:1777
+        case "$STAGE_PARENT" in "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+        test "$PROJECTOR_SOURCE" = "$STAGE_PARENT/verified-projector.py"
+        test ! -L "$STAGE_PARENT"
+        test ! -L "$PROJECTOR_SOURCE"
+        test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$STAGE_PARENT")" = "$STAGE_PARENT"
+        test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$PROJECTOR_SOURCE")" = "$PROJECTOR_SOURCE"
+        test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$STAGE_PARENT")" = 0:0:700
+        projector_source_size=$(/usr/bin/sudo -n /usr/bin/stat -Lc '%s' -- "$PROJECTOR_SOURCE")
+        require_decimal "$projector_source_size"
+        test "$projector_source_size" -le 131072
+        test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a:%h:%s' -- "$PROJECTOR_SOURCE")" = "0:0:444:1:$projector_source_size"
+        run_runner_projector() {
+          /usr/bin/sudo -n /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            /usr/bin/unshare \
+              --mount \
+              --pid \
+              --fork \
+              --kill-child=SIGKILL \
+              --mount-proc=/proc \
+              --propagation private \
+              /usr/bin/setpriv \
+                --reuid="$RUNTIME_UID" \
+                --regid="$RUNTIME_GID" \
+                --clear-groups \
+                --no-new-privs \
+                --inh-caps=-all \
+                --ambient-caps=-all \
+                --bounding-set=-all \
+                -- /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            GIT_CONFIG_SYSTEM=/dev/null \
+            GIT_OPTIONAL_LOCKS=0 \
+            /usr/bin/python3 -I -c '
+        import hashlib
+        import subprocess
+        import sys
+        blob, workspace, *arguments = sys.argv[1:]
+        try:
+            source = subprocess.check_output(
+                ["/usr/bin/git", "--no-replace-objects", "--no-pager", "-C", workspace, "cat-file", "blob", blob],
+                env={
+                    "PATH": "/usr/bin:/bin",
+                    "HOME": "/nonexistent",
+                    "GIT_CONFIG_NOSYSTEM": "1",
+                    "GIT_CONFIG_GLOBAL": "/dev/null",
+                    "GIT_CONFIG_SYSTEM": "/dev/null",
+                    "GIT_OPTIONAL_LOCKS": "0",
+                },
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError:
+            raise SystemExit(2)
+        if not source or len(source) > 131072:
+            raise SystemExit(2)
+        if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
+            raise SystemExit(2)
+        sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
+        namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
+        exec(compile(source, namespace["__file__"], "exec"), namespace)
+        ' "$PROJECTOR_BLOB" "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" "$@"
+        }
+        run_evidence_projector() {
+          /usr/bin/sudo -n /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            /usr/bin/unshare \
+              --mount \
+              --pid \
+              --fork \
+              --kill-child=SIGKILL \
+              --mount-proc=/proc \
+              --propagation private \
+              /usr/bin/setpriv \
+                --reuid="$EVIDENCE_UID" \
+                --regid="$EVIDENCE_GID" \
+                --clear-groups \
+                --no-new-privs \
+                --inh-caps=-all \
+                --ambient-caps=-all \
+                --bounding-set=-all \
+                -- /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            PROJECTOR_BLOB="$PROJECTOR_BLOB" \
+            /usr/bin/python3 -I -c '
+        import hashlib
+        import os
+        import stat
+        import sys
+        source_path, *arguments = sys.argv[1:]
+        blob = os.environ["PROJECTOR_BLOB"]
+        maximum_bytes = 131072
+        def fail(label):
+            print("FAIL: evidence-source-capsule-" + label, file=sys.stderr)
+            raise SystemExit(2)
+        try:
+            descriptor = os.open(
+                source_path,
+                os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+            )
+        except OSError:
+            fail("open")
+        try:
+            details = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(details.st_mode)
+                or details.st_nlink != 1
+                or details.st_uid != 0
+                or details.st_gid != 0
+                or stat.S_IMODE(details.st_mode) != 0o444
+                or details.st_size <= 0
+                or details.st_size > maximum_bytes
+            ):
+                fail("metadata")
+            source = os.read(descriptor, maximum_bytes + 1)
+            after = os.fstat(descriptor)
+        except OSError:
+            fail("read")
+        finally:
+            os.close(descriptor)
+        if len(source) != details.st_size or len(source) > maximum_bytes or (
+            details.st_dev,
+            details.st_ino,
+            details.st_size,
+            details.st_mode,
+            details.st_uid,
+            details.st_gid,
+            details.st_nlink,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mode,
+            after.st_uid,
+            after.st_gid,
+            after.st_nlink,
+        ):
+            fail("identity")
+        if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
+            fail("hash")
+        sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
+        namespace = {"__name__": "__main__", "__file__": "<sealed-staged-source>"}
+        try:
+            exec(compile(source, namespace["__file__"], "exec"), namespace)
+        except SystemExit as error:
+            if error.code not in (None, 0):
+                print("FAIL: evidence-projector-exit", file=sys.stderr)
+            raise
+        ' "$PROJECTOR_SOURCE" "$@"
+        }
+        test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
+        stage_root="$STAGE_PARENT/package"
+        test ! -e "$stage_root"
+        test ! -L "$stage_root"
+        /usr/bin/sudo -n /usr/bin/mkdir -m 0700 -- "$stage_root"
+        /usr/bin/sudo -n /usr/bin/chown --no-dereference "$EVIDENCE_UID:$RUNTIME_GID" -- "$stage_root"
+        /usr/bin/sudo -n /usr/bin/chmod 0755 -- "$STAGE_PARENT"
+        test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$STAGE_PARENT")" = 0:0:755
+        test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$stage_root")" = "$EVIDENCE_UID:$RUNTIME_GID:700"
+        run_runner_projector export-source-receipt \
+          --source-root "$TRUSTED_SOURCE_ROOT" \
+          --runtime-uid "$RUNTIME_UID" \
+          --expected-parent-sha "$PARENT_SHA" \
+          --expected-framework-sha "$FRAMEWORK_SHA" \
+          --expected-mrts-sha "$MRTS_SHA" \
+          --expected-cell-run-id "$TRUSTED_CRS_RUNTIME_RUN_ID" \
+          | /usr/bin/head --bytes=16385 \
+          | run_evidence_projector project-document --source-document-stdin \
+            --runner-temp "$TRUSTED_EVIDENCE_STAGE_ROOT" \
+            --stage-parent "$STAGE_PARENT" \
+            --stage-root "$stage_root" \
+            --runtime-uid "$RUNTIME_UID" \
+            --upload-gid "$RUNTIME_GID" \
+            --expected-parent-sha "$PARENT_SHA" \
+            --expected-framework-sha "$FRAMEWORK_SHA" \
+            --expected-mrts-sha "$MRTS_SHA" \
+            --expected-cell-run-id "$TRUSTED_CRS_RUNTIME_RUN_ID"
+        printf '%s\n' "stage_root=$stage_root" >> "$GITHUB_OUTPUT"
+
+    - name: Verify HAProxy runtime evidence
+      id: verify-haproxy-runtime-evidence
+      if: fromJSON(inputs.caller-matrix).connector == 'haproxy' && steps.project-haproxy-runtime-evidence.outcome == 'success'
+      env:
+        STAGE_ROOT: ${{ steps.project-haproxy-runtime-evidence.outputs.stage_root }}
+        STAGE_PARENT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.stage_parent }}
+        PROJECTOR_SOURCE: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_source }}
+        TRUSTED_RUNNER_TEMP: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp }}
+        TRUSTED_RUNNER_TEMP_IDENTITY: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runner_temp_identity }}
+        TRUSTED_EVIDENCE_STAGE_ROOT: /tmp
+        RUNTIME_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_uid }}
+        RUNTIME_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_gid }}
+        EVIDENCE_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_uid }}
+        EVIDENCE_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_gid }}
+        PROJECTOR_BLOB: ${{ steps.prepare-haproxy-runtime-evidence.outputs.projector_blob }}
+        PARENT_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.parent_sha }}
+        FRAMEWORK_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.framework_sha }}
+        MRTS_SHA: ${{ steps.prepare-haproxy-runtime-evidence.outputs.mrts_sha }}
+        TRUSTED_CRS_RUNTIME_RUN_ID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.runtime_run_id }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        require_sha() {
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
+        }
+        require_decimal() {
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
+        }
+        require_sha "$PROJECTOR_BLOB"
+        require_decimal "$RUNTIME_UID"
+        require_decimal "$RUNTIME_GID"
+        require_decimal "$EVIDENCE_UID"
+        require_decimal "$EVIDENCE_GID"
+        test "$RUNTIME_UID" -ne "$EVIDENCE_UID"
+        test "$RUNTIME_GID" -ne "$EVIDENCE_GID"
+        test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
+        test "$TRUSTED_EVIDENCE_STAGE_ROOT" = /tmp
+        test -d "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test ! -L "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test "$(/usr/bin/realpath -e -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = 0:0:1777
+        case "$STAGE_PARENT" in "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence stage parent" >&2; exit 2 ;; esac
+        test "$STAGE_ROOT" = "$STAGE_PARENT/package"
+        test "$PROJECTOR_SOURCE" = "$STAGE_PARENT/verified-projector.py"
+        test ! -L "$STAGE_PARENT"
+        test ! -L "$PROJECTOR_SOURCE"
+        test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$STAGE_PARENT")" = "$STAGE_PARENT"
+        test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$PROJECTOR_SOURCE")" = "$PROJECTOR_SOURCE"
+        test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$STAGE_PARENT")" = 0:0:755
+        projector_source_size=$(/usr/bin/sudo -n /usr/bin/stat -Lc '%s' -- "$PROJECTOR_SOURCE")
+        require_decimal "$projector_source_size"
+        test "$projector_source_size" -le 131072
+        test "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a:%h:%s' -- "$PROJECTOR_SOURCE")" = "0:0:444:1:$projector_source_size"
+        run_evidence_projector() {
+          /usr/bin/sudo -n /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            /usr/bin/unshare \
+              --mount \
+              --pid \
+              --fork \
+              --kill-child=SIGKILL \
+              --mount-proc=/proc \
+              --propagation private \
+              /usr/bin/setpriv \
+                --reuid="$EVIDENCE_UID" \
+                --regid="$EVIDENCE_GID" \
+                --clear-groups \
+                --no-new-privs \
+                --inh-caps=-all \
+                --ambient-caps=-all \
+                --bounding-set=-all \
+                -- /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            PROJECTOR_BLOB="$PROJECTOR_BLOB" \
+            /usr/bin/python3 -I -c '
+        import hashlib
+        import os
+        import stat
+        import sys
+        source_path, *arguments = sys.argv[1:]
+        blob = os.environ["PROJECTOR_BLOB"]
+        maximum_bytes = 131072
+        def fail(label):
+            print("FAIL: evidence-source-capsule-" + label, file=sys.stderr)
+            raise SystemExit(2)
+        try:
+            descriptor = os.open(
+                source_path,
+                os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+            )
+        except OSError:
+            fail("open")
+        try:
+            details = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(details.st_mode)
+                or details.st_nlink != 1
+                or details.st_uid != 0
+                or details.st_gid != 0
+                or stat.S_IMODE(details.st_mode) != 0o444
+                or details.st_size <= 0
+                or details.st_size > maximum_bytes
+            ):
+                fail("metadata")
+            source = os.read(descriptor, maximum_bytes + 1)
+            after = os.fstat(descriptor)
+        except OSError:
+            fail("read")
+        finally:
+            os.close(descriptor)
+        if len(source) != details.st_size or len(source) > maximum_bytes or (
+            details.st_dev,
+            details.st_ino,
+            details.st_size,
+            details.st_mode,
+            details.st_uid,
+            details.st_gid,
+            details.st_nlink,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mode,
+            after.st_uid,
+            after.st_gid,
+            after.st_nlink,
+        ):
+            fail("identity")
+        if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
+            fail("hash")
+        sys.argv = ["<verified-haproxy-evidence-projector>", *arguments]
+        namespace = {"__name__": "__main__", "__file__": "<sealed-staged-source>"}
+        try:
+            exec(compile(source, namespace["__file__"], "exec"), namespace)
+        except SystemExit as error:
+            if error.code not in (None, 0):
+                print("FAIL: evidence-projector-exit", file=sys.stderr)
+            raise
+        ' "$PROJECTOR_SOURCE" "$@"
+        }
+        digest_report="$STAGE_PARENT/haproxy-runtime-evidence-digests.json"
+        test ! -e "$digest_report"
+        test ! -L "$digest_report"
+        /usr/bin/sudo -n /usr/bin/install -m 0640 -o 0 -g "$RUNTIME_GID" /dev/null "$digest_report"
+        test "$(/usr/bin/stat -Lc '%u:%g:%a:%s' -- "$digest_report")" = "0:$RUNTIME_GID:640:0"
+        run_evidence_projector verify --runner-temp "$TRUSTED_EVIDENCE_STAGE_ROOT" --stage-parent "$STAGE_PARENT" --stage-root "$STAGE_ROOT" --runtime-uid "$RUNTIME_UID" --upload-gid "$RUNTIME_GID" --expected-parent-sha "$PARENT_SHA" --expected-framework-sha "$FRAMEWORK_SHA" --expected-mrts-sha "$MRTS_SHA" --expected-cell-run-id "$TRUSTED_CRS_RUNTIME_RUN_ID" \
+          | /usr/bin/head --bytes=1025 \
+          | /usr/bin/sudo -n /usr/bin/tee -- "$digest_report" >/dev/null
+        /usr/bin/env -i \
+          PATH=/usr/bin:/bin \
+          HOME=/nonexistent \
+          /usr/bin/python3 -I - "$digest_report" "$GITHUB_OUTPUT" "$RUNTIME_GID" <<'PY'
+        import json
+        import os
+        import re
+        import stat
+        import sys
+
+        report_path, output_path, expected_gid_text = sys.argv[1:]
+        expected_gid = int(expected_gid_text)
+        maximum_bytes = 1024
+        expected_names = ("haproxy-runtime-evidence.json", "manifest.json")
+        expected_fields = {"files", "record_type", "schema_version"}
+        digest_fields = {"name", "sha256"}
+        digest_pattern = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
+
+        def reject_duplicate_keys(pairs):
+            value = {}
+            for key, item in pairs:
+                if key in value:
+                    raise ValueError("duplicate key")
+                value[key] = item
+            return value
+
+        descriptor = os.open(
+            report_path,
+            os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0),
+        )
+        try:
+            before = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_nlink != 1
+                or before.st_uid != 0
+                or before.st_gid != expected_gid
+                or stat.S_IMODE(before.st_mode) != 0o640
+                or before.st_size <= 0
+                or before.st_size > maximum_bytes
+            ):
+                raise ValueError("unsafe digest report file")
+            raw = os.read(descriptor, maximum_bytes + 1)
+            after = os.fstat(descriptor)
+        finally:
+            os.close(descriptor)
+        if len(raw) != before.st_size or len(raw) > maximum_bytes or (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mode,
+            before.st_uid,
+            before.st_gid,
+            before.st_nlink,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mode,
+            after.st_uid,
+            after.st_gid,
+            after.st_nlink,
+        ):
+            raise ValueError("raced digest report file")
+        if not raw.endswith(b"\n") or b"\0" in raw:
+            raise ValueError("unsafe digest report bytes")
+        document = json.loads(raw.decode("utf-8"), object_pairs_hook=reject_duplicate_keys)
+        canonical = (
+            json.dumps(document, allow_nan=False, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+            + "\n"
+        ).encode("utf-8")
+        if raw != canonical or type(document) is not dict or set(document) != expected_fields:
+            raise ValueError("noncanonical digest report")
+        if (
+            document["record_type"] != "haproxy_runtime_evidence_digests"
+            or type(document["schema_version"]) is not int
+            or document["schema_version"] != 1
+        ):
+            raise ValueError("unexpected digest report metadata")
+        files = document["files"]
+        if type(files) is not list or len(files) != len(expected_names):
+            raise ValueError("unexpected digest report files")
+        values = {}
+        for expected_name, item in zip(expected_names, files):
+            if type(item) is not dict or set(item) != digest_fields:
+                raise ValueError("unexpected digest report entry")
+            name = item["name"]
+            digest = item["sha256"]
+            if name != expected_name or type(digest) is not str or digest_pattern.fullmatch(digest) is None:
+                raise ValueError("unsafe digest report entry")
+            values[name] = digest
+        with open(output_path, "a", encoding="ascii", newline="\n") as output:
+            output.write("evidence_sha256=" + values[expected_names[0]] + "\n")
+            output.write("manifest_sha256=" + values[expected_names[1]] + "\n")
+        print("haproxy_runtime_evidence_sha256=" + values[expected_names[0]])
+        print("haproxy_runtime_manifest_sha256=" + values[expected_names[1]])
+        PY
+        /usr/bin/sudo -n /usr/bin/rm -f -- "$digest_report"
+        test ! -e "$digest_report"
+        test ! -L "$digest_report"
+
+    - name: Validate Apache runtime evidence
+      id: validate-apache-runtime-evidence
+      if: always() && fromJSON(inputs.caller-matrix).connector == 'apache'
+      env:
+        RESULTS_ROOT: ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs/no-mrts/results
+        AUDIT_LOG: ${{ env.BUILD_ROOT }}/verified-apache-case/with-crs-no-mrts-apache/logs/apache-runtime/audit.log
+        CLEANUP_RECEIPT: ${{ env.VERIFIED_RUN_ROOT }}/apache-profile-cleanup-receipt.json
+        RUN_ID: ${{ env.CRS_RUNTIME_RUN_ID }}
+        PARENT_SHA: ${{ github.event.pull_request.head.sha || fromJSON(inputs.caller-inputs).parent_sha }}
+        RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+        VERIFIED_ROOT: ${{ env.VERIFIED_RUN_ROOT }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        if test "$RUNTIME_OUTCOME" = success; then
+          test -d "$RESULTS_ROOT"
+          test ! -L "$RESULTS_ROOT"
+          test -f "$AUDIT_LOG"
+          test ! -L "$AUDIT_LOG"
+          test -f "$CLEANUP_RECEIPT"
+          test ! -L "$CLEANUP_RECEIPT"
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/with-crs-no-mrts-profile.py verify-apache-audit \
+            --audit-log "$AUDIT_LOG"
+        else
+          case "$VERIFIED_ROOT" in /*) ;; *) echo "FAIL: unsafe Apache runtime evidence root" >&2; exit 2 ;; esac
+          case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; *) : ;; esac
+          test "${#PARENT_SHA}" -eq 40
+          test "$RUN_ID" = "crs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-apache"
+          python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py \
+            --connector apache --run-id "$RUN_ID" --parent-sha "$PARENT_SHA" \
+            --verified-root "$VERIFIED_ROOT" --receipt "$VERIFIED_ROOT/failure-receipt.json" \
+            --runtime-outcome "$RUNTIME_OUTCOME"
+        fi
+
+    - name: Produce canonical with-CRS no-MRTS profile cell
+      id: produce-profile-cell
+      if: steps.runtime.outcome == 'success' && (fromJSON(inputs.caller-matrix).connector != 'haproxy' || steps.verify-haproxy-runtime-evidence.outcome == 'success') && (fromJSON(inputs.caller-matrix).connector != 'apache' || steps.validate-apache-runtime-evidence.outcome == 'success')
+      env:
+        SOURCE_ROOT: ${{ steps.prepare-crs-source.outputs.source_root || env.SOURCE_ROOT }}
+        CRS_SOURCE_DIR: ${{ steps.prepare-crs-source.outputs.crs_source_dir || env.CRS_SOURCE_DIR }}
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+        PARENT_SHA: ${{ github.event.pull_request.head.sha || fromJSON(inputs.caller-inputs).parent_sha }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha || fromJSON(inputs.caller-inputs).base_sha }}
+        FRAMEWORK_SHA: ${{ steps.verify-revisions.outputs.framework_sha }}
+        MRTS_SHA: ${{ steps.verify-revisions.outputs.mrts_sha }}
+        PROFILE_RUN_ID_VALUE: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
+        CELL_RUN_ID_VALUE: crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ fromJSON(inputs.caller-matrix).connector }}
+        VERIFIED_ROOT: ${{ env.VERIFIED_RUN_ROOT }}
+        HAPROXY_STAGE_ROOT: ${{ steps.project-haproxy-runtime-evidence.outputs.stage_root }}
+        HAPROXY_EVIDENCE_SHA256: ${{ steps.verify-haproxy-runtime-evidence.outputs.evidence_sha256 }}
+        HAPROXY_MANIFEST_SHA256: ${{ steps.verify-haproxy-runtime-evidence.outputs.manifest_sha256 }}
+        HAPROXY_EVIDENCE_UID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_uid }}
+        HAPROXY_EVIDENCE_GID: ${{ steps.prepare-haproxy-runtime-evidence.outputs.evidence_gid }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        test -n "$PARENT_SHA"; test -n "$BASE_SHA"
+        test "${#PARENT_SHA}" -eq 40; test "${#BASE_SHA}" -eq 40
+        test "${#FRAMEWORK_SHA}" -eq 40; test "${#MRTS_SHA}" -eq 40
+        export CONNECTOR_ROOT="$GITHUB_WORKSPACE" REPO_ROOT="$GITHUB_WORKSPACE"
+        . "$FRAMEWORK_ROOT/ci/lib/common.sh"
+        crs_commit="$CRS_APPROVED_COMMIT"
+        crs_rule_sha256="$CRS_RULE_FILE_SHA256"
+        test "${#crs_commit}" -eq 40; test "${#crs_rule_sha256}" -eq 64
+        haproxy_source_args=()
+        case "$CONNECTOR" in
+          apache)
+            source_root="$VERIFIED_ROOT"
+            crs_source_root="$CRS_SOURCE_DIR"
+            ;;
+          haproxy)
+            source_root="$HAPROXY_STAGE_ROOT"
+            crs_source_root="$CRS_SOURCE_DIR"
+            test -n "$HAPROXY_EVIDENCE_SHA256"; test -n "$HAPROXY_MANIFEST_SHA256"
+            test -n "$HAPROXY_EVIDENCE_UID"; test -n "$HAPROXY_EVIDENCE_GID"
+            haproxy_source_args=(
+              --haproxy-evidence-sha256 "$HAPROXY_EVIDENCE_SHA256"
+              --haproxy-manifest-sha256 "$HAPROXY_MANIFEST_SHA256"
+              --haproxy-evidence-uid "$HAPROXY_EVIDENCE_UID"
+              --haproxy-evidence-gid "$HAPROXY_EVIDENCE_GID"
+            )
+            ;;
+          envoy|lighttpd|traefik)
+            source_root="$VERIFIED_ROOT"
+            crs_source_root="$VERIFIED_ROOT/runs/$CONNECTOR/$CELL_RUN_ID_VALUE/crs-fresh-source/coreruleset"
+            ;;
+          *) echo "FAIL: unsupported profile connector" >&2; exit 2 ;;
+        esac
+        test -d "$source_root"; test ! -L "$source_root"
+        test -d "$crs_source_root"; test ! -L "$crs_source_root"
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/with-crs-no-mrts-profile.py produce \
+          --connector "$CONNECTOR" --cell-run-id "$CELL_RUN_ID_VALUE" \
+          --profile-run-id "$PROFILE_RUN_ID_VALUE" --parent-sha "$PARENT_SHA" \
+          --base-sha "$BASE_SHA" --github-run-id "${{ github.run_id }}" \
+          --github-run-attempt "${{ github.run_attempt }}" \
+          --framework-sha "$FRAMEWORK_SHA" --mrts-sha "$MRTS_SHA" \
+          --crs-commit "$crs_commit" --crs-rule-sha256 "$crs_rule_sha256" \
+          --crs-source-root "$crs_source_root" "${haproxy_source_args[@]}" \
+          --verified-root "$VERIFIED_ROOT" --source-root "$source_root" \
+          --output-dir "$VERIFIED_ROOT/profile-cell"
+
+    - name: Upload Apache runtime evidence
+      id: upload-apache-runtime-evidence
+      if: always() && fromJSON(inputs.caller-matrix).connector == 'apache' && steps.runtime.outcome == 'success' && steps.validate-apache-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: with-crs-no-mrts-${{ fromJSON(inputs.caller-matrix).connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell
+        if-no-files-found: error
+        retention-days: 10
+        overwrite: false
+
+    - name: Upload Apache runtime failure receipt
+      id: upload-apache-runtime-failure-receipt
+      if: always() && fromJSON(inputs.caller-matrix).connector == 'apache' && steps.runtime.outcome != 'success' && steps.validate-apache-runtime-evidence.outcome == 'success'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: with-crs-no-mrts-${{ fromJSON(inputs.caller-matrix).connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
+        if-no-files-found: error
+        retention-days: 10
+        overwrite: false
+
+    - name: Validate generic runtime evidence or retain failure receipt
+      id: prepare-non-haproxy-runtime-evidence
+      if: always() && fromJSON(inputs.caller-matrix).connector != 'haproxy' && fromJSON(inputs.caller-matrix).connector != 'apache'
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+        RUN_ID: ${{ env.CRS_RUNTIME_RUN_ID }}
+        PARENT_SHA: ${{ github.event.pull_request.head.sha || fromJSON(inputs.caller-inputs).parent_sha }}
+        RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+        VERIFIED_ROOT: ${{ env.VERIFIED_RUN_ROOT }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        case "$VERIFIED_ROOT" in /*) ;; *) echo "FAIL: unsafe generic runtime evidence root" >&2; exit 2 ;; esac
+        case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; *) : ;; esac
+        test "${#PARENT_SHA}" -eq 40
+        test "$RUN_ID" = "crs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CONNECTOR}"
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py \
+          --connector "$CONNECTOR" --run-id "$RUN_ID" --parent-sha "$PARENT_SHA" \
+          --verified-root "$VERIFIED_ROOT" --receipt "$VERIFIED_ROOT/failure-receipt.json" \
+          --runtime-outcome "$RUNTIME_OUTCOME"
+
+    - name: Upload non-HAProxy runtime evidence
+      id: upload-non-haproxy-runtime-evidence
+      if: always() && fromJSON(inputs.caller-matrix).connector != 'haproxy' && fromJSON(inputs.caller-matrix).connector != 'apache' && steps.runtime.outcome == 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: with-crs-no-mrts-${{ fromJSON(inputs.caller-matrix).connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell
+        if-no-files-found: error
+        retention-days: 10
+        overwrite: false
+
+    - name: Upload non-HAProxy runtime failure receipt
+      id: upload-non-haproxy-runtime-failure-receipt
+      if: always() && fromJSON(inputs.caller-matrix).connector != 'haproxy' && fromJSON(inputs.caller-matrix).connector != 'apache' && steps.runtime.outcome != 'success' && steps.prepare-non-haproxy-runtime-evidence.outcome == 'success'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: with-crs-no-mrts-${{ fromJSON(inputs.caller-matrix).connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
+        if-no-files-found: error
+        retention-days: 10
+        overwrite: false
+
+    - name: Upload real runtime evidence
+      id: upload-runtime-evidence
+      if: fromJSON(inputs.caller-matrix).connector == 'haproxy' && steps.verify-haproxy-runtime-evidence.outcome == 'success' && steps.produce-profile-cell.outcome == 'success'
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: with-crs-no-mrts-${{ fromJSON(inputs.caller-matrix).connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ env.VERIFIED_RUN_ROOT }}/profile-cell
+        if-no-files-found: error
+        retention-days: 10
+        overwrite: false
+
+    - name: Cleanup HAProxy runtime evidence stage
+      if: always() && fromJSON(inputs.caller-matrix).connector == 'haproxy'
+      env:
+        STAGE_PARENT: ${{ steps.prepare-haproxy-runtime-evidence.outputs.stage_parent }}
+        TRUSTED_EVIDENCE_STAGE_ROOT: /tmp
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        test "$TRUSTED_EVIDENCE_STAGE_ROOT" = /tmp
+        test -d "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test ! -L "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test "$(/usr/bin/realpath -e -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = "$TRUSTED_EVIDENCE_STAGE_ROOT"
+        test "$(/usr/bin/stat -Lc '%u:%g:%a' -- "$TRUSTED_EVIDENCE_STAGE_ROOT")" = 0:0:1777
+        if test -n "$STAGE_PARENT"; then
+          case "$STAGE_PARENT" in "$TRUSTED_EVIDENCE_STAGE_ROOT"/haproxy-runtime-evidence-parent.[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) ;; *) echo "FAIL: unsafe evidence cleanup path" >&2; exit 2 ;; esac
+          test ! -L "$STAGE_PARENT"
+          test "$(/usr/bin/sudo -n /usr/bin/realpath -e -- "$STAGE_PARENT")" = "$STAGE_PARENT"
+          case "$(/usr/bin/sudo -n /usr/bin/stat -Lc '%u:%g:%a' -- "$STAGE_PARENT")" in
+            0:0:700|0:0:755) ;;
+            *) echo "FAIL: unsafe evidence cleanup parent" >&2; exit 2 ;;
+          esac
+          /usr/bin/sudo -n /usr/bin/rm -rf -- "$STAGE_PARENT"
+          test ! -e "$STAGE_PARENT"
+          test ! -L "$STAGE_PARENT"
+        fi
+
+    - name: Write connector runtime overview
+      if: always()
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+        PARENT_SHA: ${{ github.event.pull_request.head.sha || fromJSON(inputs.caller-inputs).parent_sha }}
+        CHECKOUT_OUTCOME: ${{ inputs.checkout-outcome }}
+        SETUP_PYTHON_OUTCOME: ${{ steps.setup-python.outcome }}
+        VERIFY_PYTHON_OUTCOME: ${{ steps.verify-python.outcome }}
+        VERIFY_REVISIONS_OUTCOME: ${{ steps.verify-revisions.outcome }}
+        INSTALL_DEPENDENCIES_OUTCOME: ${{ steps.install-framework-ci.outcome }}
+        VERIFY_CELL_OUTCOME: ${{ steps.verify-runtime-cell.outcome }}
+        INITIALIZE_ROOTS_OUTCOME: ${{ steps.initialize-runtime-roots.outcome }}
+        PREPARE_CRS_OUTCOME: ${{ steps.prepare-crs-source.outcome }}
+        RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+        UPLOAD_EVIDENCE_OUTCOME: ${{ fromJSON(inputs.caller-matrix).connector == 'haproxy' && steps.upload-runtime-evidence.outcome || fromJSON(inputs.caller-matrix).connector == 'apache' && steps.runtime.outcome == 'success' && steps.upload-apache-runtime-evidence.outcome || fromJSON(inputs.caller-matrix).connector == 'apache' && steps.upload-apache-runtime-failure-receipt.outcome || steps.runtime.outcome == 'success' && steps.upload-non-haproxy-runtime-evidence.outcome || steps.upload-non-haproxy-runtime-failure-receipt.outcome }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        require_sha() {
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
+        }
+        require_decimal() {
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
+        }
+        require_sha "$PARENT_SHA"
+        summary_uid=$(/usr/bin/id -u)
+        summary_gid=$(/usr/bin/id -g)
+        require_decimal "$summary_uid"
+        require_decimal "$summary_gid"
+        summary_source_root="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"
+        test -d "$summary_source_root"
+        test ! -L "$summary_source_root"
+        test "$(/usr/bin/realpath -e -- "$summary_source_root")" = "$summary_source_root"
+        summary_framework_pin=$(
+          /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            GIT_CONFIG_SYSTEM=/dev/null \
+            GIT_OPTIONAL_LOCKS=0 \
+            /usr/bin/git --no-replace-objects --no-pager -C "$GITHUB_WORKSPACE" rev-parse "$PARENT_SHA:modules/ModSecurity-test-Framework"
+        )
+        require_sha "$summary_framework_pin"
+        summary_blob=$(
+          /usr/bin/env -i \
+            PATH=/usr/bin:/bin \
+            HOME=/nonexistent \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            GIT_CONFIG_SYSTEM=/dev/null \
+            GIT_OPTIONAL_LOCKS=0 \
+            /usr/bin/git --no-replace-objects --no-pager -C "$summary_source_root" rev-parse "$summary_framework_pin:connector_suite/modsecurity_connector_ci/runtime/lifecycle/summarize-with-crs-no-mrts-workflow.py"
+        )
+        require_sha "$summary_blob"
+        /usr/bin/env -i \
+          PATH=/usr/bin:/bin \
+          HOME=/nonexistent \
+          GIT_CONFIG_NOSYSTEM=1 \
+          GIT_CONFIG_GLOBAL=/dev/null \
+          GIT_CONFIG_SYSTEM=/dev/null \
+          GIT_OPTIONAL_LOCKS=0 \
+          /usr/bin/git --no-replace-objects --no-pager -C "$summary_source_root" cat-file -e "${summary_blob}^{blob}"
+        /usr/bin/sudo -n /usr/bin/env -i \
+          PATH=/usr/bin:/bin \
+          HOME=/nonexistent \
+          /usr/bin/unshare \
+            --mount \
+            --pid \
+            --fork \
+            --kill-child=SIGKILL \
+            --mount-proc=/proc \
+            --propagation private \
+            /usr/bin/setpriv \
+              --reuid="$summary_uid" \
+              --regid="$summary_gid" \
+              --clear-groups \
+              --no-new-privs \
+              --inh-caps=-all \
+              --ambient-caps=-all \
+              --bounding-set=-all \
+              -- /usr/bin/env -i \
+                PATH=/usr/bin:/bin \
+                HOME=/nonexistent \
+                GIT_CONFIG_NOSYSTEM=1 \
+                GIT_CONFIG_GLOBAL=/dev/null \
+                GIT_CONFIG_SYSTEM=/dev/null \
+                GIT_OPTIONAL_LOCKS=0 \
+                RUNNER_TEMP="$RUNNER_TEMP" \
+                GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" \
+                CHECKOUT_OUTCOME="$CHECKOUT_OUTCOME" \
+                SETUP_PYTHON_OUTCOME="$SETUP_PYTHON_OUTCOME" \
+                VERIFY_PYTHON_OUTCOME="$VERIFY_PYTHON_OUTCOME" \
+                VERIFY_REVISIONS_OUTCOME="$VERIFY_REVISIONS_OUTCOME" \
+                INSTALL_DEPENDENCIES_OUTCOME="$INSTALL_DEPENDENCIES_OUTCOME" \
+                VERIFY_CELL_OUTCOME="$VERIFY_CELL_OUTCOME" \
+                INITIALIZE_ROOTS_OUTCOME="$INITIALIZE_ROOTS_OUTCOME" \
+                PREPARE_CRS_OUTCOME="$PREPARE_CRS_OUTCOME" \
+                RUNTIME_OUTCOME="$RUNTIME_OUTCOME" \
+                UPLOAD_EVIDENCE_OUTCOME="$UPLOAD_EVIDENCE_OUTCOME" \
+                /usr/bin/python3 -I -c '
+        import hashlib
+        import subprocess
+        import sys
+        blob, workspace, *arguments = sys.argv[1:]
+        try:
+            source = subprocess.check_output(
+                ["/usr/bin/git", "--no-replace-objects", "--no-pager", "-C", workspace, "cat-file", "blob", blob],
+                env={
+                    "PATH": "/usr/bin:/bin",
+                    "HOME": "/nonexistent",
+                    "GIT_CONFIG_NOSYSTEM": "1",
+                    "GIT_CONFIG_GLOBAL": "/dev/null",
+                    "GIT_CONFIG_SYSTEM": "/dev/null",
+                    "GIT_OPTIONAL_LOCKS": "0",
+                },
+                stderr=subprocess.DEVNULL,
+            )
+        except subprocess.CalledProcessError:
+            raise SystemExit(2)
+        if not source or len(source) > 131072:
+            raise SystemExit(2)
+        if hashlib.sha1(b"blob " + str(len(source)).encode("ascii") + b"\0" + source).hexdigest() != blob:
+            raise SystemExit(2)
+        sys.argv = ["<verified-workflow-summary>", *arguments]
+        namespace = {"__name__": "__main__", "__file__": "<verified-git-blob>"}
+        exec(compile(source, namespace["__file__"], "exec"), namespace)
+        ' "$summary_blob" "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" --connector "$CONNECTOR"

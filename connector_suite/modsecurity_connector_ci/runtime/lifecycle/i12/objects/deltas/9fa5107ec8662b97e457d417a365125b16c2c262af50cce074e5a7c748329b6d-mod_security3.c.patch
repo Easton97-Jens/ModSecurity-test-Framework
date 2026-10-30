@@ -1,0 +1,21 @@
+--- a/payload
++++ b/payload
+@@ -8,0 +9 @@
++#include "apache-host-observer.h"
+@@ -687 +688 @@
+-static apache_tx_context_result create_tx_context(request_rec *r, msc_t **out,
++static apache_tx_context_result create_tx_context_observed_impl(request_rec *r, msc_t **out,
+@@ -784,0 +786,13 @@
++static apache_tx_context_result create_tx_context(request_rec *r, msc_t **out,
++    const char **failure_reason) {
++    uint64_t observed_scope = msconnector_lifecycle_host_begin();
++    apache_tx_context_result result = create_tx_context_observed_impl(r, out, failure_reason);
++    msc_t *observed = result == APACHE_TX_CONTEXT_RESULT_READY && out != NULL ? *out : NULL;
++    (void)msconnector_lifecycle_host_end(observed_scope, observed,
++        observed != NULL ? &observed->contract : NULL,
++        observed != NULL ? observed->t : NULL,
++        result == APACHE_TX_CONTEXT_RESULT_READY);
++    if (observed != NULL) apache_lifecycle_observe("host_context_associated", observed, r, NULL);
++    return result;
++}
++

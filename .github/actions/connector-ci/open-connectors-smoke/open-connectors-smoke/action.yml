@@ -1,0 +1,457 @@
+name: open-connectors-smoke / open-connectors-smoke
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Setup python
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+    - name: Initialize runtime paths
+      shell: bash -e {0}
+      run: |
+        set -eu
+        verified_root="/tmp/ModSecurity-conector-verified"
+        build_root="$verified_root/build"
+        {
+          echo "VERIFIED_RUN_ROOT=$verified_root"
+          echo "RUNTIME_EVIDENCE_ROOT=$verified_root/evidence/runtime-evidence"
+          echo "XDG_STATE_HOME=/tmp/state"
+          echo "SOURCE_ROOT=$verified_root/src"
+          echo "BUILD_ROOT=$build_root"
+          echo "TMP_ROOT=$verified_root/tmp"
+          echo "LOG_ROOT=$verified_root/logs"
+          echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+          echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+          echo "PYTHONPYCACHEPREFIX=/tmp/python-pycache"
+          echo "RUNTIME_REPORT_OUTPUT_ROOT=$build_root/runtime-component-reports"
+        } >> "$GITHUB_ENV"
+        mkdir -p ci-artifacts/open-connectors/final-checks
+
+    - name: Install selected Apache native lifecycle prerequisites
+      shell: bash -e {0}
+      run: |
+        set -eu
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
+    - name: Install local Python dependencies
+      shell: bash -e {0}
+      run: |
+        set -eu
+        make setup-dev
+
+    - name: Common helper checks
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp make check-common-helpers
+
+    - name: Prepare shared runtime components
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-runtime-components
+
+    - name: Prepare Envoy runtime component
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 make prepare-envoy-runtime
+
+    - name: Prepare Traefik runtime component
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 make prepare-traefik-runtime
+
+    - name: Build Lighttpd runtime component
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 make prepare-lighttpd-runtime-build
+
+    - name: Native connector build diagnostics
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp make build-remaining-connectors
+
+    - name: Native request-free host start diagnostics
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp make start-smoke-remaining-connectors
+
+    - name: Native minimal runtime diagnostics
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp ALLOW_RUNTIME_BUILDS=1 make runtime-smoke-remaining-connectors
+
+    - name: Remaining connector readiness contracts
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp make readiness-remaining-connectors
+
+    - name: Workspace status after prepare
+      shell: bash -e {0}
+      run: |
+        set -eu
+        mkdir -p ci-artifacts/open-connectors/final-checks
+        git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-after-prepare.txt
+
+    - name: Runtime component inventory
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        TMPDIR=/tmp make runtime-components-inventory | tee ci-artifacts/open-connectors/runtime-components-inventory.txt
+        TMPDIR=/tmp make runtime-components-sources | tee ci-artifacts/open-connectors/runtime-components-sources.txt
+
+    - name: Legacy compatibility runtime smokes
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp make smoke-envoy
+        TMPDIR=/tmp make smoke-traefik
+        TMPDIR=/tmp make smoke-lighttpd
+
+    - name: Workspace status after simple smokes
+      shell: bash -e {0}
+      run: |
+        set -eu
+        mkdir -p ci-artifacts/open-connectors/final-checks
+        git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-after-simple-smokes.txt
+
+    - name: Legacy targeted ModSecurity compatibility probes
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp make smoke-envoy-modsecurity
+        TMPDIR=/tmp make smoke-traefik-modsecurity
+        TMPDIR=/tmp make smoke-lighttpd-modsecurity
+
+    - name: Legacy request-body compatibility probes
+      shell: bash -e {0}
+      run: |
+        set -eu
+        mkdir -p ci-artifacts/open-connectors/legacy-scope
+        printf '%s\n' \
+          'NOT EXECUTED: the Envoy compatibility alias does not select a body case in the current native runner.' \
+          > ci-artifacts/open-connectors/legacy-scope/envoy-request-body.txt
+        TMPDIR=/tmp make smoke-traefik-request-body
+        TMPDIR=/tmp make smoke-lighttpd-request-body
+
+    - name: Legacy minimal CRS compatibility probes
+      shell: bash -e {0}
+      run: |
+        set -eu
+        mkdir -p ci-artifacts/open-connectors/legacy-scope
+        printf '%s\n' \
+          'NOT EXECUTED: the Envoy compatibility alias does not select CRS in the current native runner.' \
+          > ci-artifacts/open-connectors/legacy-scope/envoy-crs.txt
+        TMPDIR=/tmp make smoke-traefik-crs
+        TMPDIR=/tmp make smoke-lighttpd-crs
+
+    - name: Legacy secondary CRS compatibility probes
+      shell: bash -e {0}
+      run: |
+        set -eu
+        TMPDIR=/tmp make smoke-traefik-crs-secondary
+        TMPDIR=/tmp make smoke-lighttpd-crs-secondary
+
+    - name: Workspace status after CRS smokes
+      shell: bash -e {0}
+      run: |
+        set -eu
+        mkdir -p ci-artifacts/open-connectors/final-checks
+        git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-after-crs-smokes.txt
+
+    - name: Final check - git status before
+      shell: bash -e {0}
+      run: |
+        set -eu
+        mkdir -p ci-artifacts/open-connectors/final-checks
+        git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-before.txt
+        git diff --name-only | tee ci-artifacts/open-connectors/final-checks/git-diff-name-only-before.txt
+        git diff --stat | tee ci-artifacts/open-connectors/final-checks/git-diff-stat-before.txt
+
+    - name: Final check - lint
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p ci-artifacts/open-connectors/final-checks
+        if TMPDIR=/tmp make lint 2>&1 | tee ci-artifacts/open-connectors/final-checks/lint.log; then
+          printf 'pass\n' > ci-artifacts/open-connectors/final-checks/lint.status
+        else
+          rc=$?
+          printf 'failed\n' > ci-artifacts/open-connectors/final-checks/lint.status
+          echo "----- lint.log tail -----"
+          tail -n 200 ci-artifacts/open-connectors/final-checks/lint.log || true
+          exit "$rc"
+        fi
+
+    - name: Final check - quick-check
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p ci-artifacts/open-connectors/final-checks
+        if TMPDIR=/tmp make quick-check 2>&1 | tee ci-artifacts/open-connectors/final-checks/quick-check.log; then
+          printf 'pass\n' > ci-artifacts/open-connectors/final-checks/quick-check.status
+        else
+          rc=$?
+          printf 'failed\n' > ci-artifacts/open-connectors/final-checks/quick-check.status
+          echo "----- quick-check.log tail -----"
+          tail -n 200 ci-artifacts/open-connectors/final-checks/quick-check.log || true
+          exit "$rc"
+        fi
+
+    - name: Final check - git diff check
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p ci-artifacts/open-connectors/final-checks
+        if git diff --check 2>&1 | tee ci-artifacts/open-connectors/final-checks/git-diff-check.log; then
+          printf 'pass\n' > ci-artifacts/open-connectors/final-checks/git-diff-check.status
+        else
+          rc=$?
+          printf 'failed\n' > ci-artifacts/open-connectors/final-checks/git-diff-check.status
+          echo "----- git-diff-check.log tail -----"
+          tail -n 200 ci-artifacts/open-connectors/final-checks/git-diff-check.log || true
+          exit "$rc"
+        fi
+
+    - name: Final check - git status after
+      if: always()
+      shell: bash -e {0}
+      run: |
+        set -eu
+        mkdir -p ci-artifacts/open-connectors/final-checks
+        git status --short | tee ci-artifacts/open-connectors/final-checks/git-status-after.txt
+        git diff --name-only | tee ci-artifacts/open-connectors/final-checks/git-diff-name-only-after.txt
+        git diff --stat | tee ci-artifacts/open-connectors/final-checks/git-diff-stat-after.txt
+
+    - name: Ensure final check diagnostics directory
+      if: always()
+      shell: bash -e {0}
+      run: |
+        set -eu
+        mkdir -p ci-artifacts/open-connectors/final-checks
+        if [ ! -f ci-artifacts/open-connectors/final-checks/lint.log ]; then
+          printf 'not run; see workflow steps.\n' > ci-artifacts/open-connectors/final-checks/lint.log
+          printf 'skipped\n' > ci-artifacts/open-connectors/final-checks/lint.status
+        fi
+        if [ ! -f ci-artifacts/open-connectors/final-checks/quick-check.log ]; then
+          printf 'skipped because an earlier final check failed.\n' > ci-artifacts/open-connectors/final-checks/quick-check.log
+          printf 'skipped\n' > ci-artifacts/open-connectors/final-checks/quick-check.status
+        fi
+        if [ ! -f ci-artifacts/open-connectors/final-checks/git-diff-check.log ]; then
+          printf 'skipped because an earlier final check failed.\n' > ci-artifacts/open-connectors/final-checks/git-diff-check.log
+          printf 'skipped\n' > ci-artifacts/open-connectors/final-checks/git-diff-check.status
+        fi
+
+    - name: Upload final check diagnostics
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: legacy-open-connectors-final-checks
+        retention-days: 10
+        if-no-files-found: warn
+        path: |
+          ci-artifacts/open-connectors/final-checks/lint.log
+          ci-artifacts/open-connectors/final-checks/quick-check.log
+          ci-artifacts/open-connectors/final-checks/git-diff-check.log
+          ci-artifacts/open-connectors/final-checks/git-status-before.txt
+          ci-artifacts/open-connectors/final-checks/git-status-after.txt
+          ci-artifacts/open-connectors/final-checks/git-diff-name-only-before.txt
+          ci-artifacts/open-connectors/final-checks/git-diff-name-only-after.txt
+          ci-artifacts/open-connectors/final-checks/git-diff-stat-before.txt
+          ci-artifacts/open-connectors/final-checks/git-diff-stat-after.txt
+
+    - name: Capture runtime component reports
+      if: always()
+      shell: bash -e {0}
+      run: |
+        set -u
+        mkdir -p ci-artifacts/open-connectors
+        TMPDIR=/tmp make runtime-components-inventory > ci-artifacts/open-connectors/runtime-components-inventory.txt 2>&1 || true
+        TMPDIR=/tmp make runtime-components-sources > ci-artifacts/open-connectors/runtime-components-sources.txt 2>&1 || true
+
+    - name: Collect smoke evidence
+      if: always()
+      shell: bash -e {0}
+      run: |
+        set -eu
+        artifact_root="ci-artifacts/open-connectors"
+        mkdir -p "$artifact_root"
+        copied=0
+        copy_evidence_dir() {
+          source_path=$1
+          destination=$2
+          if [ ! -d "$source_path" ]; then
+            return 0
+          fi
+          mkdir -p "$(dirname "$destination")"
+          cp -a "$source_path" "$destination"
+          copied=$((copied + 1))
+        }
+        copy_evidence_dir "$BUILD_ROOT/envoy-connector/runtime-smoke" "$artifact_root/native/envoy-runtime-smoke"
+        copy_evidence_dir "$BUILD_ROOT/traefik-connector/runtime-smoke" "$artifact_root/native/traefik-runtime-smoke"
+        copy_evidence_dir "$BUILD_ROOT/lighttpd-connector/smoke" "$artifact_root/native/lighttpd-runtime-smoke"
+        copy_evidence_dir "$VERIFIED_RUN_ROOT/envoy-smoke" "$artifact_root/compatibility/envoy-smoke"
+        copy_evidence_dir "$VERIFIED_RUN_ROOT/traefik-smoke" "$artifact_root/compatibility/traefik-smoke"
+        copy_evidence_dir "$VERIFIED_RUN_ROOT/lighttpd-smoke" "$artifact_root/compatibility/lighttpd-smoke"
+        copy_evidence_dir "$LOG_ROOT" "$artifact_root/runtime-logs"
+        copy_evidence_dir "$RUNTIME_EVIDENCE_ROOT" "$artifact_root/normalized-runtime-evidence"
+        if [ "$copied" -eq 0 ]; then
+          printf 'No allowlisted runtime evidence directory was produced.\n' > "$artifact_root/README.txt"
+        fi
+        printf '%s\n' \
+          'This legacy diagnostic bundle intentionally excludes component-cache, source, and build-cache trees.' \
+          > "$artifact_root/ARTIFACT-SCOPE.txt"
+
+    - name: Upload open connector smoke evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: legacy-open-connectors-smoke-evidence
+        retention-days: 10
+        if-no-files-found: warn
+        path: ci-artifacts/open-connectors/
+
+    - name: Write GitHub step summary
+      if: always()
+      shell: bash -e {0}
+      run: |
+        set -eu
+        if [ -z "${GITHUB_STEP_SUMMARY:-}" ]; then
+          exit 0
+        fi
+        python3 -P - <<'PY'
+        import json
+        import os
+        from pathlib import Path
+
+        summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+        root = Path("/tmp/ModSecurity-conector-verified")
+
+        def load(path):
+            if not path.is_file():
+                return None
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                return None
+
+        def status(connector, filename):
+            data = load(root / f"{connector}-smoke" / filename)
+            if not data:
+                return "missing"
+            base = str(data.get("status") or "unknown")
+            allowed = data.get("allowed_request_status")
+            blocked = data.get("blocked_request_status")
+            if allowed is not None and blocked is not None:
+                return f"{base} ({allowed}/{blocked})"
+            return base
+
+        def lighttpd_build_status():
+            binary = root / "component-cache/lighttpd/bin/lighttpd"
+            return "PASS" if binary.is_file() and os.access(binary, os.X_OK) else "missing"
+
+        final_checks = Path("ci-artifacts/open-connectors/final-checks")
+
+        def final_check_status(name):
+            marker = final_checks / f"{name}.status"
+            if marker.is_file():
+                value = marker.read_text(encoding="utf-8").strip()
+                return value or "unknown"
+            log_name = f"{name}.log"
+            if (final_checks / log_name).is_file():
+                return "unknown"
+            return "skipped"
+
+        rows = [
+            (
+                "Envoy",
+                "n/a",
+                status("envoy", "runtime-result.json"),
+                status("envoy", "targeted-result.json"),
+                "NOT EXECUTED (alias selects no body case)",
+                "NOT EXECUTED (alias selects no CRS)",
+                "NOT EXECUTED (legacy probe excluded)",
+            ),
+            (
+                "Traefik",
+                "n/a",
+                status("traefik", "runtime-result.json"),
+                status("traefik", "targeted-result.json"),
+                status("traefik", "request-body-result.json"),
+                status("traefik", "crs-result.json"),
+                status("traefik", "crs-secondary-result.json"),
+            ),
+            (
+                "Lighttpd",
+                lighttpd_build_status(),
+                status("lighttpd", "runtime-result.json"),
+                status("lighttpd", "targeted-result.json"),
+                status("lighttpd", "request-body-result.json"),
+                status("lighttpd", "crs-result.json"),
+                status("lighttpd", "crs-secondary-result.json"),
+            ),
+        ]
+
+        lines = [
+            "# Legacy Open Connector Diagnostics",
+            "",
+            "These compatibility probes are not the canonical all-connector No-CRS baseline.",
+            "Native and compatibility paths remain separate, and legacy CRS/body probes do not promote native connector capabilities.",
+            "",
+            "| Connector | Build | Compatibility runtime | Compatibility ModSecurity | Legacy request body | Legacy minimal CRS | Legacy secondary CRS |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for row in rows:
+            lines.append("| " + " | ".join(row) + " |")
+        lines.extend(
+            [
+                "",
+                "Artifact path: `ci-artifacts/open-connectors/`.",
+                "Artifact name: `legacy-open-connectors-smoke-evidence`.",
+                "",
+                "Forbidden claims remain forbidden:",
+                "",
+                "- `production_ready=true`",
+                "- `full_matrix_ready=true`",
+                "- `crs_complete=true`",
+                "- `response_body_verified=true`",
+                "",
+                "## Final Checks",
+                "",
+                "| Check | Status | Log |",
+                "| --- | --- | --- |",
+                f"| lint | {final_check_status('lint')} | `final-checks/lint.log` |",
+                f"| quick-check | {final_check_status('quick-check')} | `final-checks/quick-check.log` |",
+                f"| git diff --check | {final_check_status('git-diff-check')} | `final-checks/git-diff-check.log` |",
+                "",
+                "Final check diagnostics artifact: `legacy-open-connectors-final-checks`.",
+                "",
+            ]
+        )
+        summary_path.write_text("\n".join(lines), encoding="utf-8")
+        PY

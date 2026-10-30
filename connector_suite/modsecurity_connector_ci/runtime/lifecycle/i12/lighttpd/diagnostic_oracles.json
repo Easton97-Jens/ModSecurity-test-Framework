@@ -1,0 +1,17 @@
+{
+  "schema": "lighttpd-stock-native-original-diagnostic-fixtures-v1",
+  "route": "lighttpd-stock-native-control",
+  "scope": "Concrete independent diagnostics for originally unnamed effective fixtures; expectations declared before execution and independently reviewed by Root",
+  "body_modes": {"request": "none", "response": "none"},
+  "rules": "SecRuleEngine On\nSecRequestBodyAccess Off\nSecResponseBodyAccess Off\n",
+  "backend_response": "diagnostic-native-response",
+  "expected_status": 200,
+  "expected_native_result": "allow",
+  "expected_native_phase": 1,
+  "cases": [
+    {"case_id": "NEED-client-response-bytes", "path": "/diagnostic/physical-response-bytes", "assertion": "Independent waited client receives exact declared backend response bytes and SHA256, correlated to the same main host/native transaction."},
+    {"case_id": "NEED-client-exit-signal", "path": "/diagnostic/physical-client-exit", "assertion": "Independent client is actually waited with exit0 and no signal; no transport or native exit is substituted."},
+    {"case_id": "NEED-neighbor-connection-stream", "path": "/diagnostic/physical-neighbor", "assertion": "Distinct waited neighbor client succeeds after the main connection ends, with its own native transaction and backend record. No multiplexed stream support is claimed."},
+    {"case_id": "NEED-independent-noncanonical-control", "path": "/diagnostic/noncanonical-control", "assertion": "Independent explicitly declared noncanonical path reaches real backend and native P1/P3/logging/free; all producers are physical, not catalog projections."}
+  ]
+}

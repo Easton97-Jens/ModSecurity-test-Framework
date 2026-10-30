@@ -11,9 +11,12 @@ import re
 import stat
 import sys
 import tempfile
+import runpy
 from typing import Any
 
-from osv_report_schema import OsvReportError, report_groups
+_schema = runpy.run_path(str(Path(__file__).with_name("osv_report_schema.py")))
+OsvReportError = _schema["OsvReportError"]
+report_groups = _schema["report_groups"]
 
 
 REVISION = re.compile(r"^[0-9a-f]{40}$")

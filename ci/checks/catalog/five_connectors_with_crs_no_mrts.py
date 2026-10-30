@@ -23,6 +23,9 @@ from typing import Any, Mapping
 
 import yaml
 
+_HAPROXY_SMOKE_ENTRYPOINT = "connectors/haproxy/harness/run_haproxy_smoke.sh"
+
+
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[3] / "ci/tools"
 sys.path.insert(0, str(TOOLS_DIRECTORY))
 from crs_contract_pins import load_crs_pins  # noqa: E402
@@ -114,9 +117,7 @@ HAPROXY_ADAPTER_CATALOG: dict[str, dict[str, Any]] = {
         "framework_entrypoint_role": "compatibility-only",
         "host_contract_owner": "parent",
         "evidence_types": ("event",),
-        "parent_runtime_entrypoint": (
-            "connectors/haproxy/harness/run_haproxy_smoke.sh"
-        ),
+        "parent_runtime_entrypoint": (_HAPROXY_SMOKE_ENTRYPOINT),
         "parent_make_target": "smoke-haproxy",
         "capability_promotion": "not-permitted",
     },
@@ -848,9 +849,7 @@ def _validate_haproxy_adapter_catalog() -> None:
             "framework_entrypoint_role": "compatibility-only",
             "host_contract_owner": "parent",
             "evidence_types": ("event",),
-            "parent_runtime_entrypoint": (
-                "connectors/haproxy/harness/run_haproxy_smoke.sh"
-            ),
+            "parent_runtime_entrypoint": (_HAPROXY_SMOKE_ENTRYPOINT),
             "parent_make_target": "smoke-haproxy",
             "capability_promotion": "not-permitted",
         },
@@ -930,7 +929,12 @@ def _validate_haproxy_adapter_catalog() -> None:
     runtime_entrypoint = selected["parent_runtime_entrypoint"]
     if not isinstance(runtime_entrypoint, str):
         raise _contract_error("selected HAProxy Parent runtime entrypoint is invalid")
-    dispatch = f'connector_smoke_run haproxy "$CONNECTOR_ROOT/{runtime_entrypoint}"'
+    _exact(
+        runtime_entrypoint,
+        _HAPROXY_SMOKE_ENTRYPOINT,
+        "selected HAProxy logical runtime entrypoint",
+    )
+    dispatch = 'connector_smoke_run haproxy "$TEST_ROOT/connector_suite/adapters/haproxy/harness/run_haproxy_smoke.sh"'
     if dispatch not in entrypoint_text:
         raise _contract_error(
             "HAProxy Framework entrypoint does not dispatch SPOE/SPOP"

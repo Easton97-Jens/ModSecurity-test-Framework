@@ -3,8 +3,8 @@ import hashlib
 import json
 import re
 
-from nginx_mime_operations import wire_fields
-from nginx_common_input_faults import role_errors
+from modsecurity_test_framework.runners.nginx_mime_operations import wire_fields
+from modsecurity_test_framework.runners.nginx_common_input_faults import role_errors
 
 IDS = frozenset({"event_metadata_truncation", "event_json_limit"})
 URI_BUFFER_BYTES = 256

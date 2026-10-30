@@ -1,0 +1,20 @@
+--- a/payload
++++ b/payload
+@@ -49,3 +48,0 @@
+-    'SecRule REQUEST_METHOD "@streq POST" "id:91042002,phase:2,pass,log,t:none,chain,msg:\'test-only Lighttpd empty request P2 branch observed\'"',
+-    'SecRule REQUEST_HEADERS:Content-Length "@streq 0" "t:none,chain"',
+-    'SecRule REQUEST_BODY "@rx ^$" "t:none"',
+@@ -61,2 +58,2 @@
+-    'MSCONNECTOR_LIFECYCLE_RUN':'20261014T182400Z-lighttpd-empty-'+route,
+-    'MSCONNECTOR_LIFECYCLE_PROFILE':'lighttpd-'+route,'MSCONNECTOR_LIFECYCLE_CASE':'NEED-request-empty'}
++    'MSCONNECTOR_LIFECYCLE_RUN':'20261014T182400Z-lighttpd-'+route,
++    'MSCONNECTOR_LIFECYCLE_PROFILE':'lighttpd-'+route,'MSCONNECTOR_LIFECYCLE_CASE':'NEED-request-eos-once'}
+@@ -156 +153 @@
+-    body=ROOT/(label+'.request-body');body.write_bytes(b'');body.chmod(0o600)
++    body=ROOT/(label+'.request-body');body.write_bytes(b'apx-eos-request-payload' if method=='POST' else b'');body.chmod(0o600)
+@@ -181 +178 @@
+-    snapshot('before-main');client('main','POST','/i12/lighttpd/empty',port);time.sleep(0.1);snapshot('after-main')
++    snapshot('before-main');client('main','POST','/i12/lighttpd/eos',port);time.sleep(0.1);snapshot('after-main')
+@@ -201 +198 @@
+-    (ROOT/'execution-receipt.json').write_text(json.dumps({'route':route,'actual_selected_id':'I12::lighttpd-'+route+'::NEED-request-empty',
++    (ROOT/'execution-receipt.json').write_text(json.dumps({'route':route,'actual_selected_id':'I12::lighttpd-'+route+'::NEED-request-eos-once',

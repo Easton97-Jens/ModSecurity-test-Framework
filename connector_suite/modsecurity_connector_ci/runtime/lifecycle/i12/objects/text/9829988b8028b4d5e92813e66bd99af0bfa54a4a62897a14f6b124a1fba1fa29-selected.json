@@ -1,0 +1,6 @@
+{
+  "leg_id": "haproxy-spop-request",
+  "case_id": "NEED-request-charset-missing",
+  "run_scoped_case_id": "I12::haproxy-spop-request::NEED-request-charset-missing",
+  "run": "20261014-hap-predicate-request-4"
+}

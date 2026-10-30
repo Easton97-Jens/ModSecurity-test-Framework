@@ -1,0 +1,6 @@
+--- a/payload
++++ b/payload
+@@ -0,0 +1 @@
++extern void haproxy_lifecycle_companion_observe(const void *,const char *,const char *,unsigned int);
+@@ -892,0 +894 @@
++  haproxy_lifecycle_companion_observe(transaction,"spop_registry_handoff",handle,0U);

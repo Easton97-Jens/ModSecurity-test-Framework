@@ -1,0 +1,302 @@
+{
+  "schema_version": "1.0",
+  "catalog_id": "common-msconnector-p1-p4-v1",
+  "rules_file": "modsecurity_p1_p4_vectors.conf",
+  "runtime_status": "static_catalog_validated_host_binding_incomplete",
+  "runtime_status_reason": "The catalog passed static contract validation. Current-source host runs can use connector-specific canonical vectors, but no connector has yet bound and executed this complete isolated catalog end-to-end; individual host evidence must not be relabeled as catalog execution.",
+  "phase_semantics": {
+    "P1": "request headers",
+    "P2": "raw request body",
+    "P3": "upstream response headers",
+    "P4": "response body"
+  },
+  "evidence_contract": {
+    "required_fields": [
+      "connector",
+      "transaction_id",
+      "rule_id",
+      "phase",
+      "requested_action",
+      "actual_host_action",
+      "event_time",
+      "vector_id",
+      "cleanup_status"
+    ],
+    "body_policy": "Record bounded lengths, EOS/abort flags, and digests only; never retain request or response payloads.",
+    "correlation_policy": "The connector-owned transaction_id must match the rule event, host action, and cleanup record for one vector execution."
+  },
+  "vectors": [
+    {
+      "id": "allow_control",
+      "phase": "P1",
+      "purpose": "Legitimate control request with no phase marker.",
+      "request": {
+        "method": "GET",
+        "path": "/vector/allow",
+        "headers": {},
+        "body": ""
+      },
+      "upstream": {
+        "status": 200,
+        "headers": {},
+        "body": "allow-control-response"
+      },
+      "expected": {
+        "rule_id": null,
+        "requested_action": "allow",
+        "actual_host_action": "forward_original_response",
+        "response_status": 200,
+        "connector_evidence": "transaction begin, P1 observation, upstream response, and cleanup"
+      }
+    },
+    {
+      "id": "p1_only",
+      "phase": "P1",
+      "rule_id": 1101001,
+      "marker": "msconnector-p1-only",
+      "purpose": "Trigger only the request-header phase.",
+      "request": {
+        "method": "GET",
+        "path": "/vector/p1",
+        "headers": {
+          "X-Msconnector-Vector": "msconnector-p1-only"
+        },
+        "body": ""
+      },
+      "upstream": null,
+      "expected": {
+        "requested_action": "deny",
+        "actual_host_action": "reject_request",
+        "response_status": 403,
+        "follow_up": "A second request without the marker is a new transaction and must not inherit the P1 decision."
+      }
+    },
+    {
+      "id": "p2_only",
+      "phase": "P2",
+      "rule_id": 1102001,
+      "marker": "msconnector-p2-only",
+      "purpose": "Send a real raw request body and trigger only P2.",
+      "request": {
+        "method": "POST",
+        "path": "/vector/p2",
+        "headers": {
+          "Content-Type": "text/plain",
+          "Content-Length": 19
+        },
+        "body": "msconnector-p2-only"
+      },
+      "upstream": null,
+      "expected": {
+        "requested_action": "deny",
+        "actual_host_action": "reject_request",
+        "response_status": 403,
+        "body_requirements": ["body chunks observed", "request body EOS observed", "no query-only substitute"]
+      }
+    },
+    {
+      "id": "p2_body_limit",
+      "phase": "P2",
+      "rule_id": null,
+      "marker": "msconnector-p2-body-limit",
+      "purpose": "Exercise native SecRequestBodyLimitAction Reject during append with a body larger than 32 bytes.",
+      "request": {
+        "method": "POST",
+        "path": "/vector/p2-body-limit",
+        "headers": {
+          "Content-Type": "text/plain",
+          "Content-Length": 64
+        },
+        "body_prefix": "msconnector-p2-body-limit;bounded-test-input"
+      },
+      "upstream": null,
+      "expected": {
+        "requested_action": "body_limit_enforcement",
+        "actual_host_action": "native_engine_rejection",
+        "response_status": 403,
+        "body_requirements": ["bounded bytes counted", "limit event recorded", "payload not retained"]
+      }
+    },
+    {
+      "id": "p2_empty_body",
+      "phase": "P2",
+      "rule_id": null,
+      "purpose": "Exercise P2 EOS with an explicitly empty request body.",
+      "request": {
+        "method": "POST",
+        "path": "/vector/p2-empty",
+        "headers": {
+          "Content-Type": "text/plain",
+          "Content-Length": 0
+        },
+        "body": ""
+      },
+      "upstream": {
+        "status": 200,
+        "headers": {},
+        "body": "empty-body-response"
+      },
+      "expected": {
+        "requested_action": "allow",
+        "actual_host_action": "forward_original_response",
+        "response_status": 200,
+        "body_requirements": ["P2 EOS recorded", "zero body bytes recorded", "no P2 rule match"]
+      }
+    },
+    {
+      "id": "p2_client_abort",
+      "phase": "P2",
+      "rule_id": 1102002,
+      "marker": "msconnector-p2-client-abort",
+      "purpose": "Begin a body containing the P2 marker, then close the client before request EOS.",
+      "request": {
+        "method": "POST",
+        "path": "/vector/p2-client-abort",
+        "headers": {
+          "Content-Type": "text/plain",
+          "Content-Length": 64
+        },
+        "body_prefix": "msconnector-p2-client-abort",
+        "client_abort": {
+          "after_body_bytes": 27,
+          "before_request_eos": true
+        }
+      },
+      "upstream": null,
+      "expected": {
+        "requested_action": "deny_if_phase_completed",
+        "actual_host_action": "close_or_cleanup_client_aborted_transaction",
+        "response_status": null,
+        "body_requirements": ["client_disconnected recorded", "no synthetic request EOS", "cleanup exactly once"]
+      }
+    },
+    {
+      "id": "p3_only",
+      "phase": "P3",
+      "rule_id": 1103001,
+      "marker": "msconnector-p3-only",
+      "purpose": "Trigger only from an upstream response header.",
+      "request": {
+        "method": "GET",
+        "path": "/vector/p3",
+        "headers": {},
+        "body": ""
+      },
+      "upstream": {
+        "status": 200,
+        "headers": {
+          "X-Msconnector-Vector": "msconnector-p3-only"
+        },
+        "body": "p3-response-body-without-p4-marker"
+      },
+      "expected": {
+        "requested_action": "deny",
+        "actual_host_action": "replace_response_before_commit",
+        "response_status": 403,
+        "response_requirements": ["upstream response header observed", "P3 event precedes response commit"]
+      }
+    },
+    {
+      "id": "p3_redirect",
+      "phase": "P3",
+      "rule_id": 1103002,
+      "marker": "msconnector-p3-redirect",
+      "purpose": "Trigger a bounded redirect from an upstream response header before response commitment.",
+      "request": {
+        "method": "GET",
+        "path": "/vector/p3-redirect",
+        "headers": {},
+        "body": ""
+      },
+      "upstream": {
+        "status": 200,
+        "headers": {
+          "X-Msconnector-Vector": "msconnector-p3-redirect"
+        },
+        "body": "p3-redirect-upstream-response"
+      },
+      "expected": {
+        "requested_action": "redirect",
+        "actual_host_action": "replace_response_before_commit",
+        "response_status": 302,
+        "redirect_target": "/msconnector-p3-redirect-target",
+        "response_requirements": ["upstream response header observed", "P3 redirect event precedes response commit", "Location matches the bounded canonical target"]
+      }
+    },
+    {
+      "id": "p4_only",
+      "phase": "P4",
+      "rule_id": 1104001,
+      "marker": "msconnector-p4-only",
+      "purpose": "Trigger only from the response body and observe the P4 boundary.",
+      "request": {
+        "method": "GET",
+        "path": "/vector/p4",
+        "headers": {},
+        "body": ""
+      },
+      "upstream": {
+        "status": 200,
+        "headers": {},
+        "body": "p4-response-msconnector-p4-only"
+      },
+      "expected": {
+        "requested_action": "observe_late_intervention",
+        "actual_host_action": "connector_documented_p4_only_action",
+        "response_status": 200,
+        "response_requirements": ["P3 reached", "response body bytes observed", "P4 EOS/commit state recorded"]
+      }
+    },
+    {
+      "id": "p4_safe",
+      "phase": "P4",
+      "rule_id": 1104002,
+      "marker": "msconnector-p4-safe",
+      "mode": "safe",
+      "purpose": "Trigger P4 Safe/log-only handling with a distinct marker.",
+      "request": {
+        "method": "GET",
+        "path": "/vector/p4-safe",
+        "headers": {},
+        "body": ""
+      },
+      "upstream": {
+        "status": 200,
+        "headers": {},
+        "body": "p4-safe-response-msconnector-p4-safe"
+      },
+      "expected": {
+        "requested_action": "deny",
+        "requested_rule_action": "deny,status=451",
+        "actual_host_action": "forward_original_response",
+        "response_status": 200,
+        "response_requirements": ["P4 rule event records the disruptive request", "Safe host mode translates it to log-only without strict replacement/reset/abort", "commit state recorded"]
+      }
+    },
+    {
+      "id": "p4_strict",
+      "phase": "P4",
+      "rule_id": 1104003,
+      "marker": "msconnector-p4-strict",
+      "mode": "strict",
+      "purpose": "Trigger P4 Strict/enforce handling with a distinct marker.",
+      "request": {
+        "method": "GET",
+        "path": "/vector/p4-strict",
+        "headers": {},
+        "body": ""
+      },
+      "upstream": {
+        "status": 200,
+        "headers": {},
+        "body": "p4-strict-response-msconnector-p4-strict"
+      },
+      "expected": {
+        "requested_action": "enforce",
+        "actual_host_action": "connector_documented_deterministic_strict_action",
+        "response_status": null,
+        "response_requirements": ["P4 event includes rule and transaction correlation", "host action is client-visible or transport-observable", "partial response behavior is explicitly recorded"]
+      }
+    }
+  ]
+}

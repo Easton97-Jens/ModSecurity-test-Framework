@@ -1,0 +1,17 @@
+name: shell-only control
+
+on:
+  workflow_dispatch:
+
+jobs:
+  shell-only:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Print Python-shaped text without running it
+        run: |
+          # python3 and pip are documentation here, not commands.
+          echo "python3 -m pip --version"
+          cat <<'TEXT'
+          python3 -m pip --version
+          TEXT
+          printf '%s\n' 'make quick-check'

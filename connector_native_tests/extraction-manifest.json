@@ -1,0 +1,493 @@
+{
+  "source_revision": "c5993ed9a7b59fc0bd58f105595ec79f596c88d6",
+  "definitions": [
+    {
+      "source": "connectors/envoy/src/envoy_bridge.c",
+      "symbol": "msconnector_envoy_bridge_self_test",
+      "sha256": "0153e962d9306159e94f28d7c6fa2175903fa72adf6c2570034ceb58d4a5233d",
+      "lines": 64,
+      "category": "function"
+    },
+    {
+      "source": "connectors/lighttpd/src/lighttpd_bridge.c",
+      "symbol": "msconnector_lighttpd_bridge_self_test",
+      "sha256": "b149512ae89d354bc0f5ef72e6c3f7b6ce3f98b23e20da99a559bb5b92dd60f1",
+      "lines": 23,
+      "category": "function"
+    },
+    {
+      "source": "connectors/traefik/src/traefik_decision_service.c",
+      "symbol": "msconnector_traefik_decision_service_self_test",
+      "sha256": "6e4d42f16b8deb6e513c0acb08cdf763fc338c4bb11527f7ba368a79d8ae3317",
+      "lines": 64,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spoa_agent_starter.c",
+      "symbol": "haproxy_spoa_agent_starter_self_test",
+      "sha256": "1fc6fa91e48404b4cf06423dd7a3d626e596f5a58bf4bebf30698dbbf8c455b4",
+      "lines": 37,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_modsecurity_binding.c",
+      "symbol": "haproxy_modsecurity_phase1_header_self_test",
+      "sha256": "6aa34127526156b9a7806c3560ac7baf75072dc1e14993ba0c298a60be777fae",
+      "lines": 22,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_modsecurity_binding.c",
+      "symbol": "haproxy_modsecurity_request_body_eval",
+      "sha256": "242c665d29c5adbf8093fb293c0ceacd2f9b654da9956ba138ba548e69e059d9",
+      "lines": 28,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_modsecurity_binding.c",
+      "symbol": "haproxy_modsecurity_request_body_limit_self_test",
+      "sha256": "c6bef30637876e938493387bce1feea3f4f06f602fc13012c80fae8be566c98e",
+      "lines": 29,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_modsecurity_binding.c",
+      "symbol": "haproxy_modsecurity_request_body_self_test",
+      "sha256": "5619183a17cd24c1af16a38baba620e940aac932014b4a1dc04df74f40376d7b",
+      "lines": 51,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_modsecurity_binding.c",
+      "symbol": "haproxy_modsecurity_crs_sqli_self_test",
+      "sha256": "1d5bb5c16b1e756845bc804d6ad39e4ce4d5221206f0a69ef88d799d41e043f6",
+      "lines": 42,
+      "category": "function"
+    },
+    {
+      "source": "connectors/traefik/src/traefik_engine_service.c",
+      "symbol": "traefik_engine_self_test_append_u16",
+      "sha256": "11cfc2defe653c12e87d399003a1ae697169d7227c295cfbb3ccb14e0a7538a4",
+      "lines": 11,
+      "category": "function",
+      "framework_source": "connector_native_tests/connectors/traefik/src/traefik_engine_protocol_helpers.inc"
+    },
+    {
+      "source": "connectors/traefik/src/traefik_engine_service.c",
+      "symbol": "traefik_engine_self_test_append_text",
+      "sha256": "214141dd613feb30f205653f7ae611cc9ae9f01cdc065b38b03affc8c3cb00b7",
+      "lines": 15,
+      "category": "function",
+      "framework_source": "connector_native_tests/connectors/traefik/src/traefik_engine_protocol_helpers.inc"
+    },
+    {
+      "source": "connectors/traefik/src/traefik_engine_service.c",
+      "symbol": "traefik_engine_protocol_self_test_begin_with_header",
+      "sha256": "9dc517573ac1d5c88622030417aaf079760526fea76e101104ac16c216c44fde",
+      "lines": 17,
+      "category": "function",
+      "framework_source": "connector_native_tests/connectors/traefik/src/traefik_engine_protocol_helpers.inc"
+    },
+    {
+      "source": "connectors/traefik/src/traefik_engine_service.c",
+      "symbol": "traefik_engine_protocol_self_test",
+      "sha256": "8dcecf2b8f325b84528b50cf947859e09030131ece621c4432ccec571ad4b68d",
+      "lines": 135,
+      "category": "function"
+    },
+    {
+      "source": "connectors/traefik/src/traefik_engine_service.c",
+      "symbol": "traefik_engine_self_test_bind_foreign_socket",
+      "sha256": "c93826098dd8a534c95d5caf86b8d9f5a4ea316e3ae127e5f39441b596279f67",
+      "lines": 27,
+      "category": "function"
+    },
+    {
+      "source": "connectors/traefik/src/traefik_engine_service.c",
+      "symbol": "traefik_engine_self_test_pre_bind_foreign_socket",
+      "sha256": "a5557c417a26bb9f603488468c9f686a28675d43a3f99c3411d639e7a7668946",
+      "lines": 4,
+      "category": "function"
+    },
+    {
+      "source": "connectors/traefik/src/traefik_engine_service.c",
+      "symbol": "traefik_engine_self_test_post_bind_foreign_socket",
+      "sha256": "3bfdd5f9417e065e85f75ccfa9942384613e1b5858fdb6fc06bf81fa96a2bd69",
+      "lines": 7,
+      "category": "function"
+    },
+    {
+      "source": "connectors/traefik/src/traefik_engine_service.c",
+      "symbol": "traefik_engine_socket_ownership_self_test",
+      "sha256": "501183ce40138bdc7c26c8c75a92c33401178dadff4ee8065fe3ff9cd192a41e",
+      "lines": 80,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "write_fd_contents",
+      "sha256": "11d88a3e9fd70ce052b134a8132b8489915d2f9baf6dfec764977fec56b4ad67",
+      "lines": 20,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "write_unsigned_fd",
+      "sha256": "529e9b03860cae70dd9a2ebcc38fb8cbdd32bd9afb089e49afd5f05f6377d200",
+      "lines": 8,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "write_process_id_fd",
+      "sha256": "6d4a9e1f7a6a1177cf69e9f218e9cb02437d6e234ba6caa9a6a3013855747726",
+      "lines": 8,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "claim_self_test_metadata_file",
+      "sha256": "41f30d96a45916039f41a0728f665e9f97d4c988ce0b6802daf3edeb0b326724",
+      "lines": 6,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "close_self_test_fd",
+      "sha256": "760836ceb689fa72b407dbdc389c319d6b3b4a2d29c830b8b706573952271f35",
+      "lines": 10,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "cleanup_self_test_metadata",
+      "sha256": "d7f82cae9bae92f905b2b366e5d8c9dc8b3b05424def7e8ae2c2a809e20b3171",
+      "lines": 26,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "reap_self_test_child_after_kill",
+      "sha256": "8fc324540d4212fea26484f9e6563ba4fb53bbaed2367e7504b85172437970a3",
+      "lines": 20,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "wait_self_test_child_bounded",
+      "sha256": "a86e9e201b04c27bee1e067db6cddcbc639d6882443d6d5031de68bef2e2f4d8",
+      "lines": 31,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "finish_self_test_resources",
+      "sha256": "dd22accab2fe9c62d59fb59a389eca074eb22ae31554aa87a09dd3b48ceff3c2",
+      "lines": 46,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "append_typed_ipv4",
+      "sha256": "515fe5511b629eada88a4134659ad9022b8575f0b0f9b7840d17961867295c0a",
+      "lines": 10,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "append_kv_bool",
+      "sha256": "276548ed27d3727c3e946acaa5d35c0fb74c1e5006ad2a604b69f8bf90a68e2e",
+      "lines": 3,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "build_notify_request_payload",
+      "sha256": "05c0c48cdf375e4be66d550a63d64215e6d6f147f8d9bcbb91f701a3760073b7",
+      "lines": 32,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "self_test_rejects_oversized_endpoint_port",
+      "sha256": "1c407cf1168c709bbc92baaf6a5db56c90a45194bd7c5e021d84b4b13680b8c7",
+      "lines": 17,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "payload_has_set_var_blocked_true",
+      "sha256": "4e5309ad70fe718ff5ff6f63f8897dd155f32f2dfa1f4d613d1eba51d7d451fc",
+      "lines": 28,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "self_test_rejects_fin_unset_frame",
+      "sha256": "ae2f864580534ad59a8ca1eefea18bdfead13690a8841d45e37d03ffc5028209",
+      "lines": 19,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "send_haproxy_hello",
+      "sha256": "da7373489a459a67d58d7a5901323435d357fae07fff62c9b1ca4b752d7743c2",
+      "lines": 12,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_owner_queue_self_test_task",
+      "sha256": "1026e698787f6a631bb0454f335113c964c13e82601a10ad8a6db1f3c5076cee",
+      "lines": 8,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_owner_queue_gate_task",
+      "sha256": "034d8b11f276c0b52ef03c3ae1190ecbb6c5cad2776012fe9f6eae194e749f85",
+      "lines": 13,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "destroy_spop_owner_queue_gate_task",
+      "sha256": "d1a598030b2c3f07ee74e996d92168f65394d5b02e1da165357353834b548e00",
+      "lines": 12,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "spop_owner_queue_submit_gate_thread",
+      "sha256": "9fa7d1b73986eca5e2f861b949d797e21d7f73d073ba79e04994df39facb069d",
+      "lines": 17,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_owner_queue_fresh_state_self_test",
+      "sha256": "bed18cf74d6f68b35876a63e3dc30ab426900285e67d6be80962725452b4c20f",
+      "lines": 21,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_owner_queue_self_test",
+      "sha256": "e7f9a3a53d8fcb02fce584f76aa98270b1aed0cccff53885578818edf6d2bc31",
+      "lines": 111,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_request_id_validation_self_test",
+      "sha256": "300c06fee19d576a6fbf995306a8e060779c1acac70bedb30d95ccb90f0c53da",
+      "lines": 46,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "self_test_rejects_sample_at_admission",
+      "sha256": "f5a44eeb801a3189ebfc842a9f6c15cb7c62bee0d5fd2d51656d3d908a992369",
+      "lines": 20,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_sample_framing_self_test",
+      "sha256": "72e6198d63ebf30574aef04e787f02d9a2494dbc337ca860db9a0e31943b4685",
+      "lines": 33,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_sample_typed_arguments_self_test",
+      "sha256": "0d77095a1c286373c4797277ac6e6e4c9914780ea8296b1cc52a95cc094324e1",
+      "lines": 24,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_incomplete_request_sample_self_test",
+      "sha256": "35fde065e492b3f9aee31a320cdae29eff5778b548962d1ccafa24b689e38e7e",
+      "lines": 42,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_notify_failure_self_test",
+      "sha256": "61fc9fb42fec71e78457d90d875f5d6ed7956c0be569dc485cf89904beb2ac94",
+      "lines": 28,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "recv_without_interrupt",
+      "sha256": "f2f1e72141005dbf172f28bb9ae1523cd84c1af19d47a84dff994054f5dacd4d",
+      "lines": 10,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "open_write_deadline_sockets",
+      "sha256": "93081a54cb38c37947a19f408cdede12e45853b6b043cc3cafde4b58dc843431",
+      "lines": 26,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "fill_write_deadline_socket",
+      "sha256": "9332ccc5262df122faaa1f5bb40001f9ad486f56b764575261a7dd8b33ffc373",
+      "lines": 18,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "wait_write_deadline_socket_writable",
+      "sha256": "c366dcec4915379551b5fd62b4be9132a83bf5aba34739f4234d082bc8fc38b2",
+      "lines": 18,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "prepare_spop_write_deadline_child",
+      "sha256": "ec125c5ab875879b9f0262245f79b58db21c4570eac4142784d88092fbd262b2",
+      "lines": 41,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "verify_spop_write_deadline",
+      "sha256": "32a9e9cfaae3fdf7b699d703b1facaeccec16d9901c9ff9cf4f120c4cc9b4e9d",
+      "lines": 37,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "cleanup_spop_write_deadline_context",
+      "sha256": "5ed5b32b708df98413164f179521b4785e867020335a680afb620ba02b09184f",
+      "lines": 20,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_write_deadline_child",
+      "sha256": "de097b52ab4de4d227f0434ffe843814d57a04a86a2f96a495359062840f5bf1",
+      "lines": 17,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_write_deadline_self_test",
+      "sha256": "389a5dde077cdaf2b0788a33ece1453cc217552c2a09a7fe3eed136105128bae",
+      "lines": 17,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_peer_close_write_self_test",
+      "sha256": "f9fe13b289fe7b49c56611d579d0cb8cdc2e4dd5f8d4daf476a417482b8a7a60",
+      "lines": 32,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "connect_localhost",
+      "sha256": "a4cdb332b6aef7f609938bcfc5780d44a98062cbd58a1dda837831207dcf5852",
+      "lines": 23,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "client_expect_frame",
+      "sha256": "a3a8a5dc339751e3a9e2d4c3eda56f8be305494a1e265f46b092cc491c8badc2",
+      "lines": 8,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "client_expect_ack_set_var",
+      "sha256": "b982eaf697ff33ac98aae0d526cfa42cfe7de24ffc06aa4c04b11694849a7322",
+      "lines": 13,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "client_expect_malformed_ack",
+      "sha256": "0f4908def9145db6bd36e83046c957d1df607e8505f97f64d36a7bf7cf1eb41a",
+      "lines": 19,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_malformed_notify_socket_self_test",
+      "sha256": "7839ba014e548aa68db6019a8e2eaf36266cac076e4b4c33aa9af7d162e3a71a",
+      "lines": 97,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_client_self_test",
+      "sha256": "0e5462e50a5afb230052f6d9b2c4edc8b43a60c7f0d7d27a50abbe24e1065f06",
+      "lines": 69,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_protocol_self_tests",
+      "sha256": "e0aaade3a5be857ec911cbe6b3d89ebf83929b736d92f93e8b8a0087d9b2564b",
+      "lines": 15,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "close_spop_self_test_child_metadata",
+      "sha256": "7239fac9e81c7348887f4bbd0b5936ff0d8d4d6e27aab970b4ace859b2e514d3",
+      "lines": 12,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_spop_self_test_child",
+      "sha256": "20a068159083b359d13d44172464545c31f821f6273f40aa0aeba0744a9a042d",
+      "lines": 11,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "prepare_spop_self_test",
+      "sha256": "4eb471a7f1380fee9349a43aa0a3bfc806f959f1e1715f79a648c5e1baeb38e9",
+      "lines": 44,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "start_spop_self_test_server",
+      "sha256": "9d947869717a33e1f7f758f7117a5afb885688183fca020af7bcd04d9f1467e9",
+      "lines": 39,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "verify_spop_self_test_server",
+      "sha256": "c208b6c0bbd0b60a42acf824b0a568ebdbe067a94734e75c7a53f01684b7462c",
+      "lines": 27,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_self_test",
+      "sha256": "63ecee811dfb0d27ba2efc9a910c85d088eba7c4959178950b52eb950cfb9bc2",
+      "lines": 43,
+      "category": "function"
+    },
+    {
+      "source": "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c",
+      "symbol": "run_runtime_self_test_command",
+      "sha256": "b0fe4a881442b18b775f85146a5f65eb22112283de4b5dca3781f28fd14dd2c2",
+      "lines": 28,
+      "category": "function"
+    }
+  ],
+  "preserved_function_count": 69,
+  "preserved_function_lines": 2011
+}

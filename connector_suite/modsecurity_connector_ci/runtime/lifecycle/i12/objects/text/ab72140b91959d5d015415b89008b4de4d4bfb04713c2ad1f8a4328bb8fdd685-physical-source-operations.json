@@ -1,0 +1,18 @@
+{
+  "schema": "i12.envoy.physical-host.v1",
+  "actual_clock_fields": [
+    "wall_ns",
+    "monotonic_ns"
+  ],
+  "opaque_join": "actual typed native bridge transaction -> verified live runtime scope, separate from host-log Conn/Stream nonce correlation",
+  "operations": {
+    "1": "actual validated C bridge body input: response_direction/end_of_stream/body_size arguments",
+    "3": "actual end_of_stream finish-body call entry; source-preserved args",
+    "4": "actual finish-body call return result",
+    "5": "actual successful response-header gRPC Continue Send returned nil; not Envoy internal commit/kernel write",
+    "11": "actual successful authRequest/partial-marker validation sample and parsed Content-Length known flag; sample completeness requires actual 13B declared/buffered equality and unchanged host33B cap",
+    "12": "actual successful Go Coordinator.Claim on actual retained e.tx -> verified live runtime scope; failed claims do not emit success"
+  },
+  "raw_shared_observer_eos_mime_fields": "remain null; no TCP/TLS/return-code projection",
+  "host_logger": "existing pinned Envoy stream tags and decoder nonce -> encoder/close callbacks; separate source/physical clock intervals; no cross-domain equal-ID joins"
+}

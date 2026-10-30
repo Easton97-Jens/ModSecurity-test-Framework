@@ -1,0 +1,8 @@
+--- a/payload
++++ b/payload
+@@ -2,0 +3 @@
++#include "apache-host-observer.h"
+@@ -39,0 +41 @@
++    apache_lifecycle_observe("host_cleanup_before", msr, msr->owner_request, NULL);
+@@ -59,0 +62 @@
++    apache_lifecycle_retire(msr, owner_request);

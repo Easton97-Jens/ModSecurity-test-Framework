@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from types import MappingProxyType
 
-from tests.runners import nginx_native_operation_bundle as bundle
+from modsecurity_test_framework.runners import nginx_native_operation_bundle as bundle
 
 AUTHORITY_LIMIT = 16384
 EXPECTED_FIELDS = frozenset({"run_id", "parent_sha", "framework_sha", "mrts_sha"})

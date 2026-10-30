@@ -8,8 +8,14 @@
 # dependencies, run validation, or otherwise mutate the filesystem.
 
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-master}"
-FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-${REPO_ROOT:-}}"
-CONNECTOR_ROOT="${CONNECTOR_ROOT:-${REPO_ROOT:-$FRAMEWORK_ROOT}}"
+FRAMEWORK_ROOT="${TEST_ROOT:-${FRAMEWORK_ROOT:-}}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-}"
+if [ -n "${TEST_ROOT:-}" ]; then
+    PYTHONPATH="$TEST_ROOT:$TEST_ROOT/connector_suite"
+    PYTHONSAFEPATH=1
+    PYTHONNOUSERSITE=1
+    export TEST_ROOT PYTHONPATH PYTHONSAFEPATH PYTHONNOUSERSITE
+fi
 VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}"
 VERIFIED_STATE_ROOT="${VERIFIED_STATE_ROOT:-$VERIFIED_RUN_ROOT/state}"
 VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
@@ -284,8 +290,8 @@ CRS_GIT_REF="$CRS_RELEASE_TAG"
 
 # Optional preamble injected before generated local case rules
 : "${MODSECURITY_RULE_PREAMBLE_FILE:=}"
-MODSECURITY_TARGETED_SMOKE_RULE_FILE="${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-$CONNECTOR_ROOT/common/rules/modsecurity_targeted_smoke.conf}"
-MODSECURITY_REQUEST_BODY_SMOKE_RULE_FILE="${MODSECURITY_REQUEST_BODY_SMOKE_RULE_FILE:-$CONNECTOR_ROOT/common/rules/modsecurity_request_body_smoke.conf}"
+MODSECURITY_TARGETED_SMOKE_RULE_FILE="${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-$FRAMEWORK_ROOT/connector_suite/common/rules/modsecurity_targeted_smoke.conf}"
+MODSECURITY_REQUEST_BODY_SMOKE_RULE_FILE="${MODSECURITY_REQUEST_BODY_SMOKE_RULE_FILE:-$FRAMEWORK_ROOT/connector_suite/common/rules/modsecurity_request_body_smoke.conf}"
 
 if [ -n "${CONNECTOR_ROOT:-}" ]; then
     DEFAULT_MODSECURITY_APACHE_SOURCE_DIR="${DEFAULT_MODSECURITY_APACHE_SOURCE_DIR:-$CONNECTOR_ROOT/connectors/apache}"
@@ -1723,10 +1729,6 @@ ci_python() {
         printf '%s\n' "$PYTHON"
         return 0
     fi
-    if [ -n "${CONNECTOR_ROOT:-}" ] && [ -x "$CONNECTOR_ROOT/.venv/bin/python" ]; then
-        printf '%s\n' "$CONNECTOR_ROOT/.venv/bin/python"
-        return 0
-    fi
     if [ -n "${FRAMEWORK_ROOT:-}" ] && [ -x "$FRAMEWORK_ROOT/.venv/bin/python" ]; then
         printf '%s\n' "$FRAMEWORK_ROOT/.venv/bin/python"
         return 0
@@ -1809,7 +1811,7 @@ framework_prepare_runtime_components() {
         return 77
     fi
 
-    ci_prepare_script="${CONNECTOR_ROOT:-}/ci/provisioning/components/prepare-runtime-components.py"
+    ci_prepare_script="$FRAMEWORK_ROOT/connector_suite/modsecurity_connector_ci/provisioning/components/prepare-runtime-components.py"
     if [ ! -f "$ci_prepare_script" ]; then
         echo "FAIL: missing local runtime provisioning helper: $ci_prepare_script" >&2
         return 1
@@ -1820,7 +1822,7 @@ framework_prepare_runtime_components() {
         --connector-root "$CONNECTOR_ROOT" \
         --framework-root "$FRAMEWORK_ROOT" \
         --cache-root "$CONNECTOR_COMPONENT_CACHE" \
-        --output-root "$CONNECTOR_ROOT" \
+        --output-root "$BUILD_ROOT/runtime-component-reports" \
         --build-root "$BUILD_ROOT" \
         --native-root "${MRTS_NATIVE_ROOT:-$BUILD_ROOT/mrts-native}" >&2
 }

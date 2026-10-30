@@ -1,0 +1,49 @@
+{
+  "source_url": "https://raw.githubusercontent.com/envoyproxy/envoy/b579d07d3ad7ee11d32b105e91a5a39ad24718d7/source/common/http/conn_manager_impl.cc",
+  "sha256": "647961a254458a34ca241bb71335d86548323a762999c960c5cc244ad4858e89",
+  "actual_binary_sha256": "002c6e1c69ed0fa0ea381887247cadadfaec9481375fa8d8d2b1731eeabf40b8",
+  "actual_version_git_revision": "b579d07d3ad7ee11d32b105e91a5a39ad24718d7",
+  "actual_version": "1.39.1",
+  "header_logger_source_lines_1based": [
+    1871,
+    1872
+  ],
+  "header_semantics": "actual ActiveStream.encodeHeaders entry logger before actual downstreamTiming/codec invocation; independent decoded client response proves eventual delivery, not kernel send timestamp",
+  "body_logger_source_lines_1based": [
+    1893,
+    1894
+  ],
+  "body_semantics": "actual ActiveStream.encodeData entry bytecount/end_stream before addBytesSent and codec invocation",
+  "stream_release_source_lines_1based": [
+    357,
+    358,
+    359,
+    360,
+    361,
+    362
+  ],
+  "release_semantics": "actual DownstreamEnd access log before destroyFilters/deferredDelete; callback bound, not exact allocator free/kernel timestamp",
+  "clock_contract": "actual logger timestamps carry timezone offset and millisecond truncation; [logged_ms,logged_ms+1ms) interval, no guessed epoch conversion",
+  "logging_config_test_only": true,
+  "host_launched": false,
+  "extproc_logger": {
+    "source_url": "https://raw.githubusercontent.com/envoyproxy/envoy/b579d07d3ad7ee11d32b105e91a5a39ad24718d7/source/extensions/filters/http/ext_proc/ext_proc.cc",
+    "source_sha256": "6fd8246ddc634f9da1397fb8db2ad0db78850a55ac811821140d4e136917f821",
+    "source_lines_1based": {
+      "actual_remote_grpc_close_callback": 1873,
+      "actual_filter_destroy_callback": 794,
+      "close_attempt": 753
+    },
+    "semantics": "genuine host gRPC close/destroy/attempt callbacks are separate; no gRPCstatus inferred from close log lacking status"
+  },
+  "logger_tags": {
+    "source_url": "https://raw.githubusercontent.com/envoyproxy/envoy/b579d07d3ad7ee11d32b105e91a5a39ad24718d7/source/common/common/logger.h",
+    "source_sha256": "6693724d8425535931abb8b333e2b98936539f7bb0b1b7d9a04f5deac479ea85",
+    "source_lines_1based": [
+      610,
+      615,
+      617
+    ],
+    "scope": "actual stream ConnectionId and StreamId tags; single controlled decoded URI nonce disambiguates host stream, never equal-looking native/runtime IDs"
+  }
+}

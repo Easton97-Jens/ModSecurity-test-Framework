@@ -16,7 +16,7 @@ if str(RUNNER_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(RUNNER_DIRECTORY))
 
 import case_cli  # noqa: E402
-from runner_core import discover_case_files, is_runtime_materializable, load_case, validate_case  # noqa: E402
+from modsecurity_test_framework.runners.runner_core import discover_case_files, is_runtime_materializable, load_case, validate_case  # noqa: E402
 
 
 class SecurityDataFlowCaseSchemaTests(unittest.TestCase):

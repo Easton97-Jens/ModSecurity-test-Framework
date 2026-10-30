@@ -1,5 +1,4 @@
 """Unit controls for bounded retained-file authority; not native runtime proof."""
-import importlib.util
 import copy
 import hashlib
 import json
@@ -12,11 +11,7 @@ from unittest import mock
 from tests.no_crs import test_nginx_common_input_faults as input_tests
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("native_bundle", ROOT / "tests/runners/nginx_native_operation_bundle.py")
-assert SPEC is not None
-assert SPEC.loader is not None
-bundle = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(bundle)
+from modsecurity_test_framework.runners import nginx_native_operation_bundle as bundle
 
 
 class SecureBundleFileTests(unittest.TestCase):
@@ -135,8 +130,8 @@ class NativeBundleRouterTests(unittest.TestCase):
                               "connector": "nginx", "integration_mode": bundle.MODE, "phase": "logging", "rule_id": "",
                               "status": "ok", "action": "allow", "actual_action": "allow", "transaction_id": "a" * 32,
                               "method": "POST", "uri": self.observed["native_access"]["uri"],
-                              "reason": "common_return=0;common_complete=1;native_cleanup_completed=1;error_class=protocol_error",
-                              "cleanup_reason": "protocol_error"}
+                              "reason": "common_return=0;common_complete=1;native_cleanup_completed=1;error_class=connector_error",
+                              "cleanup_reason": "connector_error"}
         projection_parent = self.root / "projections"
         token = hashlib.sha256((self.run_id + ":" + self.case).encode()).hexdigest()[:32]
         projection = projection_parent / ("common-input-" + token)
@@ -149,7 +144,7 @@ class NativeBundleRouterTests(unittest.TestCase):
                     "worker-maps.log": (str(self.output / "nginx-module.so") + "\n" + str(self.output / "nginx-binary")).encode(),
                     "nginx-error.log": self.observed["native_diagnostic"].encode(), "configtest.stdout": b"",
                     "configtest.stderr": (str(self.output / "nginx.conf") + " syntax is ok\ntest is successful\n").encode(),
-                    "client.stdout": b"400", "client.stderr": b"", "startup.stdout": b"", "startup.stderr": b""}
+                    "client.stdout": b"500", "client.stderr": b"", "startup.stdout": b"", "startup.stderr": b""}
         self.receipt = {"schema_version": 1, "case_id": self.case, "run_id": self.run_id, "operation": "common_mapper_input_fault",
                         **{field: self.sources[field] for field in ("parent_sha", "framework_sha", "mrts_sha")},
                         "configtest_exit_code": 0, "projection_parent": str(projection_parent), "projection_root": str(projection)}
@@ -169,7 +164,11 @@ class NativeBundleRouterTests(unittest.TestCase):
     def seal(self):
         self.raw["input-fault-observation.json"] = self.encode(self.observed)
         artifact_leaves = {"nginx-binary", "nginx-module.so", "no-crs-baseline.conf", "native-input-fault.so"}
+        if "worker-self-maps.so" in self.raw:
+            artifact_leaves.add("worker-self-maps.so")
         self.receipt["artifacts_sha256"] = {leaf: bundle.digest(self.raw[leaf]) for leaf in artifact_leaves}
+        if "worker-self-maps.so" in self.raw:
+            self.receipt["artifacts_sha256"]["worker_self_map_library_sha256"] = self.receipt["artifacts_sha256"].pop("worker-self-maps.so")
         self.receipt["raw_artifacts_sha256"] = {leaf: bundle.digest(raw) for leaf, raw in self.raw.items()
                                                    if leaf not in artifact_leaves | {"nginx.conf", "input-fault-observation.json"}}
         self.receipt["observed_sha256"] = bundle.digest(self.raw["input-fault-observation.json"])
@@ -188,7 +187,7 @@ class NativeBundleRouterTests(unittest.TestCase):
     def test_original_sealed_pointer_layer_not_canonical_pass(self):
         proof = self.validate()
         self.assertEqual(proof["errors"], [])
-        self.assertEqual(proof["actual_status"], 400)
+        self.assertEqual(proof["actual_status"], 500)
         self.assertEqual(proof["transaction_ids"], ["a" * 32])
         self.assertEqual(len(proof["events"]), 2)
         self.assertTrue(proof["layer_verified"])
@@ -215,6 +214,42 @@ class NativeBundleRouterTests(unittest.TestCase):
                 self.validate()
             self.observed = saved
 
+    def test_worker_self_maps_require_exact_helper_and_paired_ledger(self):
+        library = b"unit helper snapshot; not runtime proof"
+        helper_digest = bundle.digest(library)
+        maps = (str(self.output / "nginx-module.so") + "\n" + str(self.output / "nginx-binary") + "\n")
+        # Genuine maps have five fixed columns before the absolute pathname.
+        maps = "".join("0000-1000 r-xp 00000000 00:00 1 " + path + "\n"
+                       for path in maps.splitlines() + [str(self.output / "worker-self-maps.so")]).encode()
+        roles = self.observed["roles"]
+        identity = {"version": 1, "pid": roles["worker_pid"], "ppid": roles["master_pid"],
+                    "uid": 65534, "gid": 65534, "starttime": 123, "bytes": len(maps)}
+        self.raw.update({"worker-maps.log": maps, "worker-self-maps.so": library,
+                         "worker-self-maps.raw": self.encode(identity) + b"\n" + maps})
+        self.sources["worker_self_map_library_sha256"] = helper_digest
+        self.seal()
+        with self.subTest(boundary="valid fixed helper pair"):
+            self.assertTrue(self.validate()["layer_verified"])
+        valid = copy.deepcopy(self.raw)
+        for boundary in ("missing helper", "missing ledger", "wrong caller digest", "unknown raw", "wrong worker identity", "substituted helper"):
+            self.raw = copy.deepcopy(valid)
+            self.sources["worker_self_map_library_sha256"] = helper_digest
+            if boundary == "missing helper":
+                self.raw.pop("worker-self-maps.so")
+            elif boundary == "missing ledger":
+                self.raw.pop("worker-self-maps.raw")
+            elif boundary == "wrong caller digest":
+                self.sources["worker_self_map_library_sha256"] = "f" * 64
+            elif boundary == "unknown raw":
+                self.raw["unreviewed-worker.raw"] = b"unexpected"
+            elif boundary == "wrong worker identity":
+                self.raw["worker-self-maps.raw"] = self.encode(dict(identity, uid=0)) + b"\n" + maps
+            else:
+                self.raw["worker-self-maps.so"] = b"unreviewed helper replacement"
+            self.seal()
+            with self.subTest(boundary=boundary), self.assertRaises(ValueError):
+                self.validate()
+
     def test_source_revision_binary_module_and_fault_authority_fail(self):
         for field in ("parent_sha", "framework_sha", "mrts_sha", "binary_sha256", "module_sha256"):
             old = self.sources[field]
@@ -222,6 +257,26 @@ class NativeBundleRouterTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 self.validate()
             self.sources[field] = old
+        for intermediate in (self.parent / "ci", self.framework / "tests"):
+            original_mode = intermediate.stat().st_mode & 0o777
+            intermediate.chmod(0o770)
+            try:
+                with self.subTest(intermediate=intermediate, boundary="group writable"), \
+                        self.assertRaisesRegex(ValueError, "retained directory"):
+                    self.validate()
+            finally:
+                intermediate.chmod(original_mode)
+            original_fstat = os.fstat
+            identity = intermediate.stat()
+            def foreign_intermediate(descriptor):
+                metadata = original_fstat(descriptor)
+                if (metadata.st_dev, metadata.st_ino) == (identity.st_dev, identity.st_ino):
+                    return types.SimpleNamespace(st_mode=metadata.st_mode, st_uid=os.geteuid() + 1)
+                return metadata
+            with self.subTest(intermediate=intermediate, boundary="foreign owner"), \
+                    mock.patch.object(bundle.os, "fstat", side_effect=foreign_intermediate), \
+                    self.assertRaisesRegex(ValueError, "retained directory"):
+                self.validate()
         self.sources["fault_library_sha256"] = {}
         with self.assertRaises(ValueError):
             self.validate()
@@ -435,7 +490,7 @@ class NativeBundleRouterTests(unittest.TestCase):
             envelope["parent_receipt_sha256"] = bundle.digest(original)
 
     def test_phase4_mime_cleanup_cannot_precede_actual_native_work(self):
-        from tests.runners import test_nginx_phase4_operations as phase4_tests
+        from modsecurity_test_framework.runners import test_nginx_phase4_operations as phase4_tests
         from tests.no_crs import test_nginx_mime_operations as mime_tests
         for case in ("phase4_body_at_limit", "phase4_body_reject", "phase4_out_of_scope_content_type"):
             receipt, raw = (mime_tests.unit_operation(case) if case in bundle.MIME_CASES else
@@ -449,7 +504,7 @@ class NativeBundleRouterTests(unittest.TestCase):
                 self.validate()
 
     def test_all_phase4_and_mime_routes_use_real_closed_helpers(self):
-        from tests.runners import test_nginx_phase4_operations as phase4_tests
+        from modsecurity_test_framework.runners import test_nginx_phase4_operations as phase4_tests
         from tests.no_crs import test_nginx_mime_operations as mime_tests
         for case in sorted(bundle.PHASE4_CASES | bundle.MIME_CASES):
             if case in bundle.MIME_CASES:
@@ -467,7 +522,7 @@ class NativeBundleRouterTests(unittest.TestCase):
                 self.assertEqual(proof["events"][-1]["event"], "transaction_cleanup")
 
     def test_all_raw_h1_routes_reopen_wire_without_inventing_transactions(self):
-        from tests.runners import nginx_raw_h1
+        from modsecurity_test_framework.runners import nginx_raw_h1
         for case in sorted(bundle.RAW_CASES):
             self.prepare_case(case, "raw-unit")
             config = (f'load_module "{self.output}/nginx-module.so"; user nobody nogroup; '
@@ -613,7 +668,7 @@ class NativeBundleRouterTests(unittest.TestCase):
 
     def test_early_mapping_and_begin_bridges_require_real_scoped_source_facts(self):
         from tests.no_crs import test_nginx_lifecycle_sequence as sequence_tests
-        from tests.runners import nginx_lifecycle_sequence
+        from modsecurity_test_framework.runners import nginx_lifecycle_sequence
         for case in ("early_mapping_failure_cleanup", "transaction_begin_failure_cleanup"):
             observed = sequence_tests.SequenceContractTests.observation(self)
             observed["case_id"] = case

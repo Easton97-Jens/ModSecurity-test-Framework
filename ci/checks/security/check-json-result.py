@@ -10,8 +10,11 @@ from pathlib import Path
 import stat
 import sys
 import tempfile
+import runpy
 
-from osv_report_schema import OsvReportError, validate_osv_report
+_schema = runpy.run_path(str(Path(__file__).with_name("osv_report_schema.py")))
+OsvReportError = _schema["OsvReportError"]
+validate_osv_report = _schema["validate_osv_report"]
 
 
 class JsonEvidenceError(ValueError):

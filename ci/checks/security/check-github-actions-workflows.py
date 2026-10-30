@@ -14,6 +14,7 @@ import importlib.util
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 import re
+import runpy
 import sys
 from typing import Any
 
@@ -505,37 +506,91 @@ def sonar_pr_secret_allowed(path: Path, document: Mapping[str, Any]) -> bool:
              "github.event.pull_request.head.repo.full_name == github.repository")
     if job is None or job.get("if") != guard:
         return False
-    if set(job) != {"if", "runs-on", "timeout-minutes", "steps"}:
+    if set(job) != {"if", "runs-on", "timeout-minutes", "env", "steps"}:
         return False
     if job.get("runs-on") != "ubuntu-26.04" or job.get("timeout-minutes") != 60:
+        return False
+    if job.get("env") != {
+        "FRAMEWORK_ROOT": "${{ github.workspace }}",
+        "TEST_ROOT": "${{ github.workspace }}",
+        "PYTHONPATH": "${{ github.workspace }}:${{ github.workspace }}/connector_suite",
+        "CONNECTOR_REVISION": "cfd5e49cada3fc793ef50993147e3796a0907443",
+        "PYTHONSAFEPATH": "1",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }:
         return False
     try:
         actions = canonical_sonar_actions()
     except (OSError, ValueError, RuntimeError, ImportError):
         return False
-    expected_steps = [
-        {"name": "Checkout repository", "uses": actions["CHECKOUT"], "with": {
-            "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
-            "fetch-depth": 0, "persist-credentials": False, "submodules": False}},
-        {"name": "Set up reviewed Python", "uses": actions["SETUP_PYTHON"], "with": {
-            "python-version-file": ".python-version", "check-latest": False}},
-        {"name": "Install native analysis prerequisites", "run":
-            "set -euo pipefail\nsudo apt-get update\n"
-            "sudo apt-get install --no-install-recommends --yes build-essential autoconf automake libtool pkg-config libpcre2-dev libyajl-dev libcurl4-openssl-dev libxml2-dev liblmdb-dev libssl-dev zlib1g-dev bison flex git\n"},
-        {"name": "Compile all Framework native sources for security analysis", "run":
-            "set -euo pipefail\nsh ci/checks/analysis/prepare-sonar-sdk.sh\n"
-            "python3 ci/checks/analysis/prepare-sonar-cfamily.py \\\n"
-            '  --output "$RUNNER_TEMP/framework-sonar-native" \\\n'
-            '  --sdk "$RUNNER_TEMP/framework-sonar-sdk/build/ModSecurity_V3_build"\n'},
-        {"name": "Analyze maintained languages and wait for the Quality Gate",
-         "uses": actions["SONARQUBE_SCAN"], "env": {
-             "SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}",
-             "SONAR_USER_HOME": "${{ runner.temp }}/framework-sonar-cache"},
-         "with": {"scannerVersion": "8.2.0.6438", "args":
-             "-Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }} "
-             "-Dsonar.working.directory=${{ runner.temp }}/framework-sonar-work "
-             "-Dsonar.cfamily.compile-commands=${{ runner.temp }}/framework-sonar-native/compile_commands.json"}},
-    ]
+    expected_steps = [{'name': 'Checkout repository',
+      'uses': actions["CHECKOUT"],
+      'with': {'ref': '${{ github.event.pull_request.head.sha || github.sha }}',
+               'fetch-depth': 0,
+               'persist-credentials': False,
+               'submodules': False}},
+     {'name': 'Set up reviewed Python',
+      'uses': actions["SETUP_PYTHON"],
+      'with': {'python-version-file': '.python-version', 'check-latest': False}},
+     {'name': 'Initialize explicit Framework paths',
+      'run': 'set -euo pipefail\n'
+             'umask 077\n'
+             'mkdir -p "$RUNNER_TEMP/framework-build" "$RUNNER_TEMP/framework-tmp" \\\n'
+             '  "$RUNNER_TEMP/framework-output" "$RUNNER_TEMP/framework-state"\n'
+             '{\n'
+             '  echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/framework-pycache"\n'
+             '  echo "XDG_STATE_HOME=$RUNNER_TEMP/framework-state"\n'
+             '  echo "BUILD_ROOT=$RUNNER_TEMP/framework-build"\n'
+             '  echo "TMP_ROOT=$RUNNER_TEMP/framework-tmp"\n'
+             '  echo "TMPDIR=$RUNNER_TEMP/framework-tmp"\n'
+             '  echo "OUTPUT_ROOT=$RUNNER_TEMP/framework-output"\n'
+             '  echo "CONNECTOR_ROOT=$RUNNER_TEMP/framework-sonar-connector"\n'
+             '  echo "FRAMEWORK_REVISION=$(git rev-parse HEAD)"\n'
+             '} >> "$GITHUB_ENV"\n'},
+     {'name': 'Install native analysis prerequisites',
+      'run': 'set -euo pipefail\n'
+             'sudo apt-get update\n'
+             'sudo apt-get install --no-install-recommends --yes build-essential apache2-dev '
+             'autoconf automake libtool pkg-config libpcre2-dev libyajl-dev libcurl4-openssl-dev '
+             'libxml2-dev liblmdb-dev libssl-dev zlib1g-dev bison flex git\n'},
+     {'name': 'Materialize explicit Product analysis input',
+      'run': 'set -euo pipefail\n'
+             'test ! -e "$CONNECTOR_ROOT"\n'
+             'git -c credential.helper= clone --no-checkout --filter=blob:none \\\n'
+             '  https://github.com/Easton97-Jens/ModSecurity-conector.git "$CONNECTOR_ROOT"\n'
+             'git -C "$CONNECTOR_ROOT" -c credential.helper= fetch --no-tags origin '
+             '"$CONNECTOR_REVISION"\n'
+             'git -C "$CONNECTOR_ROOT" checkout --detach "$CONNECTOR_REVISION"\n'
+             'test "$(git -C "$CONNECTOR_ROOT" rev-parse HEAD)" = "$CONNECTOR_REVISION"\n'
+             'test -z "$(git -C "$CONNECTOR_ROOT" status --porcelain --untracked-files=all)"\n'},
+     {'name': 'Compile all Framework native sources for security analysis',
+      'run': 'set -euo pipefail\n'
+             'sh ci/checks/analysis/prepare-sonar-sdk.sh\n'
+             'sdk="$BUILD_ROOT/ModSecurity_V3_build"\n'
+             'test -f "$sdk/headers/modsecurity/modsecurity.h"\n'
+             'test -f "$sdk/src/.libs/libmodsecurity.so"\n'
+             'MODSECURITY_INC="$sdk/headers" MODSECURITY_LIB="$sdk/src/.libs" \\\n'
+             '  python3 ci/checks/analysis/prepare-sonar-nginx.py \\\n'
+             '  --connector-root "$CONNECTOR_ROOT" --connector-revision "$CONNECTOR_REVISION" \\\n'
+             '  --output "$RUNNER_TEMP/framework-sonar-nginx"\n'
+             'nginx_source="$(python3 -c \'import json,sys; print(json.load(open(sys.argv[1]))["source"])\' \\\n'
+             '  "$RUNNER_TEMP/framework-sonar-nginx/manifest.json")"\n'
+             'python3 ci/checks/analysis/prepare-sonar-cfamily.py \\\n'
+             '  --output "$RUNNER_TEMP/framework-sonar-native" \\\n'
+             '  --sdk "$sdk" \\\n'
+             '  --connector-root "$CONNECTOR_ROOT" --connector-revision "$CONNECTOR_REVISION" \\\n'
+             '  --apache-include /usr/include/apache2 --apr-include /usr/include/apr-1.0 \\\n'
+             '  --nginx-source "$nginx_source" --nginx-build "$nginx_source/objs"\n'},
+     {'name': 'Analyze maintained languages and wait for the Quality Gate',
+      'uses': actions["SONARQUBE_SCAN"],
+      'env': {'SONAR_TOKEN': '${{ secrets.SONAR_TOKEN }}',
+              'SONAR_USER_HOME': '${{ runner.temp }}/framework-sonar-cache'},
+      'with': {'scannerVersion': '8.2.0.6438',
+               'args': '-Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha '
+                       '}} -Dsonar.working.directory=${{ runner.temp }}/framework-sonar-work '
+                       '-Dsonar.cfamily.compile-commands=${{ runner.temp '
+                       '}}/framework-sonar-native/compile_commands.json'}}]
     return list(as_sequence(job.get("steps"))) == expected_steps
 
 
@@ -661,7 +716,13 @@ def main() -> int:
     include_pins = args.check in {"all", "pins"}
     include_permissions = args.check in {"all", "permissions"}
     errors: list[str] = []
+    integration = runpy.run_path(str(Path(__file__).with_name("connector_action_pins.py")))
     for path in paths:
+        if path.name in integration["WORKFLOWS"]:
+            root = path.resolve().parents[2]
+            relative = path.resolve().relative_to(root).as_posix()
+            errors.extend(integration["validate_source"](root, relative))
+            continue
         if include_pins:
             errors.extend(validate_pins(path))
         if include_permissions:

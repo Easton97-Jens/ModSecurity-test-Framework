@@ -1,0 +1,287 @@
+name: Protected exact-head NGINX validation
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: Open canonical PR number to validate.
+        required: true
+        type: string
+      expected_head_sha:
+        description: Exact lower-case 40-character PR head SHA.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: protected-exact-head-nginx
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      github.event.repository.fork == false &&
+      github.event.repository.default_branch == 'master' &&
+      github.ref == 'refs/heads/master' &&
+      github.ref_protected == true &&
+      github.actor == 'Easton97-Jens' &&
+      github.triggering_actor == 'Easton97-Jens'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the trusted base at the run commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          clean: true
+          persist-credentials: false
+          submodules: false
+      - name: Initialize only the Framework pinned by the protected Parent base
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          /usr/bin/git -c protocol.file.allow=never submodule update --init -- modules/ModSecurity-test-Framework
+          test "$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)" = \
+            "$(git ls-tree "$GITHUB_SHA" modules/ModSecurity-test-Framework | awk '{print $3}')"
+      - name: Verify protected base identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "${#GITHUB_SHA}" -eq 40
+          case "$GITHUB_SHA" in *[!0-9a-f]*) exit 77;; *) : ;; esac
+          test "${GITHUB_REPOSITORY}" = Easton97-Jens/ModSecurity-conector
+      - name: Resolve and re-read the canonical PR identity from the trusted dispatcher
+        id: dispatch
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+          DISPATCHER_BASE_SHA: ${{ github.sha }}
+          RUN_ID: protected-exact-head-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          task_root="$RUNNER_TEMP/protected-exact-head-resolve"
+          /usr/bin/mkdir -m 700 "$task_root"
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
+            RUNNER_TEMP="$RUNNER_TEMP" GITHUB_OUTPUT="$GITHUB_OUTPUT" \
+            /usr/bin/python3 -I ci/run-trusted-framework.py --tool exact-dispatcher \
+            --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- dispatch \
+            --pr-number "$PR_NUMBER" --expected-head-sha "$EXPECTED_HEAD_SHA" \
+            --dispatcher-base-sha "$DISPATCHER_BASE_SHA" --run-id "$RUN_ID"
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
+            RUNNER_TEMP="$RUNNER_TEMP" \
+            /usr/bin/python3 -I ci/run-trusted-framework.py --tool exact-dispatcher \
+            --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- verify \
+            --location resolve --pr-number "$PR_NUMBER" \
+            --expected-head-sha "$EXPECTED_HEAD_SHA" --dispatcher-base-sha "$DISPATCHER_BASE_SHA"
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
+            RUNNER_TEMP="$RUNNER_TEMP" GITHUB_OUTPUT="$GITHUB_OUTPUT" \
+            /usr/bin/python3 -I ci/run-trusted-framework.py --tool exact-dispatcher \
+            --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- emit-outputs
+      - name: Upload only the validated dispatcher manifest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: protected-exact-head-dispatch-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/protected-exact-head-resolve/dispatcher-manifest.json
+          if-no-files-found: error
+          retention-days: 1
+    outputs:
+      tested_pr_head: ${{ steps.dispatch.outputs.tested_pr_head }}
+      tested_pr_base: ${{ steps.dispatch.outputs.tested_pr_base }}
+      trusted_dispatcher_base_sha: ${{ steps.dispatch.outputs.trusted_dispatcher_base_sha }}
+
+  candidate-build:
+    needs: resolve
+    if: needs.resolve.result == 'success'
+    runs-on: [self-hosted, protected-exact-head-candidate-build]
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out trusted base build tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          clean: true
+          persist-credentials: false
+          submodules: false
+      - name: Initialize only the Framework pinned by the protected Parent base
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          /usr/bin/git -c protocol.file.allow=never submodule update --init -- modules/ModSecurity-test-Framework
+          test "$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)" = \
+            "$(git ls-tree "$GITHUB_SHA" modules/ModSecurity-test-Framework | awk '{print $3}')"
+      - name: Check candidate-build runner isolation
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
+            RUNNER_TEMP="$RUNNER_TEMP" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            /usr/bin/python3 -I ci/run-trusted-framework.py --tool exact-preflight \
+            --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- \
+            --role candidate-build --trusted-base-sha "$GITHUB_SHA"
+      - name: Download the trusted dispatcher manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: protected-exact-head-dispatch-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/protected-exact-head-build/dispatcher
+      - name: Revalidate dispatcher identity before candidate checkout
+        env:
+          REQUESTED_PR_NUMBER: ${{ inputs.pr_number }}
+          VALIDATED_PR_HEAD: ${{ needs.resolve.outputs.tested_pr_head }}
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
+            RUNNER_TEMP="$RUNNER_TEMP" \
+            /usr/bin/python3 -I ci/run-trusted-framework.py --tool exact-dispatcher \
+            --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- verify \
+            --location candidate \
+            --pr-number "$REQUESTED_PR_NUMBER" \
+            --expected-head-sha "$VALIDATED_PR_HEAD" \
+            --dispatcher-base-sha "$GITHUB_SHA"
+      - name: Check out the exact validated PR head as unprivileged data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Easton97-Jens/ModSecurity-conector
+          ref: ${{ needs.resolve.outputs.tested_pr_head }}
+          path: candidate
+          fetch-depth: 1
+          clean: true
+          persist-credentials: false
+          submodules: false
+      - name: Verify candidate SHA and protected Framework gitlink
+        env:
+          VALIDATED_PR_HEAD: ${{ needs.resolve.outputs.tested_pr_head }}
+        run: |
+          set -euo pipefail
+          test "$(git -C candidate rev-parse HEAD)" = "$VALIDATED_PR_HEAD"
+          test "$(git ls-tree HEAD modules/ModSecurity-test-Framework | awk '{print $3}')" = \
+            "$(git -C candidate ls-tree HEAD modules/ModSecurity-test-Framework | awk '{print $3}')"
+          /usr/bin/git -C "$GITHUB_WORKSPACE" -c protocol.file.allow=never \
+            submodule update --init --recursive -- modules/ModSecurity-test-Framework
+          /usr/bin/mkdir -p candidate/modules
+          /usr/bin/cp -a --no-preserve=ownership "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/." \
+            candidate/modules/ModSecurity-test-Framework
+      - name: Build and package the exact head without privilege
+        env:
+          EXPECTED_PR_HEAD: ${{ needs.resolve.outputs.tested_pr_head }}
+          DISPATCHER_BASE_SHA: ${{ needs.resolve.outputs.trusted_dispatcher_base_sha }}
+          RUN_ID: protected-exact-head-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          task_root="$RUNNER_TEMP/protected-exact-head-build"
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
+            /usr/bin/python3 -I ci/run-trusted-framework.py --tool exact-builder \
+            --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- build \
+            --expected-pr-head "$EXPECTED_PR_HEAD" --trusted-dispatcher-base-sha "$DISPATCHER_BASE_SHA" \
+            --run-id "$RUN_ID" --task-root "$task_root" --candidate-root "$PWD/candidate" \
+            --output-root "$task_root/package"
+      - name: Upload unprivileged candidate artifact bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: protected-exact-head-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/protected-exact-head-build/package
+          if-no-files-found: error
+          retention-days: 1
+
+  privileged-runtime:
+    needs:
+      - resolve
+      - candidate-build
+    if: needs.resolve.result == 'success' && needs.candidate-build.result == 'success'
+    environment:
+      name: protected-exact-head-nginx
+    runs-on: [self-hosted, protected-exact-head-nginx]
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out trusted base runtime tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          clean: true
+          persist-credentials: false
+          submodules: false
+      - name: Initialize only the Framework pinned by the protected Parent base
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          /usr/bin/git -c protocol.file.allow=never submodule update --init -- modules/ModSecurity-test-Framework
+          test "$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)" = \
+            "$(git ls-tree "$GITHUB_SHA" modules/ModSecurity-test-Framework | awk '{print $3}')"
+      - name: Check protected runner isolation before privilege
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
+            RUNNER_TEMP="$RUNNER_TEMP" GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            /usr/bin/python3 -I ci/run-trusted-framework.py --tool exact-preflight \
+            --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- \
+            --role privileged --trusted-base-sha "$GITHUB_SHA"
+      - name: Download the validated dispatcher manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: protected-exact-head-dispatch-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/protected-exact-head-runtime/inputs/dispatcher
+      - name: Download the validated candidate artifact bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: protected-exact-head-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/protected-exact-head-runtime/inputs/candidate
+      - name: Revalidate the PR identity at the privilege boundary
+        env:
+          REQUESTED_PR_NUMBER: ${{ inputs.pr_number }}
+          VALIDATED_PR_HEAD: ${{ needs.resolve.outputs.tested_pr_head }}
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LANG=C LC_ALL=C \
+            RUNNER_TEMP="$RUNNER_TEMP" \
+            /usr/bin/python3 -I ci/run-trusted-framework.py --tool exact-dispatcher \
+            --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- verify \
+            --location privileged \
+            --pr-number "$REQUESTED_PR_NUMBER" \
+            --expected-head-sha "$VALIDATED_PR_HEAD" \
+            --dispatcher-base-sha "$GITHUB_SHA"
+      - name: Run the preinstalled protected host gate for both fresh cells
+        run: |
+          set -euo pipefail
+          input_root="$RUNNER_TEMP/protected-exact-head-runtime/inputs"
+          evidence_root="$RUNNER_TEMP/protected-exact-head-runtime/launcher-evidence"
+          runner_uid="$(id -u)"
+          runner_gid="$(id -g)"
+          /usr/bin/sudo -n -- /usr/local/libexec/modsecurity-protected-exact-head/run-exact-base-launcher \
+            --base-repo-root "$GITHUB_WORKSPACE" --trusted-base-sha "$GITHUB_SHA" \
+            --entrypoint-relative-path ci/runtime/broker/nginx_exact_head_root_launcher.py -- \
+            --trusted-dispatcher-base-sha "$GITHUB_SHA" --base-repo-root "$GITHUB_WORKSPACE" \
+            --dispatcher-manifest "$input_root/dispatcher/dispatcher-manifest.json" \
+            --candidate-manifest "$input_root/candidate/artifact-manifest.json" \
+            --candidate-artifact-root "$input_root/candidate" --evidence-root "$evidence_root" \
+            --runner-uid "$runner_uid" --runner-gid "$runner_gid"
+      - name: Collect root-owned evidence through the exact-Base host gate
+        run: |
+          set -euo pipefail
+          task_root="$RUNNER_TEMP/protected-exact-head-runtime"
+          runner_uid="$(id -u)"
+          runner_gid="$(id -g)"
+          /usr/bin/sudo -n -- /usr/local/libexec/modsecurity-protected-exact-head/run-exact-base-launcher \
+            --base-repo-root "$GITHUB_WORKSPACE" --trusted-base-sha "$GITHUB_SHA" \
+            --entrypoint-relative-path ci/runtime/broker/nginx_exact_head_result_collector.py -- \
+            --trusted-dispatcher-base-sha "$GITHUB_SHA" --base-repo-root "$GITHUB_WORKSPACE" \
+            --manifest "$task_root/inputs/dispatcher/dispatcher-manifest.json" \
+            --evidence-root "$task_root/launcher-evidence" \
+            --output "$task_root/exact-head-result.json" --task-root "$task_root" \
+            --runner-uid "$runner_uid" --runner-gid "$runner_gid"
+      - name: Upload exact-head result evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: protected-exact-head-result-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/protected-exact-head-runtime/exact-head-result.json
+          if-no-files-found: error
+          retention-days: 1

@@ -1,0 +1,23 @@
+--- a/payload
++++ b/payload
+@@ -200,0 +201,2 @@
++	// Private collector observation after the actual native destructor returned.
++	C.msc_envoy_ext_proc_i12_observer_snapshot()
+@@ -876,0 +879,17 @@
++
++// I12Observe is private test instrumentation on the actual typed transaction.
++func (transaction *commonRuntimeTransaction) I12Observe(operation, direction, eos, size, declaredSize int, result bool) {
++	if transaction == nil || transaction.engine == nil || size < 0 || declaredSize < 0 {
++		return
++	}
++	transaction.engine.mu.Lock()
++	defer transaction.engine.mu.Unlock()
++	if transaction.native == nil {
++		return
++	}
++	actualResult := 0
++	if result {
++		actualResult = 1
++	}
++	C.msc_envoy_ext_proc_transaction_i12_observe(transaction.native, C.int(operation), C.int(direction), C.int(eos), C.size_t(size), C.size_t(declaredSize), C.int(actualResult))
++}

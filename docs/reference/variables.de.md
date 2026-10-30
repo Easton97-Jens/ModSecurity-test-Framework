@@ -450,6 +450,18 @@ benötigen weiterhin eine Herkunftsprüfung.
 | `TARGET` | Make-Target-Name | von `make` oder Aufrufer | `TARGET=linux-glibc`; erlaubte Werte hängen vom aufgerufenen Upstream-Build ab. |
 | `USER_TOKEN` | sensibles Authentifizierungsdatum | kein Repository-Standard | `<secret-from-secure-store>`; nie committen, loggen oder als sichtbares Prozessargument übergeben. |
 
+### Connector-Schnittstelle für Quell-Checkouts
+
+| Variable | Bedeutung und erforderlicher Wert |
+|---|---|
+| `CONNECTOR_REVISION` | Exakter Git-HEAD des explizit ausgewählten Produktcheckouts; Aufrufer dürfen keine andere Revision übergeben. |
+| `CONNECTOR_TEST_OUTPUT_ROOT` | Vorhandenes vertrauenswürdiges Ausgabeverzeichnis außerhalb beider Quellcheckouts; Vorfahren mit Symlinks ablehnen. |
+| `EXTERNAL_OUTPUT` | Vom Aufrufer gewählter Alias dieses externen Ausgabeverzeichnisses in Dokumentationsbeispielen; kein impliziter Standard. |
+| `FRAMEWORK_PYTHON` | Expliziter kompatibler Python-Interpreter für den ausgewählten Framework-Quellcheckout. |
+| `ON_DEMAND_TESTS` | Nur für einen explizit ausgewählten Spezialistenaufruf auf `1` setzen; dies autorisiert nicht jeden archivierten Fall. |
+| `PYTHONPATH` | Für Connector-Quellcheckout-Tests nur ausgewählte Framework-Root und ihr Verzeichnis `connector_suite/`; Produkt- und fremde Verzeichnisse ausschließen. |
+| `PYTHONSAFEPATH` | Auf `1` setzen und Python mit `-P` aufrufen, um das implizite unsichere Arbeits-/Skriptverzeichnis von der Modulsuche auszuschließen. |
+
 ### Feste NGINX-Release-Provenance
 
 Die NGINX-Source-Provisionierung ist ein fester, überprüfter Release-Pfad und

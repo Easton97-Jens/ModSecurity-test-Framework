@@ -37,9 +37,9 @@ try:
 except namespace["ContractError"] as exc:
     print(str(exc))
     raise SystemExit(3)
-from tests.runners import nginx_native_operation_authority as authority
-from tests.runners import nginx_native_operation_bundle as bundle
-from tests.runners import nginx_native_operation_contract as contract
+from modsecurity_test_framework.runners import nginx_native_operation_authority as authority
+from modsecurity_test_framework.runners import nginx_native_operation_bundle as bundle
+from modsecurity_test_framework.runners import nginx_native_operation_contract as contract
 for module in (authority, bundle, contract):
     assert Path(module.__file__).resolve().is_relative_to(Path(cli).resolve().parents[3])
 assert (context.run_dir / namespace["NATIVE_AUTHORITY_FILE_PATH"]).read_bytes() == (root / "authority.json").read_bytes()

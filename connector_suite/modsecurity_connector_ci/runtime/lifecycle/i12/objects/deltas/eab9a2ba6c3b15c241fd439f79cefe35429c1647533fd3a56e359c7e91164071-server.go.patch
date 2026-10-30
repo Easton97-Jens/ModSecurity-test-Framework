@@ -1,0 +1,16 @@
+--- a/payload
++++ b/payload
+@@ -98,0 +99,11 @@
++	declaredBytes := uint64(0)
++	declaredKnown := false
++	for _, header := range headers {
++		if header.Name == "content-length" {
++			value, parseErr := strconv.ParseUint(string(header.Value), 10, 63)
++			if parseErr == nil {
++				declaredBytes, declaredKnown = value, true
++			}
++		}
++	}
++	admission.I12Observe(11, 0, 1, len(body), int(declaredBytes), declaredKnown)
+@@ -348,0 +360 @@
++	response.I12Observe(5, 1, 0, 0, 0, true)

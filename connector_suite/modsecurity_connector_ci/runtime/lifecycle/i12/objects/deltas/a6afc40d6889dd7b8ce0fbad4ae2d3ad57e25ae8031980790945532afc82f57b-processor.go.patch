@@ -1,0 +1,8 @@
+--- a/payload
++++ b/payload
+@@ -1523,0 +1524,5 @@
++	if probe, ok := state.transaction.(interface {
++		I12Observe(int, int, int, int, int, bool)
++	}); ok {
++		probe.I12Observe(5, 1, 0, 0, 0, true)
++	}

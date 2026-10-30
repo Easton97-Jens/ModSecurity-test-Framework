@@ -1,0 +1,39 @@
+--- a/payload
++++ b/payload
+@@ -5 +4,0 @@
+-#include <stddef.h>
+@@ -8,3 +6,0 @@
+-typedef struct msconnector_runtime_transaction msconnector_runtime_transaction;
+-typedef struct msconnector_runtime_response_companion_session
+-    msconnector_runtime_response_companion_session;
+@@ -19,30 +14,0 @@
+-/* Actual known-layout runtime source-copy callbacks. The observer treats all
+- * entry/session/runtime handles as keys and never reads their private layout.
+- * These APIs do not authorize capability-string or equal-ID associations. */
+-int msconnector_lifecycle_companion_registered(const void *entry,
+-    const msconnector_runtime_transaction *transaction,
+-    const msconnector_transaction_contract *common, const Transaction *native);
+-int msconnector_lifecycle_companion_claimed(
+-    const msconnector_runtime_response_companion_session *session,
+-    const void *entry, const msconnector_runtime_transaction *transaction,
+-    const msconnector_transaction_contract *common, const Transaction *native);
+-/* Called after actual detached destroy with saved keys, never freed-object
+- * dereferences. Retirement requires observed native/Common cleanup. */
+-int msconnector_lifecycle_companion_retired(
+-    const msconnector_runtime_transaction *transaction,
+-    const msconnector_transaction_contract *common, const Transaction *native);
+-/* Actual authorization host finite-framing branch, separate from native EOS.
+- * All numeric values come from the live parser/stream loop in that TU. */
+-int msconnector_lifecycle_authorization_request_eos(
+-    const msconnector_runtime_transaction *transaction, size_t content_length,
+-    size_t buffered_body_size, size_t remaining);
+-uint64_t msconnector_lifecycle_runtime_scope_call(
+-    const msconnector_runtime_transaction *transaction);
+-/* Current collector counters, measured under its existing lock. Availability
+- * requires actual FD admission; this operation never retires any mapping. */
+-typedef struct msconnector_lifecycle_observer_state {
+-    unsigned int live_mappings;
+-    unsigned int pending_calls;
+-    int invalid;
+-} msconnector_lifecycle_observer_state;
+-int msconnector_lifecycle_observer_snapshot(msconnector_lifecycle_observer_state *state);

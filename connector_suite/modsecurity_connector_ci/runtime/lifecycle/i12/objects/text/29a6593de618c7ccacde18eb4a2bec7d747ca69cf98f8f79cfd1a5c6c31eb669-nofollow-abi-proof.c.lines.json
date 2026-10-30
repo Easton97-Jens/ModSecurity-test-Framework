@@ -1,0 +1,6 @@
+[
+  "#define _GNU_SOURCE\n",
+  "#include <fcntl.h>\n",
+  "#include <stdio.h>\n",
+  "int main(void) { printf(\"%#x\\n\", O_NOFOLLOW); return O_NOFOLLOW == 0x20000 ? 0 : 1; }\n"
+]

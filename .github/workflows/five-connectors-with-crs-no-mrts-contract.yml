@@ -47,6 +47,13 @@ jobs:
   portable-contract:
     runs-on: ubuntu-26.04
     timeout-minutes: 10
+    env:
+      FRAMEWORK_ROOT: ${{ github.workspace }}
+      TEST_ROOT: ${{ github.workspace }}
+      PYTHONPATH: ${{ github.workspace }}
+      PYTHONSAFEPATH: "1"
+      PYTHONNOUSERSITE: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -61,6 +68,21 @@ jobs:
         with:
           python-version-file: ".python-version"
           check-latest: false
+
+      - name: Initialize explicit Framework paths
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/framework-build" "$RUNNER_TEMP/framework-tmp" \
+            "$RUNNER_TEMP/framework-output" "$RUNNER_TEMP/framework-state"
+          {
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/framework-pycache"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/framework-state"
+            echo "BUILD_ROOT=$RUNNER_TEMP/framework-build"
+            echo "TMP_ROOT=$RUNNER_TEMP/framework-tmp"
+            echo "TMPDIR=$RUNNER_TEMP/framework-tmp"
+            echo "OUTPUT_ROOT=$RUNNER_TEMP/framework-output"
+          } >> "$GITHUB_ENV"
 
       - name: Install hash-locked CI dependency
         run: bash ci/tools/install-hash-locked-ci-dependencies.sh

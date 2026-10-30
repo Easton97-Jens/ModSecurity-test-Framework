@@ -1,0 +1,82 @@
+--- a/payload
++++ b/payload
+@@ -78,7 +77,0 @@
+-    int finalize_known;
+-    int finalize_handle_cleared;
+-    int finalize_finished;
+-    int finalize_cleanup_started;
+-    int finalize_cleanup_complete;
+-    int finalize_status;
+-    int finalize_association_retired;
+@@ -267,8 +259,0 @@
+-    char finalize[256] = "null";
+-    if (observed->finalize_known)
+-        (void)snprintf(finalize, sizeof(finalize),
+-            "{\"handle_cleared\":%d,\"finished\":%d,\"cleanup_started\":%d,"
+-            "\"cleanup_complete\":%d,\"status\":%d,\"association_retired\":%d}",
+-            observed->finalize_handle_cleared, observed->finalize_finished,
+-            observed->finalize_cleanup_started, observed->finalize_cleanup_complete,
+-            observed->finalize_status, observed->finalize_association_retired);
+@@ -286 +271 @@
+-        "\"allocation_scope_kind\":%s,\"wall_ns\":%" PRIu64 ",\"wall_sample_end_monotonic_ns\":%" PRIu64 ",\"host_framing\":%s,\"runtime_finalize_snapshot\":%s}\n",
++        "\"allocation_scope_kind\":%s,\"wall_ns\":%" PRIu64 ",\"wall_sample_end_monotonic_ns\":%" PRIu64 ",\"host_framing\":%s}\n",
+@@ -294 +279 @@
+-        intervention_status, intervention_disruptive, kind, wall_ns, wall_sample_end_ns, framing, finalize);
++        intervention_status, intervention_disruptive, kind, wall_ns, wall_sample_end_ns, framing);
+@@ -393,16 +377,0 @@
+-int msconnector_lifecycle_observer_snapshot(msconnector_lifecycle_observer_state *state) {
+-    int saved = errno;
+-    if (state == NULL || output_fd < 0 || budget == NULL) { errno = saved; return 0; }
+-    (void)pthread_mutex_lock(&lock);
+-    const struct observed_subject observed = subject(NULL, 0, 0);
+-    event("observer", "snapshot", 0U, &observed, "null", NULL);
+-    state->live_mappings = 0U;
+-    for (size_t index = 0U; index < MAP_CAPACITY; ++index)
+-        if (mappings[index].key != NULL) ++state->live_mappings;
+-    state->pending_calls = pending;
+-    state->invalid = atomic_load(&budget->invalid);
+-    (void)pthread_mutex_unlock(&lock);
+-    errno = saved;
+-    return 1;
+-}
+-
+@@ -884,39 +852,0 @@
+-    return result;
+-}
+-
+-/* Consuming checked finalize is distinct from best-effort destroy. Snapshot
+- * fields are read only on actual selected-ABI success; the runtime remains
+- * opaque, including after free. Failed/ambiguous joins are never retired. */
+-extern int __real_msconnector_runtime_transaction_finalize_and_snapshot(
+-    msconnector_runtime_transaction **, msconnector_runtime_transaction_snapshot *,
+-    msconnector_error *) __attribute__((weak));
+-int __wrap_msconnector_runtime_transaction_finalize_and_snapshot(
+-    msconnector_runtime_transaction **transaction,
+-    msconnector_runtime_transaction_snapshot *snapshot, msconnector_error *error) {
+-    const void *key = transaction == NULL ? NULL : *transaction;
+-    struct observed_subject observed = subject(key, 2, 0);
+-    uint64_t call = enter_subject("runtime_finalize_and_snapshot", &observed, NULL);
+-    int result = __real_msconnector_runtime_transaction_finalize_and_snapshot(transaction, snapshot, error);
+-    int saved = errno;
+-    int retired = 0;
+-    if (result == 1 && transaction != NULL && snapshot != NULL) {
+-        observed.finalize_known = 1;
+-        observed.finalize_handle_cleared = *transaction == NULL;
+-        observed.finalize_finished = snapshot->finished;
+-        observed.finalize_cleanup_started = snapshot->contract.cleanup_started;
+-        observed.finalize_cleanup_complete = snapshot->contract.cleanup_complete;
+-        observed.finalize_status = (int)snapshot->contract.status;
+-        (void)pthread_mutex_lock(&lock);
+-        const struct mapping *runtime = lookup(key, 2);
+-        retired = runtime != NULL && runtime->allocation_join_verified &&
+-            runtime->allocation_kind == 2 && observed.finalize_handle_cleared &&
+-            observed.finalize_finished && observed.finalize_cleanup_started &&
+-            observed.finalize_cleanup_complete &&
+-            observed.finalize_status == MSCONNECTOR_TRANSACTION_STATUS_CLEANED &&
+-            lookup(runtime->joined_common, 0) == NULL && lookup(runtime->joined_native, 1) == NULL;
+-        (void)pthread_mutex_unlock(&lock);
+-        observed.finalize_association_retired = retired;
+-    }
+-    errno = saved;
+-    returned_subject("runtime_finalize_and_snapshot", call, &observed, result, retired, NULL);
+-    errno = saved;
