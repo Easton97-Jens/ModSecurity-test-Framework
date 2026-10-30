@@ -321,6 +321,9 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "alpn": "h2",
                 "stream_id": 1,
                 "fallback_used": False,
+                "http_status": 403,
+                "curl_exit_code": 22,
+                "transport_error": "http_response_error",
             })
             record: dict[str, object] = {
                 "expected_result": "h2_phase1_deny",

@@ -486,6 +486,8 @@ class ProtocolEvidenceTest(unittest.TestCase):
                 "quic_connection_id_present": True,
                 "quic_version": "v1",
                 "http_status": 403,
+                "curl_exit_code": 22,
+                "transport_error": "http_response_error",
             }
             write_bundle(root, observation, followup=False)
             self.assertEqual(
