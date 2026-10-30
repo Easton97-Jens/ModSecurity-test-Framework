@@ -595,7 +595,6 @@ def stop_process(process: subprocess.Popen[bytes] | None) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    script = Path(__file__).resolve()
     repo_root = connector_root()
     build_root = Path(os.environ.get("BUILD_ROOT", ""))
     component_cache = Path(os.environ.get("CONNECTOR_COMPONENT_CACHE", ""))

@@ -216,7 +216,7 @@ cached header inputs. The earlier five source-owner oracles proved wiring,
 not full compilation. The new public capability method separately passed
 its 3 variants and 1 implicit-selection denial. The previous 20 methods /
 47 variants and 20 denials retain their own source-bound receipts; no combined
-21-method run is claimed. Current hosted acceptance remains pending; the
+21-method run is claimed. N28 hosted acceptance remains pending; the
 historical `8ce` analysis still has gate `ERROR` with 120 OPEN issues.
 
 One actual Parent `make quick-check` invocation passed with exit 0 in
@@ -258,46 +258,41 @@ consolidation replaced 326 blocks and removed 1067 net loader lines, with 29
 new shared-loader lines recorded separately. These are loader metrics, not a
 claim about total repository code reduction.
 
-The registered canonical inventory contains **100 standard
-cases / 80 executions**, **2364 on-demand cases / 1070 executions**, **510 fixed
-Framework test-source bindings** and **235 product-source snapshots**. Its compact
-schema-5 JSON is **1081306 bytes**, leaving **1015846 bytes** below the unchanged
-**2097152-byte (2 MiB)** input limit. All 508 prior binding identities remain;
-all 510 bindings and all 745 ordered pool entries are used. The original 1993
-case dictionaries remain exact. These are selection/source quantities, not
-executed or passing case counts. Expanded UTF-8 source paths occupy 1061485
-bytes under the unchanged pre-materialization bound. The current catalog declares 1150 execution
-definitions / 2464 cases; this is not an execution claim.
+The registered canonical schema-5 inventory contains **100 standard cases /
+80 executions**, **2443 on-demand cases / 1107 executions**, **515 fixed Framework
+test-source bindings** and **235 product-source snapshots**. The catalog declares
+**1187 execution definitions / 2543 cases**; these are selection quantities,
+not executed or passing counts. Its compact JSON is **1112077 bytes** and its expanded UTF-8 source paths occupy
+**1086696 bytes**, both below the unchanged **2097152-byte (2 MiB)** bound. All prior binding
+identities remain and all 750 ordered source-pool entries are used. The original
+1993 case dictionaries and standard IDs remain unchanged. Admission still checks
+the expanded UTF-8 source-path bound before materialization.
 
-The extension contains 83 explicit on-demand methods: the previous 62 plus
-21 independently registered pure methods covering 50 expanded cases in this
-batch (9 transport methods / 9 cases, 1 composition method / 8 cases,
-9 indexed-inventory methods / 23 cases, 1 shared-transport method / 7 cases,
-1 source-owner method / 3 cases).
-All 21 passed fresh offline guards installed before imports, without effects,
-source writes or skips. The 76 pure controls retain the offline-audit group;
-155 process-bearing new rows retain `migration-integration` across the same
-12-module allowlist. Original groups and guard-function ASTs remain unchanged.
-The full path graph round trip preserves order and every prior reference;
-only the explicitly reviewed new map-to-integration/active and capability
-source-owner closures are extended.
+The extension now contains **120 explicit on-demand methods**, including 37 new
+methods / 79 cases in N28: 5 argument-admission methods / 15 cases, 2 native
+fixture methods / 6 cases, 12 Go-capture methods / 31 cases and 18 archive-snapshot
+methods / 27 cases. Every new method has its own registered selection and
+explicit variants. All 37 actual source/effect traces passed with guards active
+before imports: 35 pure methods had zero effects; the 2 native methods use the
+explicit process boundary. There are 111 pure extension controls and 157
+process-bearing rows across 13 explicitly allowlisted modules. Standard selection
+remains capped at 100. The actual public runner passed all 37 new methods / 79 cases in 166.939 seconds;
+2 mandatory missing-CLI-opt-in controls also passed with `ON_DEMAND_TESTS=1`.
+Public admission passed in 6.06 seconds. Final source bindings and all six generator operations passed after the later
+import repairs; fresh final admission passed in 5.327 seconds. Paired commit/push
+and hosted exact-head CI/Sonar verification remain pending.
+
+The five new source bindings come from observed canonical read closures. Two
+existing NGINX rows also gain the actual eager P3-runner import in their closure;
+this changes source accounting without adding or concealing independent cases.
 No archive is selected automatically and no standard case is added.
+The new native fixture module uses the existing full Framework-prefix source
+binding form. The historical source map remains byte-identical to `cb129a45`;
+no fictional prior Product path is introduced. One new unpublished case ID was
+deterministically shortened to the unchanged 128-character bound; original and
+standard IDs remain intact.
 
-Schema 4 introduced separate fixed Framework test-source hashes and
-`connector_source_paths`. Schema 5 retains those ordered pools and stores each
-execution's `sources` as integer indexes into the fixed-Framework-then-Product
-pool. This replaces repeated paths after the earlier JSON nearly exhausted
-its budget; it does not remove dependencies or change selection. Schemas 1–4
-remain compatible. Boolean, unknown, duplicate and unused references are
-rejected. Both raw JSON input and expanded UTF-8 source-path bytes are bounded
-at 2097152 bytes, with the expansion bound checked before materialization or
-source reads. The 100-standard-case cap is unchanged. Maintenance preserves
-ordinal order and updates atomically. Product inputs are snapshotted from the
-explicit selected revision, included in receipts and rechecked before/after
-execution. Collector changes still require a reviewed fixed digest; Product
-updaters do not change the independent Framework inventory.
-
-The 120 new focused methods passed without skips, including the result-integrity
+The earlier 120 focused methods passed without skips, including the result-integrity
 subset of 56 methods / 131 expanded variants and the closed path-policy subset
 of 9 methods / 32 expanded variants. Earlier scoped runs passed 136 focused portability methods,
 30 public API methods and 3 Makefile methods. Earlier local native Framework CI
@@ -703,3 +698,134 @@ Connector PR #434. The named committed pair and explicit DEV probe passed; the
 next pins, repeated committed-pair acceptance, hosted current-head checks remain open;
 private candidate cleanup now has the separate passing observations above. Ruff passed locally;
 Pyright requires its hosted gate. A migration merge result is not claimed.
+
+**N28 source changes and current evidence limits**
+
+N28 extracts bounded helpers for migration-map generation, inventory admission,
+maintenance, native capture, observations and result projection while preserving
+old selectors and assertions. Argument admission prevents Make-active interpreter
+paths and archive response-file/option operands from reaching their downstream
+parsers. Existing custom Unicode interpreter paths remain supported.
+
+The private native event fixture holds admitted directory descriptors and cleans
+relative to its opened root. Its 2 explicitly process-bearing methods / 6 cases
+passed actual strict C17 execution with descriptor delta zero. The repaired
+root-owned parent/leaf branch uses a held working-directory descriptor before
+dropping identity and fixed relative event paths. The full UID 65534 branch was
+**NOT_EXECUTED** locally because the required UID mapping/capabilities were absent;
+static review and current-identity path controls do not substitute for that branch.
+The process-module allowlist grows explicitly from 12 to 13.
+
+Go capture admits private source/output roots before invoking the compiler,
+rejects response files and ambiguous/overriding output arguments, and retains
+bytes through owned descriptors. Descriptor ownership also survives stream-wrapper
+construction failures. Failure handling does not unlink a replacement namespace
+entry; private incomplete artifacts may remain and require explicit inspection.
+Consumers must require successful producer status as well as artifact integrity.
+The 12 new methods / 31 cases cover this bounded behavior. The separate `_7KV`
+question about authority to select the tool remains OPEN; this data-path repair
+does not authorize arbitrary compiler selection.
+
+Both NGINX fixture callers now open the source through a trusted nofollow
+ancestor-FD walk, copy at most **67108864 bytes (64 MiB)** into a private
+`BytesIO`, hash the copied bytes and extract that same object. A source pathname
+replacement after hashing cannot change the extracted bytes. The actual pinned
+`nginx-1.31.6` archive is **1373124 bytes**. The compressed-input cap is new; it
+bounds archive content, not total RAM or extracted/uncompressed size. Python
+buffer/copy overhead is additional. No new `O_TMPFILE` or filesystem support is
+required. Existing member-count, traversal, link and device checks remain.
+Archive admission failure can retain the deterministic task root, so a same-root
+retry fails closed; no unsafe automatic cleanup is added. The 18 new methods /
+27 cases never execute an untrusted fixture `configure` script.
+
+Six preexisting collector tests also required migration reconciliation. Four
+synthetic source rows omitted the transaction ID already present in their event;
+the unchanged collector correctly rejected borrowing those events. The fixtures
+now supply their matching IDs. The other two tests assert the Framework-owned
+artifact-stager path and read selected `connector_suite/connector.mk` for the
+existing protocol-client assertions. All 44 methods, 190 assertions and 3 subtest
+call sites remain. Copied fixture snapshots changed six RED outcomes to six
+GREEN outcomes. Fresh canonical execution now passed the repaired six and two
+existing transaction-isolation methods, with zero skips. The first five repairs
+and both isolation methods passed pure guards with zero effects; the protocol
+script rejection method passed its explicit process boundary with one effect
+and no source writes. Its earlier mistaken pure-guard invocation correctly
+failed and remains recorded; the method is not claimed pure. No provenance,
+runtime or audit/scrubbing guard was weakened.
+
+The current direct existing-contract runs passed 112 inventory/maintenance
+methods / 80 subcases and 75 workflow/native-contract methods / 163 subcases.
+The separate result-runner group had six reproduced preexisting failures before
+the fixture repair and three clean-Framework-prerequisite skips on the dirty
+tree. Those skips are not PASS, and no whole-group or full on-demand campaign
+PASS is claimed. Separately, the public runner passed the 37 new methods /
+79 cases in 166.939 seconds, the 2 missing-CLI-opt-in controls passed even with
+`ON_DEMAND_TESTS=1`, and the 2 existing NGINX eager-import selections passed in
+15.578 seconds. Admission passed in 6.06 seconds. These receipts bind inventory
+`34f3e84ab90e69de85f0b9e042bebc965fde0f34af496f471c74bcde37583ea5`, before
+two later unrelated Product-import repairs. Exact reconstruction against final
+inventory `dc5980db497faa5ba6885f71552a8555c7bcd96f1ec759a0c4c786e76aec308e`
+proves only one old revision-test source SHA changed, outside all 37 selected
+closures; every selected source/case field is identical. No repeat of those
+37 methods is inferred or required by that unrelated hash refresh. No old
+broader-suite skip is converted to PASS.
+
+The actual canonical Go/CGo native producer passed offline in 146.568 seconds,
+with 84 compilation units: 62 Product units and 22 context units, plus 73 Product
+headers. Captured input hashes remained stable. The 32-byte FIPS transition and
+build-ID replay matched the final artifact; this is not FIPS certification.
+Validation explicitly records `development_only=true` and `import_eligible=false`.
+The native executable was not started; no host runtime or hosted Sonar PASS is
+inferred. After the selected Product-import and legacy/migrated-verifier marker
+repairs, all 11 old Go-version methods / 25 subcases and 4 old Capture/FIPS methods
+passed without skips. The 5 active Go-version row closures have zero gaps.
+The current canonical native CI passed 330 tests in 170.503 seconds. The exact
+38-file workflow Ruff lint/format selection passed in 0.324 seconds; 19 Sonar-
+contract methods passed in 5.139 seconds. Actual compilation of all 81 selected
+translation units passed in 40.57 seconds, including object production for all
+4 changed Framework C fixtures under C17 with `-Wall -Wextra -Werror`. That run
+uses immutable Product input `cfd5e49cada3fc793ef50993147e3796a0907443`, rather
+than the whole current Product tree. Comparison of 223 Product inputs found one
+delta: the two existing status lines in
+`connectors/nginx/src/ngx_http_modsecurity_access.c`. That current translation
+unit separately passed strict C17 with `-Wall -Wextra -Werror` in 0.559 seconds
+and again in 0.666 seconds after snapshotting all 349 actual inputs. The repeated
+object SHA is identical. Its 348 headers remained hash-stable: 6 current Product
+headers identical to the immutable input, 24 immutable Product headers,
+93 cached SDK/NGINX headers and 225 system headers, with zero context differences.
+This separate current-unit proof does not relabel the original 81-unit run.
+
+The two import-only corrections also passed 19 existing revision methods /
+51 subcases without skips, plus Report CLI `--help` and import checks. All 25
+and 112 original function ASTs in the respective modules remain exact; no report
+was generated. No active row is affected; the one indirectly bound test hash
+has been refreshed. The 37 public source closures are unchanged by these
+unrelated corrections. All six final generator operations passed after that
+refresh, and fresh full admission passed in 5.327 seconds. Staging/Gitleaks,
+paired commit/push and hosted exact-head CI/Sonar remain pending. These local results do not establish hosted exact-head
+gates or merge eligibility.
+
+Published Connector `1f213858ae059d77a84a4bf500b9e90f025e15fe` and Framework
+`cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49` have separate real recorded-pin
+(151.690 seconds) and explicit DEV (151.493 seconds) acceptance. The recorded
+run used clean clones with `standard_combination=true`; DEV selected Framework
+`8ce35c1108d753986b11cb011d24fc99f262f112`, recorded
+`standard_combination=false` and retained only the expected gitlink difference.
+The actual UID 1001 sealed bridge passed with 11 exports/private mode 0700,
+and wrong-pin controls returned 77 without exports. All 90 updater methods /
+216 subcases passed. These proofs accept that published pair, not the unpublished
+N28 follow-up or a final host lifecycle.
+
+The latest complete Framework Sonar analysis at `2026-10-30T19:04:35Z` analyzes
+`cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49`. Its last complete issue inventory,
+read at `2026-10-30T19:35:24Z`, contained **115 OPEN issues**, gate **ERROR** and
+**0 TO_REVIEW hotspots**, before the latest individual disposition. No fresh full
+issue count after that disposition is claimed. Parent `1f213858` still has the
+stale `e77c833` analysis. The documented individual false-positive dispositions
+now total **67**, including the fixed-argv native Git object-identity sink with
+complete comment/status readback. Seven other tool-authority questions remain
+OPEN; uncertain findings remain open and no rule or Quality Gate is weakened. N28 has
+no published new head or hosted exact-head gate yet. Framework PR #142 and
+Connector PR #434 remain Draft and unmerged. Conditional master integration
+requires clean exact-current-head Sonar, no new open findings and every required
+CI/review condition; no merge eligibility is claimed.

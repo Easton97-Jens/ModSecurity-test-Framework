@@ -41,6 +41,7 @@ class RealHeaderDriverCase(unittest.TestCase):
                 self.wfile.write(b"ok")
 
             def log_message(self, _format: str, *args: object) -> None:
+                # Keep fixture output deterministic and omit request details from logs.
                 pass
 
         server = HTTPServer(("127.0.0.1", 0), Handler)

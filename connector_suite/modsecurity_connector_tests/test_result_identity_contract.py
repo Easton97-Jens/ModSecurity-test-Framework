@@ -42,8 +42,10 @@ class ResultIdentityContractTests(unittest.TestCase):
     def test_summary_context_cannot_relabel_a_bound_run_or_revision(self) -> None:
         for context in (msconnector_models.SummaryContext(run_id="other-run"),
                         msconnector_models.SummaryContext(source_revision="b" * 40)):
-            with self.subTest(context=context), self.assertRaisesRegex(ValueError, "summary.*identity"):
-                msconnector_models.connector_summary(connector="nginx", entries=[self.entry()], context=context)
+            with self.subTest(context=context):
+                entries = [self.entry()]
+                with self.assertRaisesRegex(ValueError, "summary.*identity"):
+                    msconnector_models.connector_summary(connector="nginx", entries=entries, context=context)
 
     def test_bound_and_unbound_cases_keep_results_without_promoting_either(self) -> None:
         summary = msconnector_models.connector_summary(connector="nginx", entries=[
@@ -223,9 +225,9 @@ class ResultIdentityContractTests(unittest.TestCase):
         self.assertEqual(len(summary["attempts"]), 2)
 
     def test_conflicting_observations_of_one_attempt_fail(self) -> None:
+        entries = [self.entry(), self.entry(actual_status=403)]
         with self.assertRaisesRegex(ValueError, "conflicting"):
-            msconnector_models.connector_summary(
-                connector="apache", entries=[self.entry(), self.entry(actual_status=403)])
+            msconnector_models.connector_summary(connector="apache", entries=entries)
 
     def test_retry_keeps_failed_traffic_and_counts_one_case(self) -> None:
         summary = msconnector_models.connector_summary(connector="envoy", entries=[
@@ -255,16 +257,16 @@ class ResultIdentityContractTests(unittest.TestCase):
             self.assertFalse((root / "summary.json").exists())
 
     def test_request_transaction_cannot_be_reassigned_to_another_case(self) -> None:
+        entries = [self.entry(), self.entry(case_id="different-case", name="different-case")]
         with self.assertRaisesRegex(ValueError, "conflicting request/transaction"):
-            msconnector_models.connector_summary(connector="apache", entries=[
-                self.entry(), self.entry(case_id="different-case", name="different-case"),
-            ])
+            msconnector_models.connector_summary(connector="apache", entries=entries)
 
     def test_partial_or_invalid_source_identity_cannot_be_promoted(self) -> None:
         for field, value in (("source_revision", "not-a-revision"), ("request_id", "")):
             with self.subTest(field=field):
+                entries = [self.entry(**{field: value})]
                 with self.assertRaisesRegex(ValueError, "result identity"):
-                    msconnector_models.connector_summary(connector="nginx", entries=[self.entry(**{field: value})])
+                    msconnector_models.connector_summary(connector="nginx", entries=entries)
 
     def test_legacy_unbound_result_cannot_promote_runtime_capabilities(self) -> None:
         summary = msconnector_models.connector_summary(connector="apache", entries=[{

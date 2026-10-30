@@ -1539,6 +1539,13 @@ def row_log_path(
     return path
 
 
+def _validate_row_runtime_record_identities(row, records):
+    for record in records:
+        for field in ("run_id", "case_id", "request_id", "source_revision"):
+            if row.get(field) and field in record and record[field] != row[field]:
+                raise ValueError(f"source/event identity mismatch: {field}")
+
+
 def row_runtime_records(
     row: dict[str, Any],
     decision_path: Path | None,
@@ -1559,10 +1566,7 @@ def row_runtime_records(
     # Client observations remain visible, but cannot manufacture a transaction.
     records = [record for record in records
                if transaction_ids and transaction_ids.intersection(record_transaction_ids(record))]
-    for record in records:
-        for field in ("run_id", "case_id", "request_id", "source_revision"):
-            if row.get(field) and field in record and record[field] != row[field]:
-                raise ValueError(f"source/event identity mismatch: {field}")
+    _validate_row_runtime_record_identities(row, records)
     evidence = first_byte_evidence_record(row.get("first_byte_evidence_path"), allowed_source_root)
     binding = None
     if connector == "nginx" and row.get("first_byte_evidence_path"):
@@ -2008,6 +2012,16 @@ def native_host_summary_cases(objects: list[dict[str, Any]]) -> list[dict[str, A
     return records
 
 
+def _append_native_probe_observations(path, summary, rows):
+    for row in load_jsonl(path):
+        if row.get("evidence_type") != "envoy_http_client_probe":
+            continue
+        for field in ("run_id", "source_revision"):
+            if not summary.get(field) or row.get(field) != summary[field]:
+                raise ValueError(f"native probe/summary identity mismatch: {field}")
+        rows.append(row)
+
+
 def native_probe_observations(objects: list[dict[str, Any]], source_root: Path) -> list[dict[str, Any]]:
     """Load durable per-request observations independently of final run status."""
     rows: list[dict[str, Any]] = []
@@ -2020,13 +2034,7 @@ def native_probe_observations(objects: list[dict[str, Any]], source_root: Path) 
         if path in seen:
             continue
         seen.add(path)
-        for row in load_jsonl(path):
-            if row.get("evidence_type") != "envoy_http_client_probe":
-                continue
-            for field in ("run_id", "source_revision"):
-                if not summary.get(field) or row.get(field) != summary[field]:
-                    raise ValueError(f"native probe/summary identity mismatch: {field}")
-            rows.append(row)
+        _append_native_probe_observations(path, summary, rows)
     return rows
 
 
@@ -2212,13 +2220,7 @@ def collector_cases_and_events(
     )
 
 
-def unique_case_observations(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Count retries once without replacing a failed observed attempt by PASS."""
-    selected: dict[str, dict[str, Any]] = {}
-    attempts: dict[str, list[dict[str, Any]]] = {}
-    seen: dict[tuple[Any, ...], str] = {}
-    request_owners: dict[tuple[Any, ...], tuple[Any, ...]] = {}
-    has_client = any(case.get("evidence_identity") == "request_bound" for case in cases)
+def _validate_client_observation_context(cases, has_client):
     if has_client:
         for case in cases:
             if case.get("evidence_identity") == "request_bound":
@@ -2227,36 +2229,64 @@ def unique_case_observations(cases: list[dict[str, Any]]) -> list[dict[str, Any]
                     if case.get("run_id") and case.get("source_revision")}
         if len(contexts) > 1:
             raise ValueError("client request observations mix runs or source revisions")
+
+
+def _bind_client_request_observation_owner(case, has_client, request_owners):
+    if has_client and all(case.get(field) for field in ("run_id", "request_id", "source_revision")):
+        request = (case["run_id"], case["request_id"])
+        owner = (case["case_id"], case["source_revision"], tuple(case.get("transaction_ids", [])),
+                 case.get("evidence_identity") == "request_bound")
+        previous_owner = request_owners.get(request)
+        if (previous_owner is not None and previous_owner != owner
+                and (previous_owner[3] or owner[3])):
+            raise ValueError("conflicting client request ownership across cases")
+        request_owners[request] = owner
+
+
+def _select_unique_case_observation(
+    case,
+    has_client,
+    request_owners,
+    seen,
+    selected,
+    attempts,
+    severity,
+):
+    if case.get("evidence_identity") == "request_bound":
+        validate_request_observation(case)
+    _bind_client_request_observation_owner(case, has_client, request_owners)
+    case_id = str(case["case_id"])
+    identity = (case_id, case.get("run_id"), case.get("source_revision"),
+                case.get("request_id"), tuple(case.get("transaction_ids", [])))
+    outcome = json.dumps({field: case.get(field) for field in (
+        "status", "actual_status", "observed_rule_ids", "actual_action")}, sort_keys=True)
+    if identity in seen and seen[identity] != outcome:
+        raise ValueError("conflicting observations of one case/request identity")
+    seen[identity] = outcome
+    previous = selected.get(case_id)
+    if previous is not None:
+        for field in ("run_id", "source_revision"):
+            if previous.get(field) != case.get(field):
+                raise ValueError(f"mixed case source identities: {field}")
+    attempts.setdefault(case_id, []).append(case)
+    if previous is None or severity.get(str(case.get("status")), 5) > severity.get(str(previous.get("status")), 5):
+        selected[case_id] = case
+
+
+def unique_case_observations(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Count retries once without replacing a failed observed attempt by PASS."""
+    selected: dict[str, dict[str, Any]] = {}
+    attempts: dict[str, list[dict[str, Any]]] = {}
+    seen: dict[tuple[Any, ...], str] = {}
+    request_owners: dict[tuple[Any, ...], tuple[Any, ...]] = {}
+    has_client = any(case.get("evidence_identity") == "request_bound" for case in cases)
+    _validate_client_observation_context(cases, has_client)
     severity = {"PASS": 0, "NOT_APPLICABLE": 1, "UNSUPPORTED": 2, "NOT_EXECUTED": 3,
                 "BLOCKED": 4, "FAIL": 5}
     for case in cases:
-        if case.get("evidence_identity") == "request_bound":
-            validate_request_observation(case)
-        if has_client and all(case.get(field) for field in ("run_id", "request_id", "source_revision")):
-            request = (case["run_id"], case["request_id"])
-            owner = (case["case_id"], case["source_revision"], tuple(case.get("transaction_ids", [])),
-                     case.get("evidence_identity") == "request_bound")
-            previous_owner = request_owners.get(request)
-            if (previous_owner is not None and previous_owner != owner
-                    and (previous_owner[3] or owner[3])):
-                raise ValueError("conflicting client request ownership across cases")
-            request_owners[request] = owner
-        case_id = str(case["case_id"])
-        identity = (case_id, case.get("run_id"), case.get("source_revision"),
-                    case.get("request_id"), tuple(case.get("transaction_ids", [])))
-        outcome = json.dumps({field: case.get(field) for field in (
-            "status", "actual_status", "observed_rule_ids", "actual_action")}, sort_keys=True)
-        if identity in seen and seen[identity] != outcome:
-            raise ValueError("conflicting observations of one case/request identity")
-        seen[identity] = outcome
-        previous = selected.get(case_id)
-        if previous is not None:
-            for field in ("run_id", "source_revision"):
-                if previous.get(field) != case.get(field):
-                    raise ValueError(f"mixed case source identities: {field}")
-        attempts.setdefault(case_id, []).append(case)
-        if previous is None or severity.get(str(case.get("status")), 5) > severity.get(str(previous.get("status")), 5):
-            selected[case_id] = case
+        _select_unique_case_observation(
+            case, has_client, request_owners, seen, selected, attempts, severity,
+        )
     for case_id, values in attempts.items():
         if len(values) > 1:
             selected[case_id] = {**selected[case_id], "attempt_count": len(values), "attempts": values}

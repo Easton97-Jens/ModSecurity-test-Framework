@@ -15,7 +15,8 @@ SPEC = importlib.util.spec_from_file_location(
     "framework_path_fixture_policy",
     ROOT / "ci/checks/documentation/check-repository-path-references.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 CHECKER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECKER)
 

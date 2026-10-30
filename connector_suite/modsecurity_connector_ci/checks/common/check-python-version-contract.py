@@ -1716,46 +1716,90 @@ def normal_verifier_violations(verifier: Step, identity: JobIdentity | None = No
     return errors
 
 
-def trusted_base_migration_violations(job: Job, steps: Sequence[Step], verifier: Step) -> list[str]:
-    """Bind the one exact dual-layout body to its fixed trusted-base bootstrap."""
-    if job.identity != TRUSTED_BASE_MIGRATION_JOB:
-        return ["dual-layout verifier is restricted to the trusted-base Go resolver"]
-    errors: list[str] = []
-    checkouts = [step for step in steps if (step.scalar("uses") or "").startswith("actions/checkout@")]
+def _trusted_base_checkout_violations(checkouts, errors):
     if len(checkouts) != 1:
         errors.append("trusted-base migration requires exactly one reviewed checkout")
     else:
         checkout = checkouts[0]
-        if (checkout.scalar("uses") != TRUSTED_BASE_CHECKOUT_REFERENCE.split(" ", 1)[0] or
-                checkout.nested_mapping("with") != {
-                    "submodules": "true",
-                    "ref": "${{ github.event.pull_request.base.sha || github.sha }}",
-                    "persist-credentials": "false",
-                }):
-            errors.append("trusted-base migration checkout must retain the exact base ref, submodule and credential contract")
-    gitlinks = [step for step in steps if step.scalar("id") == "framework-gitlink"]
-    contexts = [step for step in steps if step.scalar("name") == TRUSTED_BASE_CONTEXT_NAME]
-    setups = [step for step in steps if step.scalar("id") == "setup-python"]
-    if len(gitlinks) != 1 or not exact_script(gitlinks[0].run(), TRUSTED_BASE_GITLINK_COMMAND):
-        errors.append("trusted-base migration requires the exact committed Framework gitlink reader")
+        if checkout.scalar("uses") != TRUSTED_BASE_CHECKOUT_REFERENCE.split(" ", 1)[
+            0
+        ] or checkout.nested_mapping("with") != {
+            "submodules": "true",
+            "ref": "${{ github.event.pull_request.base.sha || github.sha }}",
+            "persist-credentials": "false",
+        }:
+            errors.append(
+                "trusted-base migration checkout must retain the exact base ref, submodule and credential contract"
+            )
+
+
+def _trusted_base_context_violations(contexts, errors):
     if len(contexts) != 1:
-        errors.append("trusted-base migration requires the exact guarded authenticated Framework context")
+        errors.append(
+            "trusted-base migration requires the exact guarded authenticated Framework context"
+        )
     else:
         context = contexts[0]
-        keys = [entry[0] for _, _, entry in direct_step_entries(context.lines, context.indent)]
-        if (len(keys) != 5 or set(keys) != {"name", "if", "shell", "env", "run"}
-                or context.scalar("if") != TRUSTED_BASE_CONTEXT_GUARD
-                or context.scalar("shell") != "bash"
-                or context.nested_mapping("env") != {
-                    "EXPECTED_FRAMEWORK_REVISION": "${{ steps.framework-gitlink.outputs.revision }}"
-                }
-                or not exact_script(context.run(), TRUSTED_BASE_CONTEXT_COMMAND)):
-            errors.append("trusted-base migration requires the exact guarded authenticated Framework context")
+        keys = [
+            entry[0]
+            for _, _, entry in direct_step_entries(context.lines, context.indent)
+        ]
+        if (
+            len(keys) != 5
+            or set(keys) != {"name", "if", "shell", "env", "run"}
+            or context.scalar("if") != TRUSTED_BASE_CONTEXT_GUARD
+            or context.scalar("shell") != "bash"
+            or context.nested_mapping("env")
+            != {
+                "EXPECTED_FRAMEWORK_REVISION": "${{ steps.framework-gitlink.outputs.revision }}"
+            }
+            or not exact_script(context.run(), TRUSTED_BASE_CONTEXT_COMMAND)
+        ):
+            errors.append(
+                "trusted-base migration requires the exact guarded authenticated Framework context"
+            )
+
+
+def trusted_base_migration_violations(
+    job: Job, steps: Sequence[Step], verifier: Step
+) -> list[str]:
+    """Bind the one exact dual-layout body to its fixed trusted-base bootstrap."""
+    if job.identity != TRUSTED_BASE_MIGRATION_JOB:
+        return ["dual-layout verifier is restricted to the trusted-base Go resolver"]
+    errors: list[str] = []
+    checkouts = [
+        step
+        for step in steps
+        if (step.scalar("uses") or "").startswith("actions/checkout@")
+    ]
+    _trusted_base_checkout_violations(checkouts, errors)
+    gitlinks = [step for step in steps if step.scalar("id") == "framework-gitlink"]
+    contexts = [
+        step for step in steps if step.scalar("name") == TRUSTED_BASE_CONTEXT_NAME
+    ]
+    setups = [step for step in steps if step.scalar("id") == "setup-python"]
+    if len(gitlinks) != 1 or not exact_script(
+        gitlinks[0].run(), TRUSTED_BASE_GITLINK_COMMAND
+    ):
+        errors.append(
+            "trusted-base migration requires the exact committed Framework gitlink reader"
+        )
+    _trusted_base_context_violations(contexts, errors)
     if len(setups) != 1:
-        errors.append("trusted-base migration requires the unique canonical setup-python step")
+        errors.append(
+            "trusted-base migration requires the unique canonical setup-python step"
+        )
     if len(checkouts) == len(gitlinks) == len(contexts) == len(setups) == 1:
-        if not (checkouts[0].index < gitlinks[0].index < contexts[0].index < setups[0].index < verifier.index):
-            errors.append("trusted-base migration bootstrap must precede its verifier in reviewed order")
+        if not (
+            checkouts[0].index
+            < gitlinks[0].index
+            < contexts[0].index
+            < setups[0].index
+            < verifier.index
+        ):
+            errors.append(
+                "trusted-base migration bootstrap must precede its verifier in reviewed order"
+            )
     return errors
 
 

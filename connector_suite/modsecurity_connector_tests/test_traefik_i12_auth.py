@@ -61,8 +61,9 @@ class AuthCaptureControls(unittest.TestCase):
 
     def test_case_selection_is_finite_and_rejects_duplicate_probes(self):
         for cases in [('unknown-case',),('allow','allow')]:
+            invalid_output = source_path('never-create-invalid-case', root=ROOT)
             with self.assertRaisesRegex(ValueError,'invalid bounded case selection'):
-                PREPARE.prepare(ROOT,source_path('never-create-invalid-case', root=ROOT),cases=cases)
+                PREPARE.prepare(ROOT,invalid_output,cases=cases)
 
     def test_central_capture_is_bound_without_host_execution(self):
         parent=fixture_storage()

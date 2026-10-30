@@ -501,6 +501,123 @@ def _response_header_values(headers: Any, name: str) -> list[str]:
     return [] if values is None else list(values)
 
 
+def _read_probe_response(response, read_error):
+    status = int(response.status if hasattr(response, "status") else response.code)
+    response_headers = response.headers
+    try:
+        response_body = response.read()
+    except (OSError, http.client.HTTPException) as exc:
+        read_error = True
+        partial = getattr(exc, "partial", b"")
+        response_body = partial if isinstance(partial, bytes) else b""
+    return status, response_headers, response_body, read_error
+
+
+
+def _matching_probe_transactions(records, request_id):
+    return {
+        record.get("transaction_id")
+        for line in records
+        if line.strip()
+        for record in [json.loads(line)]
+        if isinstance(record, dict) and record.get("transaction_id") == request_id
+    }
+
+
+def _probe_host_transaction(root, observation, event_path):
+    try:
+        events = Path(event_path)
+        observation["decision_log_path"] = str(
+            runtime_artifact(root, events, "probe event log")
+        )
+        if events.is_file() and observation["request_id"]:
+            records = read_runtime_text(root, events, "probe event log").splitlines()
+            transactions = _matching_probe_transactions(
+                records, observation["request_id"]
+            )
+            if len(transactions) == 1:
+                observation["transaction_id"] = transactions.pop()
+                observation["transaction_ids"] = [observation["transaction_id"]]
+    except (OSError, ValueError):
+        observation["identity_error"] = (
+            "host transaction evidence could not be read safely"
+        )
+        observation["status"] = "FAIL"
+
+
+def _probe_observation_identity(root, url, observation):
+    case_ids = {
+        "/allowed": "allow_without_marker",
+        "/vector/p1": "deny_header_marker_403",
+        "/vector/p2": "deny_request_body_marker_403",
+        "/vector/p3": "deny_response_header_marker_403",
+        "/vector/p3-redirect": "phase3_redirect_before_commit",
+    }
+    # Persist completed traffic before a client assertion can abort the helper.
+    # Readiness and auxiliary probes are observations, not extra unique cases.
+    path = urllib.parse.urlsplit(url).path
+    if path in case_ids and "readiness" not in str(observation["request_id"]):
+        observation["case_id"] = case_ids[path]
+    event_path = os.environ.get("COMMON_EVENT_LOG_PATH", "")
+    if event_path:
+        _probe_host_transaction(root, observation, event_path)
+    observation["promotion_allowed"] = bool(
+        observation.get("transaction_id")
+        and observation["run_id"]
+        and observation["source_revision"]
+    )
+
+
+def _probe_response_observation(
+    status,
+    response_headers,
+    response_body,
+    read_error,
+    headers,
+    forbidden_headers,
+    required_headers,
+):
+    forbidden_observed = any(
+        _response_header_values(response_headers, name) for name in forbidden_headers
+    )
+    required_mismatch = any(
+        _response_header_values(response_headers, name) != [value]
+        for name, value in required_headers.items()
+    )
+    observation = {
+        "schema_version": 1,
+        "evidence_type": "envoy_http_client_probe",
+        "http_status": status,
+        "actual_status": status,
+        "status": "FAIL"
+        if forbidden_observed or required_mismatch or read_error
+        else "PASS",
+        "live_executed": True,
+        "response_bytes": len(response_body),
+        "response_body_completed": not read_error,
+        "response_headers_observed": True,
+        "body_payload_persisted": False,
+        "run_id": os.environ.get("NO_CRS_RUN_ID")
+        or os.environ.get("SMOKE_RUN_ID")
+        or os.environ.get("VERIFIED_RUN_ID", ""),
+        "source_revision": os.environ.get("CONNECTOR_REVISION", ""),
+        "request_id": next(
+            (
+                value
+                for name, value in headers.items()
+                if name.lower() == "x-request-id"
+            ),
+            "",
+        ),
+        "redirect_location_verified": "location" in required_headers
+        and not required_mismatch,
+        "composite_lease_header_present": bool(
+            _response_header_values(response_headers, "x-msconnector-composite-lease")
+        ),
+    }
+    return observation, forbidden_observed, required_mismatch
+
+
 def probe(
     runtime_root: str,
     tls_certificate: str,
@@ -518,87 +635,43 @@ def probe(
     forbidden_headers = parse_header_names(forbid_response_header or [])
     required_headers = parse_required_response_headers(require_response_header or [])
     body = None if data is None else data.encode("utf-8")
-    request = urllib.request.Request(checked_loopback_https_url(url), data=body, headers=headers, method=method)
+    request = urllib.request.Request(
+        checked_loopback_https_url(url), data=body, headers=headers, method=method
+    )
     handlers: list[object] = [
-        urllib.request.HTTPSHandler(context=trusted_loopback_tls_context(root, tls_certificate)),
+        urllib.request.HTTPSHandler(
+            context=trusted_loopback_tls_context(root, tls_certificate)
+        ),
     ]
     if no_redirect:
         handlers.append(NoRedirect())
     read_error = False
-
-    def read_response(response):
-        nonlocal read_error
-        status = int(response.status if hasattr(response, "status") else response.code)
-        response_headers = response.headers
-        try:
-            response_body = response.read()
-        except (OSError, http.client.HTTPException) as exc:
-            read_error = True
-            partial = getattr(exc, "partial", b"")
-            response_body = partial if isinstance(partial, bytes) else b""
-        return status, response_headers, response_body
-
     try:
         opener = urllib.request.build_opener(*handlers)
         with opener.open(request, timeout=2) as response:
-            status, response_headers, response_body = read_response(response)
+            status, response_headers, response_body, read_error = _read_probe_response(
+                response, read_error
+            )
     except urllib.error.HTTPError as exc:
         try:
-            status, response_headers, response_body = read_response(exc)
+            status, response_headers, response_body, read_error = _read_probe_response(
+                exc, read_error
+            )
         finally:
             exc.close()
-    forbidden_observed = any(_response_header_values(response_headers, name) for name in forbidden_headers)
-    required_mismatch = any(
-        _response_header_values(response_headers, name) != [value]
-        for name, value in required_headers.items()
+    observation, forbidden_observed, required_mismatch = _probe_response_observation(
+        status,
+        response_headers,
+        response_body,
+        read_error,
+        headers,
+        forbidden_headers,
+        required_headers,
     )
-    observation = {
-        "schema_version": 1,
-        "evidence_type": "envoy_http_client_probe",
-        "http_status": status,
-        "actual_status": status,
-        "status": "FAIL" if forbidden_observed or required_mismatch or read_error else "PASS",
-        "live_executed": True,
-        "response_bytes": len(response_body),
-        "response_body_completed": not read_error,
-        "response_headers_observed": True,
-        "body_payload_persisted": False,
-        "run_id": os.environ.get("NO_CRS_RUN_ID") or os.environ.get("SMOKE_RUN_ID") or os.environ.get("VERIFIED_RUN_ID", ""),
-        "source_revision": os.environ.get("CONNECTOR_REVISION", ""),
-        "request_id": next((value for name, value in headers.items() if name.lower() == "x-request-id"), ""),
-        "redirect_location_verified": "location" in required_headers and not required_mismatch,
-        "composite_lease_header_present": bool(_response_header_values(response_headers, "x-msconnector-composite-lease")),
-    }
-    case_ids = {
-        "/allowed": "allow_without_marker",
-        "/vector/p1": "deny_header_marker_403",
-        "/vector/p2": "deny_request_body_marker_403",
-        "/vector/p3": "deny_response_header_marker_403",
-        "/vector/p3-redirect": "phase3_redirect_before_commit",
-    }
-    # Persist completed traffic before a client assertion can abort the helper.
-    # Readiness and auxiliary probes are observations, not extra unique cases.
-    path = urllib.parse.urlsplit(url).path
-    if path in case_ids and "readiness" not in str(observation["request_id"]):
-        observation["case_id"] = case_ids[path]
-    event_path = os.environ.get("COMMON_EVENT_LOG_PATH", "")
-    if event_path:
-        try:
-            events = Path(event_path)
-            observation["decision_log_path"] = str(runtime_artifact(root, events, "probe event log"))
-            if events.is_file() and observation["request_id"]:
-                records = read_runtime_text(root, events, "probe event log").splitlines()
-                transactions = {record.get("transaction_id") for line in records if line.strip()
-                                for record in [json.loads(line)] if isinstance(record, dict)
-                                and record.get("transaction_id") == observation["request_id"]}
-                if len(transactions) == 1:
-                    observation["transaction_id"] = transactions.pop()
-                    observation["transaction_ids"] = [observation["transaction_id"]]
-        except (OSError, ValueError):
-            observation["identity_error"] = "host transaction evidence could not be read safely"
-            observation["status"] = "FAIL"
-    observation["promotion_allowed"] = bool(observation.get("transaction_id") and observation["run_id"] and observation["source_revision"])
-    append_jsonl(root, root / "probe-observations.jsonl", observation, "probe observation ledger")
+    _probe_observation_identity(root, url, observation)
+    append_jsonl(
+        root, root / "probe-observations.jsonl", observation, "probe observation ledger"
+    )
     if evidence_path:
         write_json_atomic(root, evidence_path, observation, "probe evidence output")
     if observation.get("identity_error"):

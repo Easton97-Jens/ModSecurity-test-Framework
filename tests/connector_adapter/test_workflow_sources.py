@@ -108,16 +108,19 @@ jobs:
                 ("if: ${{ always() }}", "if: false"),
                 ("id: framework-ci", "id: framework-ci\n        continue-on-error: true"),
                 ("toJSON(matrix)", "toJSON(secrets)")):
-            with self.subTest(change=after), self.assertRaises(WorkflowSourceError):
-                self.expand(self.workflow.replace(before, after))
+            with self.subTest(change=after):
+                changed_workflow = self.workflow.replace(before, after)
+                with self.assertRaises(WorkflowSourceError):
+                    self.expand(changed_workflow)
 
     def test_first_composite_owns_checkout_without_an_outer_always_condition(self):
         first = self.workflow.replace("      - uses: actions/checkout@" + "b" * 40 + "\n", "")
         first = first.replace("        if: ${{ always() }}\n", "")
         self.assertIn("Run actual selected test", self.expand(first))
+        skipped_wrapper = first.replace("        id: framework-ci\n",
+                                        "        id: framework-ci\n        if: false\n")
         with self.assertRaisesRegex(WorkflowSourceError, "terminal cleanup"):
-            self.expand(first.replace("        id: framework-ci\n",
-                                      "        id: framework-ci\n        if: false\n"))
+            self.expand(skipped_wrapper)
 
     def test_source_symlink_alias_or_unknown_nested_action_rejects(self):
         original = self.action.read_text()
@@ -242,8 +245,10 @@ jobs:
                 ("@" + self.revision, "@__FRAMEWORK_MIGRATION_SHA__"),
                 ("connector-trusted-lighttpd-namespace.yml@", "foreign.yml@"),
                 ("Easton97-Jens/ModSecurity-test-Framework/", "foreign/ModSecurity-test-Framework/")):
-            with self.subTest(change=after), self.assertRaises(WorkflowSourceError):
-                self.expand_protected(caller.replace(before, after))
+            with self.subTest(change=after):
+                changed_caller = caller.replace(before, after)
+                with self.assertRaises(WorkflowSourceError):
+                    self.expand_protected(changed_caller)
 
     def test_protected_reusable_wrong_caller_name_is_rejected(self):
         caller, _, _ = self.protected_sources()
@@ -262,8 +267,10 @@ jobs:
                 ("  framework:", "  framework:\n    env:\n      PYTHONPATH: /foreign"),
                 ("  framework:", "  framework:\n    secrets: inherit"),
                 ("permissions: {}", "permissions:\n  contents: write")):
-            with self.subTest(change=after), self.assertRaises(WorkflowSourceError):
-                self.expand_protected(caller.replace(before, after))
+            with self.subTest(change=after):
+                changed_caller = caller.replace(before, after)
+                with self.assertRaises(WorkflowSourceError):
+                    self.expand_protected(changed_caller)
 
     def test_protected_reusable_callee_changes_are_observed(self):
         caller, original, path = self.protected_sources()

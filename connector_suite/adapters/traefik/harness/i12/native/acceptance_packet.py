@@ -25,7 +25,7 @@ def file_http():
     name = '_traefik_i12_packet_file'
     directory = source_path('connectors/traefik/harness/i12_file', root=ROOT)
     if name not in sys.modules:
-        package = load_source(directory / '__init__.py')
+        load_source(directory / '__init__.py')
     return importlib.import_module(name + '.http_stream')
 
 

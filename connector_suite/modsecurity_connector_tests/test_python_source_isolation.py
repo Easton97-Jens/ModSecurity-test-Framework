@@ -18,8 +18,9 @@ class PythonSourceIsolationTests(unittest.TestCase):
         self.assertEqual(Path(module.__file__), source_path(logical))
         self.assertTrue(module.__name__.startswith("modsecurity_connector_tests."))
         self.assertEqual(tuple(sys.path), before)
+        unreviewed_source = connector_root() / "not-a-reviewed-moved-source.py"
         with self.assertRaises(ContextError):
-            load_source(connector_root() / "not-a-reviewed-moved-source.py")
+            load_source(unreviewed_source)
 
     def environment(self, candidate, *, legacy=False):
         framework = test_root()

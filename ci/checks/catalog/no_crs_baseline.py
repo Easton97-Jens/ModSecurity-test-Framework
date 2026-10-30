@@ -5213,6 +5213,46 @@ def configtest_artifact_errors(record: Mapping[str, Any], authority: Path | None
     return []
 
 
+def _validate_request_bound_case(raw, request_bound):
+    if request_bound:
+        validate_request_observation(raw)
+        source_errors = client_case_source_errors(raw)
+        if source_errors:
+            raise ValueError("; ".join(source_errors))
+
+
+def _bind_normalized_case_event_evidence(
+    matching_event,
+    rule_witness,
+    observed_rule_ids,
+    transaction_ids,
+):
+    observed_event_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
+        matching_event, observed_rule_ids, transaction_ids,
+    )
+    if rule_witness is not None:
+        witness_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
+            rule_witness, observed_rule_ids, transaction_ids,
+        )
+        observed_event_fields = sorted(set(observed_event_fields).union(witness_fields))
+    return observed_event_fields, observed_rule_ids, transaction_ids
+
+
+def _matching_case_event(
+    configuration,
+    request_bound,
+    events,
+    expected_rule_id,
+    case,
+    transaction_ids,
+    integration_mode,
+):
+    matching_event = None if configuration is not None or request_bound else event_for_case(
+        events, expected_rule_id, case, transaction_ids, integration_mode,
+    )
+    return matching_event
+
+
 def normalize_case_record(
     raw: Mapping[str, Any],
     connector: str,
@@ -5228,11 +5268,7 @@ def normalize_case_record(
         return None
     case = case_by_id[case_id]
     request_bound = raw.get("evidence_identity") == "request_bound"
-    if request_bound:
-        validate_request_observation(raw)
-        source_errors = client_case_source_errors(raw)
-        if source_errors:
-            raise ValueError("; ".join(source_errors))
+    _validate_request_bound_case(raw, request_bound)
     if "native_operation_receipt" in raw:
         return normalize_native_operation_record(raw, case, connector, native_operation_authority)
     status = normalize_status(raw.get("status"))
@@ -5244,8 +5280,8 @@ def normalize_case_record(
     expected_rule_id = optional_int(case.get("expected_rule_id"))
     transaction_ids = supplied_transaction_ids(raw)
     configuration = config_invocation_for_case(case, connector)
-    matching_event = None if configuration is not None or request_bound else event_for_case(
-        events, expected_rule_id, case, transaction_ids, integration_mode,
+    matching_event = _matching_case_event(
+        configuration, request_bound, events, expected_rule_id, case, transaction_ids, integration_mode,
     )
     barrier, rule_witness, pair_errors = first_byte_case_event_pair(
         raw, case, events, connector, integration_mode,
@@ -5257,19 +5293,14 @@ def normalize_case_record(
     )
     if request_bound:
         observed_rule_ids, transaction_ids = [], []
-        semantic_values = {field: None for field in PHASE4_SEMANTIC_FIELDS}
+        semantic_values = dict.fromkeys(PHASE4_SEMANTIC_FIELDS)
         semantic_values["visible_http_status"] = raw["actual_status"]
     runtime_evidence_errors.extend(pair_errors)
     actual_status_value = normalized_actual_status_value(raw, case, semantic_values)
     actual_status = optional_int(actual_status_value) if actual_status_value is not _MISSING else None
-    observed_event_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
-        matching_event, observed_rule_ids, transaction_ids,
+    observed_event_fields, observed_rule_ids, transaction_ids = _bind_normalized_case_event_evidence(
+        matching_event, rule_witness, observed_rule_ids, transaction_ids,
     )
-    if rule_witness is not None:
-        witness_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
-            rule_witness, observed_rule_ids, transaction_ids,
-        )
-        observed_event_fields = sorted(set(observed_event_fields).union(witness_fields))
     expected_fields = [str(item) for item in case.get("expected_event_fields", [])]
     expected_status = optional_int(case.get("expected_status"))
     event_errors = (
@@ -7992,6 +8023,39 @@ def live_http_request_executed(
     )
 
 
+def _validate_request_observation_ledger_metadata(row):
+    for field in ("response_body_completed", "redirect_location_verified", "composite_lease_header_present", "promotion_allowed"):
+        if field in row and not isinstance(row[field], bool):
+            raise ContractError("request observation ledger has an invalid metadata flag")
+    for field in ("case_id", "decision_log_path", "transaction_id", "identity_error"):
+        if field in row and (not isinstance(row[field], str) or len(row[field]) > 4096):
+            raise ContractError("request observation ledger has unbounded metadata")
+    if "transaction_ids" in row and (not isinstance(row["transaction_ids"], list)
+            or len(row["transaction_ids"]) > 1
+            or any(not isinstance(value, str) or len(value) > 256 for value in row["transaction_ids"])):
+        raise ContractError("request observation ledger has invalid transaction metadata")
+
+
+def _validate_request_observation_ledger_row(row, allowed, identity):
+    if not isinstance(row, Mapping) or set(row) - allowed:
+        raise ContractError("request observation ledger contains undeclared fields")
+    if (type(row.get("schema_version")) is not int or row["schema_version"] != 1
+            or row.get("evidence_type") != "envoy_http_client_probe"
+            or row.get("run_id") != identity.get("run_id") or not row.get("run_id")
+            or row.get("source_revision") != identity.get("connector_commit")
+            or re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", str(row.get("source_revision"))) is None
+            or re.fullmatch(r"[A-Za-z0-9:._/-]{1,256}", str(row.get("request_id") or "")) is None
+            or row.get("status") not in {"PASS", "FAIL"}
+            or row.get("response_headers_observed") is not True
+            or row.get("body_payload_persisted") is not False
+            or type(row.get("actual_status")) is not int
+            or not 100 <= row["actual_status"] <= 599
+            or row.get("http_status") != row["actual_status"]
+            or type(row.get("response_bytes")) is not int or row["response_bytes"] < 0):
+        raise ContractError("request observation ledger identity or client observation is invalid")
+    _validate_request_observation_ledger_metadata(row)
+
+
 def validated_source_request_observed(
     payloads: Sequence[Mapping[str, Any]], identity: Mapping[str, Any],
 ) -> bool:
@@ -8018,34 +8082,40 @@ def validated_source_request_observed(
         if payload.get("executed_request_observations_sha256") != digest:
             raise ContractError("request observation ledger digest mismatch")
         for row in rows:
-            if not isinstance(row, Mapping) or set(row) - allowed:
-                raise ContractError("request observation ledger contains undeclared fields")
-            if (type(row.get("schema_version")) is not int or row["schema_version"] != 1
-                    or row.get("evidence_type") != "envoy_http_client_probe"
-                    or row.get("run_id") != identity.get("run_id") or not row.get("run_id")
-                    or row.get("source_revision") != identity.get("connector_commit")
-                    or re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", str(row.get("source_revision"))) is None
-                    or re.fullmatch(r"[A-Za-z0-9:._/-]{1,256}", str(row.get("request_id") or "")) is None
-                    or row.get("status") not in {"PASS", "FAIL"}
-                    or row.get("response_headers_observed") is not True
-                    or row.get("body_payload_persisted") is not False
-                    or type(row.get("actual_status")) is not int
-                    or not 100 <= row["actual_status"] <= 599
-                    or row.get("http_status") != row["actual_status"]
-                    or type(row.get("response_bytes")) is not int or row["response_bytes"] < 0):
-                raise ContractError("request observation ledger identity or client observation is invalid")
-            for field in ("response_body_completed", "redirect_location_verified", "composite_lease_header_present", "promotion_allowed"):
-                if field in row and not isinstance(row[field], bool):
-                    raise ContractError("request observation ledger has an invalid metadata flag")
-            for field in ("case_id", "decision_log_path", "transaction_id", "identity_error"):
-                if field in row and (not isinstance(row[field], str) or len(row[field]) > 4096):
-                    raise ContractError("request observation ledger has unbounded metadata")
-            if "transaction_ids" in row and (not isinstance(row["transaction_ids"], list)
-                    or len(row["transaction_ids"]) > 1
-                    or any(not isinstance(value, str) or len(value) > 256 for value in row["transaction_ids"])):
-                raise ContractError("request observation ledger has invalid transaction metadata")
+            _validate_request_observation_ledger_row(row, allowed, identity)
             observed = observed or row.get("live_executed") is True
     return observed
+
+
+def _read_retained_request_source(run_dir, artifact):
+    relative = artifact.get("path")
+    if not isinstance(relative, str) or Path(relative).is_absolute() or ".." in Path(relative).parts:
+        raise ContractError("retained request source has an unsafe artifact path")
+    path = run_dir / relative
+    if (path.parent != run_dir / "inventory"
+            or any(component.is_symlink() for component in (path, *path.parents))
+            or not path.is_file() or path.stat().st_size > 16 * 1024 * 1024):
+        raise ContractError("retained request source must be a bounded regular inventory artifact")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 16 * 1024 * 1024:
+            raise ContractError("retained request source must be a bounded regular file")
+        data = stream.read(16 * 1024 * 1024 + 1)
+    if len(data) > 16 * 1024 * 1024:
+        raise ContractError("retained request source exceeds its size limit")
+    if hashlib.sha256(data).hexdigest() != artifact.get("sha256"):
+        raise ContractError("retained request source artifact digest mismatch")
+    return data, path
+
+
+def _append_retained_request_payloads(loaded, manifest, path, payloads):
+    candidates = loaded if isinstance(loaded, list) else [loaded]
+    for candidate in candidates:
+        payload = summary_connector_payload(candidate, str(manifest.get("connector") or ""))
+        if isinstance(payload, Mapping):
+            validate_source_payload(payload, manifest, str(path))
+            payloads.append(payload)
 
 
 def retained_request_observation_sources(run_dir: Path, manifest: Mapping[str, Any]) -> list[Mapping[str, Any]]:
@@ -8056,34 +8126,12 @@ def retained_request_observation_sources(run_dir: Path, manifest: Mapping[str, A
             continue
         if not isinstance(artifact, Mapping) or artifact.get("state") != "produced":
             continue
-        relative = artifact.get("path")
-        if not isinstance(relative, str) or Path(relative).is_absolute() or ".." in Path(relative).parts:
-            raise ContractError("retained request source has an unsafe artifact path")
-        path = run_dir / relative
-        if (path.parent != run_dir / "inventory"
-                or any(component.is_symlink() for component in (path, *path.parents))
-                or not path.is_file() or path.stat().st_size > 16 * 1024 * 1024):
-            raise ContractError("retained request source must be a bounded regular inventory artifact")
-        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-        with os.fdopen(descriptor, "rb") as stream:
-            metadata = os.fstat(stream.fileno())
-            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 16 * 1024 * 1024:
-                raise ContractError("retained request source must be a bounded regular file")
-            data = stream.read(16 * 1024 * 1024 + 1)
-        if len(data) > 16 * 1024 * 1024:
-            raise ContractError("retained request source exceeds its size limit")
-        if hashlib.sha256(data).hexdigest() != artifact.get("sha256"):
-            raise ContractError("retained request source artifact digest mismatch")
+        data, path = _read_retained_request_source(run_dir, artifact)
         try:
             loaded = json.loads(data)
         except json.JSONDecodeError:
             loaded = [json.loads(line) for line in data.decode("utf-8").splitlines() if line.strip()]
-        candidates = loaded if isinstance(loaded, list) else [loaded]
-        for candidate in candidates:
-            payload = summary_connector_payload(candidate, str(manifest.get("connector") or ""))
-            if isinstance(payload, Mapping):
-                validate_source_payload(payload, manifest, str(path))
-                payloads.append(payload)
+        _append_retained_request_payloads(loaded, manifest, path, payloads)
     return payloads
 
 
@@ -9759,7 +9807,7 @@ def status_errors(run_dir: Path) -> list[str]:
     errors.extend(status_count_errors(result, records))
     try:
         source_payloads = retained_request_observation_sources(run_dir, manifest)
-    except (ContractError, OSError, ValueError) as exc:
+    except (OSError, ValueError) as exc:
         errors.append(str(exc))
         source_payloads = []
     record_errors, pass_ids = status_record_consistency_errors(result, records, source_payloads=source_payloads)

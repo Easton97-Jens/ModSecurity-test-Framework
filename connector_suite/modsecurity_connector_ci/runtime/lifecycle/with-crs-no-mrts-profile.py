@@ -448,7 +448,7 @@ def _load_case_cli(path: Path) -> Any:
     path = _safe_absolute(path, "Apache case-summary helper")
     if path.name != "case_cli.py":
         raise fail("Apache case-summary helper name is invalid")
-    source = read_safe(path.parent, path.name, "Apache case-summary helper", maximum=MAX_SOURCE_BYTES)
+    read_safe(path.parent, path.name, "Apache case-summary helper", maximum=MAX_SOURCE_BYTES)
     try:
         module = load_source(path)
     except ProfileError:

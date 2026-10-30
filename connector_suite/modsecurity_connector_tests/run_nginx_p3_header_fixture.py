@@ -181,6 +181,14 @@ def check_response(*, mode: str, response: bytes, failed: bool) -> None:
         fail(f"{mode} did not emit the expected legitimate fixture body")
 
 
+def _p3_native_result(failed, mode):
+    if not failed:
+        return "success"
+    if mode == "negative":
+        return "negative"
+    return "zero"
+
+
 def run_cases(
     *, nginx: Path, config: Path, prefix: Path, port: int, environment: dict[str, str]
 ) -> tuple[list[dict[str, Any]], str]:
@@ -215,7 +223,7 @@ def run_cases(
                 {
                     "ordinal": ordinal,
                     "mode": mode,
-                    "native_result": "success" if not failed else ("negative" if mode == "negative" else "zero"),
+                    "native_result": _p3_native_result(failed, mode),
                     "reinvoked": reinvoked,
                     "expected_downstream": not failed,
                     "expected_terminal_invalid_engine": failed,
@@ -226,7 +234,10 @@ def run_cases(
                 }
             )
         final_log = SHARED.read_bounded(prefix / "logs" / "error.log", MAX_LOG_BYTES)
-        if len(re.findall(r"p3-header-observer downstream=1(?:,|\n|$)", final_log)) != 2:
+        if (
+            len(re.findall(r"p3-header-observer downstream=1(?:,|\n|$)", final_log))
+            != 2
+        ):
             fail("downstream observer count does not match the two legitimate controls")
         for mode in ("zero", "negative", "zero-reinvoke"):
             if cleanup_pattern(mode).search(final_log) is None:
@@ -265,12 +276,8 @@ def main(argv: list[str]) -> int:
     output_root = SHARED.require_absolute_directory(
         arguments.output_root, "output root", create=True
     )
-    archive = SHARED.require_regular_file(arguments.nginx_archive, "NGINX archive")
     if not SHARED.SHA256.fullmatch(arguments.nginx_sha256):
         fail("NGINX SHA-256 must be lowercase hexadecimal")
-    archive_digest = SHARED.sha256_file(archive)
-    if archive_digest != arguments.nginx_sha256:
-        fail("NGINX archive SHA-256 mismatch")
     include_dir = SHARED.require_absolute_directory(
         arguments.modsecurity_include, "ModSecurity include"
     )
@@ -298,7 +305,8 @@ def main(argv: list[str]) -> int:
     for directory in (source_root, build_root, runtime_root, logs_root, evidence_root):
         directory.mkdir(mode=0o700)
 
-    nginx_source = SHARED.safe_extract(archive, source_root)
+    with SHARED.verified_archive_snapshot(arguments.nginx_archive, arguments.nginx_sha256, task_root) as (archive, archive_digest):
+        nginx_source = SHARED.safe_extract(archive, source_root)
     environment = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": str(task_root),

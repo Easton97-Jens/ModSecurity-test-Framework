@@ -30,24 +30,7 @@ def decode(raw):
     return json.loads(raw, object_pairs_hook=inventory._unique_object)
 
 
-def planned(root: Path):
-    original = inventory._read_regular_source(root, INVENTORY)
-    value = decode(original)
-    inventory._keys(value, {"schema_version", "executions", "offline_unit_exceptions",
-                            "source_bindings", "connector_source_paths"}, "inventory")
-    if type(value["schema_version"]) is not int or value["schema_version"] not in {4, 5}:
-        raise ValueError("maintenance requires schema 4 or 5")
-    pool = value["source_bindings"]
-    if not isinstance(pool, list) or not pool:
-        raise ValueError("source bindings must be a nonempty array")
-    bindings = inventory._source_bindings(pool)
-    products = value["connector_source_paths"]
-    if not isinstance(products, list) or not products:
-        raise ValueError("product snapshots must be an explicit nonempty list")
-    for path in products:
-        inventory._relative_path(path)
-    if len(set(products)) != len(products) or set(products) & bindings.keys():
-        raise ValueError("duplicate or conflicting source ownership")
+def _validate_maintenance_executions(value, bindings, products):
     rows = value["executions"]
     exceptions = value["offline_unit_exceptions"]
     if not isinstance(rows, list) or not rows or not isinstance(exceptions, list):
@@ -71,6 +54,29 @@ def planned(root: Path):
                    [case["id"] for row in expanded for case in row["cases"]]):
         if len(values) != len(set(values)):
             raise ValueError("duplicate execution, selector or case")
+
+
+def _validate_maintenance_inventory(value):
+    inventory._keys(value, {"schema_version", "executions", "offline_unit_exceptions",
+                            "source_bindings", "connector_source_paths"}, "inventory")
+    if type(value["schema_version"]) is not int or value["schema_version"] not in {4, 5}:
+        raise ValueError("maintenance requires schema 4 or 5")
+    pool = value["source_bindings"]
+    if not isinstance(pool, list) or not pool:
+        raise ValueError("source bindings must be a nonempty array")
+    bindings = inventory._source_bindings(pool)
+    products = value["connector_source_paths"]
+    if not isinstance(products, list) or not products:
+        raise ValueError("product snapshots must be an explicit nonempty list")
+    for path in products:
+        inventory._relative_path(path)
+    if len(set(products)) != len(products) or set(products) & bindings.keys():
+        raise ValueError("duplicate or conflicting source ownership")
+    _validate_maintenance_executions(value, bindings, products)
+    return pool
+
+
+def _maintenance_source_map(root):
     mapping = decode(inventory._read_regular_source(root, SOURCE_MAP))
     inventory._keys(mapping, {"schema_version", "paths", "connector_paths"}, "source map")
     if type(mapping["schema_version"]) is not int or mapping["schema_version"] != 1:
@@ -80,6 +86,10 @@ def planned(root: Path):
     for key, destination in mapping["paths"].items():
         inventory._relative_path(key)
         inventory._relative_path(destination)
+    return mapping
+
+
+def _refresh_inventory_bindings(root, pool, mapping):
     changes = []
     for source in pool:
         logical = source["path"]
@@ -94,6 +104,15 @@ def planned(root: Path):
         if digest != source["sha256"]:
             changes.append(logical)
             source["sha256"] = digest
+    return changes
+
+
+def planned(root: Path):
+    original = inventory._read_regular_source(root, INVENTORY)
+    value = decode(original)
+    pool = _validate_maintenance_inventory(value)
+    mapping = _maintenance_source_map(root)
+    changes = _refresh_inventory_bindings(root, pool, mapping)
     updated = (json.dumps(value, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
     if len(updated) > LIMIT:
         raise ValueError("updated inventory exceeds 2 MiB")
@@ -154,8 +173,13 @@ def main(argv=None):
             print("SOURCE_DIGEST_DRIFT " + path)
         if changes and args.apply:
             atomic_write(root, original, updated)
-        print("INVENTORY_BINDINGS_" + ("UPDATED" if changes and args.apply else
-              "DRIFT" if changes else "VERIFIED"))
+        if changes and args.apply:
+            status = "UPDATED"
+        elif changes:
+            status = "DRIFT"
+        else:
+            status = "VERIFIED"
+        print("INVENTORY_BINDINGS_" + status)
         return 1 if changes and not args.apply else 0
     except (OSError, ValueError) as error:
         print("INVENTORY_BINDINGS_REJECTED: " + str(error), file=sys.stderr)

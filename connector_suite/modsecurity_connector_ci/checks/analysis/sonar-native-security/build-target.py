@@ -730,7 +730,8 @@ def configure_go_capture_environment(checkout, root, target, spec, environment, 
         environment.update({"GOTOOLCHAIN": "local", "GOPROXY": "off",
                             "GOFLAGS": ("-mod=readonly -work -toolexec=" + str(go_shim)) if spec.get("cgo") else "-mod=readonly",
                             "GOCACHE": str(root / "go-cache"),
-                            "GOMODCACHE": str(module_cache), "TMPDIR": str(work)})
+                            "GOMODCACHE": str(module_cache), "TMPDIR": str(work),
+                            "SONAR_NATIVE_GO_WORK_ROOT": str(work)})
         # The native producer also builds the independent Go response observer.
         # Its native subprocesses cannot enter the ext_authz selected graph.
 

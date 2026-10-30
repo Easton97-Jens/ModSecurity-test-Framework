@@ -345,6 +345,30 @@ def _expand_indexed_sources(value: dict[str, Any], executions: list[Any]) -> Non
         execution["sources"] = [paths[index] for index in indices]
 
 
+def _snapshot_connector_sources(value: dict[str, Any], bindings: dict[str, str], root: Path | None) -> None:
+    """Validate explicit Product ownership and snapshot its current source bytes."""
+    product_paths = value["connector_source_paths"]
+    if not isinstance(product_paths, list) or not product_paths or root is None:
+        raise InventoryError("connector source paths must be an explicit nonempty array")
+    product_seen = set()
+    for relative in product_paths:
+        _relative_path(relative)
+        if relative in bindings or relative in product_seen:
+            raise InventoryError("source ownership must be unique")
+        if _real_checkout(root) and source_path(relative, root=root).is_relative_to(test_root()):
+            raise InventoryError("Framework test sources require reviewed fixed SHA-256 bindings")
+        product_seen.add(relative)
+        bindings[relative] = hashlib.sha256(read_source(root, relative)).hexdigest()
+
+
+def _verify_framework_source_owners(pool: list[Any], root: Path | None) -> None:
+    """Require every fixed test digest to resolve to its selected Framework owner."""
+    if _real_checkout(root):
+        for source in pool:
+            if not source_path(source["path"], root=root).is_relative_to(test_root()):
+                raise InventoryError("fixed test bindings must identify Framework-owned sources")
+
+
 def _expand_shared_sources(value: dict[str, Any], executions: list[Any], root: Path | None = None) -> None:
     """Admit reviewed test sources and explicitly selected product snapshots."""
     pool = value["source_bindings"]
@@ -352,22 +376,8 @@ def _expand_shared_sources(value: dict[str, Any], executions: list[Any], root: P
         raise InventoryError("shared source bindings must be a nonempty array")
     bindings = _source_bindings(pool)
     if value["schema_version"] >= 4:
-        product_paths = value["connector_source_paths"]
-        if not isinstance(product_paths, list) or not product_paths or root is None:
-            raise InventoryError("connector source paths must be an explicit nonempty array")
-        product_seen = set()
-        for relative in product_paths:
-            _relative_path(relative)
-            if relative in bindings or relative in product_seen:
-                raise InventoryError("source ownership must be unique")
-            if _real_checkout(root) and source_path(relative, root=root).is_relative_to(test_root()):
-                raise InventoryError("Framework test sources require reviewed fixed SHA-256 bindings")
-            product_seen.add(relative)
-            bindings[relative] = hashlib.sha256(read_source(root, relative)).hexdigest()
-        if _real_checkout(root):
-            for source in pool:
-                if not source_path(source["path"], root=root).is_relative_to(test_root()):
-                    raise InventoryError("fixed test bindings must identify Framework-owned sources")
+        _snapshot_connector_sources(value, bindings, root)
+        _verify_framework_source_owners(pool, root)
     used = set()
     for execution in executions:
         used.update(_shared_source_references(execution, bindings))
@@ -522,6 +532,7 @@ def _validate_source_definitions(root: Path, executions: list[dict[str, Any]]) -
 
 
 MIGRATION_INTEGRATION_MODULES = frozenset({
+    "modsecurity_connector_tests.test_private_event_fixture_admission",
     "modsecurity_connector_tests.test_framework_workflow_pin_projection",
     "modsecurity_connector_tests.test_mrts_native_package_handoff",
     "modsecurity_connector_tests.test_python_source_isolation",
@@ -559,12 +570,8 @@ def _validate_offline_exceptions(exceptions: list[dict[str, Any]]) -> None:
             raise InventoryError("on-demand exceptions require offline units or reviewed source-bound migration integrations")
 
 
-def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
-    """Admit the entire expanded inventory, including unrequested groups."""
-    root = root.resolve(strict=True)
-    path = inventory_path or (source_path(INVENTORY_PATH, root=root)
-                              if _real_checkout(root) else root / INVENTORY_PATH)
-    value, digest = _read_inventory(path)
+def _inventory_sections(value: Any) -> tuple[int, list[Any], list[Any]]:
+    """Admit the exact supported root shape before expanding either partition."""
     version = value.get("schema_version") if isinstance(value, dict) else None
     if type(version) is not int or version not in {1, 2, 3, 4, 5}:
         raise InventoryError("unsupported active-inventory schema version")
@@ -580,6 +587,28 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
     exceptions = value.get("offline_unit_exceptions", [])
     if not isinstance(core, list) or not core or not isinstance(exceptions, list):
         raise InventoryError("inventory must contain active executions")
+    return version, core, exceptions
+
+
+def _inventory_case_ids(executions: list[dict[str, Any]]) -> tuple[str, ...]:
+    """Reject duplicate cases, execution identities and selectors across all rows."""
+    case_ids = tuple(case["id"] for item in executions for case in item["cases"])
+    if len(case_ids) != len(set(case_ids)):
+        raise InventoryError("duplicate expanded case ID")
+    execution_ids = [item["id"] for item in executions]
+    selectors = [json.dumps(item["selector"], sort_keys=True) for item in executions]
+    if len(execution_ids) != len(set(execution_ids)) or len(selectors) != len(set(selectors)):
+        raise InventoryError("duplicate execution ID or selector; enumerate variants together")
+    return case_ids
+
+
+def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
+    """Admit the entire expanded inventory, including unrequested groups."""
+    root = root.resolve(strict=True)
+    path = inventory_path or (source_path(INVENTORY_PATH, root=root)
+                              if _real_checkout(root) else root / INVENTORY_PATH)
+    value, digest = _read_inventory(path)
+    version, core, exceptions = _inventory_sections(value)
     executions = core + exceptions
     _expand_indexed_sources(value, executions)
     if version >= 3:
@@ -590,13 +619,7 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
     if core_count > HARD_CASE_LIMIT:
         raise InventoryError(f"expanded default active inventory has {core_count} cases; hard limit is 100")
     _validate_offline_exceptions(exceptions)
-    case_ids = tuple(case["id"] for item in executions for case in item["cases"])
-    if len(case_ids) != len(set(case_ids)):
-        raise InventoryError("duplicate expanded case ID")
-    execution_ids = [item["id"] for item in executions]
-    selectors = [json.dumps(item["selector"], sort_keys=True) for item in executions]
-    if len(execution_ids) != len(set(execution_ids)) or len(selectors) != len(set(selectors)):
-        raise InventoryError("duplicate execution ID or selector; enumerate variants together")
+    case_ids = _inventory_case_ids(executions)
     _validate_source_definitions(root, executions)
     if _real_checkout(root) and any(
             execution["selector"]["kind"] == "python" and not
@@ -612,6 +635,19 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
                      tuple(value.get("connector_source_paths", ())))
 
 
+def _recheck_execution_sources(inventory: Inventory, execution: dict[str, Any],
+                               checked: dict[tuple[str, str], bytes]) -> None:
+    """Re-read each distinct bound path/digest once during this recheck only."""
+    for relative, expected in execution["sources"].items():
+        binding = (relative, expected)
+        if binding in checked:
+            continue
+        data = read_source(inventory.root, relative)
+        if hashlib.sha256(data).hexdigest() != expected:
+            raise InventoryError(f"reviewed source digest mismatch before execution: {relative}")
+        checked[binding] = data
+
+
 def _recheck_bindings(inventory: Inventory) -> None:
     if _real_checkout(inventory.root):
         validate_checkout()
@@ -622,14 +658,7 @@ def _recheck_bindings(inventory: Inventory) -> None:
         raise InventoryError("active inventory changed after admission")
     checked: dict[tuple[str, str], bytes] = {}
     for execution in inventory.executions:
-        for relative, expected in execution["sources"].items():
-            binding = (relative, expected)
-            if binding in checked:
-                continue
-            data = read_source(inventory.root, relative)
-            if hashlib.sha256(data).hexdigest() != expected:
-                raise InventoryError(f"reviewed source digest mismatch before execution: {relative}")
-            checked[binding] = data
+        _recheck_execution_sources(inventory, execution, checked)
         if execution["selector"]["kind"] == "go":
             # Go's uniqueness proof also includes current package membership:
             # a newly added, unbound *_test.go can introduce another definition.
@@ -867,10 +896,8 @@ def _observed_result(execution: dict[str, Any], text: str, strict_skips: bool) -
     return {"native_expansion": "reviewed-source-bound", "cases": len(execution["cases"])}
 
 
-def validate_output_root(root: Path, output_root: Path) -> Path:
-    """Validate an existing invocation-owned external parent before allocating."""
-    if not output_root.is_absolute() or ".." in output_root.parts:
-        raise InventoryError("test output root must be an existing absolute external directory")
+def _validate_output_ancestry(output_root: Path) -> None:
+    """Check every existing ancestor, retaining the root-owned sticky exception."""
     for component in [*reversed(output_root.parents), output_root]:
         observed = component.lstat()
         if not stat.S_ISDIR(observed.st_mode) or observed.st_uid not in {0, os.geteuid()}:
@@ -878,6 +905,13 @@ def validate_output_root(root: Path, output_root: Path) -> Path:
         public = component != output_root and observed.st_uid == 0 and observed.st_mode & stat.S_ISVTX
         if observed.st_mode & 0o022 and not public:
             raise InventoryError("test output ancestry must not be adversary-writable")
+
+
+def validate_output_root(root: Path, output_root: Path) -> Path:
+    """Validate an existing invocation-owned external parent before allocating."""
+    if not output_root.is_absolute() or ".." in output_root.parts:
+        raise InventoryError("test output root must be an existing absolute external directory")
+    _validate_output_ancestry(output_root)
     if output_root == root or root in output_root.parents or output_root.stat().st_uid != os.geteuid():
         raise InventoryError("test output root must be external and invocation-owned")
     if _real_checkout(root):
@@ -1026,6 +1060,29 @@ def _default_output_root() -> Path:
     return Path(selected)
 
 
+def _framework_test_module(physical: Path, root: Path) -> str | None:
+    """Resolve only the selected Framework's physical test namespaces and bindings."""
+    module_name = None
+    framework = test_root() / "connector_suite"
+    if physical.is_relative_to(test_root() / "tests"):
+        relative = physical.relative_to(test_root() / "tests").with_suffix("")
+        module_name = "modsecurity_test_framework.selftests." + ".".join(relative.parts)
+    for directory, package, logical_prefix in (
+            ("modsecurity_connector_tests", "modsecurity_connector_tests", "tests"),
+            ("modsecurity_connector_ci", "modsecurity_connector_ci", "ci"),
+            ("adapters", "connector_suite.adapters", "connectors")):
+        try:
+            source = physical.relative_to(framework / directory)
+        except ValueError:
+            continue
+        logical = logical_prefix + "/" + source.as_posix()
+        if source_path(logical, root=root).resolve(strict=True) != physical:
+            return None
+        module_name = package + "." + ".".join(source.with_suffix("").parts)
+        break
+    return module_name
+
+
 def canonical_test_id(test: Any, root: Path) -> str | None:
     """Bind a unittest instance to its actual source, including bare discovery imports."""
     if isinstance(test, OfflineInventoryCase):
@@ -1049,23 +1106,7 @@ def canonical_test_id(test: Any, root: Path) -> str | None:
         return None
     module_name = None
     if _real_checkout(root):
-        framework = test_root() / "connector_suite"
-        if physical.is_relative_to(test_root() / "tests"):
-            relative = physical.relative_to(test_root() / "tests").with_suffix("")
-            module_name = "modsecurity_test_framework.selftests." + ".".join(relative.parts)
-        for directory, package, logical_prefix in (
-                ("modsecurity_connector_tests", "modsecurity_connector_tests", "tests"),
-                ("modsecurity_connector_ci", "modsecurity_connector_ci", "ci"),
-                ("adapters", "connector_suite.adapters", "connectors")):
-            try:
-                source = physical.relative_to(framework / directory)
-            except ValueError:
-                continue
-            logical = logical_prefix + "/" + source.as_posix()
-            if source_path(logical, root=root).resolve(strict=True) != physical:
-                return None
-            module_name = package + "." + ".".join(source.with_suffix("").parts)
-            break
+        module_name = _framework_test_module(physical, root)
     else:
         try:
             source = physical.relative_to(root)

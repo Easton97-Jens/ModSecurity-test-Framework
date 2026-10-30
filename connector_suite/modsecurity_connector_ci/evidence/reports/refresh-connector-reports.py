@@ -19,7 +19,7 @@ from pathlib import Path
 
 from typing import Any
 
-from framework_revision_pins import verify_framework_revision_pins
+from modsecurity_test_framework.product_sources.ci.lib.framework_revision_pins import verify_framework_revision_pins
 
 from modsecurity_connector_ci.lib.generated_report_utils import DATA_SOURCE_POLICY, FILENAME_TO_KEY, GENERATED_REPORTS, GENERATED_ROOT, build_metadata, current_verified_run_id, generated_json_text, generated_at_from_report, generated_markdown_text, generated_report_outputs, input_record, input_status_summary, legacy_report_path, portable_path_reference, registry_record, report_path, report_path_from_root, report_relpath, resolve_input_reference, sanitize_generated_markdown_tree
 from modsecurity_connector_ci.lib.report_path_safety import add_report_roots, add_safe_roots, safe_existing_file, safe_path, write_text_file

@@ -140,9 +140,9 @@ ngx_http_body_buffer_fixture_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     ngx_fd_t original_fd;
     off_t original_file_pos;
     off_t original_file_last;
-    ngx_uint_t original_temporary;
-    ngx_uint_t original_memory;
-    ngx_uint_t original_mmap;
+    unsigned original_temporary;
+    unsigned original_memory;
+    unsigned original_mmap;
     const char *injection = "none";
     const char *representation = "preserved";
     ngx_int_t result;

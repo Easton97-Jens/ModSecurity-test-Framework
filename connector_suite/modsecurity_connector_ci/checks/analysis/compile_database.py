@@ -270,6 +270,14 @@ def entry_filter_reason(
     return None
 
 
+def _framework_source_mismatch(entry: dict[str, Any], authority: FrameworkCppAuthority) -> bool:
+    """Compare the original recorded spelling to the exact admitted Framework path."""
+    raw_source = Path(entry["file"])
+    if not raw_source.is_absolute():
+        raw_source = Path(entry["directory"]) / raw_source
+    return raw_source != authority.source or '..' in raw_source.parts
+
+
 def collect_entries(
     entries: list[Any],
     repository_root: Path,
@@ -290,13 +298,10 @@ def collect_entries(
             filtered.append(paths)
             continue
         source, output = paths
-        if authority is not None and source == authority.source:
-            raw_source = Path(entry["file"])
-            if not raw_source.is_absolute():
-                raw_source = Path(entry["directory"]) / raw_source
-            if raw_source != authority.source or ".." in raw_source.parts:
-                filtered.append(f"entry {index} is not the exact Framework C++ source path")
-                continue
+        if (authority is not None and source == authority.source
+                and _framework_source_mismatch(entry, authority)):
+            filtered.append(f"entry {index} is not the exact Framework C++ source path")
+            continue
         reason = entry_filter_reason(
             source,
             output,

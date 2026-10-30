@@ -258,7 +258,7 @@ static void http_reply_and_close(struct stream *s, short status, void *reply) {
   s->replies++;
 }
 /* Controlled public reply boundary; full HTX serialization is a native host obligation. */
-static int http_apply_redirect_rule(struct redirect_rule *rule,struct stream *s,struct http_txn *txn) {
+static int http_apply_redirect_rule(const struct redirect_rule *rule,struct stream *s,struct http_txn *txn) {
   assert(s && txn==s->txn && rule->type==REDIRECT_TYPE_LOCATION);
   assert(observed_context->lifecycle.disabled && observed_context->transaction==NULL);
   assert(rule->rdr_len>0 && (size_t)rule->rdr_len<sizeof(s->location));

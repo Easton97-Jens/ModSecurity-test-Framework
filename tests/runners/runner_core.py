@@ -1553,8 +1553,25 @@ def assert_phase4_log(
     return errors
 
 
+def _phase4_intervention_for_binding(line, expected):
+    try:
+        item = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(item, dict) or item.get("event") != "phase4_intervention":
+        return None
+    if item.get("transaction_id") != expected["transaction_id"]:
+        return None
+    for field, value in expected.items():
+        if field in item and item[field] != value:
+            raise ValueError(f"phase4 result identity mismatch: {field}")
+    return item
+
+
 def phase4_log_metadata(
-    phase4_log_file: str | Path | None, *, binding: Mapping[str, Any] | None = None,
+    phase4_log_file: str | Path | None,
+    *,
+    binding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Select one request's intervention; an unbound shared log proves nothing.
 
@@ -1573,17 +1590,9 @@ def phase4_log_metadata(
         line = line.strip()
         if not line:
             continue
-        try:
-            item = json.loads(line)
-        except json.JSONDecodeError:
+        item = _phase4_intervention_for_binding(line, expected)
+        if item is None:
             continue
-        if not isinstance(item, dict) or item.get("event") != "phase4_intervention":
-            continue
-        if item.get("transaction_id") != expected["transaction_id"]:
-            continue
-        for field, value in expected.items():
-            if field in item and item[field] != value:
-                raise ValueError(f"phase4 result identity mismatch: {field}")
         if metadata and metadata != item:
             raise ValueError("conflicting phase4 events for one transaction identity")
         metadata = item

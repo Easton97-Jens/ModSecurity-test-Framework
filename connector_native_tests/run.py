@@ -114,24 +114,8 @@ def translation_unit(target: str, connector: Path, tests: Path) -> str:
             f"int main(int argc, char **argv) {{ {invocation} }}\n")
 
 
-def run(args: argparse.Namespace) -> int:
-    if os.environ.get("ON_DEMAND_TESTS") != "1" and not os.environ.get("ACTIVE_TEST_EXECUTION"):
-        raise ValueError("native specialist tests require explicit ON_DEMAND_TESTS=1 or an admitted execution")
-    connector = checked_directory(args.connector_root, "Connector root")
-    tests = checked_directory(args.test_root, "test root")
-    revision = subprocess.check_output(["git", "-C", str(connector), "rev-parse", "HEAD"], text=True).strip()
-    if re.fullmatch(r"[a-f0-9]{40}", args.connector_revision) is None or revision != args.connector_revision:
-        raise ValueError("Connector revision must exactly identify the explicit checkout HEAD")
-    if not (connector / "common/include/msconnector/request.h").is_file():
-        raise ValueError("Connector root lacks the product Common contract")
-    if args.argument and (args.target != "haproxy-modsecurity-binding" or
-                          len(args.argument) != 2 or args.argument[0] not in {"--self-test", "--self-test-crs"}):
-        raise ValueError("only the binding target accepts its explicit self-test mode and rules file")
-    output = checked_output(args.output_root, connector, tests)
-    directory = Path(tempfile.mkdtemp(prefix=args.target + "-", dir=output))
-    os.chmod(directory, 0o700)
-    source = directory / "test.c"
-    source.write_text(translation_unit(args.target, connector, tests), encoding="utf-8")
+def _native_compile_inputs(args: argparse.Namespace, connector: Path, source: Path) -> tuple[list[str], list[Path]]:
+    """Select unchanged strict compiler flags and target-specific input sources."""
     flags = ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread"]
     for include in (connector, connector / "common/include", connector / _COMMON_RUNTIME_PATH,
                     connector / "connectors/traefik", connector / "connectors/traefik/src",
@@ -152,11 +136,11 @@ def run(args: argparse.Namespace) -> int:
         if args.target == "haproxy-spop-runtime":
             sources += [connector / f"connectors/haproxy/src/{name}.c"
                         for name in ("haproxy_modsecurity_binding", "haproxy_spop_response_companion_backend")]
-    compiler = os.environ.get("CC", "cc")
-    linker = os.environ.get("CXX", "c++")
-    # HEAD identifies the checkout; content digests identify the actual inputs,
-    # including a deliberately dirty migration worktree. Never label a dirty
-    # build as proof of the immutable HEAD's source bytes.
+    return flags, sources
+
+
+def _native_bound_inputs(args: argparse.Namespace, connector: Path, tests: Path, sources: list[Path]) -> set[Path]:
+    """Bind the selected Product/Framework source closure and explicit rules input."""
     bound = set(sources)
     bound.update((connector / "common/include").rglob("*.h"))
     bound.update((connector / _COMMON_RUNTIME_PATH).glob("*.h"))
@@ -184,6 +168,85 @@ def run(args: argparse.Namespace) -> int:
         if not rules.is_absolute() or not rules.is_file() or rules.is_symlink():
             raise ValueError("binding test rules must be an explicit regular non-symlink file")
         bound.add(rules)
+    return bound
+
+
+def _native_link_command(args: argparse.Namespace, linker: str, objects: list[Path], binary: Path) -> list[str]:
+    """Retain the native library search, runtime path and output argument order."""
+    command = [linker, *(str(item) for item in objects), "-pthread"]
+    if args.target in COMPLEX_TARGETS:
+        if args.modsecurity_lib:
+            library_root = checked_directory(args.modsecurity_lib, "ModSecurity library")
+            command += ["-L", str(library_root), f"-Wl,-rpath,{library_root}"]
+        command.append("-lmodsecurity")
+    command += ["-o", str(binary)]
+    return command
+
+
+def _native_socket_directory(args: argparse.Namespace, connector: Path, tests: Path) -> Path:
+    """Admit and allocate the Traefik fixture-owned private socket directory."""
+    if not args.socket_parent:
+        raise ValueError("Traefik engine self-test requires an explicit short external --socket-parent")
+    socket_parent = checked_output(args.socket_parent, connector, tests)
+    private_sockets = Path(tempfile.mkdtemp(prefix="native-", dir=socket_parent))
+    os.chmod(private_sockets, 0o700)
+    return private_sockets
+
+
+def _execute_native_binary(args: argparse.Namespace, connector: Path, tests: Path, directory: Path, binary: Path) -> int:
+    """Execute one selected target while retaining its socket cleanup ownership."""
+    if args.build_only:
+        code = 0
+    else:
+        invocation = [str(binary)]
+        if args.target == "traefik-engine":
+            private_sockets = _native_socket_directory(args, connector, tests)
+            invocation.append(str(private_sockets))
+        elif args.target == "haproxy-spop-runtime":
+            temporary = directory / "tmp"
+            logs = directory / "logs"
+            temporary.mkdir(mode=0o700)
+            logs.mkdir(mode=0o700)
+            invocation += ["--runtime-self-test", "--tmp-root", str(temporary), "--log-root", str(logs)]
+        invocation += args.argument
+        try:
+            code = process(invocation, timeout=300, log=directory / "execution.log", cwd=connector)
+        finally:
+            if args.target == "traefik-engine":
+                # The fixture owns/removes its inner socket directory. Retain
+                # unexpected files rather than deleting outside that contract.
+                try:
+                    private_sockets.rmdir()
+                except OSError:
+                    pass
+    return code
+
+
+def run(args: argparse.Namespace) -> int:
+    if os.environ.get("ON_DEMAND_TESTS") != "1" and not os.environ.get("ACTIVE_TEST_EXECUTION"):
+        raise ValueError("native specialist tests require explicit ON_DEMAND_TESTS=1 or an admitted execution")
+    connector = checked_directory(args.connector_root, "Connector root")
+    tests = checked_directory(args.test_root, "test root")
+    revision = subprocess.check_output(["git", "-C", str(connector), "rev-parse", "HEAD"], text=True).strip()
+    if re.fullmatch(r"[a-f0-9]{40}", args.connector_revision) is None or revision != args.connector_revision:
+        raise ValueError("Connector revision must exactly identify the explicit checkout HEAD")
+    if not (connector / "common/include/msconnector/request.h").is_file():
+        raise ValueError("Connector root lacks the product Common contract")
+    if args.argument and (args.target != "haproxy-modsecurity-binding" or
+                          len(args.argument) != 2 or args.argument[0] not in {"--self-test", "--self-test-crs"}):
+        raise ValueError("only the binding target accepts its explicit self-test mode and rules file")
+    output = checked_output(args.output_root, connector, tests)
+    directory = Path(tempfile.mkdtemp(prefix=args.target + "-", dir=output))
+    os.chmod(directory, 0o700)
+    source = directory / "test.c"
+    source.write_text(translation_unit(args.target, connector, tests), encoding="utf-8")
+    flags, sources = _native_compile_inputs(args, connector, source)
+    compiler = os.environ.get("CC", "cc")
+    linker = os.environ.get("CXX", "c++")
+    # HEAD identifies the checkout; content digests identify the actual inputs,
+    # including a deliberately dirty migration worktree. Never label a dirty
+    # build as proof of the immutable HEAD's source bytes.
+    bound = _native_bound_inputs(args, connector, tests, sources)
 
     def bindings() -> dict[str, str]:
         return {str(item): hashlib.sha256(item.read_bytes()).hexdigest() for item in sorted(bound)}
@@ -205,43 +268,10 @@ def run(args: argparse.Namespace) -> int:
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 1) as pool:
         objects = list(pool.map(compile_source, enumerate(sources)))
     binary = directory / "native-test"
-    command = [linker, *(str(item) for item in objects), "-pthread"]
-    if args.target in COMPLEX_TARGETS:
-        if args.modsecurity_lib:
-            library_root = checked_directory(args.modsecurity_lib, "ModSecurity library")
-            command += ["-L", str(library_root), f"-Wl,-rpath,{library_root}"]
-        command.append("-lmodsecurity")
-    command += ["-o", str(binary)]
+    command = _native_link_command(args, linker, objects, binary)
     if process(command, timeout=120, log=directory / "link.log", cwd=connector):
         raise RuntimeError(f"native link failed; log={directory / 'link.log'}")
-    if args.build_only:
-        code = 0
-    else:
-        invocation = [str(binary)]
-        if args.target == "traefik-engine":
-            if not args.socket_parent:
-                raise ValueError("Traefik engine self-test requires an explicit short external --socket-parent")
-            socket_parent = checked_output(args.socket_parent, connector, tests)
-            private_sockets = Path(tempfile.mkdtemp(prefix="native-", dir=socket_parent))
-            os.chmod(private_sockets, 0o700)
-            invocation.append(str(private_sockets))
-        elif args.target == "haproxy-spop-runtime":
-            temporary = directory / "tmp"
-            logs = directory / "logs"
-            temporary.mkdir(mode=0o700)
-            logs.mkdir(mode=0o700)
-            invocation += ["--runtime-self-test", "--tmp-root", str(temporary), "--log-root", str(logs)]
-        invocation += args.argument
-        try:
-            code = process(invocation, timeout=300, log=directory / "execution.log", cwd=connector)
-        finally:
-            if args.target == "traefik-engine":
-                # The fixture owns/removes its inner socket directory. Retain
-                # unexpected files rather than deleting outside that contract.
-                try:
-                    private_sockets.rmdir()
-                except OSError:
-                    pass
+    code = _execute_native_binary(args, connector, tests, directory, binary)
     receipt = {"schema_version": 1, "run_id": directory.name, "execution_id": args.target,
                "target": args.target, "profile": args.profile,
                "counting_scope": "specialist execution; no expanded unique-case count is derived",

@@ -152,6 +152,42 @@ class CleanCombinationGuards(unittest.TestCase):
         self.assertEqual(value["TMP_ROOT"], "/external/results")
         self.assertEqual(value["XDG_CACHE_HOME"], "/external/results/cache")
 
+    def test_make_active_python_path_is_rejected_before_effects(self):
+        variants = {
+            "make-expansion": "$(shell :)", "backtick": "`true`", "whitespace": " ",
+            "semicolon": ";", "quote": "'", "backslash": "\\", "newline": "\n",
+            "glob": "*",
+        }
+        with tempfile.TemporaryDirectory(dir=os.environ["RUNNER_TEMP"]) as temporary:
+            root = Path(temporary)
+            for label, value in variants.items():
+                with self.subTest(label=label):
+                    executable = root / ("python-" + value)
+                    executable.symlink_to(sys.executable)
+                    with (patch.object(integration, "physical_directory") as source_read,
+                          patch.object(integration.tempfile, "mkdtemp") as allocate,
+                          patch.object(integration.subprocess, "Popen") as child,
+                          self.assertRaisesRegex(integration.IntegrationError, "Make-safe")):
+                        integration.verify_combination(
+                            connector_source=root / "parent", framework_source=root / "framework",
+                            connector_revision="a" * 40, output_root=root / "output",
+                            python=executable, profile="h1")
+                    source_read.assert_not_called()
+                    allocate.assert_not_called()
+                    child.assert_not_called()
+
+    def test_existing_custom_python_path_remains_unchanged(self):
+        with tempfile.TemporaryDirectory(dir=os.environ["RUNNER_TEMP"]) as temporary:
+            variants = {
+                "ascii": "custom-python", "plus": "custom-python+",
+                "at": "custom-python@", "unicode-combining": "custom-python-ä-e\u0301",
+            }
+            for label, value in variants.items():
+                with self.subTest(label=label):
+                    executable = Path(temporary) / value
+                    executable.symlink_to(sys.executable)
+                    self.assertEqual(integration.make_safe_python(executable), executable)
+
 
 class RetainedProbeControls(unittest.TestCase):
     def setUp(self):

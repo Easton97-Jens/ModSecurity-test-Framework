@@ -141,8 +141,9 @@ class SonarNativeContextTests(unittest.TestCase):
             with mock.patch.object(NATIVE.urllib.request, "urlopen", side_effect=error) as network, \
                     mock.patch.object(NATIVE.time, "sleep") as delay, \
                     mock.patch.object(NATIVE.sys, "stderr", new_callable=io.StringIO) as diagnostic:
+                item = self.archive_item()
                 with self.assertRaises(urllib.error.URLError):
-                    NATIVE.verified_archive(self.archive_item(), root, None)
+                    NATIVE.verified_archive(item, root, None)
             self.assertEqual(network.call_count, 3)
             self.assertEqual(delay.call_args_list, [mock.call(1), mock.call(2)])
             self.assertNotIn("secret-proxy-token", diagnostic.getvalue())
@@ -179,8 +180,10 @@ class SonarNativeContextTests(unittest.TestCase):
             error = urllib.error.HTTPError(self.archive_item()["url"], 404, "not found", {}, None)
             with mock.patch.object(NATIVE.urllib.request, "urlopen", side_effect=error) as network, \
                     mock.patch.object(NATIVE.time, "sleep") as delay:
+                item = self.archive_item()
+                archive_root = Path(temporary)
                 with self.assertRaises(urllib.error.HTTPError):
-                    NATIVE.verified_archive(self.archive_item(), Path(temporary), None)
+                    NATIVE.verified_archive(item, archive_root, None)
             network.assert_called_once()
             delay.assert_not_called()
             self.assertEqual(list(Path(temporary).iterdir()), [])
@@ -190,8 +193,10 @@ class SonarNativeContextTests(unittest.TestCase):
             error = urllib.error.URLError(ssl.SSLCertVerificationError("untrusted certificate"))
             with mock.patch.object(NATIVE.urllib.request, "urlopen", side_effect=error) as network, \
                     mock.patch.object(NATIVE.time, "sleep") as delay:
+                item = self.archive_item()
+                archive_root = Path(temporary)
                 with self.assertRaises(urllib.error.URLError):
-                    NATIVE.verified_archive(self.archive_item(), Path(temporary), None)
+                    NATIVE.verified_archive(item, archive_root, None)
             network.assert_called_once()
             delay.assert_not_called()
             self.assertEqual(list(Path(temporary).iterdir()), [])
@@ -200,8 +205,10 @@ class SonarNativeContextTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             with mock.patch.object(NATIVE.urllib.request, "urlopen", return_value=self.archive_response(b"wrong")) as network, \
                     mock.patch.object(NATIVE.time, "sleep") as delay:
+                item = self.archive_item()
+                archive_root = Path(temporary)
                 with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
-                    NATIVE.verified_archive(self.archive_item(), Path(temporary), None)
+                    NATIVE.verified_archive(item, archive_root, None)
             network.assert_called_once()
             delay.assert_not_called()
 
@@ -209,8 +216,10 @@ class SonarNativeContextTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             with mock.patch.object(NATIVE.urllib.request, "urlopen", return_value=self.archive_response(url="http://example.invalid/host.tar.gz")) as network, \
                     mock.patch.object(NATIVE.time, "sleep") as delay:
+                item = self.archive_item()
+                archive_root = Path(temporary)
                 with self.assertRaisesRegex(ValueError, "redirected away from HTTPS"):
-                    NATIVE.verified_archive(self.archive_item(), Path(temporary), None)
+                    NATIVE.verified_archive(item, archive_root, None)
             network.assert_called_once()
             delay.assert_not_called()
             self.assertEqual(list(Path(temporary).iterdir()), [])
@@ -222,8 +231,9 @@ class SonarNativeContextTests(unittest.TestCase):
             archive.write_bytes(b"preexisting sentinel")
             with mock.patch.object(NATIVE.urllib.request, "urlopen", return_value=self.archive_response()) as network, \
                     mock.patch.object(NATIVE.time, "sleep") as delay:
+                item = self.archive_item()
                 with self.assertRaises(FileExistsError):
-                    NATIVE.verified_archive(self.archive_item(), root, None)
+                    NATIVE.verified_archive(item, root, None)
             self.assertEqual(archive.read_bytes(), b"preexisting sentinel")
             network.assert_called_once()
             delay.assert_not_called()

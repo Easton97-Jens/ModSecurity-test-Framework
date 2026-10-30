@@ -474,56 +474,110 @@ def _write_or_print_case_info(info: dict[str, object], args: argparse.Namespace)
         print(content, end="")
 
 
-def case_info(args: argparse.Namespace) -> int:
-    case = load_case(args.case)
-    actual_status = int(args.actual_status) if args.actual_status not in (None, "") else None
-    info = build_case_info(case, args.case, args.connector, args.status, actual_status)
-    identity = {field: getattr(args, field, "") for field in RESULT_BINDING_FIELDS}
-    identity["case_id"] = identity["case_id"] or str(case["name"])
-    capture_log = getattr(args, "capture_request_log", None)
-    capture_window = getattr(args, "capture_request_window", None)
+def _case_info_request_window(args, identity, capture_window):
     window = None
-    request_bound = False
     window_bytes = None
     if capture_window:
-        window_bytes = _request_artifact(Path(capture_window), _required_output_root(args, "case-info"), 16384)
+        window_bytes = _request_artifact(
+            Path(capture_window), _required_output_root(args, "case-info"), 16384
+        )
         window = json.loads(window_bytes)
         context = validate_result_context(identity)
-        _validate_request_window(window, Path(capture_window), _required_output_root(args, "case-info"),
-                                 context, Path(args.case), completed=True)
+        _validate_request_window(
+            window,
+            Path(capture_window),
+            _required_output_root(args, "case-info"),
+            context,
+            Path(args.case),
+            completed=True,
+        )
         if identity["request_id"] and identity["request_id"] != window["request_id"]:
             raise ValueError("request window nonce conflicts with explicit request_id")
         identity["request_id"] = window["request_id"]
-    if capture_log and (Path(capture_log).exists() or window is not None) and (actual_status not in (None, 0) or window is not None):
-        try:
-            captured = captured_request_transaction(case, capture_log, _required_output_root(args, "case-info"), window=window, context=identity)
-            if identity["transaction_id"] and identity["transaction_id"] != captured:
-                raise ValueError("captured host transaction conflicts with explicit transaction_id")
-            identity["transaction_id"] = captured
-            identity["request_id"] = identity["request_id"] or (window["request_id"] if window else captured)
-        except NoObservedHostTransaction:
-            if (window is not None and not identity["transaction_id"] and args.status in {"pass", "fail"}
-                    and actual_status is not None and 100 <= actual_status <= 599):
-                request_bound = True
-            elif args.status != "fail" or identity["transaction_id"]:
-                raise
-        except ValueError as exc:
-            if args.status != "fail" or identity["transaction_id"]:
-                raise
-            info["identity_error"] = str(exc)
-            print(f"failed request identity unresolved: {exc}", file=sys.stderr)
+    return window, window_bytes
+
+
+def _request_bound_without_host_transaction(window, identity, args, actual_status):
+    return (
+        window is not None
+        and not identity["transaction_id"]
+        and args.status in {"pass", "fail"}
+        and actual_status is not None
+        and 100 <= actual_status <= 599
+    )
+
+
+def _case_info_capture_transaction(
+    args, case, info, identity, actual_status, window, capture_log
+):
+    request_bound = False
+    if not (
+        capture_log
+        and (Path(capture_log).exists() or window is not None)
+        and (actual_status not in (None, 0) or window is not None)
+    ):
+        return False
+    try:
+        captured = captured_request_transaction(
+            case,
+            capture_log,
+            _required_output_root(args, "case-info"),
+            window=window,
+            context=identity,
+        )
+        if identity["transaction_id"] and identity["transaction_id"] != captured:
+            raise ValueError(
+                "captured host transaction conflicts with explicit transaction_id"
+            )
+        identity["transaction_id"] = captured
+        identity["request_id"] = identity["request_id"] or (
+            window["request_id"] if window else captured
+        )
+    except NoObservedHostTransaction:
+        if _request_bound_without_host_transaction(
+            window, identity, args, actual_status
+        ):
+            request_bound = True
+        elif args.status != "fail" or identity["transaction_id"]:
+            raise
+    except ValueError as exc:
+        if args.status != "fail" or identity["transaction_id"]:
+            raise
+        info["identity_error"] = str(exc)
+        print(f"failed request identity unresolved: {exc}", file=sys.stderr)
+    return request_bound
+
+
+def _case_info_result_identity(
+    info, identity, args, case, actual_status, window, window_bytes, request_bound
+):
     if request_bound:
         info.update(identity)
-        info.update(transaction_id=None, transaction_ids=[], evidence_identity="request_bound",
-                    runtime_verified=False, promotion_allowed=False, live_executed=True)
+        info.update(
+            transaction_id=None,
+            transaction_ids=[],
+            evidence_identity="request_bound",
+            runtime_verified=False,
+            promotion_allowed=False,
+            live_executed=True,
+        )
         info["request_observation"] = dict(window)
-        info["request_observation"]["receipt_sha256"] = hashlib.sha256(window_bytes).hexdigest()
+        info["request_observation"]["receipt_sha256"] = hashlib.sha256(
+            window_bytes
+        ).hexdigest()
         validate_request_observation(info)
     elif any(identity[field] for field in RESULT_BINDING_FIELDS if field != "case_id"):
-        if args.status in {"fail", "blocked", "not_executable", "skipped"} and not identity["transaction_id"]:
+        if (
+            args.status in {"fail", "blocked", "not_executable", "skipped"}
+            and not identity["transaction_id"]
+        ):
             info.update(validate_result_context(identity))
-            info["live_executed"] = actual_status is not None and 100 <= actual_status <= 599
-            info["evidence_identity"] = "unbound" if args.status == "fail" else "not_executed"
+            info["live_executed"] = (
+                actual_status is not None and 100 <= actual_status <= 599
+            )
+            info["evidence_identity"] = (
+                "unbound" if args.status == "fail" else "not_executed"
+            )
             info["runtime_verified"] = False
             info["promotion_allowed"] = False
         else:
@@ -535,12 +589,39 @@ def case_info(args: argparse.Namespace) -> int:
         info["evidence_identity"] = "unbound"
         info["runtime_verified"] = False
         info["promotion_allowed"] = False
+
+
+def case_info(args: argparse.Namespace) -> int:
+    case = load_case(args.case)
+    actual_status = (
+        int(args.actual_status) if args.actual_status not in (None, "") else None
+    )
+    info = build_case_info(case, args.case, args.connector, args.status, actual_status)
+    identity = {field: getattr(args, field, "") for field in RESULT_BINDING_FIELDS}
+    identity["case_id"] = identity["case_id"] or str(case["name"])
+    capture_log = getattr(args, "capture_request_log", None)
+    capture_window = getattr(args, "capture_request_window", None)
+    window, window_bytes = _case_info_request_window(args, identity, capture_window)
+    request_bound = _case_info_capture_transaction(
+        args, case, info, identity, actual_status, window, capture_log
+    )
+    _case_info_result_identity(
+        info, identity, args, case, actual_status, window, window_bytes, request_bound
+    )
     _add_case_info_context(info, args, actual_status)
     if args.status in {"pass", "fail"}:
-        info["request_attempted"] = window is not None or actual_status is not None or bool(info.get("transaction_id"))
-        info["live_executed"] = bool(info.get("transaction_id")) or (actual_status is not None and 100 <= actual_status <= 599)
+        info["request_attempted"] = (
+            window is not None
+            or actual_status is not None
+            or bool(info.get("transaction_id"))
+        )
+        info["live_executed"] = bool(info.get("transaction_id")) or (
+            actual_status is not None and 100 <= actual_status <= 599
+        )
     if not request_bound:
-        _add_phase4_log_evidence(info, args.phase4_log_file or args.nginx_phase4_log_file)
+        _add_phase4_log_evidence(
+            info, args.phase4_log_file or args.nginx_phase4_log_file
+        )
     _write_or_print_case_info(info, args)
     return 0
 
@@ -646,23 +727,69 @@ class NoObservedHostTransaction(ValueError):
     """A validated request interval contains no matching host transaction."""
 
 
-def captured_request_transaction(case: dict, log: str, output_root: Path, *, window: dict | None = None,
-                                 context: dict | None = None) -> str:
+def _request_window_data(data, path, window):
+    if window is not None:
+        start, end = window.get("start_offset"), window.get("end_offset")
+        if (
+            window.get("state") != "completed"
+            or window.get("event_log") != str(path)
+            or type(start) is not int
+            or type(end) is not int
+            or not 0 <= start <= end <= len(data)
+            or hashlib.sha256(data[:start]).hexdigest() != window.get("prefix_sha256")
+            or hashlib.sha256(data[start:end]).hexdigest()
+            != window.get("interval_sha256")
+        ):
+            raise ValueError(
+                "request event interval is missing or no longer matches its receipt"
+            )
+        data = data[start:end]
+    return data
+
+
+def _matching_request_transaction(event, method, permitted_uris, window, context):
+    if not isinstance(event, dict):
+        raise ValueError("request identity log must contain event objects")
+    nested = event.get("request")
+    nested = nested if isinstance(nested, dict) else {}
+    if (
+        event.get("method", nested.get("method")) != method
+        or event.get("uri", nested.get("uri")) not in permitted_uris
+    ):
+        return None
+    expected = window or context or {}
+    for field in ("run_id", "case_id", "source_revision"):
+        if expected.get(field) and field in event and event[field] != expected[field]:
+            raise ValueError(f"captured request identity mismatch: {field}")
+    transaction = event.get("transaction_id")
+    if (
+        not isinstance(transaction, str)
+        or re.fullmatch(r"[A-Za-z0-9:._/-]{1,256}", transaction) is None
+    ):
+        raise ValueError(
+            "matching request event lacks a valid observed host transaction"
+        )
+    return transaction
+
+
+def captured_request_transaction(
+    case: dict,
+    log: str,
+    output_root: Path,
+    *,
+    window: dict | None = None,
+    context: dict | None = None,
+) -> str:
     """Read an actual host transaction for the exact request in its private run log.
 
     A filename or the last intervention is never an identity. Multiple attempts
     of the same request require a producer-supplied explicit binding instead.
     """
     path = Path(log)
-    data = _request_artifact(path, output_root, 16 * 1024 * 1024) if path.exists() else b""
-    if window is not None:
-        start, end = window.get("start_offset"), window.get("end_offset")
-        if (window.get("state") != "completed" or window.get("event_log") != str(path) or type(start) is not int or type(end) is not int
-                or not 0 <= start <= end <= len(data)
-                or hashlib.sha256(data[:start]).hexdigest() != window.get("prefix_sha256")
-                or hashlib.sha256(data[start:end]).hexdigest() != window.get("interval_sha256")):
-            raise ValueError("request event interval is missing or no longer matches its receipt")
-        data = data[start:end]
+    data = (
+        _request_artifact(path, output_root, 16 * 1024 * 1024) if path.exists() else b""
+    )
+    data = _request_window_data(data, path, window)
     request = case.get("request", {})
     method, uri = request.get("method", "GET"), request.get("path", "/")
     permitted_uris = {uri}
@@ -673,24 +800,19 @@ def captured_request_transaction(case: dict, log: str, output_root: Path, *, win
         if not line.strip():
             continue
         event = json.loads(line)
-        if not isinstance(event, dict):
-            raise ValueError("request identity log must contain event objects")
-        nested = event.get("request")
-        nested = nested if isinstance(nested, dict) else {}
-        if event.get("method", nested.get("method")) != method or event.get("uri", nested.get("uri")) not in permitted_uris:
-            continue
-        expected = window or context or {}
-        for field in ("run_id", "case_id", "source_revision"):
-            if expected.get(field) and field in event and event[field] != expected[field]:
-                raise ValueError(f"captured request identity mismatch: {field}")
-        transaction = event.get("transaction_id")
-        if not isinstance(transaction, str) or re.fullmatch(r"[A-Za-z0-9:._/-]{1,256}", transaction) is None:
-            raise ValueError("matching request event lacks a valid observed host transaction")
-        transactions.add(transaction)
+        transaction = _matching_request_transaction(
+            event, method, permitted_uris, window, context
+        )
+        if transaction is not None:
+            transactions.add(transaction)
     if not transactions:
-        raise NoObservedHostTransaction("request identity requires exactly one matching observed host transaction")
+        raise NoObservedHostTransaction(
+            "request identity requires exactly one matching observed host transaction"
+        )
     if len(transactions) != 1:
-        raise ValueError("request identity requires exactly one matching observed host transaction")
+        raise ValueError(
+            "request identity requires exactly one matching observed host transaction"
+        )
     return transactions.pop()
 
 
@@ -708,7 +830,9 @@ def read_jsonl(path: Path) -> list[dict[str, object]]:
     return entries
 
 
-def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]) -> dict[str, object]:
+def connector_summary(
+    args: argparse.Namespace, entries: list[dict[str, object]]
+) -> dict[str, object]:
     context = summary_context(args)
     summary = build_connector_summary(
         connector=args.connector,
@@ -725,7 +849,9 @@ def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]
     summary["per_case_result_root"] = args.per_case_result_root or ""
     summary["command"] = args.command or ""
     summary["exit_status"] = args.exit_status
-    summary["run_started_at"] = args.run_started_at or os.environ.get("SMOKE_RUN_STARTED_AT", "")
+    summary["run_started_at"] = args.run_started_at or os.environ.get(
+        "SMOKE_RUN_STARTED_AT", ""
+    )
     if isinstance(counts, dict):
         summary["failed_due_to_live_mismatches"] = bool(counts.get("fail", 0))
     return summary

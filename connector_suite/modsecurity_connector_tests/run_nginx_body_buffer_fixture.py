@@ -11,8 +11,10 @@ task log directory.
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack, contextmanager
 import grp
 import hashlib
+import io
 import json
 import os
 import pwd
@@ -25,7 +27,8 @@ import sys
 import tarfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
+from collections.abc import Iterator
 
 from modsecurity_test_framework.connector_context import load_tool
 from modsecurity_connector_ci.lib.runtime_path_utils import (
@@ -166,8 +169,95 @@ def run(
     return result
 
 
-def safe_extract(archive: Path, destination: Path) -> Path:
-    with tarfile.open(archive, mode="r:gz") as tar:
+# The current pinned nginx-1.31.6 release archive is 1,373,124 bytes.
+# This compressed-input bound leaves ample source-release headroom while
+# preventing an unbounded local-file copy; existing member guards remain.
+MAX_ARCHIVE_BYTES = 64 * 1024 * 1024
+_ARCHIVE_COPY_CHUNK_BYTES = 1024 * 1024
+
+
+def _validate_archive_directory(metadata: os.stat_result, *, private: bool) -> None:
+    if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid not in {0, os.geteuid()}:
+        fail("NGINX archive ancestry must be root/current-user owned directories")
+    if metadata.st_mode & 0o022 and not (
+        metadata.st_uid == 0 and metadata.st_mode & stat.S_ISVTX
+    ):
+        fail("NGINX archive ancestry permits untrusted shared writes")
+    if private and (metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077):
+        fail("NGINX archive snapshot directory must be private and owned")
+
+
+def _open_archive_directory(path: Path, cleanup: ExitStack, *, private: bool = False) -> int:
+    if ".." in path.parts:
+        fail("NGINX archive paths must not contain parent traversal")
+    absolute = path if path.is_absolute() else Path.cwd() / path
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptor = os.open(absolute.anchor, flags)
+    cleanup.callback(os.close, descriptor)
+    _validate_archive_directory(os.fstat(descriptor), private=private and len(absolute.parts) == 1)
+    for index, component in enumerate(absolute.parts[1:], 1):
+        descriptor = os.open(component, flags, dir_fd=descriptor)
+        cleanup.callback(os.close, descriptor)
+        _validate_archive_directory(os.fstat(descriptor), private=private and index == len(absolute.parts) - 1)
+    return descriptor
+
+
+def _copy_archive_snapshot(source: int, snapshot: BinaryIO) -> None:
+    total = 0
+    while True:
+        chunk = os.read(source, min(_ARCHIVE_COPY_CHUNK_BYTES, MAX_ARCHIVE_BYTES - total + 1))
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_ARCHIVE_BYTES:
+            fail("NGINX archive exceeds the compressed input byte limit")
+        if snapshot.write(chunk) != len(chunk):
+            fail("NGINX archive snapshot copy was incomplete")
+    snapshot.flush()
+    snapshot.seek(0)
+
+
+@contextmanager
+def verified_archive_snapshot(
+    archive: Path, expected_sha256: str, snapshot_root: Path,
+) -> Iterator[tuple[BinaryIO, str]]:
+    """Hash and extract one private bounded copy, never reopen the source name."""
+    if not SHA256.fullmatch(expected_sha256):
+        fail("NGINX SHA-256 must be lowercase hexadecimal")
+    try:
+        with ExitStack() as cleanup:
+            if ".." in archive.parts:
+                fail("NGINX archive paths must not contain parent traversal")
+            parent = _open_archive_directory(archive.parent, cleanup)
+            source = os.open(archive.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+                             dir_fd=parent)
+            cleanup.callback(os.close, source)
+            metadata = os.fstat(source)
+            if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1
+                    or metadata.st_uid != os.geteuid() or metadata.st_mode & 0o022):
+                fail("NGINX archive must be an owned regular single-link non-writable file")
+            if metadata.st_size > MAX_ARCHIVE_BYTES:
+                fail("NGINX archive exceeds the compressed input byte limit")
+            # Validate the invocation-owned private task root, then keep the
+            # bounded snapshot only in memory. No pathname is reopened, linked,
+            # or unlinked, and no filesystem-specific temporary-file support
+            # is required. The compressed archive occupies at most 64 MiB.
+            _open_archive_directory(snapshot_root, cleanup, private=True)
+            snapshot = cleanup.enter_context(io.BytesIO())
+            _copy_archive_snapshot(source, snapshot)
+            observed_sha256 = hashlib.file_digest(snapshot, "sha256").hexdigest()
+            if observed_sha256 != expected_sha256:
+                fail("NGINX archive SHA-256 mismatch")
+            snapshot.seek(0)
+            yield snapshot, observed_sha256
+    except OSError as error:
+        raise FixtureFailure("NGINX archive snapshot could not be admitted") from error
+
+
+def safe_extract(archive: BinaryIO, destination: Path) -> Path:
+    if isinstance(archive, (str, Path)):
+        fail("NGINX extraction requires a held verified archive snapshot")
+    with tarfile.open(fileobj=archive, mode="r:gz") as tar:
         members = tar.getmembers()
         if len(members) > 10000:
             fail("NGINX archive has too many members")
@@ -393,7 +483,7 @@ def require_fixture_log(
 def require_healthy_worker(process: subprocess.Popen[str], error_log: str, mode: str) -> None:
     if process.poll() is not None:
         fail(f"NGINX master exited while serving {mode}")
-    if re.search(r"worker process [0-9]+ exited on signal", error_log) is not None:
+    if re.search(r"worker process (?a:\d)+ exited on signal", error_log) is not None:
         fail(f"NGINX worker crashed while serving {mode}")
 
 
@@ -483,6 +573,18 @@ def validate_positive_events(events: list[dict[str, Any]]) -> dict[str, dict[str
     return {path: values[0] for path, values in observed.items()}
 
 
+def require_case_body(mode, expect_success, body, expected_body):
+    if expect_success:
+        if body != expected_body:
+            fail(
+                f"{mode} did not forward the expected legitimate body "
+                f"(observed {len(body)} bytes: {body.hex()})"
+            )
+    else:
+        if body != b"":
+            fail(f"{mode} emitted {len(body)} body bytes after a required rejection")
+
+
 def run_server_cases(
     *,
     nginx: Path,
@@ -528,15 +630,7 @@ def run_server_cases(
                 injection=injection,
             )
             require_healthy_worker(process, error_log, mode)
-            if expect_success:
-                if body != expected_body:
-                    fail(
-                        f"{mode} did not forward the expected legitimate body "
-                        f"(observed {len(body)} bytes: {body.hex()})"
-                    )
-            else:
-                if body != b"":
-                    fail(f"{mode} emitted {len(body)} body bytes after a required rejection")
+            require_case_body(mode, expect_success, body, expected_body)
             observations.append(
                 {
                     "mode": mode,
@@ -593,12 +687,8 @@ def main(argv: list[str]) -> int:
 
     connector_root = require_absolute_directory(arguments.connector_root, "connector root")
     output_root = require_absolute_directory(arguments.output_root, "output root", create=True)
-    archive = require_regular_file(arguments.nginx_archive, "NGINX archive")
     if not SHA256.fullmatch(arguments.nginx_sha256):
         fail("NGINX SHA-256 must be lowercase hexadecimal")
-    archive_digest = sha256_file(archive)
-    if archive_digest != arguments.nginx_sha256:
-        fail("NGINX archive SHA-256 mismatch")
     include_dir = require_absolute_directory(arguments.modsecurity_include, "ModSecurity include")
     lib_dir = require_absolute_directory(arguments.modsecurity_lib, "ModSecurity library directory")
     require_regular_file(include_dir / "modsecurity" / "modsecurity.h", "ModSecurity header")
@@ -620,7 +710,8 @@ def main(argv: list[str]) -> int:
     for directory in (source_root, build_root, runtime_root, logs_root, evidence_root):
         directory.mkdir(mode=0o700)
 
-    nginx_source = safe_extract(archive, source_root)
+    with verified_archive_snapshot(arguments.nginx_archive, arguments.nginx_sha256, task_root) as (archive, archive_digest):
+        nginx_source = safe_extract(archive, source_root)
     environment = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": str(task_root),

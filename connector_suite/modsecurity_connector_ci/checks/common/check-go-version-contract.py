@@ -16,7 +16,7 @@ from typing import TextIO
 
 
 
-from workflow_action_pins import read_action_reference  # noqa: E402
+from modsecurity_test_framework.product_sources.ci.lib.workflow_action_pins import read_action_reference
 
 
 CANONICAL_VERSION_FILE = ".go-version"
@@ -39,7 +39,6 @@ TRUSTED_GO_RESOLVER_MARKERS = (
     "python-version-file: .python-version",
     "check-latest: false",
     "EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}",
-    'check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"',
     'go_report="$(python3 scripts/update-go-version.py --check --json)"',
     'GO_REPORT="$go_report" python3 - <<\'PY\' >> "$GITHUB_OUTPUT"',
     'data = json.loads(os.environ["GO_REPORT"])',
@@ -47,6 +46,20 @@ TRUSTED_GO_RESOLVER_MARKERS = (
     'if version_tuple(latest) < version_tuple(current):',
     'print(f"version={latest}")',
 )
+LEGACY_PYTHON_VERIFIER_MARKER = (
+    'check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"'
+)
+MIGRATED_PYTHON_VERIFIER_MARKERS = (
+    "migrated=modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py",
+    "legacy=ci/checks/common/check-python-interpreter-contract.py",
+    'if [ -f "$migrated" ] && [ ! -L "$migrated" ]; then',
+    'python3 -P "$migrated" --version-file .python-version --expected-python "$EXPECTED_PYTHON"',
+    'elif [ -f "$legacy" ] && [ ! -L "$legacy" ]; then',
+    'python3 -I "$legacy" --version-file .python-version --expected-python "$EXPECTED_PYTHON"',
+    "Trusted base has no supported Python interpreter contract",
+)
+
+
 EXPECTED_SETUP_GO_BODY = "\n".join(
     (
         "        with:",
@@ -206,6 +219,9 @@ def trusted_version_violations(job: str) -> list[str]:
     for marker in TRUSTED_GO_RESOLVER_MARKERS:
         if marker not in job:
             violations.append(f"trusted Go version job lacks required contract: {marker}")
+    if (LEGACY_PYTHON_VERIFIER_MARKER not in job
+            and not all(marker in job for marker in MIGRATED_PYTHON_VERIFIER_MARKERS)):
+        violations.append("trusted Go version job lacks required Python verifier contract")
     if 'version="$(cat -- .go-version)"' in job:
         violations.append("trusted Go version job must not use only the committed selector")
     return violations

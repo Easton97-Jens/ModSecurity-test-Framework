@@ -15,7 +15,7 @@ import unittest
 
 ROOT = connector_root()
 
-from framework_revision_pins import (  # noqa: E402
+from modsecurity_test_framework.product_sources.ci.lib.framework_revision_pins import (  # noqa: E402
     FRAMEWORK_PATH,
     LOCK_RELATIVE_PATH,
     MAX_LOCK_BYTES,

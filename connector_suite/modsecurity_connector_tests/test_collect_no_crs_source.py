@@ -516,6 +516,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                         "case_id": "phase4_deny_after_commit_log_only",
                         "status": "PASS",
                         "live_executed": True,
+                        "transaction_id": "tx-phase4",
                         "actual_status": 200,
                         "connector_phase4_log_path": str(phase4_path),
                     }
@@ -681,6 +682,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                         ),
                         "status": "PASS",
                         "live_executed": True,
+                        "transaction_id": "tx-phase3",
                         "actual_status": 403,
                         "connector_phase4_log_path": str(phase3_path),
                     }
@@ -1038,6 +1040,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                         "case_id": "deny_header_marker_403",
                         "status": "PASS",
                         "live_executed": True,
+                        "transaction_id": "tx-2",
                         "actual_status": 403,
                         "decision_log_path": str(decision_path),
                     }
@@ -1107,6 +1110,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
                         "case_id": "deny_header_marker_403",
                         "status": "PASS",
                         "live_executed": True,
+                        "transaction_id": "tx-current-run",
                         "actual_status": 403,
                         "decision_log_path": str(decision_path),
                     }
@@ -1276,7 +1280,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
             "TRAEFIK_RUNTIME_ROOT=$STAGE_BUILD_ROOT/traefik-runtime",
             'TRAEFIK_NATIVE_RUNTIME_ROOT="$TRAEFIK_RUNTIME_ROOT"',
             'TRAEFIK_FIRST_BYTE_EVIDENCE_ROOT="$CONNECTOR_RUN_ROOT"',
-            "TRAEFIK_ARTIFACT_STAGER=$CONNECTOR_ROOT/ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py",
+            "TRAEFIK_ARTIFACT_STAGER=$TEST_ROOT/connector_suite/modsecurity_connector_ci/runtime/lifecycle/stage-traefik-runtime-artifacts.py",
             '--build-root "$STAGE_BUILD_ROOT"',
             '--raw-root "$RAW_DIR"',
             "source_result=$RAW_DIR/traefik-source/result.json",
@@ -1558,7 +1562,7 @@ class CollectNoCrsSourceTest(unittest.TestCase):
 
     def test_protocol_client_bundle_is_root_runner_scoped_and_forwarded(self) -> None:
         source = (source_path('ci/runtime/lifecycle/run-no-crs-baseline.sh', root=ROOT)).read_text(encoding="utf-8")
-        makefile = (source_path('Makefile', root=ROOT)).read_text(encoding="utf-8")
+        makefile = (test_root() / "connector_suite/connector.mk").read_text(encoding="utf-8")
         for fragment in (
             "NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR=${NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR:-}",
             "NO_CRS_PROTOCOL_CLIENT=${NO_CRS_PROTOCOL_CLIENT:-0}",

@@ -1088,8 +1088,9 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 raise OSError("injected final companion write failure")
             return original_replace(root, name, *arguments)
         with mock.patch.object(inventory_updates, "atomic_write", side_effect=fail_archive):
+            changes = {"tests/companion_fixture.py": fixture.read_bytes() + b"# reviewed fixture change\n"}
             with self.assertRaisesRegex(OSError, "injected final companion"):
-                inventory_updates.apply_fixture_update(self.root, {"tests/companion_fixture.py": fixture.read_bytes() + b"# reviewed fixture change\n"})
+                inventory_updates.apply_fixture_update(self.root, changes)
         self.assertEqual(self.publication_bytes() | {fixture: fixture.read_bytes()}, before)
         load_inventory(self.root)
 
@@ -1106,8 +1107,9 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
                 raise ValueError("injected final admission failure")
             return original_admit(root)
         with mock.patch.object(inventory_updates, "_admit", side_effect=fail_final):
+            changes = {"tests/companion_fixture.py": fixture.read_bytes() + b"# reviewed fixture change\n"}
             with self.assertRaisesRegex(ValueError, "injected final admission"):
-                inventory_updates.apply_fixture_update(self.root, {"tests/companion_fixture.py": fixture.read_bytes() + b"# reviewed fixture change\n"})
+                inventory_updates.apply_fixture_update(self.root, changes)
         self.assertEqual(self.publication_bytes() | {fixture: fixture.read_bytes()}, before)
         load_inventory(self.root)
 

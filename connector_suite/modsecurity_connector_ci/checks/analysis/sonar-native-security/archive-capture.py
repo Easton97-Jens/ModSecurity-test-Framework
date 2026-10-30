@@ -42,13 +42,13 @@ def main():
         if any(path.suffix != ".o" for path in inputs) or len({path.name for path in inputs}) != len(inputs):
             raise ValueError("archive requires uniquely named real object inputs")
         before = {str(path): digest(path) for path in inputs}
-        command = [archiver, *arguments]
+        command = [archiver, "rcs", str(output), *(str(path) for path in inputs)]
         subprocess.run(command, check=True)
         members = subprocess.check_output([archiver, "t", str(output)], text=True).splitlines()
         if members != [path.name for path in inputs]:
             raise ValueError("real archive member table disagrees with declared inputs")
         for path in inputs:
-            content = subprocess.check_output([archiver, "p", str(output), path.name])
+            content = subprocess.check_output([archiver, "p", str(output), str(path)])
             if hashlib.sha256(content).hexdigest() != before[str(path)] or digest(path) != before[str(path)]:
                 raise ValueError("archive member bytes disagree with compiler object")
         record = {"schema": 1, "kind": "archive", "directory": str(cwd),

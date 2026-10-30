@@ -494,8 +494,9 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 components.safe_remove_dir(root / "outside", cache_root)
             with self.assertRaisesRegex(RuntimeError, "unsafe_remove_path_forbidden"):
                 components.safe_remove_dir(ROOT, cache_root)
+            framework_source = source_path('modules/ModSecurity-test-Framework', root=ROOT)
             with self.assertRaisesRegex(RuntimeError, "unsafe_remove_path_forbidden"):
-                components.safe_remove_dir(source_path('modules/ModSecurity-test-Framework', root=ROOT), cache_root)
+                components.safe_remove_dir(framework_source, cache_root)
 
             protected = cache_root / "simulated-superproject"
             protected.mkdir()

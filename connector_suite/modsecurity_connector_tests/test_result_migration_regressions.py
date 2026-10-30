@@ -125,8 +125,10 @@ class ResultMigrationRegressions(unittest.TestCase):
                         [row, *aliases] if reverse else [*aliases, row])), 3)
                 for changes in ({"run_id": "foreign-run"}, {"source_revision": "b" * 40},
                                 {"request_id": row["request_id"]}):
-                    with self.subTest(order=reverse, changes=changes), self.assertRaises(ValueError):
-                        collector.unique_case_observations(ordered({**host, **changes}))
+                    with self.subTest(order=reverse, changes=changes):
+                        observations = ordered({**host, **changes})
+                        with self.assertRaises(ValueError):
+                            collector.unique_case_observations(observations)
 
     def test_completed_client_observation_survives_finalize_and_status_readback(self):
         with tempfile.TemporaryDirectory() as temporary:

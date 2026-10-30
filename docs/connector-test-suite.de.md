@@ -39,33 +39,46 @@ ausgewählte Fälle, Ausführungen und beobachtete Läufe sind unterschiedliche
 Größen. Eine Wiederholung ist ein weiterer Versuch, kein zusätzlicher
 eindeutiger Fall. Der Umzug aktiviert keine archivierte Kampagne.
 
-Das registrierte kanonische Inventar enthält **100 Standardfälle /
-80 Ausführungen**, **2364 On-demand-Fälle / 1070 Ausführungen**, **510 feste
-Framework-Testquellbindungen** und **235 Produktquellsnapshots**. Sein kompaktes
-Schema-5-JSON umfasst **1081306 Bytes** und lässt **1015846 Bytes** bis zur
-unveränderten Eingabegrenze von **2097152 Bytes (2 MiB)**. Alle 508 bisherigen
-Bindungsidentitäten bleiben erhalten; alle 510 Bindungen und alle 745 geordneten
-Pooleinträge werden genutzt. Die ursprünglichen 1993 Falldictionaries bleiben
-exakt gleich. Dies sind Auswahl-/Quellmengen, keine Zahlen ausgeführter oder
-bestandener Fälle. Expandierte UTF-8-Quellpfade umfassen 1061485 Bytes unter
-der unveränderten Grenze vor Materialisierung. Der aktuelle Katalog deklariert 1150 Ausführungsdefinitionen /
-2464 Fälle; dies behauptet keine Ausführung.
+Das registrierte kanonische Schema-5-Inventar enthält **100 Standardfälle /
+80 Ausführungen**, **2443 On-demand-Fälle / 1107 Ausführungen**, **515 feste
+Framework-Testquellbindungen** und **235 Produktquellsnapshots**. Der Katalog
+deklariert **1187 Ausführungsdefinitionen / 2543 Fälle**; dies sind Auswahlmengen,
+keine Zahlen ausgeführter oder bestandener Fälle. Das kompakte JSON umfasst **1112077 Bytes**; die expandierten UTF-8-Quellpfade
+belegen **1086696 Bytes**. Beide liegen unter der unveränderten Grenze von
+**2097152 Bytes (2 MiB)**. Alle bisherigen Bindungsidentitäten bleiben erhalten;
+alle 750 geordneten Quellpooleinträge werden genutzt. Die ursprünglichen 1993
+Falldictionaries und Standard-IDs bleiben unverändert. Die Zulassung prüft die
+Grenze expandierter UTF-8-Quellpfade weiterhin vor der Materialisierung.
 
-Die Erweiterung enthält 83 explizite On-demand-Methoden: die bisherigen 62 plus
-21 unabhängig registrierte reine Methoden mit 50 expandierten Fällen in diesem
-Paket (9 Transportmethoden / 9 Fälle, 1 Kompositionsmethode / 8 Fälle,
-9 Methoden für indizierte Inventare / 23 Fälle, 1 gemeinsame Transportmethode /
-7 Fälle, 1 Source-Owner-Methode / 3 Fälle). Alle 21 bestanden frische vor Imports installierte Offline-Guards
-ohne Effekte, Quellschreibzugriffe oder Skips. Die 76 reinen Kontrollen behalten
-die Offline-Audit-Gruppe; 155 neue Zeilen mit Prozessausführung behalten
-`migration-integration` mit derselben Allowlist von 12 Modulen. Ursprüngliche
-Gruppen und Guardfunktions-ASTs bleiben unverändert. Der Rundlauf des gesamten
-Pfadgraphen erhält Reihenfolge und alle bisherigen Referenzen; erweitert wird
-nur die explizit geprüften neuen Map-zu-Integration-/Active- und
-Capability-Source-Owner-Closures. Kein Archiv
-wird automatisch ausgewählt und kein Standardfall ergänzt.
+Die Erweiterung enthält nun **120 explizite On-demand-Methoden**, einschließlich
+37 neuer Methoden / 79 Fälle in N28: 5 Methoden zur Argumentzulassung / 15 Fälle,
+2 native Fixturemethoden / 6 Fälle, 12 Go-Capture-Methoden / 31 Fälle und
+18 Archivsnapshot-Methoden / 27 Fälle. Jede neue Methode besitzt eine eigene
+registrierte Auswahl und explizite Varianten. Alle 37 tatsächlichen Quell-/
+Effekttraces bestanden mit vor Imports aktiven Guards: 35 reine Methoden hatten
+null Effekte; die 2 nativen Methoden nutzen die explizite Prozessgrenze.
+Es gibt 111 reine Erweiterungskontrollen und 157 Zeilen mit Prozessausführung
+über 13 explizit erlaubte Module. Die Standardauswahl bleibt auf 100 begrenzt.
+Der tatsächliche öffentliche Runner bestand alle 37 neuen Methoden / 79 Fälle
+in 166.939 Sekunden; 2 verpflichtende Kontrollen ohne CLI-Opt-in bestanden auch
+mit `ON_DEMAND_TESTS=1`. Die öffentliche Zulassung bestand in 6.06 Sekunden.
+Finale Quellbindungen und alle sechs Generatoroperationen bestanden nach den
+späteren Importreparaturen; die frische finale Zulassung bestand in 5.327 Sekunden.
+Commit/Push des Paars und gehostete CI-/Sonar-Prüfung für exakt diesen Stand
+stehen noch aus.
 
-Die 120 neuen fokussierten Methoden bestanden ohne Skips, einschließlich der
+Die fünf neuen Quellbindungen folgen beobachteten kanonischen Lese-Closures.
+Zwei bestehende NGINX-Zeilen ergänzen außerdem den tatsächlichen sofortigen
+P3-Runner-Import in ihrer Closure. Dies ändert die Quellerfassung, ohne
+unabhängige Fälle hinzuzufügen oder zu verstecken. Kein Archiv wird automatisch
+ausgewählt und kein Standardfall ergänzt.
+Das neue native Fixturemodul verwendet den bereits unterstützten vollständigen
+Framework-Prefix für Quellbindungen. Die historische Source-Map bleibt bytegleich
+zu `cb129a45`; es entsteht kein erfundener früherer Produktpfad. Eine neue, noch
+unveröffentlichte Fall-ID wurde deterministisch auf die unveränderte Grenze von
+128 Zeichen gekürzt; ursprüngliche und Standard-IDs bleiben erhalten.
+
+Die früheren 120 fokussierten Methoden bestanden ohne Skips, einschließlich der
 Ergebnisintegritäts-Teilmenge mit 56 Methoden / 131 expandierten Varianten und
 der geschlossenen Pfadregel-Teilmenge mit 9 Methoden / 32 expandierten Varianten.
 Frühere begrenzte Läufe bestanden 136 fokussierte Portabilitätsmethoden,
@@ -218,7 +231,7 @@ Verdrahtung, keine vollständige Kompilierung. Die neue öffentliche Capability-
 Methode bestand separat ihre 3 Varianten und 1 implizite Auswahlablehnung.
 Die bisherigen 20 Methoden / 47 Varianten und 20 Ablehnungen behalten ihre eigenen
 quellgebundenen Belege; ein gemeinsamer Lauf mit 21 Methoden wird nicht behauptet.
-Aktuelle Hosted-Abnahme bleibt ausstehend; die historische `8ce`-Analyse hat
+Die gehostete N28-Abnahme bleibt ausstehend; die historische `8ce`-Analyse hat
 weiterhin Gate `ERROR` mit 120 OPEN-Issues.
 
 Ein tatsächlicher Parent-Aufruf `make quick-check` bestand mit Exit 0 in
@@ -650,3 +663,157 @@ Die zweisprachigen Change Records unterscheiden ausgeführte Prüfungen, Fehler,
 Blocker und nicht ausgeführte Prüfungen. Statische Checks, native
 Primitivtests oder Produktbuilds belegen keinen gehosteten H1-Lifecycle und keine
 Promotion des aktuellen HEAD.
+
+## N28-Quelländerungen und aktuelle Nachweisgrenzen
+
+N28 extrahiert begrenzte Helfer für Migrationsmap-Erzeugung, Inventarzulassung,
+Wartung, native Erfassung, Beobachtungen und Ergebnisprojektion; bestehende
+Selektoren und Assertions bleiben erhalten. Die Argumentzulassung verhindert,
+dass Make-aktive Interpreterpfade sowie Archiv-Responsefile-/Optionsoperanden
+ihre nachgelagerten Parser erreichen. Bestehende benutzerdefinierte
+Unicode-Interpreterpfade bleiben unterstützt.
+
+Das private native Eventfixture hält zugelassene Verzeichnisdeskriptoren und
+räumt relativ zu seiner geöffneten Wurzel auf. Seine 2 explizit prozessausführenden
+Methoden / 6 Fälle bestanden tatsächlich mit strengem C17 und Deskriptordelta
+null. Der reparierte Zweig für root-eigene Eltern-/Leafpfade nutzt vor dem
+Identitätswechsel einen gehaltenen Arbeitsverzeichnisdeskriptor und feste
+relative Eventpfade. Der vollständige Zweig für UID 65534 war lokal
+**NOT_EXECUTED**, weil erforderliche UID-Abbildungen/Berechtigungen fehlten.
+Statische Prüfung und Pfadkontrollen mit aktueller Identität ersetzen diesen
+Zweig nicht. Die Prozessmodul-Allowlist wächst explizit von 12 auf 13.
+
+Go-Capture lässt private Quell-/Ausgabewurzeln vor dem Compileraufruf zu, lehnt
+Responsefiles sowie mehrdeutige/überschreibende Ausgabeargumente ab und hält Bytes
+über eigene Deskriptoren. Die Deskriptorverantwortung bleibt auch bei Fehlern der
+Stream-Wrapper-Konstruktion erhalten. Die Fehlerbehandlung löscht keinen
+ersetzten Namensraumeintrag; private unvollständige Artefakte können zur
+expliziten Prüfung zurückbleiben. Konsumenten müssen zusätzlich zur
+Artefaktintegrität einen erfolgreichen Producerstatus verlangen. Die 12 neuen
+Methoden / 31 Fälle decken dieses begrenzte Verhalten ab. Die separate Frage
+`_7KV` zur Berechtigung der Werkzeugauswahl bleibt OPEN; diese Datenpfadreparatur
+autorisiert keine beliebige Compilerauswahl.
+
+Beide NGINX-Fixtureaufrufer öffnen die Quelle nun über einen vertrauenswürdigen
+Nofollow-Vorfahren-FD-Walk, kopieren höchstens **67108864 Bytes (64 MiB)** in einen
+privaten `BytesIO`, hashen die kopierten Bytes und extrahieren dasselbe Objekt.
+Ein Austausch des Quellpfadnamens nach dem Hashen kann die extrahierten Bytes
+nicht ändern. Das tatsächlich gepinnte Archiv `nginx-1.31.6` umfasst
+**1373124 Bytes**. Die komprimierte Eingabegrenze ist neu; sie begrenzt den
+Archivinhalt, nicht den gesamten RAM oder extrahierte/unkomprimierte Daten.
+Python-Puffer-/Kopieroverhead kommt hinzu. Es entsteht keine neue Anforderung
+an `O_TMPFILE` oder Dateisystemunterstützung. Bestehende Prüfungen für Memberzahl,
+Traversal, Links und Geräte bleiben erhalten. Eine fehlgeschlagene
+Archivzulassung kann die deterministische Taskwurzel zurücklassen; ein erneuter
+Versuch mit derselben Wurzel scheitert geschlossen. Unsichere automatische
+Bereinigung wird nicht ergänzt. Die 18 neuen Methoden / 27 Fälle führen kein
+nicht vertrauenswürdiges Fixture-`configure`-Skript aus.
+
+Sechs bestehende Collectortests benötigten ebenfalls Migrationsabgleich. Vier
+synthetische Quellzeilen ließen die bereits im Event vorhandene Transaktions-ID
+aus; der unveränderte Collector lehnte das Ausleihen dieser Events korrekt ab.
+Die Fixtures enthalten nun die jeweils passenden IDs. Zwei weitere Tests prüfen
+den Framework-eigenen Artifact-Stager-Pfad und lesen die ausgewählte
+`connector_suite/connector.mk` für die bestehenden Protocol-Client-Assertions.
+Alle 44 Methoden, 190 Assertions und 3 Subtest-Aufrufstellen bleiben erhalten.
+Kopierte Fixturesnapshots wechselten sechs RED-Ergebnisse zu sechs GREEN-
+Ergebnissen. Die frische kanonische Ausführung bestand nun die reparierten sechs
+und zwei bestehende Transaktionsisolationstests ohne Skips. Die ersten fünf
+Reparaturen und beide Isolationstests bestanden reine Guards mit null Effekten;
+die Script-Ablehnungsmethode bestand ihre explizite Prozessgrenze mit einem
+Effekt und ohne Quellschreibzugriffe. Ihr früherer irrtümlicher Aufruf mit reinem
+Guard scheiterte korrekt und bleibt dokumentiert; die Methode wird nicht als
+rein bezeichnet. Keine Provenienz-, Runtime- oder Audit-/Scrubbing-Prüfung wurde
+abgeschwächt.
+
+Die aktuellen direkten Läufe bestehender Verträge bestanden 112 Inventar-/
+Wartungsmethoden / 80 Subcases und 75 Workflow-/Native-Vertragsmethoden /
+163 Subcases. Die separate Result-Runner-Gruppe hatte vor der Fixturereparatur
+sechs reproduzierte bestehende Fehler und drei Skips wegen der Voraussetzung
+eines sauberen Frameworks im geänderten Worktree. Diese Skips sind kein PASS;
+ein PASS der gesamten Gruppe oder einer vollständigen On-demand-Kampagne wird
+nicht behauptet. Separat bestand der öffentliche Runner die 37 neuen Methoden /
+79 Fälle in 166.939 Sekunden. Die 2 Kontrollen ohne CLI-Opt-in bestanden sogar
+mit `ON_DEMAND_TESTS=1`; die 2 bestehenden NGINX-Auswahlen mit sofortigem Import
+bestanden in 15.578 Sekunden. Die Zulassung bestand in 6.06 Sekunden. Diese
+Belege binden Inventar
+`34f3e84ab90e69de85f0b9e042bebc965fde0f34af496f471c74bcde37583ea5` vor zwei
+späteren unabhängigen Produktimport-Reparaturen. Die exakte Rekonstruktion gegen
+das finale Inventar
+`dc5980db497faa5ba6885f71552a8555c7bcd96f1ec759a0c4c786e76aec308e` beweist:
+Nur ein alter Revisionstest-Quellhash änderte sich außerhalb aller 37 ausgewählten
+Closures; jedes ausgewählte Quell-/Fallfeld ist identisch. Aus dieser unabhängigen
+Hashaktualisierung wird weder eine Wiederholung der 37 Methoden abgeleitet noch
+eine solche erforderlich. Kein früherer Skip der breiteren Suite wird in PASS
+umgedeutet.
+
+Der tatsächliche kanonische Go/CGo-Native-Producer bestand offline in
+146.568 Sekunden mit 84 Übersetzungseinheiten: 62 Produkteinheiten und
+22 Kontexteinheiten sowie 73 Produktheadern. Die erfassten Eingabehashes blieben
+stabil. Der 32-Byte-FIPS-Übergang und Build-ID-Replay entsprachen dem finalen
+Artefakt; dies ist keine FIPS-Zertifizierung. Die Validierung verzeichnet explizit
+`development_only=true` und `import_eligible=false`. Das native Programm wurde
+nicht gestartet; daraus folgt kein Host-Runtime- oder gehosteter Sonar-PASS.
+Nach den gewählten Produktimport- und Legacy-/Migriert-Verifier-Markerreparaturen
+bestanden alle 11 alten Go-Versionsmethoden / 25 Subcases und 4 alten
+Capture-/FIPS-Methoden ohne Skips. Die 5 aktiven Go-Versionszeilen haben keine
+Closure-Lücken. Die aktuelle kanonische native CI bestand 330 Tests in
+170.503 Sekunden. Die exakte Workflow-Auswahl für Ruff-Lint/-Format mit 38 Dateien
+bestand in 0.324 Sekunden; 19 Sonar-Vertragsmethoden bestanden in 5.139 Sekunden.
+Die tatsächliche Kompilierung aller 81 ausgewählten Übersetzungseinheiten
+bestand in 40.57 Sekunden, einschließlich erzeugter Objektdateien für alle
+4 geänderten Framework-C-Fixtures unter C17 mit `-Wall -Wextra -Werror`.
+Dieser Lauf verwendet die unveränderliche Produkteingabe
+`cfd5e49cada3fc793ef50993147e3796a0907443`, statt den gesamten aktuellen
+Produktbaum. Der Vergleich von 223 Produkteingaben fand eine Abweichung: die
+zwei bestehenden Statuszeilen in
+`connectors/nginx/src/ngx_http_modsecurity_access.c`. Diese aktuelle
+Übersetzungseinheit bestand separat strenges C17 mit `-Wall -Wextra -Werror` in
+0.559 Sekunden und erneut in 0.666 Sekunden nach dem Snapshot aller 349
+tatsächlichen Eingaben. Der wiederholte Objekt-SHA ist identisch. Ihre 348 Header
+blieben hashstabil: 6 aktuelle Produktheader identisch zur unveränderlichen
+Eingabe, 24 unveränderliche Produktheader, 93 gecachte SDK-/NGINX-Header und
+225 Systemheader bei null Kontextabweichungen. Dieser separate Nachweis für die
+aktuelle Einheit benennt den ursprünglichen Lauf mit 81 Einheiten nicht um.
+
+Die zwei reinen Importkorrekturen bestanden außerdem 19 bestehende
+Revisionsmethoden / 51 Subcases ohne Skips sowie Report-CLI-`--help` und
+Importprüfungen. Alle 25 beziehungsweise 112 ursprünglichen Funktions-ASTs der
+jeweiligen Module bleiben exakt; kein Report wurde generiert. Keine aktive
+Zeile ist betroffen; der eine indirekt gebundene Testhash wurde aktualisiert.
+Die 37 öffentlichen Quell-Closures bleiben durch diese unabhängigen Korrekturen
+unverändert. Alle sechs finalen Generatoroperationen bestanden nach dieser
+Aktualisierung; die frische vollständige Zulassung bestand in 5.327 Sekunden.
+Staging/Gitleaks, Commit/Push des Paars und gehostete CI-/Sonar-Prüfung für exakt
+diesen Stand stehen aus. Diese lokalen
+Ergebnisse belegen weder gehostete Gates für exakt den aktuellen Head noch
+Mergefähigkeit.
+
+Das veröffentlichte Paar Connector `1f213858ae059d77a84a4bf500b9e90f025e15fe`
+und Framework `cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49` hat getrennte reale
+Abnahmen für Recorded-Pins (151.690 Sekunden) und expliziten DEV-Modus
+(151.493 Sekunden). Der Recorded-Lauf nutzte saubere Klone mit
+`standard_combination=true`; DEV wählte Framework
+`8ce35c1108d753986b11cb011d24fc99f262f112`, verzeichnete
+`standard_combination=false` und behielt nur die erwartete Gitlink-Abweichung.
+Die tatsächlich versiegelte UID-1001-Bridge bestand mit 11 Exports/privatem Modus
+0700; Wrong-Pin-Kontrollen lieferten 77 ohne Exports. Alle 90 Updatermethoden /
+216 Subcases bestanden. Diese Nachweise gelten für dieses veröffentlichte Paar,
+nicht für den unveröffentlichten N28-Folgecommit oder einen finalen Host-Lifecycle.
+
+Die neueste vollständige Framework-Sonar-Analyse um `2026-10-30T19:04:35Z`
+analysiert `cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49`. Das letzte vollständige
+Issue-Inventar, gelesen um `2026-10-30T19:35:24Z`, enthielt **115 OPEN-Issues**,
+Gate **ERROR** und **0 TO_REVIEW-Hotspots** vor der jüngsten Einzeleinstufung.
+Eine neue vollständige Issue-Zahl nach dieser Einstufung wird nicht behauptet.
+Parent `1f213858` hat weiterhin die veraltete Analyse von `e77c833`. Die
+dokumentierten einzelnen False-Positive-Einstufungen summieren sich nun auf
+**67**, einschließlich des nativen Git-Objektidentitäts-Sinks mit festen
+Argumenten und vollständiger Kommentar-/Statusrücklesung. Sieben weitere Fragen
+zur Werkzeugautorität bleiben OPEN. Ungeklärte Findings bleiben offen; keine
+Regel und kein Quality Gate wird abgeschwächt. N28 besitzt
+noch keinen veröffentlichten neuen Head und kein gehostetes Gate für exakt
+diesen Stand. Framework-PR #142 und Connector-PR #434 bleiben Draft und
+ungemergt. Die bedingte Master-Integration setzt sauberes Sonar für den exakten
+aktuellen Head, keine neuen offenen Findings und sämtliche erforderlichen
+CI-/Review-Bedingungen voraus; Mergefähigkeit wird nicht behauptet.

@@ -120,7 +120,7 @@ def proposed_validation_root() -> Path:
         raise product.UpdateError('proposed validation root must be a non-symlink directory')
     if proposed.parent != runner_root or proposed.stat().st_uid != os.geteuid():
         raise product.UpdateError('proposed validation root must be runner-owned')
-    proposed.chmod(448)
+    proposed.chmod(0o700)
     return proposed
 
 def admitted_validation_inventory(root: Path) -> Any:

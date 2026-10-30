@@ -225,6 +225,40 @@ class SummaryContext:
         )
 
 
+def _normalize_summary_entry(entry):
+    normalized = dict(entry)
+    if str(normalized.get("status", "")) == "xfail":
+        normalized["status"] = "fail"
+    if str(normalized.get("status", "")) not in RESULT_STATUSES:
+        raise ValueError("case result has an unknown status")
+    if normalized.get("evidence_identity") == "request_bound":
+        normalized.update(validate_request_observation(normalized))
+    elif any(
+        normalized.get(field) for field in RESULT_BINDING_FIELDS if field != "case_id"
+    ):
+        if normalized["status"] != "pass" and not normalized.get("transaction_id"):
+            normalized.update(validate_result_context(normalized))
+            normalized["promotion_allowed"] = False
+        else:
+            normalized.update(validate_result_binding(normalized))
+    else:
+        normalized["promotion_allowed"] = False
+    return normalized
+
+
+def _summary_evidence_identity(all_bound, normalized_entries):
+    if all_bound:
+        return "bound"
+    if normalized_entries and all(
+        entry.get("evidence_identity") == "request_bound"
+        for entry in normalized_entries
+    ):
+        return "request_bound"
+    if any(entry.get("transaction_id") for entry in normalized_entries):
+        return "mixed"
+    return "unbound"
+
+
 def connector_summary(
     *,
     connector: str,
@@ -235,22 +269,7 @@ def connector_summary(
     summary_context = context or SummaryContext()
     normalized_entries = []
     for entry in entries:
-        normalized = dict(entry)
-        if str(normalized.get("status", "")) == "xfail":
-            normalized["status"] = "fail"
-        if str(normalized.get("status", "")) not in RESULT_STATUSES:
-            raise ValueError("case result has an unknown status")
-        if normalized.get("evidence_identity") == "request_bound":
-            normalized.update(validate_request_observation(normalized))
-        elif any(normalized.get(field) for field in RESULT_BINDING_FIELDS if field != "case_id"):
-            if normalized["status"] != "pass" and not normalized.get("transaction_id"):
-                normalized.update(validate_result_context(normalized))
-                normalized["promotion_allowed"] = False
-            else:
-                normalized.update(validate_result_binding(normalized))
-        else:
-            normalized["promotion_allowed"] = False
-        normalized_entries.append(normalized)
+        normalized_entries.append(_normalize_summary_entry(entry))
     identity, all_bound = summary_bundle_identity(normalized_entries, summary_context)
     if not all_bound:
         for normalized in normalized_entries:
@@ -279,8 +298,11 @@ def connector_summary(
         "attempts": normalized_entries,
         "run_id": identity.get("run_id", ""),
         "source_revision": identity.get("source_revision", ""),
-        "evidence_identity": "bound" if all_bound else ("request_bound" if normalized_entries and all(entry.get("evidence_identity") == "request_bound" for entry in normalized_entries) else ("mixed" if any(entry.get("transaction_id") for entry in normalized_entries) else "unbound")),
-        "promotion_allowed": all_bound and all(entry.get("promotion_allowed") is not False for entry in normalized_entries),
+        "evidence_identity": _summary_evidence_identity(all_bound, normalized_entries),
+        "promotion_allowed": all_bound
+        and all(
+            entry.get("promotion_allowed") is not False for entry in normalized_entries
+        ),
     }
     if import_status:
         summary["import_status"] = import_status
@@ -305,7 +327,57 @@ def summary_bundle_identity(entries: list[dict[str, object]], context: SummaryCo
     return {**observed, **expected}, all_bound
 
 
-def distinct_case_results(entries: list[dict[str, object]]) -> dict[str, dict[str, object]]:
+def _record_case_identity(entry, identities):
+    name = entry.get("case_id") or entry.get("name")
+    if not isinstance(name, str) or not name:
+        raise ValueError("case result requires a nonempty stable case identity")
+    case_identity = (entry.get("run_id"), name, entry.get("source_revision"))
+    if name in identities and identities[name] != case_identity:
+        raise ValueError("conflicting run or source revision for one case identity")
+    identities[name] = case_identity
+    return name, case_identity
+
+
+def _record_attempt_owners(entry, name, transaction_owners, request_owners):
+    owner_checks = []
+    if entry.get("request_id"):
+        owner_checks.append(
+            (
+                request_owners,
+                (entry["run_id"], entry["request_id"]),
+                (name, entry.get("transaction_id"), entry["source_revision"]),
+            )
+        )
+    if entry.get("transaction_id"):
+        owner_checks.append(
+            (
+                transaction_owners,
+                (entry["run_id"], entry["transaction_id"]),
+                (name, entry["request_id"], entry["source_revision"]),
+            )
+        )
+    for owners, identity, owner in owner_checks:
+        if identity in owners and owners[identity] != owner:
+            raise ValueError("conflicting request/transaction assignment across cases")
+        owners[identity] = owner
+
+
+def _record_case_observation(entry, case_identity, attempts, observed_fields):
+    attempt = (*case_identity, entry.get("request_id"), entry.get("transaction_id"))
+    observation = (
+        *tuple(entry.get(field) for field in observed_fields),
+        json.dumps(entry.get("request_observation"), sort_keys=True),
+    )
+    if attempt in attempts and attempts[attempt] != observation:
+        raise ValueError(
+            "conflicting observations for one request/transaction identity"
+        )
+    attempts[attempt] = observation
+
+
+def distinct_case_results(
+    entries: list[dict[str, object]],
+) -> dict[str, dict[str, object]]:
     """Keep attempts, reject contradictory observations, count each case once.
 
     Retries may change request/transaction IDs and results. They never erase a
@@ -318,35 +390,25 @@ def distinct_case_results(entries: list[dict[str, object]]) -> dict[str, dict[st
     transaction_owners: dict[tuple[object, ...], tuple[object, ...]] = {}
     request_owners: dict[tuple[object, ...], tuple[object, ...]] = {}
     severity = {"pass": 0, "skipped": 1, "not_executable": 2, "blocked": 3, "fail": 4}
-    observed_fields = ("status", "actual_status", "http_status", "visible_http_status",
-                       "actual_action", "rule_id", "phase", "intervention_http_status")
+    observed_fields = (
+        "status",
+        "actual_status",
+        "http_status",
+        "visible_http_status",
+        "actual_action",
+        "rule_id",
+        "phase",
+        "intervention_http_status",
+    )
     for entry in entries:
-        name = entry.get("case_id") or entry.get("name")
-        if not isinstance(name, str) or not name:
-            raise ValueError("case result requires a nonempty stable case identity")
-        case_identity = (entry.get("run_id"), name, entry.get("source_revision"))
-        if name in identities and identities[name] != case_identity:
-            raise ValueError("conflicting run or source revision for one case identity")
-        identities[name] = case_identity
-        owner_checks = []
-        if entry.get("request_id"):
-            owner_checks.append((request_owners, (entry["run_id"], entry["request_id"]),
-                                 (name, entry.get("transaction_id"), entry["source_revision"])))
-        if entry.get("transaction_id"):
-            owner_checks.append((transaction_owners, (entry["run_id"], entry["transaction_id"]),
-                                 (name, entry["request_id"], entry["source_revision"])))
-        for owners, identity, owner in owner_checks:
-            if identity in owners and owners[identity] != owner:
-                raise ValueError("conflicting request/transaction assignment across cases")
-            owners[identity] = owner
-        attempt = (*case_identity, entry.get("request_id"), entry.get("transaction_id"))
-        observation = (*tuple(entry.get(field) for field in observed_fields),
-                       json.dumps(entry.get("request_observation"), sort_keys=True))
-        if attempt in attempts and attempts[attempt] != observation:
-            raise ValueError("conflicting observations for one request/transaction identity")
-        attempts[attempt] = observation
+        name, case_identity = _record_case_identity(entry, identities)
+        _record_attempt_owners(entry, name, transaction_owners, request_owners)
+        _record_case_observation(entry, case_identity, attempts, observed_fields)
         previous = cases.get(name)
-        if previous is None or severity[str(entry["status"])] > severity[str(previous["status"])]:
+        if (
+            previous is None
+            or severity[str(entry["status"])] > severity[str(previous["status"])]
+        ):
             cases[name] = entry
     return cases
 

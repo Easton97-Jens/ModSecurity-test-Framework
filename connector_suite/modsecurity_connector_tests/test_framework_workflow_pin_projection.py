@@ -144,8 +144,9 @@ class FrameworkWorkflowPinProjectionTests(unittest.TestCase):
         with (mock.patch.dict(os.environ, {"TEST_ROOT": str(test_root())}),
               mock.patch.object(updater.subprocess, "check_output", side_effect=[NEW + "\n", gitlink, NEW + "\n"]),
               mock.patch.object(updater.subprocess, "run") as run):
+            connector = connector_root()
             with self.assertRaisesRegex(updater.UpdateError, "differs from the pinned Framework gitlink"):
-                updater.validate_proposed_tree(connector_root(), {})
+                updater.validate_proposed_tree(connector, {})
         run.assert_not_called()
 
 

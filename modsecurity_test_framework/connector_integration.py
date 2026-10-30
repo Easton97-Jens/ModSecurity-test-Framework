@@ -227,6 +227,18 @@ def tree_entries(payload: bytes) -> list[tuple[str, str, str]]:
     return entries
 
 
+def _collect_authenticated_entries(root, prefix, identity, pending, files, seen):
+    for mode, name, child in tree_entries(raw_object(root, identity, "tree")):
+        path = prefix + name
+        if mode == "40000":
+            pending.append((path + "/", child))
+        else:
+            files[path] = (mode, child)
+            if mode != "160000" and child not in seen:
+                raw_object(root, child, "blob")
+                seen.add(child)
+
+
 def authenticated_tree(root: Path, revision: str) -> dict[str, tuple[str, str]]:
     commit = raw_object(root, exact_revision(revision), "commit")
     line = commit.split(b"\n", 1)[0]
@@ -241,15 +253,7 @@ def authenticated_tree(root: Path, revision: str) -> dict[str, tuple[str, str]]:
         trees += 1
         if trees + len(files) + len(pending) > 100000 or prefix.count("/") > 128:
             raise IntegrationError("Git tree exceeds the bounded integration inventory")
-        for mode, name, child in tree_entries(raw_object(root, identity, "tree")):
-            path = prefix + name
-            if mode == "40000":
-                pending.append((path + "/", child))
-            else:
-                files[path] = (mode, child)
-                if mode != "160000" and child not in seen:
-                    raw_object(root, child, "blob")
-                    seen.add(child)
+        _collect_authenticated_entries(root, prefix, identity, pending, files, seen)
     return files
 
 
@@ -397,9 +401,7 @@ def probe_contract(
     }
 
 
-def validated_probe_results(output: Path, expected: dict) -> list[dict]:
-    # Do not glob through directories: every discovered candidate is validated,
-    # and read_contained pins all of its components with O_NOFOLLOW.
+def _probe_summary_directories(output):
     candidates = []
     with os.scandir(output) as entries:
         for number, entry in enumerate(entries):
@@ -416,8 +418,10 @@ def validated_probe_results(output: Path, expected: dict) -> list[dict]:
         raise IntegrationError(
             "integration requires exactly one engine execution summary"
         )
-    relative = candidates[0] + "/summary.json"
-    summary = json.loads(read_contained(output, relative))
+    return candidates
+
+
+def _validated_execution_summary(summary, output, candidates, expected):
     if not isinstance(summary, dict) or any(
         summary.get(key) != value for key, value in expected.items()
     ):
@@ -440,6 +444,16 @@ def validated_probe_results(output: Path, expected: dict) -> list[dict]:
         )
     if observed[0].get("log") != EXECUTION + ".log":
         raise IntegrationError("engine summary does not retain its exact execution log")
+    return observed
+
+
+def validated_probe_results(output: Path, expected: dict) -> list[dict]:
+    # Do not glob through directories: every discovered candidate is validated,
+    # and read_contained pins all of its components with O_NOFOLLOW.
+    candidates = _probe_summary_directories(output)
+    relative = candidates[0] + "/summary.json"
+    summary = json.loads(read_contained(output, relative))
+    observed = _validated_execution_summary(summary, output, candidates, expected)
     read_contained(output, candidates[0] + "/" + observed[0]["log"])
     return observed
 
@@ -541,6 +555,14 @@ def process_records() -> dict[int, tuple[int, int]]:
     return records
 
 
+def _signal_owned_process(pid, expected, requested_signal):
+    if expected is not None and process_records().get(pid) == expected:
+        try:
+            os.kill(pid, requested_signal)
+        except ProcessLookupError:
+            pass
+
+
 def terminate_owned_tree(
     process: subprocess.Popen, identity: tuple[int, int] | None
 ) -> None:
@@ -560,19 +582,11 @@ def terminate_owned_tree(
         }
         selected.update(found)
         for pid, expected in selected.items():
-            if expected is not None and process_records().get(pid) == expected:
-                try:
-                    os.kill(pid, signal.SIGSTOP)
-                except ProcessLookupError:
-                    pass
+            _signal_owned_process(pid, expected, signal.SIGSTOP)
         if not found:
             break
     for pid, expected in reversed(tuple(selected.items())):
-        if expected is not None and process_records().get(pid) == expected:
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+        _signal_owned_process(pid, expected, signal.SIGKILL)
     process.wait(timeout=10)
 
 
@@ -634,6 +648,51 @@ print(json.dumps({'package_interfaces':['prepare','verify','materialize'],'resul
 """
 
 
+def make_safe_python(value: Path) -> Path:
+    """Admit a literal executable path that remains data in Make and shell recipes."""
+    python = Path(value)
+    import unicodedata
+
+    if not all(character.isalnum() or unicodedata.category(character).startswith("M")
+               or character in "/._-+@" for character in str(python)):
+        raise IntegrationError("Python executable path must use Make-safe pathname characters")
+    if not python.is_absolute() or not python.is_file() or not os.access(python, os.X_OK):
+        raise IntegrationError("an explicit existing Python executable is required")
+    return python
+
+
+def _checked_version_lock(parent, parent_files, pin, framework_files):
+    lock_mode, lock_identity = parent_files.get(
+        "ci/tooling/project-versions.lock.json", ("", "")
+    )
+    if lock_mode != "100644":
+        raise IntegrationError(
+            "Parent commit must retain a regular reviewed version-lock file"
+        )
+    lock_bytes = raw_object(parent, lock_identity, "blob")
+    if len(lock_bytes) > 16384:
+        raise IntegrationError("Parent version-lock file exceeds its size bound")
+    return validate_version_lock(json.loads(lock_bytes), pin, framework_files)
+
+
+def _checked_integration_checkout(parent, framework, revision, selected, pin):
+    parent_status = git(
+        parent,
+        "status",
+        _GIT_STATUS_PORCELAIN_ARG,
+        _GIT_STATUS_UNTRACKED_ARG,
+        _GIT_STATUS_SUBMODULE_ARG,
+    ).decode()
+    if selected == pin:
+        clean_checkout(parent, revision)
+    elif parent_status != " M " + GITLINK + "\n":
+        raise IntegrationError(
+            "development checkout has changes beyond its explicit Framework revision"
+        )
+    clean_checkout(framework, selected)
+    return parent_status
+
+
 def verify_combination(
     *,
     connector_source: Path,
@@ -644,6 +703,7 @@ def verify_combination(
     profile: str,
     development_framework_revision: str | None = None,
 ) -> Path:
+    python = make_safe_python(python)
     parent_source = physical_directory(connector_source)
     framework_source = physical_directory(framework_source)
     output_root = physical_directory(output_root, private=True)
@@ -653,13 +713,6 @@ def verify_combination(
         raise IntegrationError(
             "integration output must be external to both source checkouts"
         )
-    python = Path(python)
-    if (
-        not python.is_absolute()
-        or not python.is_file()
-        or not os.access(python, os.X_OK)
-    ):
-        raise IntegrationError("an explicit existing Python executable is required")
     if not profile or re.fullmatch(r"[a-zA-Z0-9_.-]+", profile) is None:
         raise IntegrationError("an explicit bounded connector profile is required")
     revision = exact_revision(connector_revision)
@@ -697,35 +750,10 @@ def verify_combination(
         if framework.exists():
             framework.rmdir()
         framework_files = clone(framework_source, framework, selected)
-        lock_mode, lock_identity = parent_files.get(
-            "ci/tooling/project-versions.lock.json", ("", "")
-        )
-        if lock_mode != "100644":
-            raise IntegrationError(
-                "Parent commit must retain a regular reviewed version-lock file"
-            )
-        lock_bytes = raw_object(parent, lock_identity, "blob")
-        if len(lock_bytes) > 16384:
-            raise IntegrationError("Parent version-lock file exceeds its size bound")
-        report["version_lock"] = validate_version_lock(
-            json.loads(lock_bytes), pin, framework_files
-        )
+        report["version_lock"] = _checked_version_lock(parent, parent_files, pin, framework_files)
         # Development mode intentionally differs from Parent's recorded gitlink;
         # never misreport that difference as a clean standard combination.
-        parent_status = git(
-            parent,
-            "status",
-            _GIT_STATUS_PORCELAIN_ARG,
-            _GIT_STATUS_UNTRACKED_ARG,
-            _GIT_STATUS_SUBMODULE_ARG,
-        ).decode()
-        if selected == pin:
-            clean_checkout(parent, revision)
-        elif parent_status != " M " + GITLINK + "\n":
-            raise IntegrationError(
-                "development checkout has changes beyond its explicit Framework revision"
-            )
-        clean_checkout(framework, selected)
+        parent_status = _checked_integration_checkout(parent, framework, revision, selected, pin)
         report.update(
             connector_root=str(parent),
             framework_root=str(framework),
@@ -784,7 +812,7 @@ def verify_combination(
             connector_status_after=final_parent,
             clean_after={"connector": not final_parent, "framework": True},
         )
-    except (IntegrationError, OSError, ValueError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
         report["error"] = str(error)
         raise IntegrationError(
             f"{error}; receipt: {run / 'integration.json'}"

@@ -9,6 +9,13 @@ from __future__ import annotations
 from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
 
 import ast
+from contextlib import ExitStack, contextmanager
+import hashlib
+import io
+import os
+import tarfile
+from types import SimpleNamespace
+from unittest import mock
 import importlib.util
 import unittest
 import tempfile
@@ -27,6 +34,7 @@ def load_runner():
 
 
 RUNNER_MODULE = load_runner()
+P3_RUNNER_MODULE = load_source(source_path("tests/run_nginx_p3_header_fixture.py", root=ROOT))
 
 
 class NginxBodyBufferFixtureContractTest(unittest.TestCase):
@@ -301,6 +309,348 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
             "unclassified",
         )
 
+
+
+class NginxArchiveSnapshotSecurityTest(unittest.TestCase):
+
+    @contextmanager
+    def _workspace(self):
+        with tempfile.TemporaryDirectory(prefix='nginx-archive-snapshot-') as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            snapshots = root / 'snapshots'
+            snapshots.mkdir(mode=0o700)
+            yield (root, snapshots)
+
+    @staticmethod
+    def _archive(path, payload=b'fixture-only-never-execute\n', *, member=None):
+        with tarfile.open(path, 'w:gz') as bundle:
+            entry = member or tarfile.TarInfo(RUNNER_MODULE.EXPECTED_NGINX_ROOT + '/configure')
+            if entry.isreg():
+                entry.size = len(payload)
+                bundle.addfile(entry, io.BytesIO(payload))
+            else:
+                bundle.addfile(entry)
+        path.chmod(0o600)
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def _assert_closed(self, descriptors):
+        self.assertTrue(descriptors)
+        for descriptor in descriptors:
+            with self.assertRaises(OSError):
+                os.fstat(descriptor)
+
+    @staticmethod
+    def _track_open(descriptors):
+        original = os.open
+
+        def tracked(*args, **kwargs):
+            descriptor = original(*args, **kwargs)
+            descriptors.append(descriptor)
+            return descriptor
+        return tracked
+
+    def _main_control(self, module, phase):
+
+        class ConfigureBoundaryReached(Exception):
+            pass
+        with self._workspace() as (root, _snapshots):
+            archive = root / 'nginx.tar.gz'
+            digest = self._archive(archive)
+            connector, include, library, output = (root / part for part in ('connector', 'include', 'lib', 'output'))
+            for directory in (connector, include, library, output):
+                directory.mkdir(mode=0o700)
+            (include / 'modsecurity').mkdir(mode=0o700)
+            (include / 'modsecurity/modsecurity.h').write_text('fixture header\n')
+            (library / 'libmodsecurity.so').write_text('fixture library\n')
+            argv = ['--connector-root', str(connector), '--expected-head', 'a' * 40, '--nginx-archive', str(archive), '--nginx-sha256', digest, '--modsecurity-include', str(include), '--modsecurity-lib', str(library), '--output-root', str(output)]
+            if phase == 'p4':
+                argv.extend(['--response-body-limit', '1024', '--response-body-limit-action', 'Reject'])
+
+            def stop(arguments, **kwargs):
+                self.assertEqual(arguments[0], './configure')
+                self.assertEqual((kwargs['cwd'] / 'configure').read_bytes(), b'fixture-only-never-execute\n')
+                raise ConfigureBoundaryReached
+            with ExitStack() as stack:
+                stack.enter_context(mock.patch.object(RUNNER_MODULE, 'require_absolute_directory', side_effect=lambda path, label, **kwargs: path))
+                stack.enter_context(mock.patch.object(RUNNER_MODULE, 'assert_exact_checkout', return_value='a' * 40))
+                stack.enter_context(mock.patch.object(RUNNER_MODULE, 'run', side_effect=stop))
+                if phase == 'p3':
+                    stack.enter_context(mock.patch.object(module, 'SHARED', RUNNER_MODULE))
+                    selected_os = SimpleNamespace(geteuid=lambda: 1000, environ=os.environ, cpu_count=os.cpu_count)
+                    stack.enter_context(mock.patch.object(module, 'os', selected_os))
+                with self.assertRaises(ConfigureBoundaryReached):
+                    module.main(argv)
+            self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), digest)
+
+    def test_archive_snapshot_legitimate_p4_main_uses_verified_snapshot(self):
+        self._main_control(RUNNER_MODULE, 'p4')
+
+    def test_archive_snapshot_legitimate_p3_main_uses_shared_snapshot(self):
+        self._main_control(P3_RUNNER_MODULE, 'p3')
+
+    def test_archive_snapshot_valid_private_archive_round_trip(self):
+        with self._workspace() as (root, snapshots):
+            archive = root / 'nginx.tar.gz'
+            digest = self._archive(archive)
+            destination = root / 'source'
+            destination.mkdir(mode=0o700)
+            real_open = tarfile.open
+            with RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots) as (snapshot, observed):
+                with mock.patch.object(RUNNER_MODULE.tarfile, 'open', wraps=real_open) as opened:
+                    extracted = RUNNER_MODULE.safe_extract(snapshot, destination)
+                self.assertIs(opened.call_args.kwargs['fileobj'], snapshot)
+                self.assertEqual(observed, digest)
+                self.assertEqual((extracted / 'configure').read_bytes(), b'fixture-only-never-execute\n')
+            self.assertTrue(snapshot.closed)
+            self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_rejects_symlink_leaf_and_ancestor(self):
+        for variant in ('symlink-leaf', 'symlink-ancestor'):
+            with self.subTest(variant=variant), self._workspace() as (root, snapshots):
+                actual = root / 'actual'
+                actual.mkdir(mode=0o700)
+                archive = actual / 'nginx.tar.gz'
+                digest = self._archive(archive)
+                if variant == 'symlink-leaf':
+                    selected = root / 'alias.tar.gz'
+                    selected.symlink_to(archive)
+                else:
+                    alias = root / 'alias'
+                    alias.symlink_to(actual, target_is_directory=True)
+                    selected = alias / archive.name
+                with self.assertRaises(RUNNER_MODULE.FixtureFailure), RUNNER_MODULE.verified_archive_snapshot(selected, digest, snapshots):
+                    self.fail('unsafe source yielded a snapshot')
+                self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_rejects_untrusted_ancestor(self):
+        with self._workspace() as (root, snapshots):
+            shared = root / 'shared'
+            shared.mkdir(mode=0o777)
+            shared.chmod(0o777)
+            archive = shared / 'nginx.tar.gz'
+            digest = self._archive(archive)
+            with self.assertRaises(RUNNER_MODULE.FixtureFailure), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots):
+                self.fail('shared writable ancestry yielded a snapshot')
+            self.assertEqual(shared.stat().st_mode & 511, 511)
+            self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_rejects_fifo_and_hard_link(self):
+        for variant in ('fifo', 'hard-link'):
+            with self.subTest(variant=variant), self._workspace() as (root, snapshots):
+                archive = root / 'nginx.tar.gz'
+                if variant == 'fifo':
+                    os.mkfifo(archive, 0o600)
+                    digest = '0' * 64
+                else:
+                    digest = self._archive(archive)
+                    os.link(archive, root / 'alias.tar.gz')
+                with self.assertRaises(RUNNER_MODULE.FixtureFailure), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots):
+                    self.fail('non-regular or linked source yielded a snapshot')
+                self.assertTrue(archive.exists())
+                self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_rename_after_hash_cannot_replace_extracted_bytes(self):
+        with self._workspace() as (root, snapshots):
+            archive, replacement = (root / 'nginx.tar.gz', root / 'replacement.tar.gz')
+            digest = self._archive(archive, b'approved\n')
+            self._archive(replacement, b'replaced-never-execute\n')
+            original = hashlib.file_digest
+
+            def after_hash(fileobj, algorithm):
+                hashed = original(fileobj, algorithm)
+                os.replace(replacement, archive)
+                return hashed
+            destination = root / 'source'
+            destination.mkdir(mode=0o700)
+            with mock.patch.object(RUNNER_MODULE.hashlib, 'file_digest', side_effect=after_hash), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots) as (snapshot, observed):
+                extracted = RUNNER_MODULE.safe_extract(snapshot, destination)
+            self.assertEqual(observed, digest)
+            self.assertEqual((extracted / 'configure').read_bytes(), b'approved\n')
+            self.assertNotEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), digest)
+
+    def test_archive_snapshot_inplace_change_during_copy_cannot_match_original_hash(self):
+        with self._workspace() as (root, snapshots):
+            archive = root / 'nginx.tar.gz'
+            digest = self._archive(archive)
+            original = os.read
+            changed = False
+
+            def mutate_after_first_chunk(descriptor, count):
+                nonlocal changed
+                chunk = original(descriptor, count)
+                if chunk and (not changed):
+                    changed = True
+                    with archive.open('r+b') as source:
+                        source.seek(len(chunk))
+                        source.write(b'Z' * (archive.stat().st_size - len(chunk)))
+                return chunk
+            with mock.patch.object(RUNNER_MODULE, '_ARCHIVE_COPY_CHUNK_BYTES', 16), mock.patch.object(RUNNER_MODULE.os, 'read', side_effect=mutate_after_first_chunk), self.assertRaisesRegex(RUNNER_MODULE.FixtureFailure, 'SHA-256 mismatch'), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots):
+                self.fail('changed source yielded a snapshot')
+            self.assertTrue(changed)
+            self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_wrong_digest_never_extracts(self):
+        with self._workspace() as (root, snapshots):
+            archive = root / 'nginx.tar.gz'
+            self._archive(archive)
+            descriptors = []
+            with mock.patch.object(RUNNER_MODULE.os, 'open', side_effect=self._track_open(descriptors)), self.assertRaisesRegex(RUNNER_MODULE.FixtureFailure, 'SHA-256 mismatch'), RUNNER_MODULE.verified_archive_snapshot(archive, '0' * 64, snapshots):
+                self.fail('wrong digest yielded a snapshot')
+            self._assert_closed(descriptors)
+            self.assertTrue(archive.is_file())
+            self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_buffer_failure_closes_owned_descriptors(self):
+        with self._workspace() as (root, snapshots):
+            archive = root / 'nginx.tar.gz'
+            digest = self._archive(archive)
+            descriptors = []
+            with mock.patch.object(RUNNER_MODULE.os, 'open', side_effect=self._track_open(descriptors)), mock.patch.object(RUNNER_MODULE.io, 'BytesIO', side_effect=OSError('fixture snapshot allocation failure')), self.assertRaises(RUNNER_MODULE.FixtureFailure), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots):
+                self.fail('failed wrapper yielded a snapshot')
+            self._assert_closed(descriptors)
+            self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_partial_copy_failure_closes_snapshot(self):
+        with self._workspace() as (root, snapshots):
+            archive = root / 'nginx.tar.gz'
+            digest = self._archive(archive)
+            descriptors = []
+
+            def interrupted(source, snapshot):
+                snapshot.write(b'partial')
+                raise OSError('fixture partial-copy failure')
+            with mock.patch.object(RUNNER_MODULE.os, 'open', side_effect=self._track_open(descriptors)), mock.patch.object(RUNNER_MODULE, '_copy_archive_snapshot', side_effect=interrupted), self.assertRaises(RUNNER_MODULE.FixtureFailure), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots):
+                self.fail('partial copy yielded a snapshot')
+            self._assert_closed(descriptors)
+            self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_short_write_is_rejected_and_closed(self):
+        with self._workspace() as (root, snapshots):
+            archive = root / 'nginx.tar.gz'
+            digest = self._archive(archive)
+            original = io.BytesIO
+            wrappers = []
+
+            class ShortWriter:
+
+                def __init__(self, stream):
+                    self.stream = stream
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *args):
+                    self.close()
+
+                def write(self, chunk):
+                    return self.stream.write(chunk[:-1])
+
+                def close(self):
+                    self.stream.close()
+
+                @property
+                def closed(self):
+                    return self.stream.closed
+
+            def short_writer(*args, **kwargs):
+                stream = ShortWriter(original(*args, **kwargs))
+                wrappers.append(stream)
+                return stream
+            with mock.patch.object(RUNNER_MODULE.io, 'BytesIO', side_effect=short_writer), self.assertRaisesRegex(RUNNER_MODULE.FixtureFailure, 'copy was incomplete'), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots):
+                self.fail('short write yielded a snapshot')
+            self.assertTrue(wrappers)
+            self.assertTrue(all(stream.closed for stream in wrappers))
+            self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_never_uses_a_name_or_removes_foreign_entries(self):
+        with self._workspace() as (root, snapshots):
+            archive = root / 'nginx.tar.gz'
+            digest = self._archive(archive)
+            foreign = snapshots / '.nginx-archive-foreign'
+            foreign.write_bytes(b'foreign-preserved')
+            with mock.patch.object(RUNNER_MODULE.os, 'unlink', side_effect=AssertionError('snapshot must not unlink paths')), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots) as (snapshot, observed):
+                self.assertIsInstance(snapshot, io.BytesIO)
+                self.assertEqual(observed, digest)
+                self.assertEqual(list(snapshots.iterdir()), [foreign])
+            self.assertEqual(foreign.read_bytes(), b'foreign-preserved')
+
+    def test_archive_snapshot_rejects_byte_budget_before_or_during_copy(self):
+        for variant in ('existing-oversize', 'growth-during-copy'):
+            with self.subTest(variant=variant), self._workspace() as (root, snapshots):
+                archive = root / 'nginx.tar.gz'
+                digest = self._archive(archive)
+                limit = 1 if variant == 'existing-oversize' else archive.stat().st_size
+                original = RUNNER_MODULE._copy_archive_snapshot
+
+                def grow(source, snapshot, *, archive=archive, original=original):
+                    with archive.open('ab') as target:
+                        target.write(b'!')
+                    original(source, snapshot)
+                with ExitStack() as stack:
+                    stack.enter_context(mock.patch.object(RUNNER_MODULE, 'MAX_ARCHIVE_BYTES', limit))
+                    if variant == 'growth-during-copy':
+                        stack.enter_context(mock.patch.object(RUNNER_MODULE, '_copy_archive_snapshot', side_effect=grow))
+                    with self.assertRaisesRegex(RUNNER_MODULE.FixtureFailure, 'compressed input byte limit'), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots):
+                        self.fail('oversize copy yielded a snapshot')
+                self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_preserves_tar_member_denials(self):
+        for variant in ('absolute', 'parent', 'symlink', 'hardlink', 'device'):
+            with self.subTest(variant=variant), self._workspace() as (root, snapshots):
+                member_name = {'absolute': '/absolute', 'parent': '../parent'}.get(variant, 'nginx-1.31.6/member')
+                member = tarfile.TarInfo(member_name)
+                if variant in {'symlink', 'hardlink'}:
+                    member.type = tarfile.SYMTYPE if variant == 'symlink' else tarfile.LNKTYPE
+                    member.linkname = 'outside'
+                elif variant == 'device':
+                    member.type = tarfile.CHRTYPE
+                archive = root / 'nginx.tar.gz'
+                digest = self._archive(archive, member=member)
+                destination = root / 'source'
+                destination.mkdir(mode=0o700)
+                with RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots) as (snapshot, _), self.assertRaisesRegex(RUNNER_MODULE.FixtureFailure, 'unsafe member'):
+                    RUNNER_MODULE.safe_extract(snapshot, destination)
+                self.assertEqual(list(destination.iterdir()), [])
+
+    def test_archive_extractor_rejects_unverified_path(self):
+        with self._workspace() as (root, _snapshots):
+            archive = root / 'nginx.tar.gz'
+            self._archive(archive)
+            with self.assertRaisesRegex(RUNNER_MODULE.FixtureFailure, 'held verified archive snapshot'):
+                RUNNER_MODULE.safe_extract(archive, root / 'source')
+
+    def test_archive_snapshot_rejects_unsafe_source_or_snapshot_mode(self):
+        for variant in ('writable-source', 'nonprivate-snapshot', 'directory-source'):
+            with self.subTest(variant=variant), self._workspace() as (root, snapshots):
+                archive = root / 'nginx.tar.gz'
+                digest = self._archive(archive)
+                if variant == 'writable-source':
+                    archive.chmod(0o622)
+                elif variant == 'nonprivate-snapshot':
+                    snapshots.chmod(0o750)
+                else:
+                    archive.unlink()
+                    archive.mkdir(mode=0o700)
+                descriptors = []
+                with mock.patch.object(RUNNER_MODULE.os, 'open', side_effect=self._track_open(descriptors)), self.assertRaises(RUNNER_MODULE.FixtureFailure), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots):
+                    self.fail('unsafe mode or source type yielded a snapshot')
+                self._assert_closed(descriptors)
+                self.assertEqual(list(snapshots.iterdir()), [])
+
+    def test_archive_snapshot_requires_no_anonymous_filesystem_support(self):
+        with self._workspace() as (root, snapshots):
+            archive = root / 'nginx.tar.gz'
+            digest = self._archive(archive)
+            original = os.open
+
+            def reject_creation(path, flags, *args, **kwargs):
+                self.assertFalse(flags & (os.O_CREAT | os.O_EXCL))
+                return original(path, flags, *args, **kwargs)
+            with mock.patch.object(RUNNER_MODULE.os, 'open', side_effect=reject_creation), mock.patch.object(RUNNER_MODULE.os, 'O_TMPFILE', 0, create=True), RUNNER_MODULE.verified_archive_snapshot(archive, digest, snapshots) as (snapshot, observed):
+                self.assertIsInstance(snapshot, io.BytesIO)
+                self.assertEqual(observed, digest)
+            self.assertEqual(list(snapshots.iterdir()), [])
 
 
 # Parent default discovery uses the one admitted active-case inventory.

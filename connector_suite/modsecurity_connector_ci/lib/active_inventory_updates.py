@@ -313,16 +313,7 @@ def _write_companions(root: Path, before: dict[str, bytes], outputs: dict[str, b
 
 
 
-def apply_fixture_update(root: Path, replacements: dict[str, bytes]) -> list[str]:
-    """Preserve legacy atomic test-source/inventory proofs in isolated fixtures.
-
-    Canonical Framework and selected product roots are rejected by capture_update;
-    no product publisher calls this API and it is not a hash-refresh CLI.
-    """
-    snapshot = capture_update(root, frozenset(replacements))
-    if snapshot is None:
-        raise InventoryUpdateError("legacy fixture transaction requires both companions")
-    outputs = planned_companions(root, snapshot, replacements)
+def _refresh_fixture_archive(outputs, snapshot, replacements):
     archive = _json(outputs[ARCHIVE])
     for row in archive.get("sources", []):
         if not isinstance(row, dict) or row.get("source") not in replacements:
@@ -332,8 +323,9 @@ def apply_fixture_update(root: Path, replacements: dict[str, bytes]) -> list[str
             raise InventoryUpdateError("legacy archive source digest differs from its fixture input")
         row["source_sha256"] = digest(replacements[name])
     outputs[ARCHIVE] = _encoded(archive)
-    before = dict(snapshot["before"], **{INVENTORY: snapshot["inventory"], ARCHIVE: snapshot["archive"]})
-    outputs = dict(replacements, **outputs)
+
+
+def _write_fixture_transaction(root, before, outputs):
     written = []
     try:
         for name, after in outputs.items():
@@ -350,6 +342,22 @@ def apply_fixture_update(root: Path, replacements: dict[str, bytes]) -> list[str
                 error.add_note("fixture rollback preserved a concurrent replacement: " + str(rollback_error))
         raise
     return [name for name, _, _ in written]
+
+
+def apply_fixture_update(root: Path, replacements: dict[str, bytes]) -> list[str]:
+    """Preserve legacy atomic test-source/inventory proofs in isolated fixtures.
+
+    Canonical Framework and selected product roots are rejected by capture_update;
+    no product publisher calls this API and it is not a hash-refresh CLI.
+    """
+    snapshot = capture_update(root, frozenset(replacements))
+    if snapshot is None:
+        raise InventoryUpdateError("legacy fixture transaction requires both companions")
+    outputs = planned_companions(root, snapshot, replacements)
+    _refresh_fixture_archive(outputs, snapshot, replacements)
+    before = dict(snapshot["before"], **{INVENTORY: snapshot["inventory"], ARCHIVE: snapshot["archive"]})
+    outputs = dict(replacements, **outputs)
+    return _write_fixture_transaction(root, before, outputs)
 
 def _git(root: Path, *arguments: str) -> bytes:
     return subprocess.check_output(["git", "--no-replace-objects", "-C", str(root), *arguments], timeout=30)

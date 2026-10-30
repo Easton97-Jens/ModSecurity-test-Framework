@@ -22,7 +22,10 @@ import subprocess
 import sys
 
 from modsecurity_test_framework.connector_integration import git_object_identity
-from modsecurity_connector_ci.lib.active_test_inventory import _expand_indexed_sources, _keys
+from modsecurity_connector_ci.lib.active_test_inventory import (
+    _expand_indexed_sources,
+    _keys,
+)
 
 from modsecurity_test_framework.connector_context import (
     connector_root,
@@ -31,10 +34,12 @@ from modsecurity_test_framework.connector_context import (
     load_source,
 )
 
-_ACTIVE_INVENTORY_SOURCE = 'connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py'
-_CONNECTOR_MAKEFILE_SOURCE = 'connector_suite/connector.mk'
-_CONNECTOR_CLI_SOURCE = 'modsecurity_test_framework/connector.py'
-_UNASSESSED_TEXT = 'not assessed'
+_ACTIVE_INVENTORY_SOURCE = (
+    "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py"
+)
+_CONNECTOR_MAKEFILE_SOURCE = "connector_suite/connector.mk"
+_CONNECTOR_CLI_SOURCE = "modsecurity_test_framework/connector.py"
+_UNASSESSED_TEXT = "not assessed"
 
 
 INITIAL_BASE = "c5993ed9a7b59fc0bd58f105595ec79f596c88d6"
@@ -50,6 +55,746 @@ NAMESPACES = (
     ("ci.", "modsecurity_connector_ci."),
     ("connectors.", "connector_suite.adapters."),
 )
+
+
+def caller_source_rows(owner, path, text, markers):
+    rows = []
+    target = None
+    for line, command in enumerate(text.splitlines(), 1):
+        if re.match(r"^[A-Za-z0-9_.%/-]+(?: [A-Za-z0-9_.%/-]+)*:", command):
+            target = command.split(":", 1)[0]
+        if not any(marker in command for marker in markers):
+            continue
+        identity = owner + ":" + path + ":" + str(line)
+        rows.append(
+            {
+                "id": identity,
+                "owner": owner,
+                "path": path,
+                "line": line,
+                "make_target": target
+                if path.endswith(("Makefile", "connector.mk"))
+                else None,
+                "source_line": caller_source_line(command)
+                if owner in {"Connector", "Framework"}
+                else command.strip(),
+                "admission_only": "--check" in command,
+                "source_kind": caller_source_kind(path),
+                "selection_note": "source caller only; execution and automatic case admission are separate",
+            }
+        )
+    return rows
+
+
+def python_source_locations(selector, framework, mapping):
+    old = []
+    module = selector["target"].rsplit(".", 2)[0]
+    old, direct = mapped_python_location(module, framework, mapping)
+    if direct is not None:
+        return old, direct
+    if not old and module.startswith("modsecurity_test_framework.selftests."):
+        return [], [
+            "tests/"
+            + module.removeprefix("modsecurity_test_framework.selftests.").replace(
+                ".", "/"
+            )
+            + ".py"
+        ]
+    return old, None
+
+
+def mapped_python_location(module, framework, mapping):
+    old = []
+    for legacy, modern in NAMESPACES:
+        if module.startswith(modern):
+            logical = (legacy + module[len(modern) :]).replace(".", "/") + ".py"
+            if logical not in mapping:
+                physical = (
+                    (
+                        ""
+                        if module.startswith("connector_suite.")
+                        else "connector_suite/"
+                    )
+                    + module.replace(".", "/")
+                    + ".py"
+                )
+                if not (framework / physical).is_file():
+                    raise ValueError(
+                        "new regression source location is unavailable: " + physical
+                    )
+                return [], [physical]
+            old = [logical]
+            break
+    return old, None
+
+
+def python_prerequisite_nodes(text, selector, parsed):
+    tree = parsed if parsed is not None else ast.parse(text)
+    wanted = (selector or {}).get("target", "").rsplit(".", 2)[-2:]
+    nodes = [
+        node
+        for node in tree.body
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    ]
+    selected_class = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and len(wanted) == 2
+            and node.name == wanted[0]
+        ),
+        None,
+    )
+    if selected_class is not None:
+        nodes.extend(
+            node
+            for node in selected_class.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name in {wanted[-1], "setUp", "setUpClass"}
+        )
+    elif selector is None:
+        nodes = list(tree.body)
+    return nodes
+
+
+def python_prerequisite_imports(node, add):
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        if isinstance(node, ast.Import):
+            modules = [alias.name for alias in node.names]
+        elif node.module and node.level == 0:
+            modules = [node.module]
+        else:
+            modules = []
+        for module in modules:
+            if module.split(".", 1)[0] not in sys.stdlib_module_names | {"__future__"}:
+                add(
+                    "dependency",
+                    "Python import: " + module,
+                    node.lineno,
+                    "source import in module/selected definition; surrounding guards may make it conditional",
+                )
+
+
+def subprocess_prerequisites(node, add):
+    argument = (
+        node.args[0]
+        if node.args
+        else next(
+            (keyword.value for keyword in node.keywords if keyword.arg == "args"),
+            None,
+        )
+    )
+    values = (
+        [
+            item.value
+            for item in argument.elts
+            if isinstance(item, ast.Constant) and isinstance(item.value, str)
+        ]
+        if isinstance(argument, (ast.List, ast.Tuple))
+        else []
+    )
+    executable = (
+        values[0]
+        if isinstance(argument, (ast.List, ast.Tuple))
+        and argument.elts
+        and isinstance(argument.elts[0], ast.Constant)
+        and isinstance(argument.elts[0].value, str)
+        else None
+    )
+    subprocess_argument_prerequisites(node, executable, values, add)
+
+
+def subprocess_argument_prerequisites(node, executable, values, add):
+    add(
+        "tool",
+        executable or "computed subprocess executable",
+        node.lineno,
+        "if this source call executes without a test replacement",
+    )
+    if executable and Path(executable).name in {
+        "nginx",
+        "httpd",
+        "apache2",
+        "haproxy",
+        "envoy",
+        "traefik",
+        "lighttpd",
+    }:
+        add(
+            "host",
+            Path(executable).name,
+            node.lineno,
+            "if the selected test actually launches this host",
+        )
+    if executable and Path(executable).name in {
+        "sudo",
+        "unshare",
+        "bwrap",
+        "nsenter",
+    }:
+        add(
+            "privilege-or-isolation",
+            Path(executable).name,
+            node.lineno,
+            "subject to the declared isolation/privilege policy; no grant inferred",
+        )
+    if (
+        executable
+        and Path(executable).name
+        in {"pkg-config", "cc", "gcc", "clang", "c++", "g++", "clang++"}
+        and any("modsecurity" in value.lower() for value in values)
+    ):
+        add(
+            "SDK-or-build-input",
+            "ModSecurity source/SDK input referenced by subprocess",
+            node.lineno,
+            "if this source call executes; not a host capability claim",
+        )
+
+
+def python_prerequisites(nodes, add):
+    for root in nodes:
+        for node in ast.walk(root):
+            python_prerequisite_imports(node, add)
+            if not isinstance(node, ast.Call):
+                continue
+            function = node.func
+            if (
+                isinstance(function, ast.Attribute)
+                and isinstance(function.value, ast.Name)
+                and function.value.id == "subprocess"
+                and function.attr in {"run", "Popen", "check_call", "check_output"}
+            ):
+                subprocess_prerequisites(node, add)
+            elif (
+                isinstance(function, ast.Attribute)
+                and isinstance(function.value, ast.Name)
+                and function.value.id == "os"
+                and function.attr in {"geteuid", "getuid", "getgid"}
+            ):
+                add(
+                    "privilege-or-isolation",
+                    "UID/GID guard",
+                    node.lineno,
+                    "the surrounding predicate determines accepted identity; root is not inferred",
+                )
+
+
+def shell_selected_host_prerequisites(lines, selector, add):
+    arguments = (selector or {}).get("args", [])
+    for number, line in enumerate(lines, 1):
+        assignment = re.match(
+            r"\s*([A-Za-z_](?a:\w)*)=\$\{([1-9])(?::[?+-][^}]*)?\}", line
+        )
+        if assignment is None or int(assignment[2]) > len(arguments):
+            continue
+        value = arguments[int(assignment[2]) - 1]
+        variable = assignment[1]
+        case = next(
+            (
+                index
+                for index in range(number, len(lines))
+                if re.search(
+                    r"\bcase\s+[\"']?\$\{?" + re.escape(variable) + r"\}?[\"']?\s+in\b",
+                    lines[index],
+                )
+            ),
+            None,
+        )
+        if case is None:
+            continue
+        end = next(
+            (
+                index
+                for index in range(case + 1, len(lines))
+                if lines[index].strip() == "esac"
+            ),
+            len(lines),
+        )
+        arm = next(
+            (
+                index
+                for index in range(case + 1, end)
+                if re.search(
+                    r"(?:^|[|\s])" + re.escape(value) + r"(?:[|)])", lines[index]
+                )
+            ),
+            None,
+        )
+        if arm is not None and value in {
+            "apache",
+            "nginx",
+            "haproxy",
+            "envoy",
+            "traefik",
+            "lighttpd",
+        }:
+            add(
+                "host",
+                "selected host adapter: " + value,
+                arm + 1,
+                "selector argument "
+                + str(assignment[2])
+                + " is validated by this shell case; stage-specific host/build prerequisites still require their source guards",
+            )
+
+
+def shell_command_prerequisites(lines, add):
+    for line_number, line in enumerate(lines, 1):
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        for match in re.finditer(
+            r"\bcommand\s+-v\s+[\"']?([A-Za-z0-9_./+${}-]+)", line
+        ):
+            add(
+                "tool",
+                match.group(1),
+                line_number,
+                "conditional command-presence check in selected source; inspect branch",
+            )
+        if re.search(
+            r"\b(?:require_modsecurity_v3|find_modsecurity_v3_prefix)\b|pkg-config[^\n]*modsecurity",
+            line,
+        ):
+            add(
+                "SDK-or-build-input",
+                "ModSecurity source/SDK declaration",
+                line_number,
+                "conditional SDK discovery/requirement in selected source",
+            )
+        if re.search(r"(?:\$\{?(?:CC|CXX)\}?|\$\((?:CC|CXX)\))", line):
+            add(
+                "tool",
+                "source-selected C/C++ compiler",
+                line_number,
+                "if the compiler invocation branch executes; flags stay source-owned",
+            )
+        if re.search(r"\b(?:sudo|unshare|bwrap|nsenter)\b|\$\(id -u\)", line):
+            add(
+                "privilege-or-isolation",
+                "source-declared identity/isolation command",
+                line_number,
+                "surrounding guard defines authorization; no privilege is granted",
+            )
+
+
+def inventory_driver_kind(argv, prefix):
+    kind = None
+    if prefix[:2] == ["go", "test"]:
+        kind = "go"
+    elif prefix[0] == "sh":
+        kind = "native"
+    elif (
+        isinstance(argv.elts[0], ast.Attribute)
+        and isinstance(argv.elts[0].value, ast.Name)
+        and argv.elts[0].value.id == "sys"
+        and argv.elts[0].attr == "executable"
+        and prefix[1:3] == ["-P", "-c"]
+    ):
+        kind = "python"
+    return kind
+
+
+def execution_prerequisites(rows, execution, selector, drivers):
+    requirements = {
+        "profile": {
+            "status": "inventory-declared case-profile metadata; not runtime --profile values",
+            "case_profiles": sorted(
+                {
+                    profile
+                    for candidate in rows.values()
+                    if candidate["execution_id"] == execution
+                    for profile in candidate["profiles"]
+                }
+            ),
+            "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
+        },
+        "pinned_checkout": {
+            "status": "required for public Connector inventory invocation",
+            "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
+            "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
+            "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
+        },
+        "external_output": {
+            "status": "required for public Connector inventory invocation",
+            "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
+        },
+        "execution_driver": {
+            "kind": selector["kind"],
+            "selector": selector,
+            "source_evidence": drivers[selector["kind"]],
+            "status": "selector-declared; tool availability not assessed",
+        },
+        "source_declarations": [],
+        "unresolved": [
+            "transitive helper dependencies and branch execution are not proved by static declarations",
+            "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed",
+        ],
+    }
+    return requirements
+
+
+def go_toolchain_prerequisites(product, selector, requirements):
+    module_file = product / selector["module"] / "go.mod"
+    if module_file.is_file() and not module_file.is_symlink():
+        for number, line in enumerate(module_file.read_text().splitlines(), 1):
+            if re.match(r"^(?:go|toolchain)\s+", line):
+                requirements["source_declarations"].append(
+                    {
+                        "category": "toolchain",
+                        "value": line.strip(),
+                        "status": "selected module declaration; availability not assessed",
+                        "evidence": source_reference(
+                            "Connector",
+                            str(module_file.relative_to(product)),
+                            number,
+                            line,
+                        ),
+                    }
+                )
+
+
+def source_prerequisites(new, framework, parsed_sources, selector, requirements):
+    for relative in new:
+        if relative not in parsed_sources:
+            text = (framework / relative).read_text()
+            parsed_sources[relative] = (
+                text,
+                ast.parse(text) if relative.endswith(".py") else None,
+            )
+        text, parsed = parsed_sources[relative]
+        requirements["source_declarations"].extend(
+            declared_prerequisites(
+                "Framework", relative, text, selector=selector, parsed=parsed
+            )
+        )
+
+
+def prerequisite_categories(requirements):
+    categories = {}
+    for category, source_categories in {
+        "SDK": {"SDK-or-build-input"},
+        "tool": {"tool", "toolchain"},
+        "host": {"host"},
+        "privileges": {"privilege-or-isolation"},
+        "dependencies": {"SDK-or-build-input", "toolchain", "dependency"},
+    }.items():
+        indices = [
+            index
+            for index, item in enumerate(requirements["source_declarations"])
+            if item["category"] in source_categories
+        ]
+        categories[category] = {
+            "source_declaration_indices": indices,
+            "status": "conditional source declarations; readiness not assessed"
+            if indices
+            else "not statically established; transitive/branch requirements unresolved",
+        }
+    categories["tool"]["selector_driver_tool"] = requirements["execution_driver"].get(
+        "tool"
+    )
+    for category, key in (
+        ("profile", "profile"),
+        ("pinned_checkout", "pinned_checkout"),
+        ("external_outputs", "external_output"),
+    ):
+        categories[category] = {"catalog_field": key}
+    return categories
+
+
+def discovery_candidate(relative, caller, command):
+    if (
+        relative.endswith(".py")
+        and caller["owner"] == "Framework"
+        and "unittest discover" in command
+    ):
+        start = re.search(r"(?:^|\s)-s\s+[\"']?([^\s\"']+)", command)
+        pattern = re.search(r"(?:^|\s)-p\s+[\"']?([^\s\"']+)", command)
+        if start:
+            directory = (
+                start[1]
+                .removeprefix("$(TEST_ROOT)/")
+                .removeprefix("$(FRAMEWORK_ROOT)/")
+            )
+            directory = directory.removeprefix("./").rstrip("/")
+            if relative.startswith(directory + "/") and fnmatch.fnmatch(
+                Path(relative).name, pattern[1] if pattern else "test*.py"
+            ):
+                return True
+    return False
+
+
+def python_definition_routes(archive, callers, framework, binding_index, caller_tokens):
+    routes = []
+    for source in archive["sources"]:
+        relative = source["framework_path"]
+        direct = []
+        discoveries = []
+        source_text = (framework / relative).read_text()
+        definitions = sorted(
+            set(
+                source["on_demand_definitions"]
+                + source["contains_selected_definitions"]
+            )
+        )
+        source_executions = sorted(binding_index.get(relative, ()))
+        for caller in callers:
+            command = caller["source_line"]
+            if set(definitions) & caller_tokens[caller["id"]]:
+                direct.append(caller["id"])
+            if discovery_candidate(relative, caller, command):
+                discoveries.append(caller["id"])
+        routes.append(
+            {
+                "archive_source": source["source"],
+                "framework_path": relative,
+                "definition_ids": definitions,
+                "direct_caller_ids": sorted(set(direct)),
+                "archive_declared_selected_definition_ids": source[
+                    "contains_selected_definitions"
+                ],
+                "source_binding_execution_ids": source_executions,
+                "discovery_candidate_caller_ids": sorted(set(discoveries)),
+                "source_load_tests_filter": bool(
+                    re.search(r"^\s*def load_tests\(", source_text, re.MULTILINE)
+                )
+                if relative.endswith(".py")
+                else None,
+                "automatic_selection": "not inferred; source-owned load_tests and the Connector inventory remain authoritative",
+                "observed_execution": _UNASSESSED_TEXT,
+            }
+        )
+    return routes
+
+
+def native_definition_routes(archive, callers, binding_index):
+    routes = []
+    for source in archive["native_sources"]:
+        relative = source["framework_path"]
+        references = sorted(
+            {
+                caller["id"]
+                for caller in callers
+                if relative in caller["source_line"]
+                or source["source"] in caller["source_line"]
+            }
+        )
+        executions = sorted(binding_index.get(relative, ()))
+        routes.append(
+            {
+                "archive_source": source["source"],
+                "framework_path": relative,
+                "source_reference_caller_ids": references,
+                "source_binding_execution_ids": executions,
+                "definition_ids": [
+                    entry["symbol"]
+                    for entry in archive["native_extracted_definitions"]
+                    if entry["framework_path"] == relative
+                ],
+                "symbol_reference_caller_ids": {
+                    entry["symbol"]: sorted(
+                        {
+                            caller["id"]
+                            for caller in callers
+                            if re.search(
+                                r"\b" + re.escape(entry["symbol"]) + r"\b",
+                                caller["source_line"],
+                            )
+                        }
+                    )
+                    for entry in archive["native_extracted_definitions"]
+                    if entry["framework_path"] == relative
+                },
+                "automatic_selection": "not inferred; native source/reference or preserved helper availability is not a selected or executed independent case",
+                "observed_execution": _UNASSESSED_TEXT,
+            }
+        )
+    return routes
+
+
+def mapped_file_records(mapping, framework, product, initial_blobs, updated_blobs):
+    files = []
+    for old, new in sorted(mapping.items()):
+        file = framework / new
+        if file.is_symlink() or not file.is_file():
+            raise ValueError("mapped Framework file is missing or linked: " + new)
+        retained = (product / old).exists()
+        if retained and old not in SHIMS:
+            raise ValueError("unexpected duplicate Connector test source: " + old)
+        files.append(
+            {
+                "old_path": old,
+                "new_framework_path": new,
+                "sha256_framework_source": digest(file.read_bytes()),
+                "sha256_before": digest(initial_blobs[old])
+                if initial_blobs[old] is not None
+                else None,
+                "present_at_initial_base": initial_blobs[old] is not None,
+                "sha256_updated_base": digest(updated_blobs[old]),
+                "retained_authenticated_product_entrypoint": retained,
+            }
+        )
+    return files
+
+
+def public_entrypoint_records(framework):
+    entrypoints = []
+    for relative in (
+        _CONNECTOR_CLI_SOURCE,
+        _CONNECTOR_MAKEFILE_SOURCE,
+    ):
+        for line, text in enumerate((framework / relative).read_text().splitlines(), 1):
+            if (
+                "def main(" in text
+                or "--on-demand" in text
+                or "ACTIVE_TEST_RUNNER =" in text
+            ):
+                entrypoints.append(
+                    {
+                        "id": "Framework:" + relative + ":" + str(line),
+                        "owner": "Framework",
+                        "path": relative,
+                        "line": line,
+                        "source_line": text.strip(),
+                    }
+                )
+    return entrypoints
+
+
+def case_records(
+    current, framework, mapping, baseline, callers, entrypoints, previous_callers
+):
+    cases = []
+    for name, row in sorted(current.items()):
+        old, new = locations(row, framework, mapping)
+        prior = baseline.get(name)
+        ids = related(row, callers)
+        cases.append(
+            {
+                **{key: value for key, value in row.items() if key != "sources"},
+                "inventory_source_binding_execution": row["execution_id"],
+                "old_path": old,
+                "new_framework_path": new,
+                "actual_callers": ids,
+                "prerequisites": {
+                    "catalog_execution_id": row["execution_id"],
+                    "declared_case_profiles": row["profiles"],
+                    "availability": _UNASSESSED_TEXT,
+                    "source": "prerequisite_catalog",
+                },
+                "public_entrypoints": [item["id"] for item in entrypoints],
+                "migration_disposition": "preserved" if prior else "added-on-demand",
+                "old_selector": prior["selector"] if prior else None,
+                "old_caller_ids": related(prior, previous_callers) if prior else [],
+                "current_caller_ids": ids,
+                "public_entrypoint_requires_explicit_on_demand": row["selection"]
+                == "on-demand",
+                "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+            }
+        )
+    return cases
+
+
+def archive_availability(framework):
+    archive = load_source(
+        framework
+        / "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py"
+    ).archive()
+    archive_bytes = (json.dumps(archive, indent=2, sort_keys=True) + "\n").encode()
+    archive_path = (
+        "connector_suite/reports/testing/test-selection-archive.generated.json"
+    )
+    if (
+        not (framework / archive_path).is_file()
+        or (framework / archive_path).read_bytes() != archive_bytes
+    ):
+        raise ValueError(
+            "refresh the definition archive through its generator before generating the migration map"
+        )
+    availability = {
+        "artifact": archive_path,
+        "sha256": digest(archive_bytes),
+        "python_go_source_sets": len(archive["sources"]),
+        "native_sources": len(archive["native_sources"]),
+        "framework_yaml_sources": len(archive["framework_case_sources"]),
+        "native_preserved_function_count": archive["native_preserved_function_count"],
+        "native_preserved_function_lines": archive["native_preserved_function_lines"],
+        "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
+    }
+    return archive, availability
+
+
+def case_table(cases, prerequisites):
+    columns = (
+        "test_id",
+        "purpose",
+        "selection",
+        "execution_id",
+        "actual_callers",
+        "old_path",
+        "new_framework_path",
+        "migration_disposition",
+        "selector",
+        "old_caller_ids",
+        "current_caller_ids",
+        "public_entrypoints",
+        "prerequisites",
+        "prerequisite_tools",
+        "prerequisite_sdk",
+        "prerequisite_host",
+        "prerequisite_profiles",
+        "prerequisite_privileges",
+        "prerequisite_dependencies",
+        "prerequisite_checkouts",
+        "prerequisite_external_outputs",
+    )
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(
+        stream, fieldnames=columns, delimiter="\t", lineterminator="\n"
+    )
+    writer.writeheader()
+    for row in cases:
+        table_row = {
+            **row,
+            **prerequisite_summary(row, prerequisites[row["execution_id"]]),
+        }
+        writer.writerow(
+            {
+                key: table_row[key]
+                if isinstance(table_row[key], str)
+                else encoded(table_row[key])
+                for key in columns
+            }
+        )
+    return stream.getvalue()
+
+
+def go_source_locations(selector, sources):
+    old = []
+    name = selector["test"].split("/")[0]
+    for logical in sources:
+        if logical.endswith("_test.go"):
+            file = source_path(logical)
+            if re.search(
+                r"^func\s+" + re.escape(name) + r"\(",
+                file.read_text(),
+                re.MULTILINE,
+            ):
+                old.append(logical)
+    return old
+
+
+def inventory_driver_argv(node):
+    if not isinstance(node, (ast.Return, ast.Assign)):
+        return None
+    value = node.value
+    # The Python/native drivers return (argv, cwd); Go builds argv first.
+    argv = value.elts[0] if isinstance(value, ast.Tuple) and value.elts else value
+    if not isinstance(argv, ast.List) or not argv.elts:
+        return None
+    return argv
 
 
 def encoded(value):
@@ -105,9 +850,7 @@ def original_sources(root, revision, paths):
         if raw[cursor : cursor + 1] != b"\n":
             raise ValueError("invalid Git batch boundary")
         cursor += 1
-        if (
-            git_object_identity("blob", body) != header[0]
-        ):
+        if git_object_identity("blob", body) != header[0]:
             raise ValueError("original Git source blob identity differs: " + name)
         result[name] = body
     if cursor != len(raw):
@@ -196,6 +939,20 @@ def caller_source_line(command):
     )
 
 
+def caller_source_kind(path):
+    if path.endswith(("Makefile", ".mk")):
+        return "make"
+    if path.startswith(".github/workflows/"):
+        return "ci-workflow"
+    if path.startswith(".github/actions/"):
+        return "ci-action"
+    if path.startswith("connector_native_tests/"):
+        return "native-adapter"
+    if path.endswith(".sh"):
+        return "native-shell-selector"
+    return "python-runner-or-discovery"
+
+
 def caller_lines(sources):
     rows = []
     markers = (
@@ -222,42 +979,7 @@ def caller_lines(sources):
         'return ["sh", str(script)',
     )
     for owner, path, text in sorted(sources):
-        target = None
-        for line, command in enumerate(text.splitlines(), 1):
-            if re.match(r"^[A-Za-z0-9_.%/-]+(?: [A-Za-z0-9_.%/-]+)*:", command):
-                target = command.split(":", 1)[0]
-            if not any(marker in command for marker in markers):
-                continue
-            identity = owner + ":" + path + ":" + str(line)
-            rows.append(
-                {
-                    "id": identity,
-                    "owner": owner,
-                    "path": path,
-                    "line": line,
-                    "make_target": target
-                    if path.endswith(("Makefile", "connector.mk"))
-                    else None,
-                    "source_line": caller_source_line(command)
-                    if owner in {"Connector", "Framework"}
-                    else command.strip(),
-                    "admission_only": "--check" in command,
-                    "source_kind": (
-                        "make"
-                        if path.endswith(("Makefile", ".mk"))
-                        else "ci-workflow"
-                        if path.startswith(".github/workflows/")
-                        else "ci-action"
-                        if path.startswith(".github/actions/")
-                        else "native-adapter"
-                        if path.startswith("connector_native_tests/")
-                        else "native-shell-selector"
-                        if path.endswith(".sh")
-                        else "python-runner-or-discovery"
-                    ),
-                    "selection_note": "source caller only; execution and automatic case admission are separate",
-                }
-            )
+        rows.extend(caller_source_rows(owner, path, text, markers))
     return rows
 
 
@@ -302,48 +1024,13 @@ def locations(row, framework, mapping):
     selector = row["selector"]
     old = []
     if selector["kind"] == "python":
-        module = selector["target"].rsplit(".", 2)[0]
-        for legacy, modern in NAMESPACES:
-            if module.startswith(modern):
-                logical = (legacy + module[len(modern) :]).replace(".", "/") + ".py"
-                if logical not in mapping:
-                    physical = (
-                        (
-                            ""
-                            if module.startswith("connector_suite.")
-                            else "connector_suite/"
-                        )
-                        + module.replace(".", "/")
-                        + ".py"
-                    )
-                    if not (framework / physical).is_file():
-                        raise ValueError(
-                            "new regression source location is unavailable: " + physical
-                        )
-                    return [], [physical]
-                old = [logical]
-                break
-        if not old and module.startswith("modsecurity_test_framework.selftests."):
-            return [], [
-                "tests/"
-                + module.removeprefix("modsecurity_test_framework.selftests.").replace(
-                    ".", "/"
-                )
-                + ".py"
-            ]
+        old, direct = python_source_locations(selector, framework, mapping)
+        if direct is not None:
+            return old, direct
     elif selector["kind"] == "native":
         old = [selector["script"]]
     else:
-        name = selector["test"].split("/")[0]
-        for logical in row["sources"]:
-            if logical.endswith("_test.go"):
-                file = source_path(logical)
-                if re.search(
-                    r"^func\s+" + re.escape(name) + r"\(",
-                    file.read_text(),
-                    re.MULTILINE,
-                ):
-                    old.append(logical)
+        old = go_source_locations(selector, row["sources"])
     new = [
         mapping.get(name, name.removeprefix("modules/ModSecurity-test-Framework/"))
         for name in old
@@ -385,246 +1072,11 @@ def declared_prerequisites(owner, path, text, selector=None, parsed=None):
         )
 
     if path.endswith(".py"):
-        tree = parsed if parsed is not None else ast.parse(text)
-        wanted = (selector or {}).get("target", "").rsplit(".", 2)[-2:]
-        nodes = [
-            node
-            for node in tree.body
-            if not isinstance(
-                node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-            )
-        ]
-        selected_class = next(
-            (
-                node
-                for node in tree.body
-                if isinstance(node, ast.ClassDef)
-                and len(wanted) == 2
-                and node.name == wanted[0]
-            ),
-            None,
-        )
-        if selected_class is not None:
-            nodes.extend(
-                node
-                for node in selected_class.body
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and node.name in {wanted[-1], "setUp", "setUpClass"}
-            )
-        elif selector is None:
-            nodes = list(tree.body)
-        for root in nodes:
-            for node in ast.walk(root):
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    modules = (
-                        [alias.name for alias in node.names]
-                        if isinstance(node, ast.Import)
-                        else [node.module]
-                        if node.module and node.level == 0
-                        else []
-                    )
-                    for module in modules:
-                        if module.split(".", 1)[0] not in sys.stdlib_module_names | {
-                            "__future__"
-                        }:
-                            add(
-                                "dependency",
-                                "Python import: " + module,
-                                node.lineno,
-                                "source import in module/selected definition; surrounding guards may make it conditional",
-                            )
-                if not isinstance(node, ast.Call):
-                    continue
-                function = node.func
-                if (
-                    isinstance(function, ast.Attribute)
-                    and isinstance(function.value, ast.Name)
-                    and function.value.id == "subprocess"
-                    and function.attr in {"run", "Popen", "check_call", "check_output"}
-                ):
-                    argument = (
-                        node.args[0]
-                        if node.args
-                        else next(
-                            (
-                                keyword.value
-                                for keyword in node.keywords
-                                if keyword.arg == "args"
-                            ),
-                            None,
-                        )
-                    )
-                    values = (
-                        [
-                            item.value
-                            for item in argument.elts
-                            if isinstance(item, ast.Constant)
-                            and isinstance(item.value, str)
-                        ]
-                        if isinstance(argument, (ast.List, ast.Tuple))
-                        else []
-                    )
-                    executable = (
-                        values[0]
-                        if isinstance(argument, (ast.List, ast.Tuple))
-                        and argument.elts
-                        and isinstance(argument.elts[0], ast.Constant)
-                        and isinstance(argument.elts[0].value, str)
-                        else None
-                    )
-                    add(
-                        "tool",
-                        executable or "computed subprocess executable",
-                        node.lineno,
-                        "if this source call executes without a test replacement",
-                    )
-                    if executable and Path(executable).name in {
-                        "nginx",
-                        "httpd",
-                        "apache2",
-                        "haproxy",
-                        "envoy",
-                        "traefik",
-                        "lighttpd",
-                    }:
-                        add(
-                            "host",
-                            Path(executable).name,
-                            node.lineno,
-                            "if the selected test actually launches this host",
-                        )
-                    if executable and Path(executable).name in {
-                        "sudo",
-                        "unshare",
-                        "bwrap",
-                        "nsenter",
-                    }:
-                        add(
-                            "privilege-or-isolation",
-                            Path(executable).name,
-                            node.lineno,
-                            "subject to the declared isolation/privilege policy; no grant inferred",
-                        )
-                    if (
-                        executable
-                        and Path(executable).name
-                        in {"pkg-config", "cc", "gcc", "clang", "c++", "g++", "clang++"}
-                        and any("modsecurity" in value.lower() for value in values)
-                    ):
-                        add(
-                            "SDK-or-build-input",
-                            "ModSecurity source/SDK input referenced by subprocess",
-                            node.lineno,
-                            "if this source call executes; not a host capability claim",
-                        )
-                elif (
-                    isinstance(function, ast.Attribute)
-                    and isinstance(function.value, ast.Name)
-                    and function.value.id == "os"
-                    and function.attr in {"geteuid", "getuid", "getgid"}
-                ):
-                    add(
-                        "privilege-or-isolation",
-                        "UID/GID guard",
-                        node.lineno,
-                        "the surrounding predicate determines accepted identity; root is not inferred",
-                    )
+        nodes = python_prerequisite_nodes(text, selector, parsed)
+        python_prerequisites(nodes, add)
     elif path.endswith((".sh", "Makefile", ".mk")):
-        arguments = (selector or {}).get("args", [])
-        for number, line in enumerate(lines, 1):
-            assignment = re.match(
-                r"\s*([A-Za-z_][A-Za-z0-9_]*)=\$\{([1-9])(?::[?+-][^}]*)?\}", line
-            )
-            if assignment is None or int(assignment[2]) > len(arguments):
-                continue
-            value = arguments[int(assignment[2]) - 1]
-            variable = assignment[1]
-            case = next(
-                (
-                    index
-                    for index in range(number, len(lines))
-                    if re.search(
-                        r"\bcase\s+[\"']?\$\{?"
-                        + re.escape(variable)
-                        + r"\}?[\"']?\s+in\b",
-                        lines[index],
-                    )
-                ),
-                None,
-            )
-            if case is None:
-                continue
-            end = next(
-                (
-                    index
-                    for index in range(case + 1, len(lines))
-                    if lines[index].strip() == "esac"
-                ),
-                len(lines),
-            )
-            arm = next(
-                (
-                    index
-                    for index in range(case + 1, end)
-                    if re.search(
-                        r"(?:^|[|\s])" + re.escape(value) + r"(?:[|)])", lines[index]
-                    )
-                ),
-                None,
-            )
-            if arm is not None and value in {
-                "apache",
-                "nginx",
-                "haproxy",
-                "envoy",
-                "traefik",
-                "lighttpd",
-            }:
-                add(
-                    "host",
-                    "selected host adapter: " + value,
-                    arm + 1,
-                    "selector argument "
-                    + str(assignment[2])
-                    + " is validated by this shell case; stage-specific host/build prerequisites still require their source guards",
-                )
-        for line_number, line in enumerate(lines, 1):
-            stripped = line.lstrip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            for match in re.finditer(
-                r"\bcommand\s+-v\s+[\"']?([A-Za-z0-9_./+${}-]+)", line
-            ):
-                add(
-                    "tool",
-                    match.group(1),
-                    line_number,
-                    "conditional command-presence check in selected source; inspect branch",
-                )
-            if re.search(
-                r"\b(?:require_modsecurity_v3|find_modsecurity_v3_prefix)\b|pkg-config[^\n]*modsecurity",
-                line,
-            ):
-                add(
-                    "SDK-or-build-input",
-                    "ModSecurity source/SDK declaration",
-                    line_number,
-                    "conditional SDK discovery/requirement in selected source",
-                )
-            if re.search(r"(?:\$\{?(?:CC|CXX)\}?|\$\((?:CC|CXX)\))", line):
-                add(
-                    "tool",
-                    "source-selected C/C++ compiler",
-                    line_number,
-                    "if the compiler invocation branch executes; flags stay source-owned",
-                )
-            if re.search(r"\b(?:sudo|unshare|bwrap|nsenter)\b|\$\(id -u\)", line):
-                add(
-                    "privilege-or-isolation",
-                    "source-declared identity/isolation command",
-                    line_number,
-                    "surrounding guard defines authorization; no privilege is granted",
-                )
+        shell_selected_host_prerequisites(lines, selector, add)
+        shell_command_prerequisites(lines, add)
     unique = {encoded(item): item for item in declarations}
     return [unique[key] for key in sorted(unique)]
 
@@ -634,30 +1086,14 @@ def inventory_driver_declarations(text):
     path = _ACTIVE_INVENTORY_SOURCE
     result = {}
     for node in ast.walk(ast.parse(text)):
-        if not isinstance(node, (ast.Return, ast.Assign)):
-            continue
-        value = node.value
-        # The Python/native drivers return (argv, cwd); Go builds argv first.
-        argv = value.elts[0] if isinstance(value, ast.Tuple) and value.elts else value
-        if not isinstance(argv, ast.List) or not argv.elts:
+        argv = inventory_driver_argv(node)
+        if argv is None:
             continue
         prefix = [
             element.value if isinstance(element, ast.Constant) else None
             for element in argv.elts
         ]
-        kind = None
-        if prefix[:2] == ["go", "test"]:
-            kind = "go"
-        elif prefix[0] == "sh":
-            kind = "native"
-        elif (
-            isinstance(argv.elts[0], ast.Attribute)
-            and isinstance(argv.elts[0].value, ast.Name)
-            and argv.elts[0].value.id == "sys"
-            and argv.elts[0].attr == "executable"
-            and prefix[1:3] == ["-P", "-c"]
-        ):
-            kind = "python"
+        kind = inventory_driver_kind(argv, prefix)
         if kind is None:
             continue
         if kind in result:
@@ -686,9 +1122,7 @@ def prerequisite_catalog(rows, product, framework, mapping):
     """Deduplicate per-execution conditions while retaining per-Test-ID references."""
     catalog = {}
     parsed_sources = {}
-    driver_path = (
-        _ACTIVE_INVENTORY_SOURCE
-    )
+    driver_path = _ACTIVE_INVENTORY_SOURCE
     drivers = inventory_driver_declarations((framework / driver_path).read_text())
     for row in sorted(
         rows.values(), key=lambda value: (value["execution_id"], value["test_id"])
@@ -696,43 +1130,9 @@ def prerequisite_catalog(rows, product, framework, mapping):
         execution = row["execution_id"]
         if execution in catalog:
             continue
-        old, new = locations(row, framework, mapping)
+        _old, new = locations(row, framework, mapping)
         selector = row["selector"]
-        requirements = {
-            "profile": {
-                "status": "inventory-declared case-profile metadata; not runtime --profile values",
-                "case_profiles": sorted(
-                    {
-                        profile
-                        for candidate in rows.values()
-                        if candidate["execution_id"] == execution
-                        for profile in candidate["profiles"]
-                    }
-                ),
-                "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
-            },
-            "pinned_checkout": {
-                "status": "required for public Connector inventory invocation",
-                "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
-                "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
-                "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
-            },
-            "external_output": {
-                "status": "required for public Connector inventory invocation",
-                "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
-            },
-            "execution_driver": {
-                "kind": selector["kind"],
-                "selector": selector,
-                "source_evidence": drivers[selector["kind"]],
-                "status": "selector-declared; tool availability not assessed",
-            },
-            "source_declarations": [],
-            "unresolved": [
-                "transitive helper dependencies and branch execution are not proved by static declarations",
-                "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed",
-            ],
-        }
+        requirements = execution_prerequisites(rows, execution, selector, drivers)
         if selector["kind"] == "python":
             requirements["execution_driver"]["tool"] = (
                 "Framework-compatible Python interpreter"
@@ -745,64 +1145,9 @@ def prerequisite_catalog(rows, product, framework, mapping):
             requirements["execution_driver"]["tool"] = (
                 "Go test driver with external test overlay"
             )
-            module_file = product / selector["module"] / "go.mod"
-            if module_file.is_file() and not module_file.is_symlink():
-                for number, line in enumerate(module_file.read_text().splitlines(), 1):
-                    if re.match(r"^(?:go|toolchain)\s+", line):
-                        requirements["source_declarations"].append(
-                            {
-                                "category": "toolchain",
-                                "value": line.strip(),
-                                "status": "selected module declaration; availability not assessed",
-                                "evidence": source_reference(
-                                    "Connector",
-                                    str(module_file.relative_to(product)),
-                                    number,
-                                    line,
-                                ),
-                            }
-                        )
-        for relative in new:
-            if relative not in parsed_sources:
-                text = (framework / relative).read_text()
-                parsed_sources[relative] = (
-                    text,
-                    ast.parse(text) if relative.endswith(".py") else None,
-                )
-            text, parsed = parsed_sources[relative]
-            requirements["source_declarations"].extend(
-                declared_prerequisites(
-                    "Framework", relative, text, selector=selector, parsed=parsed
-                )
-            )
-        categories = {}
-        for category, source_categories in {
-            "SDK": {"SDK-or-build-input"},
-            "tool": {"tool", "toolchain"},
-            "host": {"host"},
-            "privileges": {"privilege-or-isolation"},
-            "dependencies": {"SDK-or-build-input", "toolchain", "dependency"},
-        }.items():
-            indices = [
-                index
-                for index, item in enumerate(requirements["source_declarations"])
-                if item["category"] in source_categories
-            ]
-            categories[category] = {
-                "source_declaration_indices": indices,
-                "status": "conditional source declarations; readiness not assessed"
-                if indices
-                else "not statically established; transitive/branch requirements unresolved",
-            }
-        categories["tool"]["selector_driver_tool"] = requirements[
-            "execution_driver"
-        ].get("tool")
-        for category, key in (
-            ("profile", "profile"),
-            ("pinned_checkout", "pinned_checkout"),
-            ("external_outputs", "external_output"),
-        ):
-            categories[category] = {"catalog_field": key}
+            go_toolchain_prerequisites(product, selector, requirements)
+        source_prerequisites(new, framework, parsed_sources, selector, requirements)
+        categories = prerequisite_categories(requirements)
         requirements["requirement_categories"] = categories
         catalog[execution] = requirements
     return catalog
@@ -915,7 +1260,7 @@ def definition_routes(archive, callers, framework, rows, mapping):
     caller_tokens = {
         caller["id"]: set(
             re.findall(
-                r"\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\b",
+                r"\b[A-Za-z_](?a:\w)*(?:\.[A-Za-z_](?a:\w)*)*\b",
                 caller["source_line"],
             )
         )
@@ -928,100 +1273,12 @@ def definition_routes(archive, callers, framework, rows, mapping):
                 logical, logical.removeprefix("modules/ModSecurity-test-Framework/")
             )
             binding_index.setdefault(relative, set()).add(row["execution_id"])
-    for source in archive["sources"]:
-        relative = source["framework_path"]
-        direct = []
-        discoveries = []
-        source_text = (framework / relative).read_text()
-        definitions = sorted(
-            set(
-                source["on_demand_definitions"]
-                + source["contains_selected_definitions"]
-            )
+    routes.extend(
+        python_definition_routes(
+            archive, callers, framework, binding_index, caller_tokens
         )
-        source_executions = sorted(binding_index.get(relative, ()))
-        for caller in callers:
-            command = caller["source_line"]
-            if set(definitions) & caller_tokens[caller["id"]]:
-                direct.append(caller["id"])
-            if (
-                relative.endswith(".py")
-                and caller["owner"] == "Framework"
-                and "unittest discover" in command
-            ):
-                start = re.search(r"(?:^|\s)-s\s+[\"']?([^\s\"']+)", command)
-                pattern = re.search(r"(?:^|\s)-p\s+[\"']?([^\s\"']+)", command)
-                if start:
-                    directory = (
-                        start[1]
-                        .removeprefix("$(TEST_ROOT)/")
-                        .removeprefix("$(FRAMEWORK_ROOT)/")
-                    )
-                    directory = directory.removeprefix("./").rstrip("/")
-                    if relative.startswith(directory + "/") and fnmatch.fnmatch(
-                        Path(relative).name, pattern[1] if pattern else "test*.py"
-                    ):
-                        discoveries.append(caller["id"])
-        routes.append(
-            {
-                "archive_source": source["source"],
-                "framework_path": relative,
-                "definition_ids": definitions,
-                "direct_caller_ids": sorted(set(direct)),
-                "archive_declared_selected_definition_ids": source[
-                    "contains_selected_definitions"
-                ],
-                "source_binding_execution_ids": source_executions,
-                "discovery_candidate_caller_ids": sorted(set(discoveries)),
-                "source_load_tests_filter": bool(
-                    re.search(r"^\s*def load_tests\(", source_text, re.MULTILINE)
-                )
-                if relative.endswith(".py")
-                else None,
-                "automatic_selection": "not inferred; source-owned load_tests and the Connector inventory remain authoritative",
-                "observed_execution": _UNASSESSED_TEXT,
-            }
-        )
-    for source in archive["native_sources"]:
-        relative = source["framework_path"]
-        references = sorted(
-            {
-                caller["id"]
-                for caller in callers
-                if relative in caller["source_line"]
-                or source["source"] in caller["source_line"]
-            }
-        )
-        executions = sorted(binding_index.get(relative, ()))
-        routes.append(
-            {
-                "archive_source": source["source"],
-                "framework_path": relative,
-                "source_reference_caller_ids": references,
-                "source_binding_execution_ids": executions,
-                "definition_ids": [
-                    entry["symbol"]
-                    for entry in archive["native_extracted_definitions"]
-                    if entry["framework_path"] == relative
-                ],
-                "symbol_reference_caller_ids": {
-                    entry["symbol"]: sorted(
-                        {
-                            caller["id"]
-                            for caller in callers
-                            if re.search(
-                                r"\b" + re.escape(entry["symbol"]) + r"\b",
-                                caller["source_line"],
-                            )
-                        }
-                    )
-                    for entry in archive["native_extracted_definitions"]
-                    if entry["framework_path"] == relative
-                },
-                "automatic_selection": "not inferred; native source/reference or preserved helper availability is not a selected or executed independent case",
-                "observed_execution": _UNASSESSED_TEXT,
-            }
-        )
+    )
+    routes.extend(native_definition_routes(archive, callers, binding_index))
     return routes
 
 
@@ -1142,10 +1399,21 @@ def generate():
     mapping = json.loads(mapping_bytes)["paths"]
     inventory_bytes = source_path(INVENTORY).read_bytes()
     inventory = json.loads(inventory_bytes)
-    if type(inventory.get("schema_version")) is not int or inventory["schema_version"] not in {4, 5}:
+    if type(inventory.get("schema_version")) is not int or inventory[
+        "schema_version"
+    ] not in {4, 5}:
         raise ValueError("current migration inventory requires schema 4 or 5")
-    _keys(inventory, {"schema_version", "executions", "offline_unit_exceptions",
-                      "source_bindings", "connector_source_paths"}, "current migration inventory")
+    _keys(
+        inventory,
+        {
+            "schema_version",
+            "executions",
+            "offline_unit_exceptions",
+            "source_bindings",
+            "connector_source_paths",
+        },
+        "current migration inventory",
+    )
     _expand_indexed_sources(
         inventory, inventory["executions"] + inventory["offline_unit_exceptions"]
     )
@@ -1184,36 +1452,16 @@ def generate():
     preserve(updated, current)
     if counts(initial_inventory) != counts(updated_inventory):
         raise ValueError("the updated original base changed selection counts")
-    files = []
-    for old, new in sorted(mapping.items()):
-        file = framework / new
-        if file.is_symlink() or not file.is_file():
-            raise ValueError("mapped Framework file is missing or linked: " + new)
-        retained = (product / old).exists()
-        if retained and old not in SHIMS:
-            raise ValueError("unexpected duplicate Connector test source: " + old)
-        files.append(
-            {
-                "old_path": old,
-                "new_framework_path": new,
-                "sha256_framework_source": digest(file.read_bytes()),
-                "sha256_before": digest(initial_blobs[old])
-                if initial_blobs[old] is not None
-                else None,
-                "present_at_initial_base": initial_blobs[old] is not None,
-                "sha256_updated_base": digest(updated_blobs[old]),
-                "retained_authenticated_product_entrypoint": retained,
-            }
-        )
+    files = mapped_file_records(
+        mapping, framework, product, initial_blobs, updated_blobs
+    )
     previous_callers = caller_lines(
         ("Connector-updated-base", path, updated_blobs[path].decode())
         for path in originals
     )
     current_sources = current_caller_sources(product, framework, current)
     callers_by_id = {row["id"]: row for row in caller_lines(current_sources)}
-    driver_path = (
-        _ACTIVE_INVENTORY_SOURCE
-    )
+    driver_path = _ACTIVE_INVENTORY_SOURCE
     for declaration in inventory_driver_declarations(
         (framework / driver_path).read_text()
     ).values():
@@ -1221,80 +1469,12 @@ def generate():
     callers = [callers_by_id[key] for key in sorted(callers_by_id)]
     # The actual public API's parser and Make delegator are entrypoint sources,
     # not proof that any particular archived selector ran.
-    entrypoints = []
-    for relative in (
-        _CONNECTOR_CLI_SOURCE,
-        _CONNECTOR_MAKEFILE_SOURCE,
-    ):
-        for line, text in enumerate((framework / relative).read_text().splitlines(), 1):
-            if (
-                "def main(" in text
-                or "--on-demand" in text
-                or "ACTIVE_TEST_RUNNER =" in text
-            ):
-                entrypoints.append(
-                    {
-                        "id": "Framework:" + relative + ":" + str(line),
-                        "owner": "Framework",
-                        "path": relative,
-                        "line": line,
-                        "source_line": text.strip(),
-                    }
-                )
+    entrypoints = public_entrypoint_records(framework)
     prerequisites = prerequisite_catalog(current, product, framework, mapping)
-    cases = []
-    for name, row in sorted(current.items()):
-        old, new = locations(row, framework, mapping)
-        prior = baseline.get(name)
-        ids = related(row, callers)
-        cases.append(
-            {
-                **{key: value for key, value in row.items() if key != "sources"},
-                "inventory_source_binding_execution": row["execution_id"],
-                "old_path": old,
-                "new_framework_path": new,
-                "actual_callers": ids,
-                "prerequisites": {
-                    "catalog_execution_id": row["execution_id"],
-                    "declared_case_profiles": row["profiles"],
-                    "availability": _UNASSESSED_TEXT,
-                    "source": "prerequisite_catalog",
-                },
-                "public_entrypoints": [item["id"] for item in entrypoints],
-                "migration_disposition": "preserved" if prior else "added-on-demand",
-                "old_selector": prior["selector"] if prior else None,
-                "old_caller_ids": related(prior, previous_callers) if prior else [],
-                "current_caller_ids": ids,
-                "public_entrypoint_requires_explicit_on_demand": row["selection"]
-                == "on-demand",
-                "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
-            }
-        )
-    archive = load_source(
-        framework
-        / "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py"
-    ).archive()
-    archive_bytes = (json.dumps(archive, indent=2, sort_keys=True) + "\n").encode()
-    archive_path = (
-        "connector_suite/reports/testing/test-selection-archive.generated.json"
+    cases = case_records(
+        current, framework, mapping, baseline, callers, entrypoints, previous_callers
     )
-    if (
-        not (framework / archive_path).is_file()
-        or (framework / archive_path).read_bytes() != archive_bytes
-    ):
-        raise ValueError(
-            "refresh the definition archive through its generator before generating the migration map"
-        )
-    availability = {
-        "artifact": archive_path,
-        "sha256": digest(archive_bytes),
-        "python_go_source_sets": len(archive["sources"]),
-        "native_sources": len(archive["native_sources"]),
-        "framework_yaml_sources": len(archive["framework_case_sources"]),
-        "native_preserved_function_count": archive["native_preserved_function_count"],
-        "native_preserved_function_lines": archive["native_preserved_function_lines"],
-        "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    }
+    archive, availability = archive_availability(framework)
     document = {
         "schema_version": 3,
         "generator": "connector_suite/modsecurity_connector_ci/tools/build-migration-map.py",
@@ -1347,48 +1527,8 @@ def generate():
         "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
         "execution_note": "Availability, declared selection, callers and observed execution are distinct. This generator runs no tests and assigns no PASS. Existing Framework self-tests retain their own entrypoints; archive availability adds no automatic Connector cases. Runtime receipts remain external and revision-bound.",
     }
-    columns = (
-        "test_id",
-        "purpose",
-        "selection",
-        "execution_id",
-        "actual_callers",
-        "old_path",
-        "new_framework_path",
-        "migration_disposition",
-        "selector",
-        "old_caller_ids",
-        "current_caller_ids",
-        "public_entrypoints",
-        "prerequisites",
-        "prerequisite_tools",
-        "prerequisite_sdk",
-        "prerequisite_host",
-        "prerequisite_profiles",
-        "prerequisite_privileges",
-        "prerequisite_dependencies",
-        "prerequisite_checkouts",
-        "prerequisite_external_outputs",
-    )
-    stream = io.StringIO(newline="")
-    writer = csv.DictWriter(
-        stream, fieldnames=columns, delimiter="\t", lineterminator="\n"
-    )
-    writer.writeheader()
-    for row in cases:
-        table_row = {
-            **row,
-            **prerequisite_summary(row, prerequisites[row["execution_id"]]),
-        }
-        writer.writerow(
-            {
-                key: table_row[key]
-                if isinstance(table_row[key], str)
-                else encoded(table_row[key])
-                for key in columns
-            }
-        )
-    return document, stream.getvalue()
+    table = case_table(cases, prerequisites)
+    return document, table
 
 
 def main():

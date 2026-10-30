@@ -85,6 +85,35 @@ JSON_FIELDS = (
 )
 
 
+def _render_component_text_fields(rendered):
+    for fixtures, python_literals in ((PYTHON_FIELDS, True), (SHELL_FIELDS, False)):
+        for relative, fields in fixtures.items():
+            for name, value in fields.items():
+                pattern = rf"(?m)^({re.escape(name)}[ \t]*=[ \t]*)[^\r\n]*$"
+                rhs = json.dumps(value) if python_literals else value
+                rendered[relative], count = re.subn(
+                    pattern,
+                    lambda match: match.group(1) + rhs,
+                    rendered[relative],
+                )
+                if count != 1:
+                    raise ValueError(f"{relative}: expected one component slot for {name}")
+
+
+def _render_component_json_fields(original, rendered):
+    for relative, parent, fields in JSON_FIELDS:
+        payload = json.loads(original[relative])
+        if not isinstance(payload, dict):
+            raise ValueError(f"{relative}: expected a JSON object")
+        target = payload if parent is None else payload.get(parent)
+        if not isinstance(target, dict) or any(
+            not isinstance(target.get(name), str) for name in fields
+        ):
+            raise ValueError(f"{relative}: missing or malformed component slots")
+        target.update(fields)
+        rendered[relative] = json.dumps(payload, indent=2) + "\n"
+
+
 def set_framework_component_fixture(root: Path) -> None:
     """Reset copied component pins without using the implementation under test."""
     if root.resolve() == SOURCE_ROOT:
@@ -109,30 +138,9 @@ def set_framework_component_fixture(root: Path) -> None:
         for relative in relative_paths
     }
     rendered = dict(original)
-    for fixtures, python_literals in ((PYTHON_FIELDS, True), (SHELL_FIELDS, False)):
-        for relative, fields in fixtures.items():
-            for name, value in fields.items():
-                pattern = rf"(?m)^({re.escape(name)}[ \t]*=[ \t]*)[^\r\n]*$"
-                rhs = json.dumps(value) if python_literals else value
-                rendered[relative], count = re.subn(
-                    pattern,
-                    lambda match: match.group(1) + rhs,
-                    rendered[relative],
-                )
-                if count != 1:
-                    raise ValueError(f"{relative}: expected one component slot for {name}")
+    _render_component_text_fields(rendered)
 
-    for relative, parent, fields in JSON_FIELDS:
-        payload = json.loads(original[relative])
-        if not isinstance(payload, dict):
-            raise ValueError(f"{relative}: expected a JSON object")
-        target = payload if parent is None else payload.get(parent)
-        if not isinstance(target, dict) or any(
-            not isinstance(target.get(name), str) for name in fields
-        ):
-            raise ValueError(f"{relative}: missing or malformed component slots")
-        target.update(fields)
-        rendered[relative] = json.dumps(payload, indent=2) + "\n"
+    _render_component_json_fields(original, rendered)
 
     # Check every independent fixture slot before writing any copied file.
     for relative, text in rendered.items():

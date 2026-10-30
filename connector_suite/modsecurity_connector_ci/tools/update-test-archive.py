@@ -50,29 +50,23 @@ def go_definitions(path: Path, logical: str, go_targets):
             [name for name in methods if (module, package, name) in go_targets])
 
 
-def archive() -> dict:
-    root = test_root()
-    inventory_bytes = (root / "connector_suite/config/testing/active-cases.json").read_bytes()
-    inventory = json.loads(inventory_bytes)
-    executions = inventory["executions"]
-    python_targets = {item["selector"]["target"] for item in executions if item["selector"]["kind"] == "python"}
-    go_targets = {(item["selector"]["module"], item["selector"]["package"], item["selector"]["test"].split("/")[0])
-                  for item in executions if item["selector"]["kind"] == "go"}
-    mapping = json.loads((root / "connector_suite/source-map.json").read_text())["paths"]
-    old_names = {new: old for old, new in mapping.items()}
-    raw = subprocess.check_output(["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard", "-z"])
-    files = sorted({name.decode() for name in raw.split(b"\0") if name})
+def _retained_definitions(path, physical, logical, python_targets, go_targets):
+    definitions, selected = [], []
+    if path.suffix == ".py" and (path.name.startswith("test_") or path.name.endswith("_test.py")):
+        definitions, selected = python_definitions(path, module_name(physical) + ".py", python_targets)
+    elif path.name.endswith("_test.go"):
+        definitions, selected = go_definitions(path, logical, go_targets)
+    return definitions, selected
+
+
+def _archive_sources(root, files, old_names, python_targets, go_targets):
     retained, native, catalogues = [], [], []
     for physical in files:
         path = root / physical
         if physical.startswith("tools/MRTS/") or path.is_symlink() or not path.is_file():
             continue
         logical = old_names.get(physical, "framework/" + physical)
-        definitions, selected = [], []
-        if path.suffix == ".py" and (path.name.startswith("test_") or path.name.endswith("_test.py")):
-            definitions, selected = python_definitions(path, module_name(physical) + ".py", python_targets)
-        elif path.name.endswith("_test.go"):
-            definitions, selected = go_definitions(path, logical, go_targets)
+        definitions, selected = _retained_definitions(path, physical, logical, python_targets, go_targets)
         if definitions or selected:
             retained.append({"source": logical, "framework_path": physical,
                              "source_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
@@ -85,7 +79,10 @@ def archive() -> dict:
             # Existing Framework catalogues remain declarative inputs. This list
             # describes availability, never an extra automatic selection.
             catalogues.append(physical)
-    manifest = json.loads((root / "connector_native_tests/extraction-manifest.json").read_text())
+    return retained, native, catalogues
+
+
+def _extracted_definitions(root, manifest):
     extracted = []
     for definition in manifest["definitions"]:
         physical = "connector_native_tests/" + str(Path(definition["source"]).with_suffix(".inc"))
@@ -93,6 +90,24 @@ def archive() -> dict:
             raise ValueError("extracted native definition has no preserved Framework source")
         extracted.append({**definition, "framework_path": physical,
                           "availability_only": True, "automatic_case": False})
+    return extracted
+
+
+def archive() -> dict:
+    root = test_root()
+    inventory_bytes = (root / "connector_suite/config/testing/active-cases.json").read_bytes()
+    inventory = json.loads(inventory_bytes)
+    executions = inventory["executions"]
+    python_targets = {item["selector"]["target"] for item in executions if item["selector"]["kind"] == "python"}
+    go_targets = {(item["selector"]["module"], item["selector"]["package"], item["selector"]["test"].split("/")[0])
+                  for item in executions if item["selector"]["kind"] == "go"}
+    mapping = json.loads((root / "connector_suite/source-map.json").read_text())["paths"]
+    old_names = {new: old for old, new in mapping.items()}
+    raw = subprocess.check_output(["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard", "-z"])
+    files = sorted({name.decode() for name in raw.split(b"\0") if name})
+    retained, native, catalogues = _archive_sources(root, files, old_names, python_targets, go_targets)
+    manifest = json.loads((root / "connector_native_tests/extraction-manifest.json").read_text())
+    extracted = _extracted_definitions(root, manifest)
     return {"schema_version": 2, "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
             "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
             "inventory_sha256": hashlib.sha256(inventory_bytes).hexdigest(),
