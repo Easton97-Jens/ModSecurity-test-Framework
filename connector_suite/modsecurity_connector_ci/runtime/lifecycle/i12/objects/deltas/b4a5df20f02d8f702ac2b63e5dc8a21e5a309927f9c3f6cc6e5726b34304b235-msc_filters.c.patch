@@ -1,0 +1,14 @@
+--- a/payload
++++ b/payload
+@@ -7,0 +8 @@
++#include "apache-host-observer.h"
+@@ -418,0 +420 @@
++            apache_lifecycle_observe("actual_request_apr_eos", msr, r, pbktIn);
+@@ -1451,0 +1454 @@
++    apache_lifecycle_observe(terminal ? "output_terminal_release_enter" : "output_prefix_release_enter", msr, r, NULL);
+@@ -1452,0 +1456,3 @@
++    apache_lifecycle_observe(terminal ?
++        (rc == APR_SUCCESS ? "output_terminal_release_return_ok" : "output_terminal_release_return_error") :
++        (rc == APR_SUCCESS ? "output_prefix_release_return_ok" : "output_prefix_release_return_error"), msr, r, NULL);
+@@ -2246,0 +2253 @@
++                apache_lifecycle_observe("actual_response_apr_eos", msr, f->r, bucket);

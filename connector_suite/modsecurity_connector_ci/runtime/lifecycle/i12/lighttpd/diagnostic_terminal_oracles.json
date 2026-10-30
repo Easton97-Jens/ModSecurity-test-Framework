@@ -1,0 +1,10 @@
+{
+  "schema": "lighttpd-stock-native-public-terminal-api-controls-v1",
+  "trigger": "explicit_diagnostic_public_api_caller_after_real_request_begin",
+  "automatic_sdk_timer_claimed": false,
+  "native_body_hook_claimed": false,
+  "cases": [
+    {"case_id": "NEED-timeout", "terminal_control": "timeout", "expected_public_api_return": 1, "expected_public_api_error": 0, "expected_visible_status": 504, "expected_backend_count": 0, "expected_first_cause": "timeout", "reason": "Call the unchanged Runtime transaction_timeout API on the real P1-admitted transaction; then existing host technical-failure response maps TIMEOUT to504. The explicit diagnostic caller is not an automatic SDK timer."},
+    {"case_id": "NEED-cancel", "terminal_control": "cancel", "expected_public_api_return": 1, "expected_public_api_error": 0, "expected_visible_status": 500, "expected_backend_count": 0, "expected_first_cause": "upstream_disconnect", "reason": "Call unchanged Runtime transaction_cancel(transaction,1) on the real P1-admitted transaction and observe its typed upstream-disconnect cause; existing host failure response sends500. This is an explicit API boundary control, not a stock body-abort callback."}
+  ]
+}

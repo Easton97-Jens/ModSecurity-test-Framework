@@ -14,6 +14,7 @@ import importlib.util
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 import re
+import runpy
 import sys
 from typing import Any
 
@@ -661,7 +662,13 @@ def main() -> int:
     include_pins = args.check in {"all", "pins"}
     include_permissions = args.check in {"all", "permissions"}
     errors: list[str] = []
+    integration = runpy.run_path(str(Path(__file__).with_name("connector_action_pins.py")))
     for path in paths:
+        if path.name in integration["WORKFLOWS"]:
+            root = path.resolve().parents[2]
+            relative = path.resolve().relative_to(root).as_posix()
+            errors.extend(integration["validate_source"](root, relative))
+            continue
         if include_pins:
             errors.extend(validate_pins(path))
         if include_permissions:

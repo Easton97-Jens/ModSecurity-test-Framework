@@ -1,0 +1,23 @@
+name: apache_phase3_response_rogue_precommit_deny
+title: Apache Phase-3 terminal response guard regression
+category: apache-phase4-response
+portable: false
+connector: apache
+status: pending
+phase: 3
+rules: |
+  SecRuleEngine On
+  SecAuditEngine On
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecRule RESPONSE_HEADERS:Content-Type "@contains text/plain" "id:2190406,phase:3,deny,status:403,log,t:none,msg:'Apache Phase-3 terminal response guard regression'"
+request:
+  method: GET
+  path: /apache-phase3/terminal-rogue
+response:
+  body: phase3-terminal-rogue-body
+  content_type: text/plain
+expect:
+  status: 403
+  transport: http_status
+  intervention: deny
+  rule_id: 2190406

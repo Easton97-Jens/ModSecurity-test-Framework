@@ -1,0 +1,22 @@
+name: apache_phase3_response_header_freeze
+title: Apache Phase-3 inspected response-state freeze regression
+category: apache-phase4-response
+portable: false
+connector: apache
+status: pending
+phase: 3
+rules: |
+  SecRuleEngine On
+  SecAuditEngine On
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecRule &RESPONSE_HEADERS:ETag "@eq 0" "id:2190407,phase:3,deny,status:403,log,t:none,msg:'Apache Phase-3 inspected response-state freeze regression'"
+  SecRule RESPONSE_HEADERS:ETag "!@contains phase3-inspected-etag" "id:2190408,phase:3,deny,status:403,log,t:none,msg:'Apache Phase-3 inspected response-value freeze regression'"
+request:
+  method: GET
+  path: /apache-phase3/header-freeze
+response:
+  body: phase3-header-freeze-body
+  content_type: text/plain
+expect:
+  status: 200
+  transport: http_status

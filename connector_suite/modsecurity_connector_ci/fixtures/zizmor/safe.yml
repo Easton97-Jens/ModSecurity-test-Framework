@@ -1,0 +1,8 @@
+name: Safe zizmor fixture
+on: pull_request
+permissions: {}
+jobs:
+  safe:
+    runs-on: ubuntu-26.04
+    steps:
+      - run: echo "static fixture"

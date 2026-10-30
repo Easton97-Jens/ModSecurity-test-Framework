@@ -1,0 +1,514 @@
+name: trusted NGINX root broker
+
+on:
+  workflow_call:
+    inputs:
+      caller_manifest_artifact:
+        description: Exact artifact name containing caller-manifest.json.
+        required: true
+        type: string
+      parent_head_sha:
+        description: Exact unprivileged caller commit recorded as evidence only.
+        required: true
+        type: string
+      framework_sha:
+        description: Framework gitlink required by the protected broker build.
+        required: true
+        type: string
+      protected_broker_sha:
+        description: Immutable merge SHA that names this reusable workflow.
+        required: true
+        type: string
+      matrix_variant:
+        description: Closed smoke variant.
+        required: true
+        type: string
+      run_id:
+        description: Fresh opaque broker run identifier.
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  trusted-root-smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      github.event.repository.fork == false &&
+      github.ref == 'refs/heads/master' &&
+      github.event.repository.default_branch == 'master'
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    env:
+      BROKER_SHA: ${{ inputs.protected_broker_sha }}
+      BROKER_RUN_ID: ${{ inputs.run_id }}
+      BROKER_VARIANT: ${{ inputs.matrix_variant }}
+      EXPECTED_PARENT_HEAD: ${{ inputs.parent_head_sha }}
+      EXPECTED_FRAMEWORK_SHA: ${{ inputs.framework_sha }}
+      CALLER_SHA: ${{ github.sha }}
+      CALLER_WORKFLOW_SHA: ${{ github.workflow_sha }}
+      CALLER_REPOSITORY: ${{ github.repository }}
+      CALLER_REF: ${{ github.ref }}
+      CALLER_EVENT_NAME: ${{ github.event_name }}
+      CALLER_FORK: ${{ github.event.repository.fork }}
+      CALLER_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      BUILD_NGINX_FROM_SOURCE: "1"
+      NGINX_SOURCE_MODE: github-release
+      NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
+      NGINX_RELEASE_TAG: release-1.31.4
+      NGINX_SOURCE_GIT_REF: release-1.31.4
+      NGINX_RELEASE_ASSET_NAME: nginx-1.31.4.tar.gz
+      NGINX_SHA256: e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3
+      NGINX_REQUIRE_PINNED_PROVENANCE: "1"
+    steps:
+      - name: Verify protected caller context and immutable broker input
+        env:
+          EXPECTED_CALLER_WORKFLOW_REF: Easton97-Jens/ModSecurity-conector/.github/workflows/run-protected-nginx-root-broker.yml@refs/heads/master
+          ACTUAL_CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          set -euo pipefail
+          test "$ACTUAL_CALLER_WORKFLOW_REF" = "$EXPECTED_CALLER_WORKFLOW_REF"
+          test "$CALLER_REPOSITORY" = Easton97-Jens/ModSecurity-conector
+          test "$CALLER_REF" = refs/heads/master
+          test "$CALLER_EVENT_NAME" = workflow_dispatch
+          test "$CALLER_FORK" = false
+          test "$CALLER_DEFAULT_BRANCH" = master
+          if [ "${#CALLER_SHA}" -ne 40 ]; then
+            echo "BLOCKED: caller SHA must be exactly 40 lowercase hex characters" >&2
+            exit 77
+          fi
+          case "$CALLER_SHA" in *[!0-9a-f]*) echo "BLOCKED: caller SHA must be lowercase hex" >&2; exit 77;; esac
+          if [ -n "$CALLER_WORKFLOW_SHA" ]; then
+            if [ "${#CALLER_WORKFLOW_SHA}" -ne 40 ]; then
+              echo "BLOCKED: caller workflow SHA must be exactly 40 lowercase hex characters" >&2
+              exit 77
+            fi
+            case "$CALLER_WORKFLOW_SHA" in *[!0-9a-f]*) echo "BLOCKED: caller workflow SHA must be lowercase hex" >&2; exit 77;; esac
+            test "$CALLER_WORKFLOW_SHA" = "$CALLER_SHA"
+          else
+            printf '%s\n' 'CALLER_WORKFLOW_SHA unavailable; binding caller file through github.sha Git object.'
+          fi
+          if [ "${#BROKER_SHA}" -ne 40 ]; then
+            echo "BLOCKED: protected broker SHA must be exactly 40 lowercase hex characters" >&2
+            exit 77
+          fi
+          case "$BROKER_SHA" in *[!0-9a-f]*) echo "BLOCKED: protected broker SHA must be lowercase hex" >&2; exit 77;; esac
+          case "$BROKER_RUN_ID" in
+            ''|*[!A-Za-z0-9._-]*)
+              echo "BLOCKED: broker run identifier is unsafe" >&2
+              exit 77
+              ;;
+          esac
+          if [ "${#BROKER_RUN_ID}" -gt 128 ]; then
+            echo "BLOCKED: broker run identifier is too long" >&2
+            exit 77
+          fi
+          case "$BROKER_VARIANT" in no-crs|with-crs) ;; *) echo "BLOCKED: unknown matrix variant" >&2; exit 77;; esac
+
+      - name: Check out immutable protected broker source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Easton97-Jens/ModSecurity-conector
+          ref: ${{ inputs.protected_broker_sha }}
+          path: broker-src
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+          clean: true
+
+      - name: Verify protected source, caller commit, and dependency identity
+        working-directory: broker-src
+        run: |
+          set -euo pipefail
+          verify_broker_source() {
+            source_path="$1"
+            test ! -L "$source_path"
+            test -f "$source_path"
+            expected=$(git rev-parse "$BROKER_SHA:$source_path")
+            actual=$(git hash-object "$source_path")
+            test "$actual" = "$expected"
+          }
+          test "$(git rev-parse HEAD)" = "$BROKER_SHA"
+          git cat-file -e "$BROKER_SHA^{commit}"
+          git fetch --no-tags origin master
+          git merge-base --is-ancestor "$BROKER_SHA" FETCH_HEAD
+          git cat-file -e "$CALLER_SHA^{commit}"
+          git merge-base --is-ancestor "$CALLER_SHA" FETCH_HEAD
+          git merge-base --is-ancestor "$BROKER_SHA" "$CALLER_SHA"
+          framework_mode=$(git ls-tree "$BROKER_SHA" -- modules/ModSecurity-test-Framework | cut -d ' ' -f1)
+          framework_gitlink=$(git rev-parse "$BROKER_SHA:modules/ModSecurity-test-Framework")
+          test "$framework_mode" = 160000
+          test "$framework_gitlink" = "$EXPECTED_FRAMEWORK_SHA"
+          framework_head=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+          test "$framework_head" = "$EXPECTED_FRAMEWORK_SHA"
+          git -C modules/ModSecurity-test-Framework cat-file -e "$EXPECTED_FRAMEWORK_SHA^{commit}"
+          test -z "$(git submodule status --recursive | sed -n '/^[+-U]/p')"
+          test -z "$(git -C modules/ModSecurity-test-Framework status --porcelain)"
+          test -z "$(git -C modules/ModSecurity-test-Framework/tools/MRTS status --porcelain)"
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          verify_broker_source .python-version
+
+      - name: Materialize verified broker Python version contract
+        working-directory: broker-src
+        run: |
+          set -euo pipefail
+          source_path=.python-version
+          destination="$GITHUB_WORKSPACE/.python-version"
+          test ! -L "$source_path"
+          test -f "$source_path"
+          expected=$(git rev-parse "$BROKER_SHA:$source_path")
+          actual=$(git hash-object "$source_path")
+          test "$actual" = "$expected"
+          test ! -e "$destination"
+          test ! -L "$destination"
+          install -m 0644 "$source_path" "$destination"
+          test ! -L "$destination"
+          cmp -- "$source_path" "$destination"
+
+      - name: Set up protected broker Python
+        id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        working-directory: broker-src
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Validate immutable protected caller workflow object
+        working-directory: broker-src
+        run: |
+          set -euo pipefail
+          verify_broker_source() {
+            source_path="$1"
+            test ! -L "$source_path"
+            test -f "$source_path"
+            expected=$(git rev-parse "$BROKER_SHA:$source_path")
+            actual=$(git hash-object "$source_path")
+            test "$actual" = "$expected"
+          }
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          python3 -I ci/runtime/broker/nginx_root_broker.py validate-caller-workflow \
+            --caller-sha "$CALLER_SHA" \
+            --broker-sha "$BROKER_SHA" \
+            --framework-sha "$EXPECTED_FRAMEWORK_SHA"
+
+      - name: Download declarative caller manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.caller_manifest_artifact }}
+          path: ${{ runner.temp }}/trusted-nginx-broker-caller-${{ inputs.run_id }}
+
+      - name: Build only trusted protected-source artifacts without root
+        working-directory: broker-src
+        env:
+          VERIFIED_RUN_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/verified
+          BUILD_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/build
+          SOURCE_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/sources
+          TMP_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/tmp
+          LOG_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/logs
+          CONNECTOR_COMPONENT_CACHE: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/component-cache
+          RUNTIME_REPORT_OUTPUT_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/build/runtime-component-reports
+          RUNTIME_COMPONENT_TARGET: nginx
+          RUNTIME_COMPONENT_SNAPSHOT_CONTRACT: protected-nginx-broker
+          NGX_IGNORE_RPATH: "YES"
+        run: |
+          set -euo pipefail
+          verify_broker_source() {
+            source_path="$1"
+            test ! -L "$source_path"
+            test -f "$source_path"
+            expected=$(git rev-parse "$BROKER_SHA:$source_path")
+            actual=$(git hash-object "$source_path")
+            test "$actual" = "$expected"
+          }
+          umask 077
+          mkdir -p "$VERIFIED_RUN_ROOT" "$BUILD_ROOT" "$SOURCE_ROOT" "$TMP_ROOT" "$LOG_ROOT" "$CONNECTOR_COMPONENT_CACHE" "$RUNTIME_REPORT_OUTPUT_ROOT"
+          chmod 700 "$VERIFIED_RUN_ROOT" "$BUILD_ROOT" "$SOURCE_ROOT" "$TMP_ROOT" "$LOG_ROOT" "$CONNECTOR_COMPONENT_CACHE" "$RUNTIME_REPORT_OUTPUT_ROOT"
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          make setup-dev
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          make fetch-deps
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+
+      - name: Build a protected immutable OWASP CRS bundle without root
+        working-directory: broker-src
+        env:
+          TRUSTED_BUILD_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}
+          VERIFIED_RUN_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/verified
+          BUILD_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/build
+          SOURCE_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/sources
+          TMP_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/tmp
+          LOG_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/logs
+          CONNECTOR_COMPONENT_CACHE: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}/component-cache
+        run: |
+          set -euo pipefail
+          verify_broker_source() {
+            source_path="$1"
+            test ! -L "$source_path"
+            test -f "$source_path"
+            expected=$(git rev-parse "$BROKER_SHA:$source_path")
+            actual=$(git hash-object "$source_path")
+            test "$actual" = "$expected"
+          }
+          case "$BROKER_VARIANT" in
+            no-crs)
+              exit 0
+              ;;
+            with-crs)
+              ;;
+            *)
+              echo "BLOCKED: unknown protected broker matrix variant" >&2
+              exit 77
+              ;;
+          esac
+          umask 077
+          case "$(umask)" in
+            077|0077) ;;
+            *) exit 77 ;;
+          esac
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          export CONNECTOR_ROOT="$PWD" REPO_ROOT="$PWD"
+          . modules/ModSecurity-test-Framework/ci/lib/common.sh
+          . ci/runtime/lifecycle/prepare-fresh-crs-source.sh
+          if (
+            umask 022
+            case "$(umask)" in
+              022|0022) ;;
+              *) exit 77 ;;
+            esac
+            sh modules/ModSecurity-test-Framework/ci/provisioning/fetch-crs.sh
+          ); then
+            fetch_status=0
+          else
+            fetch_status=$?
+          fi
+          case "$(umask)" in
+            077|0077) ;;
+            *) exit 77 ;;
+          esac
+          if [ "$fetch_status" -ne 0 ]; then
+            exit "$fetch_status"
+          fi
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          # The broker independently acquires the protected release tag even
+          # when the pinned Framework provisioner fetches only the commit.
+          # Select provenance from the blob-verified broker, never caller data.
+          broker_crs_contract="$(.venv/bin/python -I -c 'import runpy; broker = runpy.run_path("ci/runtime/broker/nginx_root_broker.py"); print(broker["CRS_APPROVED_REPOSITORY"], broker["CRS_RELEASE_TAG"], broker["CRS_APPROVED_COMMIT"])')"
+          read -r broker_crs_repository broker_crs_tag broker_crs_commit broker_crs_extra <<< "$broker_crs_contract"
+          test -n "$broker_crs_repository"
+          test -n "$broker_crs_tag"
+          test -n "$broker_crs_commit"
+          test -z "$broker_crs_extra"
+          test "$(git -C "$CRS_SOURCE_DIR" config --get remote.origin.url)" = "$broker_crs_repository"
+          test "$(git -C "$CRS_SOURCE_DIR" rev-parse HEAD)" = "$broker_crs_commit"
+          git -c core.hooksPath=/dev/null -c protocol.file.allow=never -C "$CRS_SOURCE_DIR" \
+            fetch --depth 1 --no-tags "$broker_crs_repository" "refs/tags/$broker_crs_tag:refs/tags/$broker_crs_tag"
+          test "$(git -C "$CRS_SOURCE_DIR" rev-parse --verify "refs/tags/$broker_crs_tag^{}")" = "$broker_crs_commit"
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          .venv/bin/python ci/runtime/broker/nginx_root_broker.py prepare-crs-bundle \
+            --trusted-build-root "$TRUSTED_BUILD_ROOT" \
+            --framework-root "$PWD/modules/ModSecurity-test-Framework" \
+            --framework-sha "$EXPECTED_FRAMEWORK_SHA" \
+            --broker-sha "$BROKER_SHA"
+
+      - name: Produce a non-executable trusted candidate manifest
+        working-directory: broker-src
+        env:
+          TRUSTED_BUILD_ROOT: ${{ runner.temp }}/trusted-nginx-broker-build-${{ inputs.run_id }}
+          CALLER_ROOT: ${{ runner.temp }}/trusted-nginx-broker-caller-${{ inputs.run_id }}
+        run: |
+          set -euo pipefail
+          verify_broker_source() {
+            source_path="$1"
+            test ! -L "$source_path"
+            test -f "$source_path"
+            expected=$(git rev-parse "$BROKER_SHA:$source_path")
+            actual=$(git hash-object "$source_path")
+            test "$actual" = "$expected"
+          }
+          test -f "$CALLER_ROOT/caller-manifest.json"
+          verify_broker_source .github/workflows/nginx-root-broker.yml
+          verify_broker_source ci/runtime/broker/nginx_root_broker.py
+          .venv/bin/python ci/runtime/broker/nginx_root_broker.py prepare-from-snapshot \
+            --caller-manifest "$CALLER_ROOT/caller-manifest.json" \
+            --trusted-build-root "$TRUSTED_BUILD_ROOT" \
+            --broker-sha "$BROKER_SHA" \
+            --expected-parent-head "$EXPECTED_PARENT_HEAD" \
+            --expected-framework-sha "$EXPECTED_FRAMEWORK_SHA" \
+            --expected-run-id "$BROKER_RUN_ID" \
+            --expected-matrix-variant "$BROKER_VARIANT" \
+            --nginx-version "${NGINX_RELEASE_TAG#release-}" \
+            --worker-user www-data \
+            --loopback 127.0.0.1 \
+            --port 18443 > "$RUNNER_TEMP/trusted-nginx-broker-candidate-path"
+
+      - name: Admit only verified artifacts into the root-owned broker root
+        working-directory: broker-src
+        run: |
+          set -euo pipefail
+          verify_broker_source() {
+            for source_path in \
+              .github/workflows/nginx-root-broker.yml \
+              ci/runtime/broker/nginx_root_broker.py
+            do
+              test ! -L "$source_path"
+              test -f "$source_path"
+              expected=$(git rev-parse "$BROKER_SHA:$source_path")
+              actual=$(git hash-object "$source_path")
+              test "$actual" = "$expected"
+            done
+          }
+          candidate=$(cat "$RUNNER_TEMP/trusted-nginx-broker-candidate-path")
+          verify_broker_source
+          manifest=$(sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action \
+            --action validate-manifest \
+            --broker-sha "$BROKER_SHA" \
+            --candidate "$candidate")
+          test -n "$manifest"
+          printf '%s\n' "$manifest" > "$RUNNER_TEMP/trusted-nginx-broker-manifest-path"
+          echo "BROKER_MANIFEST=$manifest" >> "$GITHUB_ENV"
+          echo "BROKER_PROJECTION=$(dirname "$(dirname "$manifest")")/evidence-published" >> "$GITHUB_ENV"
+
+      - name: Run fixed root-only NGINX actions
+        working-directory: broker-src
+        run: |
+          set -euo pipefail
+          verify_broker_source() {
+            for source_path in \
+              .github/workflows/nginx-root-broker.yml \
+              ci/runtime/broker/nginx_root_broker.py
+            do
+              test ! -L "$source_path"
+              test -f "$source_path"
+              expected=$(git rev-parse "$BROKER_SHA:$source_path")
+              actual=$(git hash-object "$source_path")
+              test "$actual" = "$expected"
+            done
+          }
+          verify_broker_source
+          sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action config-test --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+          verify_broker_source
+          sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action start --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+          verify_broker_source
+          sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action verify-runtime-profile --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+          verify_broker_source
+          sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action verify-master-worker-identity --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+          verify_broker_source
+          sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action stop --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+          verify_broker_source
+          sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action project-evidence --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+
+      - name: Stage the fixed root-to-user evidence outside the cleanup root
+        if: ${{ always() && env.BROKER_PROJECTION != '' }}
+        run: |
+          set -euo pipefail
+          source="$BROKER_PROJECTION"
+          target="$RUNNER_TEMP/trusted-nginx-broker-evidence-$BROKER_RUN_ID"
+          test -d "$source"
+          test ! -e "$target"
+          test ! -L "$target"
+          umask 077
+          mkdir "$target"
+          chmod 700 "$target"
+          copy_fixed_evidence() {
+            name="$1"
+            test -f "$source/$name"
+            test ! -L "$source/$name"
+            cp -- "$source/$name" "$target/$name"
+            chmod 600 "$target/$name"
+          }
+          copy_fixed_evidence identity.json
+          copy_fixed_evidence runtime.json
+          copy_fixed_evidence nginx-access.log
+          copy_fixed_evidence nginx-error.log
+          if [ -f "$source/policy.json" ]; then
+            test ! -L "$source/policy.json"
+            cp -- "$source/policy.json" "$target/policy.json"
+            chmod 600 "$target/policy.json"
+          fi
+          case "$BROKER_VARIANT" in
+            with-crs)
+              copy_fixed_evidence nginx-audit.log
+              ;;
+            no-crs)
+              test ! -e "$source/nginx-audit.log"
+              ;;
+            *)
+              echo "BLOCKED: unknown protected broker matrix variant" >&2
+              exit 77
+              ;;
+          esac
+          echo "BROKER_ARTIFACT_EVIDENCE=$target" >> "$GITHUB_ENV"
+
+      - name: Stop and verify root cleanup
+        if: ${{ always() && env.BROKER_MANIFEST != '' }}
+        working-directory: broker-src
+        run: |
+          set -euo pipefail
+          verify_broker_source() {
+            for source_path in \
+              .github/workflows/nginx-root-broker.yml \
+              ci/runtime/broker/nginx_root_broker.py
+            do
+              test ! -L "$source_path"
+              test -f "$source_path"
+              expected=$(git rev-parse "$BROKER_SHA:$source_path")
+              actual=$(git hash-object "$source_path")
+              test "$actual" = "$expected"
+            done
+          }
+          verify_broker_source
+          evidence_root="${BROKER_ARTIFACT_EVIDENCE:-$RUNNER_TEMP/trusted-nginx-broker-evidence-$BROKER_RUN_ID}"
+          if [ ! -d "$evidence_root" ]; then
+            test ! -e "$evidence_root"
+            test ! -L "$evidence_root"
+            umask 077
+            mkdir "$evidence_root"
+            chmod 700 "$evidence_root"
+          fi
+          verify_broker_source
+          set +e
+          sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action stop --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+          stop_code=$?
+          set -e
+          verify_broker_source
+          set +e
+          sudo -- /usr/bin/python3 -I ci/runtime/broker/nginx_root_broker.py action --action cleanup-status --broker-sha "$BROKER_SHA" --manifest "$BROKER_MANIFEST"
+          cleanup_code=$?
+          set -e
+          case "$stop_code:$cleanup_code" in
+            0:0) cleanup_status=PASS ;;
+            *) cleanup_status=FAIL ;;
+          esac
+          printf '{"broker_sha":"%s","cleanup_status":"%s","matrix_variant":"%s","run_id":"%s"}\n' \
+            "$BROKER_SHA" "$cleanup_status" "$BROKER_VARIANT" "$BROKER_RUN_ID" > "$evidence_root/cleanup.json"
+          chmod 600 "$evidence_root/cleanup.json"
+          echo "BROKER_ARTIFACT_EVIDENCE=$evidence_root" >> "$GITHUB_ENV"
+          if [ "$stop_code" -ne 0 ]; then
+            exit "$stop_code"
+          fi
+          exit "$cleanup_code"
+
+      - name: Upload bounded root-to-user evidence
+        if: ${{ always() && env.BROKER_ARTIFACT_EVIDENCE != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trusted-nginx-root-broker-${{ inputs.run_id }}
+          retention-days: 1
+          if-no-files-found: error
+          path: ${{ env.BROKER_ARTIFACT_EVIDENCE }}

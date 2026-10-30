@@ -1,0 +1,8 @@
+--- a/payload
++++ b/payload
+@@ -479 +479 @@
+-extern __typeof__(msc_new_transaction_with_id) __real_msc_new_transaction_with_id;
++extern Transaction *__real_msc_new_transaction_with_id(ModSecurity *, RulesSet *, const char *, void *);
+@@ -513 +513 @@
+-Transaction *__wrap_msc_new_transaction_with_id(ModSecurity *m, RulesSet *r, msconnector_lifecycle_native_id_argument id, void *data) {
++Transaction *__wrap_msc_new_transaction_with_id(ModSecurity *m, RulesSet *r, const char *id, void *data) {

@@ -1,0 +1,26 @@
+name: apache_phase4_response_engine_limit_process_partial
+title: Apache Phase-4 libModSecurity ProcessPartial failure control
+category: apache-phase4-response
+portable: false
+connector: apache
+status: pending
+phase: 4
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/plain
+  SecResponseBodyLimit 8
+  SecResponseBodyLimitAction ProcessPartial
+  SecRule RESPONSE_BODY "@contains no-crs-response-body-marker" "id:2190405,phase:4,deny,status:403,log,t:none,msg:'marker is intentionally beyond the engine response-body limit'"
+request:
+  method: GET
+  path: /apache-phase4/engine-limit-process-partial
+response:
+  body: first-byte-prefixno-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 500
+  transport: http_status
+  # The libModSecurity C API returns zero for ProcessPartial. The connector
+  # must fail closed rather than release the uninspected marker tail.
+  intervention: block

@@ -1,0 +1,11 @@
+--- a/payload
++++ b/payload
+@@ -41,8 +40,0 @@
+-/* Current collector counters, measured under its existing lock. Availability
+- * requires actual FD admission; this operation never retires any mapping. */
+-typedef struct msconnector_lifecycle_observer_state {
+-    unsigned int live_mappings;
+-    unsigned int pending_calls;
+-    int invalid;
+-} msconnector_lifecycle_observer_state;
+-int msconnector_lifecycle_observer_snapshot(msconnector_lifecycle_observer_state *state);

@@ -1,0 +1,8 @@
+name: local reusable Python caller
+
+on:
+  workflow_dispatch:
+
+jobs:
+  call-local-python:
+    uses: ./.github/workflows/reusable-callee.yml

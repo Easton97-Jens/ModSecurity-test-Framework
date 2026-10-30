@@ -2,24 +2,27 @@
 
 **Language:** English | [Deutsch](connector-integration.de.md)
 
-The Framework supplies reusable cases, runners, normalizers, catalog checks,
-and report generation. A connector repository owns its host adapter, build
-integration, runtime configuration, executable harness, and canonical
-host evidence.
+The Framework owns all tests and test infrastructure, including connector-
+specific host test adapters, harnesses, provisioning, selection, collection,
+normalization, validation and test-report generation. The connector repository
+owns productive host adapters, build, runtime configuration, installation and
+delivery, plus small pinned test entrypoints.
 
 ## Ownership boundary
 
 | Area | Owner |
 |---|---|
-| YAML case schema, selection, and normalization | Framework |
-| Host hooks, filters, plugins, and directives | Connector repository |
-| Host build and runtime configuration | Connector repository |
-| Connector capabilities and integration mode | Connector repository |
-| Canonical runtime artifacts and promotion decision | Connector repository |
-| Generated cross-case view | Framework generator consuming declared inputs |
+| All tests, admission, fixtures and normalization | Framework |
+| Host test adapters, harnesses and test component preparation | Framework |
+| Productive host hooks, filters, plugins and directives | Connector repository |
+| Product build and productive runtime configuration | Connector repository |
+| Connector capabilities, integration mode and product promotion | Connector repository with revision-bound evidence |
+| Collection, validation and generated cross-case view | Framework consuming declared run-scoped inputs |
 
-The Framework may report `BLOCKED` when a required connector-owned harness is
-absent. A Framework starter or self-test PASS never proves a host lifecycle.
+[The test interface](connector-test-suite.md) requires explicit `TEST_ROOT`,
+`CONNECTOR_ROOT`, exact revision, profile and external output. The Framework
+has no Connector submodule. A Framework starter or self-test PASS never proves
+a host lifecycle; missing required host prerequisites remain `BLOCKED`.
 
 ## Adapter contract
 
@@ -53,7 +56,7 @@ remain in the connector repository. The Framework validates documentation
 metadata without linking to connector C code.
 
 ModSecurity v3 acquisition accepts only the canonical HTTPS origin and reviewed
-full commit from `ci/lib/common.sh`. The release tag is metadata rather than a
+full commit from Framework `ci/lib/common.sh`. The release tag is metadata rather than a
 Git selector: empty legacy `MODSECURITY_*` aliases normalize to the reviewed
 identity, while a non-empty differing value fails before Git use. The fetch
 path always creates a fresh checkout and verifies the pinned root before it
@@ -81,15 +84,16 @@ environment.
 
 | Connector | Framework role | Required evidence source |
 |---|---|---|
-| Apache | Select and materialize applicable cases | Connector-owned Apache host harness and artifacts |
-| NGINX | Select and materialize applicable cases | Connector-owned NGINX host harness and artifacts |
-| HAProxy | Select and normalize applicable cases | Connector-owned selected integration-mode harness and artifacts |
-| Envoy | Select and normalize applicable cases | Connector-owned selected integration-mode harness and artifacts |
-| Traefik | Select and normalize applicable cases | Connector-owned selected integration-mode harness and artifacts |
-| lighttpd | Select and normalize applicable cases | Connector-owned selected integration-mode harness and artifacts |
+| Apache | Select and materialize applicable cases | Framework Apache test adapter and observed host artifacts |
+| NGINX | Select and materialize applicable cases | Framework NGINX test adapter and observed host artifacts |
+| HAProxy | Select and normalize applicable cases | Framework selected integration-mode test adapter and observed host artifacts |
+| Envoy | Select and normalize applicable cases | Framework selected integration-mode test adapter and observed host artifacts |
+| Traefik | Select and normalize applicable cases | Framework selected integration-mode test adapter and observed host artifacts |
+| lighttpd | Select and normalize applicable cases | Framework selected integration-mode test adapter and observed host artifacts |
 
-The selected integration mode, capability manifest, configuration reference,
-and lifecycle result belong to the connector repository. This avoids treating
+The selected integration mode, capability manifest and configuration reference
+belong to the connector repository. The Framework captures and validates
+observed lifecycle results. This avoids treating
 documentation-only, compatibility, or prototype material as a native runtime
 implementation.
 
@@ -107,8 +111,8 @@ transaction correlation, pinned CRS provenance, the `942270` deny result,
 explicit No-MRTS receipt fields, and cleanup receipt fields. It accepts no
 dynamic adapter selection and no incomplete five-connector aggregate.
 
-This is a host-provided-evidence validation boundary, not a Framework host
-harness. The profile and a successful validator result do not demonstrate that
+This is a host-provided-evidence validation boundary; defining the profile
+does not execute a Framework host harness. The profile and a successful validator result do not demonstrate that
 five hosts were run, that a connector is production-ready, or that MRTS
 processes were absent outside the supplied evidence contract. The connector
 repository retains responsibility for those runtime facts. A successful
@@ -117,7 +121,8 @@ Framework output is explicitly `CONTRACT_VALIDATED` with
 
 The selected HAProxy tuple for this profile is
 `haproxy-spoe-spop-agent` with `spoe-spop-agent`. Its Framework smoke
-entrypoint dispatches the connector-owned SPOE/SPOP smoke harness. The real
+entrypoint dispatches the Framework-owned SPOE/SPOP smoke harness against the
+explicitly selected Connector product. The real
 native HTX tuple `haproxy-native-htx-filter` with `native-htx-filter` remains
 an explicit separate Parent full-lifecycle identity and is rejected as
 five-connector profile evidence. This binding does not change either path's

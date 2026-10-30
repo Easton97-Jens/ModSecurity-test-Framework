@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "identity": {
+    "connector": "apache",
+    "adapter_id": "apache-native-httpd-module",
+    "integration_mode": "native-httpd-module",
+    "profile": "no-crs-no-mrts",
+    "crs": false,
+    "mrts": false,
+    "run_id": "fixture-apache-no-crs",
+    "parent_commit": "1111111111111111111111111111111111111111",
+    "framework_commit": "2222222222222222222222222222222222222222",
+    "mrts_commit": "3333333333333333333333333333333333333333",
+    "producer": "canonical-runtime-fixture-apache-native-httpd-module",
+    "producer_version": "1.0.0"
+  },
+  "runtime": {
+    "config_test": {
+      "case_id": "config",
+      "required": true,
+      "applicable": true,
+      "executed": true,
+      "live_executed": true,
+      "expected": { "kind": "boolean", "value": true },
+      "observed": { "kind": "boolean", "value": true },
+      "result": "PASS",
+      "reason": "canonical fixture configuration fact",
+      "evidence_kind": "canonical_fixture"
+    },
+    "host_start": {
+      "case_id": "host-start",
+      "required": true,
+      "applicable": true,
+      "executed": true,
+      "live_executed": true,
+      "expected": { "kind": "boolean", "value": true },
+      "observed": { "kind": "boolean", "value": true },
+      "result": "PASS",
+      "reason": "canonical fixture host-start fact",
+      "evidence_kind": "canonical_fixture"
+    },
+    "reachability": {
+      "case_id": "reachability",
+      "required": true,
+      "applicable": true,
+      "executed": true,
+      "live_executed": true,
+      "expected": { "kind": "boolean", "value": true },
+      "observed": { "kind": "boolean", "value": true },
+      "result": "PASS",
+      "reason": "canonical fixture reachability fact",
+      "evidence_kind": "canonical_fixture"
+    },
+    "allow_case": {
+      "case_id": "allow",
+      "required": true,
+      "applicable": true,
+      "executed": true,
+      "live_executed": true,
+      "expected": { "kind": "http_status", "value": 200 },
+      "observed": { "kind": "http_status", "value": 200 },
+      "result": "PASS",
+      "reason": "canonical fixture allow fact",
+      "evidence_kind": "canonical_fixture"
+    },
+    "block_case": {
+      "case_id": "block",
+      "required": true,
+      "applicable": true,
+      "executed": true,
+      "live_executed": true,
+      "expected": { "kind": "action", "value": "deny" },
+      "observed": { "kind": "action", "value": "deny" },
+      "result": "PASS",
+      "reason": "canonical fixture intervention fact",
+      "evidence_kind": "canonical_fixture"
+    },
+    "bypass_case": {
+      "case_id": "bypass",
+      "required": true,
+      "applicable": true,
+      "executed": true,
+      "live_executed": true,
+      "expected": { "kind": "http_status", "value": 403 },
+      "observed": { "kind": "http_status", "value": 403 },
+      "result": "PASS",
+      "reason": "canonical fixture bypass fact",
+      "evidence_kind": "canonical_fixture"
+    },
+    "runtime_status": "PASS"
+  },
+  "framework": {
+    "selection_status": "SELECTED",
+    "execution_status": "RUN",
+    "validation_status": "CONTRACT_VALIDATED",
+    "selected_count": 1,
+    "executed_count": 1,
+    "passed_count": 1,
+    "failed_count": 0,
+    "cancelled_count": 0,
+    "unsupported_count": 0,
+    "not_applicable_count": 0,
+    "not_executed_count": 0,
+    "failure_count": 0,
+    "mismatch_count": 0,
+    "cases": [
+      {
+        "framework_test_id": "runtime-contract-fixture-apache",
+        "scenario_category": null,
+        "selected": true,
+        "executed": true,
+        "live_executed": true,
+        "expectation": { "kind": "http_status", "http_status": 200 },
+        "observation": { "http_status": 200 },
+        "result": "PASS",
+        "failure_count": 0,
+        "mismatch_count": 0
+      }
+    ]
+  },
+  "isolation": {
+    "mrts_runner_invoked": false,
+    "mrts_inventory_loaded": false,
+    "mrts_process_started": false,
+    "mrts_listener_created": false,
+    "mrts_artifact_used": false
+  },
+  "cleanup": {
+    "host_processes_remaining": 0,
+    "helper_processes_remaining": 0,
+    "listeners_remaining": 0,
+    "sockets_remaining": 0,
+    "pid_files_remaining": 0,
+    "temporary_paths_remaining": 0,
+    "cleanup_status": "PASS"
+  },
+  "provenance": {
+    "evidence_kind": "canonical_fixture",
+    "fixture_id": "runtime-contract-fixture",
+    "source_contract": "canonical-fixture-v1",
+    "manifest_digest": "44c9b278fadeeb37d9ad0f008a575c47d5aca9678e8fb7c6c5baf24e43f29275",
+    "evidence_digest": "714d9c2f8b6eb3c98afae790d7309f1f4aa526885a33cf388435a8db360aa469",
+    "validation_basis": "evidence-digest-v1",
+    "contract_schema_version": 1,
+    "producer_version": "1.0.0",
+    "evidence": [
+      {
+        "name": "fixture-evidence",
+        "path": "fixture-evidence.json",
+        "sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
+        "kind": "canonical_fixture"
+      }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+--- a/payload
++++ b/payload
+@@ -538,0 +539 @@
++	i12Observe(state.metadata.TransactionID, "request_body_callback_return", map[string]interface{}{"input_bytes": len(chunk), "end_argument": end, "error": err != nil})
+@@ -571,0 +573 @@
++	i12Observe(state.metadata.TransactionID, "response_body_callback_return", map[string]interface{}{"input_bytes": len(chunk), "end_argument": end, "error": err != nil})
+@@ -804,0 +807 @@
++	i12Observe(body.state.metadata.TransactionID, "request_reader_return", map[string]interface{}{"bytes": count, "eof": errors.Is(readErr, io.EOF), "error": readErr != nil && !errors.Is(readErr, io.EOF)})
+@@ -965,0 +969 @@
++	i12Observe(writer.state.metadata.TransactionID, "writer_write_body_return", map[string]interface{}{"input_bytes": len(chunk), "bytes": count, "error": writeErr != nil})
+@@ -1031,0 +1036 @@
++	i12Observe(writer.state.metadata.TransactionID, "writer_write_header_return", map[string]interface{}{"status_argument": status})

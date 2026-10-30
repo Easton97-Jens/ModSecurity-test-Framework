@@ -1,0 +1,6 @@
+--- a/payload
++++ b/payload
+@@ -24,0 +25 @@
++#include "nginx-host-observation.h"
+@@ -790,0 +792 @@
++            ngxi12_host_note(ctx, "request_eos", (unsigned int)chain->buf->last_buf, (unsigned int)chain->buf->last_in_chain, r->request_body != NULL ? (int64_t)r->request_body->rest : -1);

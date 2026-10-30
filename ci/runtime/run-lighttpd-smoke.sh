@@ -5,4 +5,4 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 . "$CI_ROOT/lib/connector-smoke-common.sh"
 
-connector_smoke_run lighttpd "$CONNECTOR_ROOT/connectors/lighttpd/harness/run_lighttpd_smoke.sh"
+connector_smoke_run lighttpd "$TEST_ROOT/connector_suite/adapters/lighttpd/harness/run_lighttpd_smoke.sh"

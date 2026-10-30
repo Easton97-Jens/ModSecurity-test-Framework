@@ -4,13 +4,8 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 
-if [ -n "${CONNECTOR_ROOT:-}" ]; then
-    CONNECTOR_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT" && pwd)
-elif [ -d "$FRAMEWORK_ROOT/../../connectors" ]; then
-    CONNECTOR_ROOT=$(CDPATH= cd "$FRAMEWORK_ROOT/../.." && pwd)
-else
-    CONNECTOR_ROOT=$(pwd)
-fi
+CONNECTOR_ROOT="${CONNECTOR_ROOT:?CONNECTOR_ROOT is required explicitly}"
+CONNECTOR_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT" && pwd)
 
 . "$CI_ROOT/lib/common.sh"
 

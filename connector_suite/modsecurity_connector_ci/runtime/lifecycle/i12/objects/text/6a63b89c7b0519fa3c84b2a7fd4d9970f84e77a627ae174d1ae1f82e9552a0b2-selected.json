@@ -1,0 +1,6 @@
+{
+  "leg_id": "haproxy-spop-request",
+  "case_id": "NEED-request-single-chunk",
+  "run_scoped_case_id": "I12::haproxy-spop-request::NEED-request-single-chunk",
+  "run": "20261014-hap-predicate-request-2"
+}

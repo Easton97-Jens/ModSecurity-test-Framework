@@ -1,0 +1,79 @@
+name: test-haproxy / haproxy-structure
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Setup Python
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+    - name: Verify HAProxy native evaluation and cleanup contracts
+      shell: bash -e {0}
+      run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group haproxy
+    - name: Verify HAProxy SPOP physical event sink and response failures
+      shell: bash -e {0}
+      run: make check-haproxy-spop-event-sink
+    - name: Verify HAProxy libModSecurity compile-and-link compatibility
+      shell: bash -e {0}
+      run: |
+        set -eu
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group haproxy
+    - name: Verify HAProxy SPOE/SPOP peer isolation and closed defaults
+      shell: bash -e {0}
+      run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group haproxy
+    - name: Execute HAProxy technical-error callers and negative controls
+      env:
+        TMPDIR: ${{ runner.temp }}
+        RUNNER_TEMP: ${{ runner.temp }}
+      shell: bash -e {0}
+      run: make check-i10-haproxy-callers
+    - name: Check HAProxy scaffold
+      shell: bash -e {0}
+      run: |
+        set -eu
+        test -f connectors/haproxy/README.md
+        test -f connectors/haproxy/TODO.md
+        test -f docs/connectors/haproxy.md
+        test -f modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_tests/test_haproxy_libmodsecurity_compat.py
+        grep -q 'Status:' connectors/haproxy/TODO.md
+    - name: Collect host runtime preflight evidence
+      if: always()
+      env:
+        CONNECTOR: haproxy
+        RUNTIME_LOCK: modules/ModSecurity-test-Framework/ci/provisioning/runtime-component-lock.json
+      shell: bash -e {0}
+      run: |
+        set -u
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/common/collect_hostruntime_preflight_evidence.py \
+          --connector "$CONNECTOR" \
+          --runtime-lock "$RUNTIME_LOCK" \
+          --runner-temp "$RUNNER_TEMP" \
+          --binary-name haproxy \
+          --profile haproxy-htx \
+          --config connectors/haproxy/poc/spoe/haproxy.cfg.example \
+          --fixture modules/ModSecurity-test-Framework/connector_suite/adapters/haproxy/harness/fixtures/modsecurity-binding-lifecycle.conf \
+          --profile haproxy-spoe-spop \
+          --config connectors/haproxy/poc/spoe/haproxy.cfg.example \
+          --fixture modules/ModSecurity-test-Framework/connector_suite/adapters/haproxy/harness/fixtures/modsecurity-binding-lifecycle.conf
+    - name: Upload sanitized host runtime evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: haproxy-hostruntime-evidence
+        path: ${{ runner.temp }}/hostruntime-evidence/haproxy
+        if-no-files-found: error

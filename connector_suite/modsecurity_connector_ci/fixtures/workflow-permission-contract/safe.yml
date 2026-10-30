@@ -1,0 +1,21 @@
+name: Safe workflow-permission contract fixture
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-analysis:
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Analyze pull request content
+        run: make quick-check

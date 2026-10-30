@@ -1,0 +1,23 @@
+name: apache_phase4_response_empty_allow
+title: Apache Phase-4 empty-response EOS allow control
+category: apache-phase4-response
+portable: false
+connector: apache
+status: pending
+phase: 4
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyLimit 1048576
+  SecResponseBodyLimitAction Reject
+  SecResponseBodyMimeType text/plain
+request:
+  method: GET
+  path: /apache-phase4/empty-allow
+response:
+  body: ""
+  content_type: text/plain
+expect:
+  status: 200
+  transport: http_status
+  intervention: none

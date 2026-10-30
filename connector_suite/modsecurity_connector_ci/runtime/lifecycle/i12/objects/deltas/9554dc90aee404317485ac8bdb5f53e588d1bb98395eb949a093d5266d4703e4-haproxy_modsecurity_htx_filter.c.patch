@@ -1,0 +1,16 @@
+--- a/payload
++++ b/payload
+@@ -0,0 +1,3 @@
++extern void haproxy_lifecycle_companion_observe(const void *,const char *,const char *,unsigned int);
++struct haproxy_modsecurity_transaction;
++extern void haproxy_lifecycle_host_observe(struct haproxy_modsecurity_transaction *, const char *, unsigned int, int, int, int);
+@@ -1834,0 +1838,9 @@
++    if (ctx->companion.mode) {
++        haproxy_lifecycle_companion_observe(NULL,
++            (msg->chn->flags & CF_ISRESP) ? "htx_companion_response_http_end" : "htx_companion_request_http_end",
++            ctx->response.handle, msg->chn->flags);
++    }
++    haproxy_lifecycle_host_observe(ctx->transaction,
++        (msg->chn->flags & CF_ISRESP) ? "htx_response_http_end" : "htx_request_http_end",
++        msg->chn->flags, ctx->response.finished, ctx->request.finished,
++        ctx->response.headers_committed);

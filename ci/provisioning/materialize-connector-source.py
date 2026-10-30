@@ -19,15 +19,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-LIB_DIR = Path(__file__).resolve().parents[2] / "ci" / "lib"
-if str(LIB_DIR) not in sys.path:
-    sys.path.insert(0, str(LIB_DIR))
+from modsecurity_test_framework.support.adapter_metadata import load_metadata
+from modsecurity_test_framework.connector_context import test_root, connector_root
 
-from adapter_metadata import load_metadata
-
-
-FRAMEWORK_ROOT = Path(os.environ.get("FRAMEWORK_ROOT", Path(__file__).resolve().parents[2])).resolve()
-REPO_ROOT = Path(os.environ.get("CONNECTOR_ROOT", FRAMEWORK_ROOT)).resolve()
+FRAMEWORK_ROOT = test_root()
+REPO_ROOT = connector_root()
 SCRIPT_RELATIVE = "ci/provisioning/materialize-connector-source.py"
 EXCLUDED_DIRS = {
     ".deps",

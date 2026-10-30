@@ -1,0 +1,13 @@
+{
+  "schema": "lighttpd-stock-diagnostic-boundary-fault-contracts-v1",
+  "route": "lighttpd-stock-native-control",
+  "scope": "Explicitly injected Runtime boundary failures, after the independent native observer records the real SDK return; not unchanged native engine failures",
+  "rules": "SecRuleEngine On\nSecRequestBodyAccess Off\nSecResponseBodyAccess Off\n",
+  "backend_response": "diagnostic-native-response",
+  "cases": [
+    {"case_id": "NEED-precommit-error", "fault": "request_headers_error", "path": "/diagnostic/precommit-native-boundary-error", "expected_status": 500, "expected_phase": 1, "expected_backend_count": 0, "expected_boundary_return": -1, "expected_first_cause": "modsecurity_failure", "reason": "The declared request-header boundary fails before upstream dispatch and response commit. Runtime maps this technical failure through explicitly configured default_error_status=500, not BODY_LIMIT."},
+    {"case_id": "NEED-invalid-native-return", "fault": "request_headers_invalid", "path": "/diagnostic/invalid-native-boundary-return", "expected_status": 500, "expected_phase": 1, "expected_backend_count": 0, "expected_boundary_return": -7, "expected_first_cause": "modsecurity_failure", "reason": "Runtime requires SDK return exactly1; injected -7 after a separately recorded real SDK result is a technical error. The configured error status is500 and no backend request may occur."},
+    {"case_id": "NEED-postcommit-error", "fault": "logging_error", "path": "/diagnostic/postcommit-logging-boundary-error", "expected_status": 200, "expected_phase": 5, "expected_backend_count": 1, "expected_boundary_return": -1, "expected_first_cause": "modsecurity_failure", "reason": "The real host reset callback runs after response delivery. A logging-boundary failure must remain a technical error with cleanup; it cannot rewrite the already transmitted200 or manufacture a native body limit/Strict abort."},
+    {"case_id": "finish_failure_propagation", "fault": "logging_error", "path": "/diagnostic/finish-failure-after-delivery", "expected_status": 200, "expected_phase": 5, "expected_backend_count": 1, "expected_boundary_return": -1, "expected_first_cause": "modsecurity_failure", "reason": "This explicit stock host fixture finalizes logging at request reset after delivery. The inherited generic500 expectation requires separate source-backed reconciliation for the already committed response; no original expectation is overwritten here."}
+  ]
+}

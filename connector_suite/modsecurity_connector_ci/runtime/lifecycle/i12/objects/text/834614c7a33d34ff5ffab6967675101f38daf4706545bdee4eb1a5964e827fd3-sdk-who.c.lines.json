@@ -1,0 +1,13 @@
+[
+  "#include <modsecurity/modsecurity.h>\n",
+  "#include <stdio.h>\n",
+  "int main(void) {\n",
+  "    ModSecurity *engine = msc_init();\n",
+  "    if (engine == NULL) return 2;\n",
+  "    const char *identity = msc_who_am_i(engine);\n",
+  "    if (identity == NULL) { msc_cleanup(engine); return 3; }\n",
+  "    (void)puts(identity);\n",
+  "    msc_cleanup(engine);\n",
+  "    return 0;\n",
+  "}\n"
+]

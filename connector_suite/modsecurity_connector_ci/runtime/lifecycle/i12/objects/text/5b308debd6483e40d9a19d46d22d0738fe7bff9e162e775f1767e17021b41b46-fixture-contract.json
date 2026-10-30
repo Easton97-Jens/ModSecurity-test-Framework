@@ -1,0 +1,71 @@
+{
+  "actual_runtime": null,
+  "full_lifecycle_qualified": false,
+  "original_nulls_preserved": true,
+  "original_selected_requirement": {
+    "canonical_source_case_id": null,
+    "case_id": "NEED-request-eos-once",
+    "config_invocation": null,
+    "derived_invocation": null,
+    "execution_kind": "host_case_or_missing_fixture",
+    "expected_oracle": {
+      "event_fields": [],
+      "native_result": null,
+      "phase": null,
+      "physical_evidence_not_projection": true,
+      "rule_id": null,
+      "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove.",
+      "visible_status": null
+    },
+    "harness_path": "connectors/lighttpd/harness/run_stock_sidecar_real_backend.py",
+    "historical_alias_ids": [],
+    "mandatory_missing_observations": [
+      "client-exit-signal-headers-bytes-sha256",
+      "independent-backend-request-count",
+      "original-physical-native-events-first-cause",
+      "commit-eos-order",
+      "transport-framing-reset-scope",
+      "once-finish-and-resource-release",
+      "uid-isolation-and-exact-source-host-config-run-binding"
+    ],
+    "missing_harness_reason": null,
+    "native_invocation": null,
+    "origin": "missing_host_fixture_or_oracle",
+    "requirement_mapping": [
+      "I12::lighttpd-stock-sidecar::obligation::request-eos-once"
+    ],
+    "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-eos-once",
+    "runner_case": null,
+    "source_fixture_paths": [],
+    "status": "PLANNED"
+  },
+  "supplemental_contract": {
+    "configured_common_sink": "Actual runtime-created event_path opened at startup; Allow legitimately emits no terminal event. Capture real open FD and physical file before/after.",
+    "expected_accepted_host_request_eos": 1,
+    "expected_accepted_host_response_eos": 1,
+    "expected_backend_main_count": 1,
+    "expected_backend_neighbor_count": 1,
+    "expected_request_native_body_finish": 1,
+    "expected_response_native_body_finish": 1,
+    "known_process_scope": "Stock sidecar normal default SIGTERM may not run generic observer final destructor; actual per-transaction free calls and independently reaped PID/FD/namespace cleanup remain mandatory. No fabricated final snapshot.",
+    "main": {
+      "method": "POST",
+      "path": "/i12/lighttpd/eos",
+      "request_body_bytes": 23,
+      "request_body_sha256": "f16ec3878d479dcc02c2976f76e25ed6acdf9715ccafd6765a48518e6524f516",
+      "response_entity_bytes": 24,
+      "response_entity_sha256": "c4342069ea607092f542f4fe8ea9ae05ff9b14d256d4abaf59e67d6eb91e6450",
+      "response_status": 200
+    },
+    "native_p4_marker": 91042001,
+    "neighbor": {
+      "method": "GET",
+      "path": "/no-crs/allow",
+      "selected_case_execution": false
+    },
+    "physical_eos_source": "Actual finite Content-Length consumed branch",
+    "response_mime": "text/plain",
+    "source_layer": "Direct approved one-case native runtime supplement; original whole-harness namespace blocker remains separate.",
+    "values_are_expectations_not_observations": true
+  }
+}

@@ -1,0 +1,54 @@
+name: ci-findings-regressions / nginx-b09-regression
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up repository Python
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+    - name: Read baseline PR391 Sonar annotation for remediation
+      if: github.event_name == 'pull_request' && github.event.pull_request.number == 391
+      shell: bash -e {0}
+      run: |
+        python3 -P - <<'PY'
+        import json
+        from urllib.request import Request, urlopen
+        url = "https://api.github.com/repos/Easton97-Jens/ModSecurity-conector/check-runs/109623225352/annotations?per_page=100"
+        request = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "pr391-remediation"})
+        with urlopen(request, timeout=20) as response:
+            data = response.read(131073)
+        if len(data) > 131072:
+            raise SystemExit("Annotation response exceeds diagnostic limit")
+        annotations = json.loads(data)
+        if not isinstance(annotations, list) or len(annotations) > 100:
+            raise SystemExit("Unexpected annotation response")
+        fields = ("path", "start_line", "end_line", "title", "message")
+        print("PR391_BASELINE_SONAR_ANNOTATIONS=" + json.dumps([
+            {key: item.get(key) for key in fields} for item in annotations
+        ], ensure_ascii=True))
+        PY
+    - name: Compile and run the bounded NGINX regression seam
+      env:
+        TMPDIR: ${{ runner.temp }}/findings-regressions
+      shell: bash -e {0}
+      run: |
+        set -eu
+        umask 077
+        mkdir -p "$TMPDIR"
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group nginx

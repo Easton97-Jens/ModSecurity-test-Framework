@@ -1,0 +1,20 @@
+[
+  "#include <modsecurity/rules_set.h>\n",
+  "#include <iostream>\n",
+  "#include <cstring>\n",
+  "int main() {\n",
+  "    const char *cases[] = {\"SecResponseBodyMimeTypesClear\\nSecResponseBodyMimeType text/plain\\n\", \"SecResponseBodyMimeType text/plain\\n\", \"SecResponseBodyMimeType text/plain\\nSecResponseBodyMimeTypesClear\\n\"};\n",
+  "    for (unsigned int i = 0; i < 3; ++i) {\n",
+  "        modsecurity::RulesSet *rules = modsecurity::msc_create_rules_set();\n",
+  "        const char *error = nullptr;\n",
+  "        if (rules == nullptr) return 2;\n",
+  "        const int result = modsecurity::msc_rules_add(rules, cases[i], &error);\n",
+  "        const auto &mime = rules->m_responseBodyTypeToBeInspected;\n",
+  "        std::cout << \"{\\\"case\\\":\" << i << \",\\\"parse_return\\\":\" << result << \",\\\"set\\\":\" << mime.m_set << \",\\\"count\\\":\" << mime.m_value.size() << \",\\\"has_text_plain\\\":\" << mime.m_value.count(\"text/plain\") << \"}\\n\";\n",
+  "        const bool expected = result >= 0 && error == nullptr && mime.m_set && mime.m_value.size() == (i == 1 ? 1U : 0U) && mime.m_value.count(\"text/plain\") == (i == 1 ? 1U : 0U);\n",
+  "        const int cleanup = modsecurity::msc_rules_cleanup(rules);\n",
+  "        if (!expected || cleanup != 1) return 3;\n",
+  "    }\n",
+  "    return 0;\n",
+  "}\n"
+]

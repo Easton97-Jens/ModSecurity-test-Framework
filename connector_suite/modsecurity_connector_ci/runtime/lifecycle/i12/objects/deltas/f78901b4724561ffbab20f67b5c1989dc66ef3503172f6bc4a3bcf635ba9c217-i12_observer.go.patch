@@ -1,0 +1,32 @@
+--- a/payload
++++ b/payload
+@@ -1 +1 @@
+-package native_middleware
++package response_observer
+@@ -7,0 +8 @@
++	"context"
+@@ -9,0 +11 @@
++	"net/http"
+@@ -22 +24 @@
+-	if transactionID != "tf-eos-target-53b4c671" && transactionID != "tf-eos-neighbor-8f217a3c" {
++	if transactionID != "tf-fa-req-target-6c428a1e" && transactionID != "tf-fa-req-neighbor-95d730ba" && transactionID != "tf-fa-cmp-target-21f603ab" && transactionID != "tf-fa-cmp-neighbor-718bfa05" {
+@@ -54,0 +57,19 @@
++
++type i12ObserverContextKey struct{}
++
++func i12ObserverID(ctx context.Context) string {
++	if ctx == nil {
++		return ""
++	}
++	value, _ := ctx.Value(i12ObserverContextKey{}).(string)
++	return value
++}
++func i12RequestProbeID(request *http.Request) string {
++	if request == nil {
++		return ""
++	}
++	return request.Header.Get("X-Request-Id")
++}
++func i12ObservedContext(request *http.Request) context.Context {
++	return context.WithValue(request.Context(), i12ObserverContextKey{}, i12RequestProbeID(request))
++}

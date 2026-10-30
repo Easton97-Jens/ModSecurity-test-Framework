@@ -1,0 +1,328 @@
+--- a/payload
++++ b/payload
+@@ -39,2 +38,0 @@
+-    const void *joined_runtime;
+-    const void *joined_entry;
+@@ -74,11 +71,0 @@
+-    int framing_known;
+-    size_t content_length;
+-    size_t buffered_body_size;
+-    size_t remaining;
+-    int finalize_known;
+-    int finalize_handle_cleared;
+-    int finalize_finished;
+-    int finalize_cleanup_started;
+-    int finalize_cleanup_complete;
+-    int finalize_status;
+-    int finalize_association_retired;
+@@ -99 +86 @@
+-    const struct observed_subject value = {.key = key, .native = native, .phase = phase};
++    const struct observed_subject value = {key, native, phase, 0, 0U, 0, NULL, 0, 0, 0, 0, 0};
+@@ -262,13 +248,0 @@
+-    char framing[256] = "null";
+-    if (observed->framing_known)
+-        (void)snprintf(framing, sizeof(framing),
+-            "{\"content_length\":%zu,\"buffered_body_size\":%zu,\"remaining\":%zu}",
+-            observed->content_length, observed->buffered_body_size, observed->remaining);
+-    char finalize[256] = "null";
+-    if (observed->finalize_known)
+-        (void)snprintf(finalize, sizeof(finalize),
+-            "{\"handle_cleared\":%d,\"finished\":%d,\"cleanup_started\":%d,"
+-            "\"cleanup_complete\":%d,\"status\":%d,\"association_retired\":%d}",
+-            observed->finalize_handle_cleared, observed->finalize_finished,
+-            observed->finalize_cleanup_started, observed->finalize_cleanup_complete,
+-            observed->finalize_status, observed->finalize_association_retired);
+@@ -286 +260 @@
+-        "\"allocation_scope_kind\":%s,\"wall_ns\":%" PRIu64 ",\"wall_sample_end_monotonic_ns\":%" PRIu64 ",\"host_framing\":%s,\"runtime_finalize_snapshot\":%s}\n",
++        "\"allocation_scope_kind\":%s,\"wall_ns\":%" PRIu64 ",\"wall_sample_end_monotonic_ns\":%" PRIu64 "}\n",
+@@ -294 +268 @@
+-        intervention_status, intervention_disruptive, kind, wall_ns, wall_sample_end_ns, framing, finalize);
++        intervention_status, intervention_disruptive, kind, wall_ns, wall_sample_end_ns);
+@@ -393,16 +366,0 @@
+-int msconnector_lifecycle_observer_snapshot(msconnector_lifecycle_observer_state *state) {
+-    int saved = errno;
+-    if (state == NULL || output_fd < 0 || budget == NULL) { errno = saved; return 0; }
+-    (void)pthread_mutex_lock(&lock);
+-    const struct observed_subject observed = subject(NULL, 0, 0);
+-    event("observer", "snapshot", 0U, &observed, "null", NULL);
+-    state->live_mappings = 0U;
+-    for (size_t index = 0U; index < MAP_CAPACITY; ++index)
+-        if (mappings[index].key != NULL) ++state->live_mappings;
+-    state->pending_calls = pending;
+-    state->invalid = atomic_load(&budget->invalid);
+-    (void)pthread_mutex_unlock(&lock);
+-    errno = saved;
+-    return 1;
+-}
+-
+@@ -554,4 +512,4 @@
+-    /* The selected SDK C implementation returns a C++ bool (exactly 0/1).
+-     * False or invalid ABI returns do not authorize inspecting caller-owned
+-     * uninitialized output. URL/log pointers are never examined. */
+-    if (result == 1 && intervention != NULL) {
++    /* False is not permission to inspect caller-owned uninitialized output.
++     * Only a nonzero result with a valid caller-provided object carries these
++     * SDK output fields. URL/log pointers and contents are never examined. */
++    if (result != 0 && intervention != NULL) {
+@@ -602,2 +559,0 @@
+-        runtime->joined_common = scope->common;
+-        runtime->joined_native = scope->native;
+@@ -608,133 +563,0 @@
+-}
+-
+-/* Caller holds the observer lock. Every key was observed at a genuine typed
+- * runtime callback; no opaque object layout or capability data is inspected. */
+-static struct mapping *verified_runtime(const void *transaction,
+-    const void *common_key, const void *native_key, int require_live) {
+-    struct mapping *runtime = lookup(transaction, 2);
+-    if (runtime == NULL || !runtime->allocation_join_verified ||
+-        runtime->joined_common != common_key || runtime->joined_native != native_key ||
+-        common_key == NULL || native_key == NULL) return NULL;
+-    if (require_live) {
+-        struct mapping *common = lookup(common_key, 0);
+-        struct mapping *native = lookup(native_key, 1);
+-        if (common == NULL || native == NULL || !common->allocation_join_verified ||
+-            !native->allocation_join_verified ||
+-            common->allocation_scope_call != runtime->allocation_scope_call ||
+-            native->allocation_scope_call != runtime->allocation_scope_call) return NULL;
+-    }
+-    return runtime;
+-}
+-
+-uint64_t msconnector_lifecycle_runtime_scope_call(
+-    const msconnector_runtime_transaction *transaction) {
+-    int saved = errno;
+-    (void)pthread_mutex_lock(&lock);
+-    const struct mapping *runtime = lookup(transaction, 2);
+-    uint64_t call = runtime != NULL && runtime->allocation_kind == 2 &&
+-        verified_runtime(transaction, runtime->joined_common, runtime->joined_native, 1) != NULL
+-        ? runtime->allocation_scope_call : 0U;
+-    (void)pthread_mutex_unlock(&lock);
+-    errno = saved;
+-    return call;
+-}
+-
+-int msconnector_lifecycle_authorization_request_eos(
+-    const msconnector_runtime_transaction *transaction, size_t content_length,
+-    size_t buffered_body_size, size_t remaining) {
+-    int saved = errno;
+-    struct observed_subject observed = subject(transaction, 2, 2);
+-    observed.framing_known = 1; observed.content_length = content_length;
+-    observed.buffered_body_size = buffered_body_size; observed.remaining = remaining;
+-    uint64_t call = enter_subject("authorization_request_eos", &observed, NULL);
+-    (void)pthread_mutex_lock(&lock);
+-    struct mapping *runtime = lookup(transaction, 2);
+-    int result = runtime != NULL && runtime->allocation_join_verified &&
+-        verified_runtime(transaction, runtime->joined_common, runtime->joined_native, 1) != NULL &&
+-        remaining == 0U && buffered_body_size <= content_length;
+-    (void)pthread_mutex_unlock(&lock);
+-    errno = saved;
+-    returned_subject("authorization_request_eos", call, &observed, result, 0, NULL);
+-    return result;
+-}
+-
+-static int associate_companion(const void *key, int kind,
+-    const struct mapping *runtime, const void *transaction, const void *entry_key) {
+-    const struct mapping *common = lookup(runtime->joined_common, 0);
+-    remember(key, kind, NULL, NULL);
+-    struct mapping *joined = lookup(key, kind);
+-    if (joined == NULL || common == NULL) return 0;
+-    (void)snprintf(joined->id, sizeof(joined->id), "%s", common->id);
+-    (void)snprintf(joined->canonical, sizeof(joined->canonical), "%s", common->canonical);
+-    joined->id_origin = "observed_common_association";
+-    joined->allocation_scope_call = runtime->allocation_scope_call;
+-    joined->allocation_kind = runtime->allocation_kind;
+-    joined->allocation_join_verified = 1;
+-    joined->joined_common = runtime->joined_common;
+-    joined->joined_native = runtime->joined_native;
+-    joined->joined_runtime = transaction;
+-    joined->joined_entry = entry_key;
+-    return 1;
+-}
+-
+-int msconnector_lifecycle_companion_registered(const void *entry,
+-    const msconnector_runtime_transaction *transaction,
+-    const msconnector_transaction_contract *common, const Transaction *native) {
+-    int saved = errno;
+-    uint64_t call = enter("companion_registered", entry, 4, 0);
+-    (void)pthread_mutex_lock(&lock);
+-    struct mapping *runtime = verified_runtime(transaction, common, native, 1);
+-    int result = runtime != NULL && entry != NULL && lookup(entry, 4) == NULL;
+-    if (result) result = associate_companion(entry, 4, runtime, transaction, entry);
+-    (void)pthread_mutex_unlock(&lock);
+-    errno = saved;
+-    returned("companion_registered", call, entry, 4, 0, result, 0);
+-    return result;
+-}
+-
+-int msconnector_lifecycle_companion_claimed(
+-    const msconnector_runtime_response_companion_session *session,
+-    const void *entry, const msconnector_runtime_transaction *transaction,
+-    const msconnector_transaction_contract *common, const Transaction *native) {
+-    int saved = errno;
+-    uint64_t call = enter("companion_claimed", session, 5, 0);
+-    (void)pthread_mutex_lock(&lock);
+-    struct mapping *runtime = verified_runtime(transaction, common, native, 1);
+-    struct mapping *registered = lookup(entry, 4);
+-    int result = runtime != NULL && registered != NULL &&
+-        registered->allocation_join_verified && registered->joined_runtime == transaction &&
+-        registered->joined_common == common && registered->joined_native == native &&
+-        session != NULL && lookup(session, 5) == NULL;
+-    if (result) result = associate_companion(session, 5, runtime, transaction, entry);
+-    (void)pthread_mutex_unlock(&lock);
+-    errno = saved;
+-    returned("companion_claimed", call, session, 5, 0, result, 0);
+-    return result;
+-}
+-
+-int msconnector_lifecycle_companion_retired(
+-    const msconnector_runtime_transaction *transaction,
+-    const msconnector_transaction_contract *common, const Transaction *native) {
+-    int saved = errno;
+-    uint64_t call = enter("companion_retired", transaction, 2, 0);
+-    (void)pthread_mutex_lock(&lock);
+-    struct mapping *runtime = verified_runtime(transaction, common, native, 0);
+-    int result = runtime != NULL && lookup(common, 0) == NULL && lookup(native, 1) == NULL;
+-    if (result) {
+-        for (size_t index = 0U; index < MAP_CAPACITY; ++index) {
+-            struct mapping *entry = &mappings[index];
+-            if ((entry->native == 4 || entry->native == 5) &&
+-                entry->joined_runtime == transaction && entry->joined_common == common &&
+-                entry->joined_native == native) memset(entry, 0, sizeof(*entry));
+-        }
+-    }
+-    (void)pthread_mutex_unlock(&lock);
+-    errno = saved;
+-    returned("companion_retired", call, transaction, 2, 0, result, 0);
+-    if (result) {
+-        (void)pthread_mutex_lock(&lock);
+-        forget(transaction, 2);
+-        (void)pthread_mutex_unlock(&lock);
+-    }
+-    errno = saved;
+-    return result;
+@@ -887,39 +709,0 @@
+-/* Consuming checked finalize is distinct from best-effort destroy. Snapshot
+- * fields are read only on actual selected-ABI success; the runtime remains
+- * opaque, including after free. Failed/ambiguous joins are never retired. */
+-extern int __real_msconnector_runtime_transaction_finalize_and_snapshot(
+-    msconnector_runtime_transaction **, msconnector_runtime_transaction_snapshot *,
+-    msconnector_error *) __attribute__((weak));
+-int __wrap_msconnector_runtime_transaction_finalize_and_snapshot(
+-    msconnector_runtime_transaction **transaction,
+-    msconnector_runtime_transaction_snapshot *snapshot, msconnector_error *error) {
+-    const void *key = transaction == NULL ? NULL : *transaction;
+-    struct observed_subject observed = subject(key, 2, 0);
+-    uint64_t call = enter_subject("runtime_finalize_and_snapshot", &observed, NULL);
+-    int result = __real_msconnector_runtime_transaction_finalize_and_snapshot(transaction, snapshot, error);
+-    int saved = errno;
+-    int retired = 0;
+-    if (result == 1 && transaction != NULL && snapshot != NULL) {
+-        observed.finalize_known = 1;
+-        observed.finalize_handle_cleared = *transaction == NULL;
+-        observed.finalize_finished = snapshot->finished;
+-        observed.finalize_cleanup_started = snapshot->contract.cleanup_started;
+-        observed.finalize_cleanup_complete = snapshot->contract.cleanup_complete;
+-        observed.finalize_status = (int)snapshot->contract.status;
+-        (void)pthread_mutex_lock(&lock);
+-        const struct mapping *runtime = lookup(key, 2);
+-        retired = runtime != NULL && runtime->allocation_join_verified &&
+-            runtime->allocation_kind == 2 && observed.finalize_handle_cleared &&
+-            observed.finalize_finished && observed.finalize_cleanup_started &&
+-            observed.finalize_cleanup_complete &&
+-            observed.finalize_status == MSCONNECTOR_TRANSACTION_STATUS_CLEANED &&
+-            lookup(runtime->joined_common, 0) == NULL && lookup(runtime->joined_native, 1) == NULL;
+-        (void)pthread_mutex_unlock(&lock);
+-        observed.finalize_association_retired = retired;
+-    }
+-    errno = saved;
+-    returned_subject("runtime_finalize_and_snapshot", call, &observed, result, retired, NULL);
+-    errno = saved;
+-    return result;
+-}
+-
+@@ -934,84 +717,0 @@
+-
+-/* Companion APIs are genuine external TU calls, separate from ordinary
+- * same-runtime-object calls which GNU ld --wrap may not intercept. */
+-extern int __real_msconnector_runtime_response_companion_handoff_with_handle(
+-    msconnector_runtime_response_companion_registry *, msconnector_runtime_transaction *,
+-    uint64_t, char *, msconnector_error *) __attribute__((weak));
+-int __wrap_msconnector_runtime_response_companion_handoff_with_handle(
+-    msconnector_runtime_response_companion_registry *registry,
+-    msconnector_runtime_transaction *transaction, uint64_t ttl_ms,
+-    char *handle, msconnector_error *error) {
+-    uint64_t call = enter("companion_handoff", transaction, 2, 0);
+-    int result = __real_msconnector_runtime_response_companion_handoff_with_handle(
+-        registry, transaction, ttl_ms, handle, error);
+-    returned("companion_handoff", call, transaction, 2, 0, result, 0);
+-    return result;
+-}
+-extern int __real_msconnector_runtime_response_companion_claim_handle(
+-    msconnector_runtime_response_companion_registry *, const char *,
+-    msconnector_runtime_response_companion_session *, msconnector_error *) __attribute__((weak));
+-int __wrap_msconnector_runtime_response_companion_claim_handle(
+-    msconnector_runtime_response_companion_registry *registry, const char *handle,
+-    msconnector_runtime_response_companion_session *session, msconnector_error *error) {
+-    uint64_t call = enter("companion_claim", session, 5, 0);
+-    int result = __real_msconnector_runtime_response_companion_claim_handle(registry, handle, session, error);
+-    returned("companion_claim", call, session, 5, 0, result, 0);
+-    return result;
+-}
+-extern int __real_msconnector_runtime_response_companion_revoke_handle(
+-    msconnector_runtime_response_companion_registry *, const char *, msconnector_error *) __attribute__((weak));
+-int __wrap_msconnector_runtime_response_companion_revoke_handle(
+-    msconnector_runtime_response_companion_registry *registry, const char *handle,
+-    msconnector_error *error) {
+-    uint64_t call = enter("companion_revoke", NULL, 4, 0);
+-    int result = __real_msconnector_runtime_response_companion_revoke_handle(registry, handle, error);
+-    returned("companion_revoke", call, NULL, 4, 0, result, 0);
+-    return result;
+-}
+-#define COMPANION_SESSION_API(suffix, phase_number, eos, signature, arguments) \
+-extern int __real_msconnector_runtime_response_companion_session_##suffix signature __attribute__((weak)); \
+-int __wrap_msconnector_runtime_response_companion_session_##suffix signature { \
+-    struct observed_subject observed = subject(session, 5, phase_number); \
+-    observed.runtime_eos_handoff = eos; \
+-    uint64_t call = enter_subject("companion_session_" #suffix, &observed, NULL); \
+-    int result = __real_msconnector_runtime_response_companion_session_##suffix arguments; \
+-    returned_subject("companion_session_" #suffix, call, &observed, result, 0, NULL); \
+-    return result; \
+-}
+-COMPANION_SESSION_API(process_response_headers, 3, NULL,
+-    (msconnector_runtime_response_companion_session *session, const msconnector_response *response,
+-     msconnector_decision *decision, msconnector_error *error), (session, response, decision, error))
+-COMPANION_SESSION_API(finish_response_body, 4, "companion_response_body_finish",
+-    (msconnector_runtime_response_companion_session *session, msconnector_decision *decision,
+-     msconnector_error *error), (session, decision, error))
+-COMPANION_SESSION_API(set_response_commit_state, 0, NULL,
+-    (msconnector_runtime_response_companion_session *session, int headers_sent, int body_started,
+-     msconnector_error *error), (session, headers_sent, body_started, error))
+-COMPANION_SESSION_API(record_host_action, 0, NULL,
+-    (msconnector_runtime_response_companion_session *session, const msconnector_decision *decision,
+-     msconnector_decision_action actual_action, int visible_http_status, const char *transport_result,
+-     int connection_aborted, msconnector_error *error),
+-    (session, decision, actual_action, visible_http_status, transport_result, connection_aborted, error))
+-COMPANION_SESSION_API(fail, 0, NULL,
+-    (msconnector_runtime_response_companion_session *session, msconnector_transaction_error_class error_class,
+-     msconnector_error *error), (session, error_class, error))
+-COMPANION_SESSION_API(cancel, 0, NULL,
+-    (msconnector_runtime_response_companion_session *session, int upstream_disconnect,
+-     msconnector_error *error), (session, upstream_disconnect, error))
+-COMPANION_SESSION_API(release, 0, NULL,
+-    (msconnector_runtime_response_companion_session *session, msconnector_error *error), (session, error))
+-#undef COMPANION_SESSION_API
+-extern int __real_msconnector_runtime_response_companion_session_append_response_body_chunk(
+-    msconnector_runtime_response_companion_session *, const unsigned char *, size_t,
+-    msconnector_error *) __attribute__((weak));
+-int __wrap_msconnector_runtime_response_companion_session_append_response_body_chunk(
+-    msconnector_runtime_response_companion_session *session, const unsigned char *data,
+-    size_t size, msconnector_error *error) {
+-    struct observed_subject observed = subject(session, 5, 4);
+-    observed.input_known = 1; observed.input_size = size; observed.data_present = data != NULL;
+-    uint64_t call = enter_subject("companion_session_append_response_body_chunk", &observed, NULL);
+-    int result = __real_msconnector_runtime_response_companion_session_append_response_body_chunk(
+-        session, data, size, error);
+-    returned_subject("companion_session_append_response_body_chunk", call, &observed, result, 0, NULL);
+-    return result;
+-}

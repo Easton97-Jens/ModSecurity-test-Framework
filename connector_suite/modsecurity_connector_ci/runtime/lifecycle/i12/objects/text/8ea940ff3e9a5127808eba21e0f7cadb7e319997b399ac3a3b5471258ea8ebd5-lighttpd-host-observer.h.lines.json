@@ -1,0 +1,12 @@
+[
+  "#ifndef LIGHTTPD_TEST_HOST_OBSERVER_H\n",
+  "#define LIGHTTPD_TEST_HOST_OBSERVER_H\n",
+  "#include <stdint.h>\n",
+  "#include <stddef.h>\n",
+  "#include \"ci/runtime/lifecycle/native-lifecycle-observer.h\"\n",
+  "void lighttpd_observe_body(const char *kind, const msconnector_runtime_transaction *transaction,\n",
+  "    int64_t entity_length, int64_t stream_offset, size_t input_size, int eos);\n",
+  "void lighttpd_observe_empty_request_boundary(const msconnector_runtime_transaction *transaction,\n",
+  "    int64_t actual_entity_length);\n",
+  "#endif\n"
+]

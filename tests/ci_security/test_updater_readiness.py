@@ -196,11 +196,24 @@ class UpdaterReadinessTests(unittest.TestCase):
                 )
 
     def test_all_active_workflow_jobs_pin_requested_ubuntu_release(self):
+        import runpy
+
+        integration = runpy.run_path(
+            str(ROOT / "ci/checks/security/connector_action_pins.py")
+        )
         for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
             document = yaml.safe_load(path.read_text())
             for name, job in document["jobs"].items():
                 with self.subTest(workflow=path.name, job=name):
-                    self.assertEqual(job["runs-on"], "ubuntu-26.04")
+                    if path.name in integration["WORKFLOWS"]:
+                        self.assertEqual(
+                            integration["validate_source"](
+                                ROOT, str(path.relative_to(ROOT))
+                            ),
+                            [],
+                        )
+                    else:
+                        self.assertEqual(job["runs-on"], "ubuntu-26.04")
 
     def test_previous_ubuntu_build_cannot_satisfy_new_target(self):
         previous = manifest()

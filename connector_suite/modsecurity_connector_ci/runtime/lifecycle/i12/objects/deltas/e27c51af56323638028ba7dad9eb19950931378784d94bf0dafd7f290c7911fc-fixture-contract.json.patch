@@ -1,0 +1,18 @@
+--- a/payload
++++ b/payload
+@@ -44 +44 @@
+-    "harness_path": "connectors/lighttpd/harness/run_no_crs_fixture_trusted_namespace.py",
++    "harness_path": "connectors/lighttpd/harness/run_stock_sidecar_real_backend.py",
+@@ -59 +59 @@
+-      "I12::lighttpd-patched-native::obligation::request-empty"
++      "I12::lighttpd-stock-sidecar::obligation::request-empty"
+@@ -61 +61 @@
+-    "run_scoped_case_id": "I12::lighttpd-patched-native::NEED-request-empty",
++    "run_scoped_case_id": "I12::lighttpd-stock-sidecar::NEED-request-empty",
+@@ -68,2 +68 @@
+-      "actual_eos_argument": null,
+-      "empty_request_boundary": true,
++      "actual_eos_argument": 1,
+@@ -72 +71 @@
+-      "kind": "patched_empty_request_boundary",
++      "kind": "stock_request_content_length_eos",

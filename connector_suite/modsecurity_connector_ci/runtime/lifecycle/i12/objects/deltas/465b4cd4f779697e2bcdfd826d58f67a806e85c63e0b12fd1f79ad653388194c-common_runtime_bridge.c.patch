@@ -1,0 +1,81 @@
+--- a/payload
++++ b/payload
+@@ -4,0 +5,8 @@
++#include <errno.h>
++#include <fcntl.h>
++#include <inttypes.h>
++#include <stdatomic.h>
++#include <stdint.h>
++#include <sys/stat.h>
++#include <time.h>
++#include <unistd.h>
+@@ -11,0 +20,2 @@
++#include "ci/runtime/lifecycle/native-lifecycle-observer.h"
++extern uint64_t msconnector_lifecycle_runtime_scope_call(const msconnector_runtime_transaction *transaction);
+@@ -29,0 +40,57 @@
++
++/* Private test-only physical callback. No URI, headers, body, lease or addresses. */
++static atomic_size_t i12_envoy_trace_bytes;
++static void i12_envoy_observe(msc_envoy_ext_proc_transaction *transaction,
++    int operation, int direction, int eos, size_t size, size_t declared_size, int result)
++{
++    int saved_errno = errno;
++    uint64_t scope = transaction == NULL ? 0U :
++        msconnector_lifecycle_runtime_scope_call(transaction->transaction);
++    const char *path = getenv("I12_ENVOY_HOST_TRACE_PATH");
++    struct timespec wall, mono;
++    struct stat st;
++    char row[1024];
++    int fd, length;
++    char result_value[32] = "null", declared_value[32] = "null", size_value[32] = "null";
++    if (operation == 1 || operation == 3 || operation == 4 || operation == 11) (void)snprintf(size_value, sizeof(size_value), "%zu", size);
++    if (operation == 4) (void)snprintf(result_value, sizeof(result_value), "%d", result);
++    if (operation == 11 && result == 1) (void)snprintf(declared_value, sizeof(declared_value), "%zu", declared_size);
++    size_t budget;
++    if (scope == 0U || path == NULL || path[0] != '/' ||
++        !(operation == 1 || operation == 3 || operation == 4 || operation == 5 || operation == 11 || operation == 12) ||
++        clock_gettime(CLOCK_REALTIME, &wall) != 0 ||
++        clock_gettime(CLOCK_MONOTONIC, &mono) != 0) {
++        errno = saved_errno;
++        return;
++    }
++    length = snprintf(row, sizeof(row),
++        "{\"schema\":\"i12.envoy.physical-host.v1\",\"pid\":%ld,\"allocation_scope_call\":%" PRIu64 ",\"wall_ns\":%" PRIu64 ",\"monotonic_ns\":%" PRIu64 ",\"operation\":%d,\"response_direction\":%d,\"body_end_of_stream_argument\":%s,\"body_size\":%s,\"declared_size\":%s,\"actual_result\":%s,\"grpc_send_error\":%s,\"declared_length_known\":%s,\"companion_claim_succeeded\":%s}\n",
++        (long)getpid(), scope,
++        (uint64_t)wall.tv_sec * UINT64_C(1000000000) + (uint64_t)wall.tv_nsec,
++        (uint64_t)mono.tv_sec * UINT64_C(1000000000) + (uint64_t)mono.tv_nsec,
++        operation, direction, (operation == 1 || operation == 3 || operation == 4) ? (eos ? "true" : "false") : "null", size_value, declared_value, result_value, operation == 5 ? "false" : "null", operation == 11 ? (result == 1 ? "true" : "false") : "null", operation == 12 ? (result == 1 ? "true" : "false") : "null");
++    if (length <= 0 || (size_t)length >= sizeof(row)) { errno = saved_errno; return; }
++    budget = atomic_fetch_add_explicit(&i12_envoy_trace_bytes, (size_t)length, memory_order_relaxed);
++    if (budget > 1048576U || (size_t)length > 1048576U - budget) { errno = saved_errno; return; }
++    fd = open(path, O_WRONLY | O_APPEND | O_CLOEXEC | O_NOFOLLOW);
++    if (fd >= 0) {
++        if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_uid == geteuid() &&
++            (st.st_mode & 0777U) == 0600U && st.st_nlink == 1 && st.st_size >= 0 &&
++            (uint64_t)st.st_size <= UINT64_C(1048576) - (size_t)length) {
++            (void)write(fd, row, (size_t)length);
++        }
++        (void)close(fd);
++    }
++    errno = saved_errno;
++}
++
++void msc_envoy_ext_proc_transaction_i12_observe(msc_envoy_ext_proc_transaction *transaction,
++    int operation, int direction, int eos, size_t size, size_t declared_size, int result)
++{
++    i12_envoy_observe(transaction, operation, direction, eos, size, declared_size, result);
++}
++
++void msc_envoy_ext_proc_i12_observer_snapshot(void) {
++    msconnector_lifecycle_observer_state state;
++    (void)msconnector_lifecycle_observer_snapshot(&state);
++}
+@@ -534,0 +602 @@
++    i12_envoy_observe(transaction, 1, body->response_direction, body->end_of_stream, body->body_size, 0U, 0);
+@@ -560 +628,2 @@
+-    return msc_envoy_ext_proc_finish_body(transaction, decision,
++    i12_envoy_observe(transaction, 3, body->response_direction, body->end_of_stream, body->body_size, 0U, 0);
++    result = msc_envoy_ext_proc_finish_body(transaction, decision,
+@@ -561,0 +631,2 @@
++    i12_envoy_observe(transaction, 4, body->response_direction, body->end_of_stream, body->body_size, 0U, result);
++    return result;

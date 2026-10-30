@@ -1,0 +1,40 @@
+--- a/payload
++++ b/payload
+@@ -169 +169 @@
+-	session, err := openSession(request.Context(), m.config, handles[0])
++	session, err := openSession(i12ObservedContext(request), m.config, handles[0])
+@@ -208,5 +208,6 @@
+-	mu      sync.Mutex
+-	conn    net.Conn
+-	reader  *bufio.Reader
+-	timeout time.Duration
+-	closed  bool
++	i12ProbeID string
++	mu         sync.Mutex
++	conn       net.Conn
++	reader     *bufio.Reader
++	timeout    time.Duration
++	closed     bool
+@@ -235 +236 @@
+-	s := &session{conn: conn, reader: bufio.NewReader(conn), timeout: time.Duration(config.TimeoutMillis) * time.Millisecond}
++	s := &session{conn: conn, i12ProbeID: i12ObserverID(ctx), reader: bufio.NewReader(conn), timeout: time.Duration(config.TimeoutMillis) * time.Millisecond}
+@@ -277,0 +279 @@
++		i12Observe(s.i12ProbeID, "companion_frame_write_return", map[string]interface{}{"opcode": int(opcode), "payload_bytes": len(payload), "error": true})
+@@ -279,0 +282 @@
++	i12Observe(s.i12ProbeID, "companion_frame_write_return", map[string]interface{}{"opcode": int(opcode), "payload_bytes": len(payload), "error": false})
+@@ -280,0 +284,7 @@
++	i12Fields := map[string]interface{}{"opcode": int(opcode), "error": err != nil}
++	if err == nil {
++		i12Fields["request_opcode"] = int(value.requestOpcode)
++		i12Fields["result_code"] = int(value.code)
++		i12Fields["decision"] = int(value.decision)
++	}
++	i12Observe(s.i12ProbeID, "companion_result_parsed", i12Fields)
+@@ -459,0 +470 @@
++		i12Observe(i12RequestProbeID(s.request), "writer_write_header_return", map[string]interface{}{"status_argument": status})
+@@ -484,0 +496 @@
++	i12Observe(i12RequestProbeID(s.request), "writer_write_header_return", map[string]interface{}{"status_argument": status})
+@@ -536,0 +549 @@
++		i12Observe(i12RequestProbeID(s.request), "writer_write_body_return", map[string]interface{}{"input_bytes": len(chunk), "bytes": written, "error": writeErr != nil})
+@@ -655,0 +669 @@
++	i12Observe(i12RequestProbeID(s.request), "writer_write_header_return", map[string]interface{}{"status_argument": status})

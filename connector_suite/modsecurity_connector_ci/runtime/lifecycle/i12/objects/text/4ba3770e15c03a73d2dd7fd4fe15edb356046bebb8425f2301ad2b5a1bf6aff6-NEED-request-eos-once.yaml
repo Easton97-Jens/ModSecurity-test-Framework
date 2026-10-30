@@ -1,0 +1,51 @@
+name: NEED-request-eos-once
+title: Apache native physical request and response EOS observation
+category: apache
+connector: apache
+portable: false
+status: pending
+required_capabilities:
+  - request_headers
+  - request_body
+  - response_headers
+  - response_body
+metadata:
+  connector_scope: apache
+  source_contract: Parent test-only Apache I12 request-eos-once fixture
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/plain
+  SecAuditEngine On
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecDebugLog "@@AUDIT_LOG_DIR@@/native-debug.log"
+  SecDebugLogLevel 5
+  SecRule REQUEST_METHOD "@streq POST" "id:91041002,phase:1,pass,log,t:none,chain,msg:'test-only Apache genuine Common sink admission'"
+      SecRule REQUEST_URI "@streq /i12/apache/eos" "t:none"
+  SecRule RESPONSE_HEADERS:Content-Type "@beginsWith text/plain" \
+      "id:91041000,phase:3,pass,nolog,t:none"
+  SecRule RESPONSE_BODY "@contains apx-eos-response-payload" \
+      "id:91041001,phase:4,pass,log,t:none,msg:'test-only Apache native P4 branch observed'"
+request:
+  method: POST
+  path: /i12/apache/eos
+  headers:
+    Content-Type: text/plain
+    X-Modsec-Smoke: allow
+  body: apx-eos-request-payload
+response:
+  status: 200
+  headers:
+    Content-Type: text/plain
+  body: apx-eos-response-payload
+expect:
+  status: 200
+  intervention: none
+  audit_log:
+    required: true
+    rule_id: 91041001
+    message: test-only Apache native P4 branch observed

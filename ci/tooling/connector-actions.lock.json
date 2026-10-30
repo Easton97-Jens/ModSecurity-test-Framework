@@ -1,0 +1,81 @@
+{
+  "actions": {
+    "SonarSource/sonarqube-scan-action": {
+      "sha": "d209202bc7d53ff1cc128f7f907dac145c9d6ae9",
+      "version": "v8.3.0"
+    },
+    "actions/checkout": {
+      "sha": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "version": "v7.0.1"
+    },
+    "actions/create-github-app-token": {
+      "sha": "64ab729a6294000f5aa4a4bc0b73d1f32bc45510",
+      "version": "v3.3.0"
+    },
+    "actions/download-artifact": {
+      "sha": "9000827ccba6bdab643e8b6fd33ac0654aef8333",
+      "version": "v8.0.2"
+    },
+    "actions/github-script": {
+      "sha": "3a2844b7e9c422d3c10d287c895573f7108da1b3",
+      "version": "v9.0.0"
+    },
+    "actions/setup-go": {
+      "sha": "b7ad1dad31e06c5925ef5d2fc7ad053ef454303e",
+      "version": "v7.0.0"
+    },
+    "actions/setup-python": {
+      "sha": "6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+      "version": "v7.1.0"
+    },
+    "actions/upload-artifact": {
+      "sha": "cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+      "version": "v7.0.2"
+    },
+    "github/codeql-action": {
+      "sha": "9b3254085494b55a0f7c4c2b3d2d52cc712ce370",
+      "version": "v4.39.1"
+    },
+    "google/osv-scanner-action": {
+      "sha": "b1d267aea5211fa648d9d442fa64b90dbdcbdd36",
+      "version": "v2.7.0"
+    },
+    "ossf/scorecard-action": {
+      "sha": "fa7117db83c52d787ae5a89f350999701505d78e",
+      "version": "v2.5.0"
+    }
+  },
+  "authority": {
+    "path": "ci/tooling/security-tools.lock.yml",
+    "repository": "Easton97-Jens/ModSecurity-conector",
+    "revision": "ec18f9e92286379a2410e917f76e6a5502675804",
+    "sha256": "ad2b62a5d698ba7211a02df8b0239b7d0be7b105e2154fef738d96242aeb7f64"
+  },
+  "schema_version": 1,
+  "sources": {
+    ".github/actions/connector-ci/ci-findings-regressions/nginx-b09-regression/action.yml": "f39d8dc0553b97ef567c5b90f0c7689dcbffa2088f217be81094df2c0ae5298a",
+    ".github/actions/connector-ci/open-connectors-smoke/open-connectors-smoke/action.yml": "733ecee0f58e2c379c34c8b022b4140a8ca0a661217bf000739e543395d9d609",
+    ".github/actions/connector-ci/quick-framework-check/quick-check/action.yml": "d752d1b5000e9099560cc8e207202fe140162da046a772c5bda47a3bf7f9cf30",
+    ".github/actions/connector-ci/reusable-five-connectors-profile/aggregate/action.yml": "06cad7b352d5aad73f5f8582d44483b1c00f1d2bef2e174baba4814ab61d6129",
+    ".github/actions/connector-ci/reusable-five-connectors-profile/no-crs/action.yml": "0242acc23392c4494450bea1ebc1d230c78256776a6b328369773b3b585908be",
+    ".github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile/action.yml": "ca7340ddaa0af2ccca4cd3be4664c5a032c5b1cc78fca5b48a1e7742d25874a9",
+    ".github/actions/connector-ci/test-apache/apache-autotools-bootstrap/action.yml": "fceada01f5add2ac706f433df7293438edbc766390ec31b49d105505c3997def",
+    ".github/actions/connector-ci/test-apache/apache-structure/action.yml": "90648f6673d633c64a6c3db3aec690de02563e9d6df99bf940985867cc8abfbd",
+    ".github/actions/connector-ci/test-common/common-structure/action.yml": "357f034aac51c89c6f0b95c7f2a8820c70313053eb3b9cf2f976e8bceac2ccbe",
+    ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/aggregate-with-crs-no-mrts/action.yml": "17c1a73084753388d7a26bc6fb736f0787eeb64d422c7340c82876dd16a1b0c7",
+    ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml": "fc181f8ca37b273aeaabbb05fb4bb53c19eb6d80b2d6b9e47072c939f28ab1a2",
+    ".github/actions/connector-ci/test-envoy/envoy-contract/action.yml": "5b4ebecc98aa107888cc05aefc652a57c22cc2b46221475ed347821deaf5c516",
+    ".github/actions/connector-ci/test-full-smoke-sequential/cleanup-artifacts/action.yml": "c854d51a14be41a3047835e7fee736888f03e520e6915a44efb70dc720e728d7",
+    ".github/actions/connector-ci/test-full-smoke-sequential/manual-heavy-runtime-validation/action.yml": "f272edebb3e47df039f763bffde07c3354c2e0c67e3abeaa9d94743b60988320",
+    ".github/actions/connector-ci/test-haproxy/haproxy-structure/action.yml": "f02f7b5617388fc15f7f65afad61f231ebf52dbeae067b414031c872c649cf94",
+    ".github/actions/connector-ci/test-lighttpd/lighttpd-contract/action.yml": "5677d967a559fc1b5b14da8b6360b6574dc257de703dbff88ca7171ef3354267",
+    ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml": "b787630b56ad49eb9ed5aee5123da0e9a30e3be20096ad94cb4f0c1a45805c7b",
+    ".github/actions/connector-ci/test-nginx/nginx-structure/action.yml": "c54e6e6f1ae8ea82ccd1f2dca80a5007be2e182a7807fea85a5568cd98e70641",
+    ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml": "37b9208e1b013eca781a9b70492c8f9746c7d9d76bcc185ca1f7ddc171d16f5c",
+    ".github/actions/connector-context/action.yml": "e15e4d0f158649edd35bbc9006b3d747d1fba7060bf18ade3c812f1831e75f31",
+    ".github/workflows/connector-nginx-root-broker-historical.yml": "d6c7dece672be6feae9fae12f04d6ae71bdc26146860b5a86683c37b9dc7a936",
+    ".github/workflows/connector-protected-nginx-exact-head.yml": "c8edb1ba2b6baa34db69e39f14105f3dc280c3a0fdab878fded7c3da2ecf89f0",
+    ".github/workflows/connector-protected-nginx-root-broker-caller.yml": "11ee98f070a5a4c088e0c10466c0e867869f1769e5832bacf6bf2c5986a2cb3c",
+    ".github/workflows/connector-trusted-lighttpd-namespace.yml": "e55cd28bd7cce7ca393aa0a6bccec4cc51fe362e07fe780b7d952a038f37f730"
+  }
+}
