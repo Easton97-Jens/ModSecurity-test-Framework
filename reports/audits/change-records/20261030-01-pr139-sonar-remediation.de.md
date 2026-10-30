@@ -66,7 +66,8 @@ ausdrücklich.
 Paketskripte sind an den ausführenden Framework-Checkout gebunden. Geschlossene
 Git-Operationen und Vorbereitungsschritte verwenden vertrauenswürdige
 Programmpfade und einen System-PATH für Kindprozesse; der Launcher der
-Framework-Virtualenv bleibt erhalten. Manifestblätter und vollständige
+Framework-Virtualenv bleibt erhalten. In Positivlisten und Aufrufen gemeinsam
+verwendete Skriptnamen nutzen Konstanten. Manifestblätter und vollständige
 Artefaktbäume werden vor Reads oder Provenienz-/Portumschreibung geprüft. Der
 Helper gehört zur Manifest-Quellenidentität. Komplexe Abläufe werden geteilt,
 die Regex-Suche in Fehlerlisten durch Tokenprüfung ersetzt; ASCII-`\d` bleibt
@@ -97,7 +98,19 @@ in externer Auftragsevidenz. Zugangsdaten werden nicht erfasst.
 | `rtk bypass <Framework-python> -m py_compile` für sechs geänderte Python-Dateien | 0 | Kompilierung bestanden | Externer Befehlsrecord |
 | `rtk bypass sh -n ci/lib/mrts-common.sh ci/provisioning/generate-mrts.sh ci/provisioning/write-mrts-load.sh` | 0 | Shellsyntax bestanden | Externer Befehlsrecord |
 | `rtk bypass gitleaks dir --redact=100` | 0 | Keine Leaks vor Inspektion oder nach Quelländerungen | `<task-root>/evidence/final-source-secrets.json` |
+| `rtk make check-documentation PYTHON=<Framework-python>` | 0 | Links, zweisprachige Dokumentation, Pfade und Change-Record-Vertrag bestanden | Externer Befehlsrecord |
+| `rtk bypass git diff --cached --check` | 0 | Begrenzter Staging-Diff bestand Whitespace-Prüfung | Externer Befehlsrecord |
+| `rtk bypass gitleaks git --redact=100` für den vollständigen PR-Bereich an `55c8e0c` | 0 | Zwei Commits, keine Leaks | `<task-root>/evidence/full-pr-range-secrets.json` |
 | `rtk bypass /usr/local/bin/sonar-with-env analyze` für die drei geänderten Helper | 1 | Lokale agentische Analyse nicht verfügbar: Dienst lieferte 403; alle drei Dateien übersprungen | `<task-root>/evidence/local-sonar.json` |
+
+Der erste gepushte Folgecommit `55c8e0c85106aff2f1a0424c0348464938ae34e5`
+bestand alle zehn Workflow-Läufe. Sein [gehosteter Sonar-Lauf](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41024354280)
+und der revisionsgebundene Cloud-Abruf meldeten Quality Gate OK, keine
+Schwachstellen/Hotspots, Bewertung A und keine Duplikation. Alle 24
+ursprünglichen Befunde waren behoben; zwei neue Befunde zu duplizierten
+Skriptnamen veranlassten die Konstanten-Folgekorrektur. Dieser Stand gehört zu
+dieser SHA. Jeder weitere gepushte Head erfordert vor Übergabe eigene frische
+CI-/Cloud-Prüfung.
 
 ## Sicherheitsauswirkung
 
@@ -124,7 +137,8 @@ Keine historische Protokoll-/MRTS-Matrix, neuer Hostlauf, Coverage-Kampagne oder
 Abhängigkeitsaudit: Sie liegen außerhalb der begrenzten Helper-Korrekturen.
 Lokale agentische Sonar-Analyse ist auf dieser Verbindung nicht verfügbar;
 die gehostete PR-Analyse ist die erforderliche Quelle des abschließenden
-Quality Gates. Erforderliche gehostete Checks stehen nach dem Push aus.
+Quality Gates. Die gehosteten Checks des ersten Folgecommits bestanden wie
+oben erfasst; der finale Head wird nach jedem Push separat geprüft.
 
 ## Einschränkungen und Restrisiko
 
@@ -136,8 +150,10 @@ oder Merge dieses PRs benötigen eine separat autorisierte Aktion.
 
 ## Finaler Diff- und Review-Status
 
-Paket-/Ergebnisänderungen erhielten unabhängige Grenzprüfung. Fokussierte lokale
-Checks bestanden wie oben erfasst. Finale Dokumentation, Staging-Diff,
-Whitespace-, Commitbereich-Secretsprüfung und aktuelle gehostete
-Auslieferungsevidenz werden im Auslieferungszyklus abgeschlossen; hier wird
-kein gehostetes PASS oder Merge behauptet.
+Paket-/Ergebnisänderungen erhielten unabhängige Grenzprüfung. Lokale
+Dokumentations-, Staging-Diff-, Whitespace- und Secretsprüfungen bestanden. Der
+erste Folgecommit wurde regulär auf denselben Task-Branch und PR gepusht;
+Gleichheit von lokalem, Remote- und PR-Head wurde geprüft. Sein gehostetes
+Ergebnis ist oben erfasst; die Prüfung des finalen Heads bleibt revisionsgebunden
+in externer Auslieferungsevidenz. Kein Merge, Default-Branch-Push oder
+Parent-Gitlink-Update wurde ausgeführt.

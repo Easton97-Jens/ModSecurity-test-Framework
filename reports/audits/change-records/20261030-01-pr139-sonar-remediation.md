@@ -59,7 +59,8 @@ remains atomic. The native report passes its trusted runtime root explicitly.
 
 Bind package scripts to the executing Framework checkout, select closed Git
 operations and provisioning steps, use trusted executable paths and a system
-child PATH, and preserve the Framework virtual-environment launcher. Check
+child PATH, and preserve the Framework virtual-environment launcher. Script
+names shared by allowlists and invocation sites use constants. Check
 manifest leaves and complete artifact trees before reads or provenance/port
 rewrites. Keep the helper in the manifest source identity. Split complex
 operations and replace the failed-list regex search with token validation;
@@ -89,7 +90,18 @@ evidence. No credentials are recorded.
 | `rtk bypass <Framework-python> -m py_compile` on six changed Python files | 0 | Compilation passed | External command record |
 | `rtk bypass sh -n ci/lib/mrts-common.sh ci/provisioning/generate-mrts.sh ci/provisioning/write-mrts-load.sh` | 0 | Shell syntax passed | External command record |
 | `rtk bypass gitleaks dir --redact=100` | 0 | No leaks before inspection or after source changes | `<task-root>/evidence/final-source-secrets.json` |
+| `rtk make check-documentation PYTHON=<Framework-python>` | 0 | Links, bilingual docs, paths and Change Record contract passed | External command record |
+| `rtk bypass git diff --cached --check` | 0 | Scoped staged diff passed whitespace review | External command record |
+| `rtk bypass gitleaks git --redact=100` on the full PR range at `55c8e0c` | 0 | Two commits, no leaks | `<task-root>/evidence/full-pr-range-secrets.json` |
 | `rtk bypass /usr/local/bin/sonar-with-env analyze` on the three changed helpers | 1 | Local agentic analysis unavailable: service returned 403; all three files skipped | `<task-root>/evidence/local-sonar.json` |
+
+The first pushed follow-up `55c8e0c85106aff2f1a0424c0348464938ae34e5`
+passed all ten workflow runs. Its [hosted Sonar run](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/41024354280)
+and the revision-bound Cloud readback reported Quality Gate OK, zero
+vulnerabilities/hotspots, rating A and zero duplication. All 24 original issues
+were resolved; two new duplicated-script-name findings prompted the constants
+follow-up. This snapshot belongs to that SHA. Each subsequent pushed head
+requires its own fresh CI/Cloud verification before handoff.
 
 ## Security impact
 
@@ -114,7 +126,8 @@ qualification.
 No historical protocol/MRTS matrix, new host run, coverage campaign or dependency
 audit: these are outside the scoped helper fixes. Local Sonar agentic analysis
 is unavailable on this connection; hosted PR analysis is the required source
-for the final Quality Gate. Required hosted checks are pending after push.
+for the final Quality Gate. The first follow-up's hosted checks passed as
+recorded above; the final head is verified separately after every push.
 
 ## Limitations and residual risk
 
@@ -125,7 +138,9 @@ the Framework pin or merging this PR requires a separate authorized action.
 
 ## Final diff and review status
 
-Package/result changes received independent boundary review. Focused local
-checks passed as recorded above. Final documentation, staged-diff, whitespace,
-commit-range secret checks and current-head hosted delivery evidence will be
-completed in the delivery cycle; no hosted pass or merge is claimed here.
+Package/result changes received independent boundary review. Local
+documentation, staged-diff, whitespace and secret checks passed. The first
+follow-up was pushed normally to the same task branch and PR, with
+local/remote/PR-head equality verified. Its hosted result is recorded above;
+final-head verification remains revision-bound in external delivery evidence.
+No merge, default-branch push or Parent gitlink update was performed.

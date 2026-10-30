@@ -27,6 +27,8 @@ from runtime_path_safety import (
 MANIFEST_FILE = "manifest.json"
 YAML_FILES = "*.yaml"
 LOAD_FILE = "mrts.load"
+GENERATE_SCRIPT = "generate-mrts.sh"
+LOAD_SCRIPT = "write-mrts-load.sh"
 
 CORPORA = ("upstream-config-tests", "feature-demo")
 SOURCE_FILES = (
@@ -174,7 +176,7 @@ def case_ids(root: Path, corpora: list[str], args: argparse.Namespace) -> list[s
 
 
 def framework_script(name: str) -> Path:
-    if name not in {"generate-mrts.sh", "import-mrts-cases.py", "write-mrts-load.sh"}:
+    if name not in {GENERATE_SCRIPT, "import-mrts-cases.py", LOAD_SCRIPT}:
         raise PackageError("unsupported Framework entrypoint")
     path = FRAMEWORK_ROOT / "ci/provisioning" / name
     if has_symlink_component(path) or not path.is_file():
@@ -183,7 +185,7 @@ def framework_script(name: str) -> Path:
 
 
 def run_shell_step(name: str, environment: dict[str, str]) -> None:
-    if name not in {"generate-mrts.sh", "write-mrts-load.sh"}:
+    if name not in {GENERATE_SCRIPT, LOAD_SCRIPT}:
         raise PackageError("unsupported shell preparation step")
     subprocess.run(
         [trusted_executable("sh"), "--", str(framework_script(name))],
@@ -318,9 +320,9 @@ def prepare_corpus(args: argparse.Namespace, stage: Path, target: Path,
         MRTS_ROOT=str(args.mrts_root), MRTS_CORPUS=corpus,
         MRTS_DEFINITIONS=str(snapshots), MRTS_RULES_OUT=str(corpus_root / "rules"),
         MRTS_FTW_OUT=str(corpus_root / "ftw"))
-    run_shell_step("generate-mrts.sh", environment)
+    run_shell_step(GENERATE_SCRIPT, environment)
     run_import(args, corpus, snapshots, corpus_root, environment)
-    run_shell_step("write-mrts-load.sh", dict(environment, MRTS_LOAD_FILE=str(corpus_root / LOAD_FILE)))
+    run_shell_step(LOAD_SCRIPT, dict(environment, MRTS_LOAD_FILE=str(corpus_root / LOAD_FILE)))
 
 
 def publish(stage: Path, target: Path) -> None:
