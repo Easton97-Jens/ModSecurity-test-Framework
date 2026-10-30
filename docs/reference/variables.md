@@ -20,6 +20,7 @@ reference for repeated names.
 | [`NO_CRS_RUN_ID`](#no_crs_run_id) | No-CRS | Canonical runs | `local` | filesystem-safe token | Evidence-run identity |
 | [`CONNECTOR`](#connector-capabilities_file-evidence_stage-and-no_crs_artifact_profile) | No-CRS | Connector targets | none | connector key | Capability-manifest selector |
 | [`PYTHON`](#tooling-status-values-and-sensitive-data) | tooling | No | `.venv/bin/python` or `python3` | executable path | Interpreter used by Make |
+| [`PYTHONSAFEPATH`](#tooling-status-values-and-sensitive-data) | tooling | No | unset | `1` enables safe module search | Excludes implicit working/script paths; MRTS uses an isolated child with its exact trusted script directory |
 | [`PROTOCOL_URL`](#protocol_url) | protocol | `protocol-client` | none | `http(s)://` URL | Explicit client target |
 | `<fresh-source-root>` | five-connector CRS fixture | `verify-fixture` and `validate` | none | absolute directory | Fresh CRS source root containing `coreruleset/` |
 | `<private-root>` | five-connector evidence | `validate` and `aggregate` | none | private absolute directory | Externally produced evidence and validator outputs |

@@ -54,6 +54,14 @@ ausführbare Dateien sein, dem aktuellen Benutzer oder root gehören und dürfen
 keine Gruppen- oder öffentlichen Schreibrechte gewähren. Vom Aufrufer gesetzte
 `PATH`-Einträge wählen diese Shell- und Git-Programme nicht aus.
 
+Der Definition-Guard startet den vertrauenswürdigen Generator in einem isolierten
+Python-Kindprozess mit explizit unterdrücktem Bytecode (`-I -B`). Ein fester
+Bootstrap lässt ausschließlich das aufgelöste Generatorverzeichnis für
+benachbarte MRTS-Imports zu, erhält Generatorargumente und führt ihn mit
+`runpy` aus. Geerbtes `PYTHONSAFEPATH=1` funktioniert damit ohne eingehende
+Python-Pfade zuzulassen, den Elterninterpreter zu verändern oder Bytecode im
+gepinnten MRTS-Checkout zu schreiben.
+
 `--upstream-definitions DIR` und `--feature-demo-definitions DIR` wählen
 ausdrückliche Definitionsverzeichnisse statt der gepinnten Vorgaben. Nur
 gewählte Korpora werden gelesen. Mit `--include-feature-demo 0` entfallen
@@ -164,6 +172,12 @@ dürfen keine Gruppen- oder öffentlichen Schreibrechte gewähren und keine
 Traversal- oder Symlinkkomponenten enthalten. Ein fehlender `BUILD_ROOT` oder
 ungültiger Pfad lässt den Writer fehlschlagen. Die Paket-CLI erhält weiterhin
 das oben gezeigte ausdrückliche Argument `--build-root`.
+
+Die eigenständige Ergebnis-CLI und der gemeinsame MRTS-Pfad-Guard laden ihre
+tatsächlichen Pfadfunktionen mit `runpy` aus festen benachbarten Framework-Dateien.
+Sie funktionieren mit `PYTHONSAFEPATH=1`, ohne auf die Suche im Skriptverzeichnis
+angewiesen zu sein, globale Modulsuchpfade zu ändern, Modulaliase hinzuzufügen
+oder einen Connector-Checkout heranzuziehen.
 
 ## Integrationsreihenfolge und Umfang
 

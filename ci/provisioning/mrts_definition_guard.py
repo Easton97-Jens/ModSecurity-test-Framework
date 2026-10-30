@@ -31,6 +31,14 @@ ALLOWED_GLOBAL_KEYS = frozenset(
     }
 )
 BLOCKED = 77
+GENERATOR_BOOTSTRAP = (
+    "import runpy, sys\n"
+    "from pathlib import Path\n"
+    "generator = Path(sys.argv[1])\n"
+    "sys.argv = sys.argv[1:]\n"
+    "sys.path.insert(0, str(generator.parent))\n"
+    "runpy.run_path(str(generator), run_name='__main__')\n"
+)
 
 
 class DefinitionRejected(ValueError):
@@ -122,12 +130,17 @@ def run_guarded(
             snapshots.append(str(snapshot))
         # The original files are never reopened by the generator. This closes
         # validation/use replacement of definition data, not same-UID process
-        # isolation or arbitrary operator-selected generator behavior. End the
-        # interpreter's option parsing before the selected script as well.
+        # isolation or arbitrary operator-selected generator behavior. Isolate
+        # the child from inherited Python paths while admitting only its exact
+        # trusted script directory for MRTS's adjacent imports. -B is explicit:
+        # -I ignores the inherited PYTHONDONTWRITEBYTECODE setting as well.
         completed = subprocess.run(
             [
                 sys.executable,
-                "--",
+                "-I",
+                "-B",
+                "-c",
+                GENERATOR_BOOTSTRAP,
                 str(generator),
                 "-r",
                 *snapshots,
