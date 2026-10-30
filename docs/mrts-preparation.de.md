@@ -1,6 +1,6 @@
 # MRTS-Vorbereitung und Übergabe
 
-**Sprache:** Deutsch | [English](mrts-preparation.md)
+**Sprache:** [English](mrts-preparation.md) | Deutsch
 
 Das Framework steuert Korpusauswahl, Generierung, Import, Schemavalidierung,
 Regel-Load-Datei und Runner-Übergabe. Das gepinnte Repository `tools/MRTS` dient
