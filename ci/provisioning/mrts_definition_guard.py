@@ -134,12 +134,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--snapshot-root", type=Path, required=True)
     parser.add_argument("--rules-out", type=Path, required=True)
     parser.add_argument("--tests-out", type=Path, required=True)
-    parser.add_argument("definitions", type=Path, nargs="+")
+    parser.add_argument("--definition-directories", default="")
+    parser.add_argument("definitions", type=Path, nargs="*")
     args = parser.parse_args(argv)
     try:
+        directories = [Path(item) for item in args.definition_directories.split(":") if item]
+        if any(not directory.is_dir() for directory in directories):
+            raise DefinitionRejected("definition directory is unavailable")
         return run_guarded(
             args.generator,
-            args.definitions,
+            args.definitions + [
+                path
+                for directory in directories
+                for path in sorted(directory.glob("*.yaml"))
+            ],
             args.rules_out,
             args.tests_out,
             args.snapshot_root,

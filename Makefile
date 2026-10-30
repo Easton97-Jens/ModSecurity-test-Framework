@@ -170,6 +170,8 @@ export MRTS_FTW_OUT
 export MRTS_LOAD_FILE
 export MRTS_CASE_ROOT
 export MRTS_BUILD_ROOT
+export MRTS_PACKAGE_ROOT
+export MRTS_RUNTIME_PORT
 export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
@@ -479,7 +481,7 @@ quick-check codex-check: lint
 	git diff --check
 
 generate-test-matrix:
-	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; if [ "$$MODSECURITY_MRTS_VARIANT" = "with-mrts" ]; then mrts_import_cases; fi; "$(PYTHON)" ci/reporting/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)" $(if $(SKIP_ROOT_SUMMARY),--skip-root-summary,)'
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; "$(PYTHON)" ci/reporting/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)" $(if $(SKIP_ROOT_SUMMARY),--skip-root-summary,)'
 
 refresh-framework-reports:
 	MODSECURITY_MRTS_VARIANT=with-mrts $(MAKE) generate-test-matrix CONNECTOR_ROOT="$(FRAMEWORK_ROOT)" OUTPUT_ROOT="$(FRAMEWORK_ROOT)"
@@ -539,13 +541,13 @@ test-with-crs:
 	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. ci/lib/common.sh; sh ci/provisioning/fetch-crs.sh; sh ci/provisioning/prepare-crs.sh; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 mrts-generate:
-	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_generate_all_corpora'
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_generate_all_corpora; printf "%s\n" "$$MRTS_PACKAGE_ROOT"'
 
 mrts-load:
-	sh ci/provisioning/write-mrts-load.sh
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_generate_all_corpora; printf "%s\n" "$$MRTS_LOAD_FILE"'
 
 mrts-import:
-	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_generate_all_corpora; MRTS_RULES_OUT="$$MRTS_UPSTREAM_RULES_OUT" sh ci/provisioning/write-mrts-load.sh >/dev/null; mrts_import_cases'
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_import_cases'
 
 test-no-mrts:
 	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=no-mrts sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
@@ -562,13 +564,14 @@ test-mrts-matrix:
 	MODSECURITY_TEST_VARIANT=with-crs MODSECURITY_MRTS_VARIANT=no-mrts $(MAKE) test-no-mrts
 	MODSECURITY_TEST_VARIANT=with-crs MODSECURITY_MRTS_VARIANT=with-mrts $(MAKE) test-with-mrts
 
-mrts-ftw: mrts-generate
+mrts-ftw:
 	@sh -eu -c ' \
 		FRAMEWORK_ROOT="$${FRAMEWORK_ROOT:-$(FRAMEWORK_ROOT)}"; \
 		MRTS_FTW_CONFIG="$${MRTS_FTW_CONFIG:-$$FRAMEWORK_ROOT/tests/mrts/ftw.mrts.config.yaml}"; \
 		BUILD_ROOT="$${BUILD_ROOT:-$(BUILD_ROOT)}"; \
 		MRTS_BUILD_ROOT="$${MRTS_BUILD_ROOT:-$$BUILD_ROOT/mrts}"; \
-		MRTS_FTW_OUT="$${MRTS_FTW_OUT:-$$MRTS_BUILD_ROOT/upstream-config-tests/ftw}"; \
+		. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_generate_all_corpora; \
+		MRTS_FTW_OUT="$$MRTS_UPSTREAM_FTW_OUT"; \
 		if ! command -v go-ftw >/dev/null 2>&1; then echo "BLOCKED: go-ftw missing" >&2; exit 77; fi; \
 		if [ ! -f "$$MRTS_FTW_CONFIG" ]; then echo "BLOCKED: MRTS_FTW_CONFIG missing: $$MRTS_FTW_CONFIG" >&2; exit 77; fi; \
 		go-ftw run --config "$$MRTS_FTW_CONFIG" --dir "$$MRTS_FTW_OUT" --wait-for-expect-status-code 200 --fail-fast; \

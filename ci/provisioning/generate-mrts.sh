@@ -38,29 +38,6 @@ if [ ! -f "$MRTS_ROOT/mrts/generate-rules.py" ]; then
     exit 77
 fi
 
-definition_dirs=$(printf '%s\n' "$MRTS_DEFINITIONS" | tr ':' '\n')
-for definitions_dir in $definition_dirs; do
-    if [ ! -d "$definitions_dir" ]; then
-        echo "BLOCKED: MRTS definitions missing: $definitions_dir" >&2
-        exit 77
-    fi
-done
-
-definition_list=$(
-    for definitions_dir in $definition_dirs; do
-        if [ ! -d "$definitions_dir" ]; then
-            echo "BLOCKED: MRTS definitions missing: $definitions_dir" >&2
-            exit 77
-        fi
-        find "$definitions_dir" -type f -name '*.yaml'
-    done
-)
-definition_list=$(printf '%s\n' "$definition_list" | sort)
-if [ -z "$definition_list" ]; then
-    echo "BLOCKED: no MRTS definition YAML files found: $MRTS_DEFINITIONS" >&2
-    exit 77
-fi
-
 assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
 assert_runtime_path_under_root "$MRTS_BUILD_ROOT" "$BUILD_ROOT/mrts" MRTS_BUILD_ROOT || exit 77
 assert_safe_runtime_path "$MRTS_RULES_OUT" MRTS_RULES_OUT || exit 77
@@ -71,7 +48,6 @@ mkdir -p "$MRTS_RULES_OUT" "$MRTS_FTW_OUT"
 find "$MRTS_RULES_OUT" -type f -name '*.conf' -exec rm -f {} \;
 find "$MRTS_FTW_OUT" -type f -name '*.yaml' -exec rm -f {} \;
 
-set -- $definition_list
 (
     cd "$MRTS_ROOT"
     "${PYTHON:-python3}" "$SCRIPT_DIR/mrts_definition_guard.py" \
@@ -79,7 +55,7 @@ set -- $definition_list
         --snapshot-root "$MRTS_BUILD_ROOT" \
         --rules-out "$MRTS_RULES_OUT" \
         --tests-out "$MRTS_FTW_OUT" \
-        -- "$@"
+        --definition-directories "$MRTS_DEFINITIONS"
 )
 
 rule_count=$(find "$MRTS_RULES_OUT" -type f -name '*.conf' | wc -l | tr -d ' ')
@@ -87,6 +63,6 @@ ftw_count=$(find "$MRTS_FTW_OUT" -type f -name '*.yaml' | wc -l | tr -d ' ')
 
 echo "MRTS generation complete"
 echo "Corpus: $MRTS_CORPUS"
-echo "Definitions: $(printf '%s\n' "$definition_list" | wc -l | tr -d ' ')"
+echo "Definition directories: $MRTS_DEFINITIONS"
 echo "Rules: $rule_count ($MRTS_RULES_OUT)"
 echo "FTW tests: $ftw_count ($MRTS_FTW_OUT)"

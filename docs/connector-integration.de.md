@@ -154,6 +154,11 @@ Ableitung, aber kein ausführbarer Beweis in einem anderen Connector.
    validieren.
 5. Framework-Berichte erst regenerieren, nachdem ihre Input-Evidence aktuell ist.
 
+## MRTS-Vorbereitung
+
+Für den gepinnten MRTS-Generator gilt die validierte Paketschnittstelle in
+[MRTS-Vorbereitung und Übergabe](mrts-preparation.de.md).
+
 ## Historischer Kontext
 
 Getrennte Importanalysen, Connectorpläne und HAProxy-SPOE/SPOA-Dokumente wurden

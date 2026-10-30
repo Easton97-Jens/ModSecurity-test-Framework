@@ -16,6 +16,19 @@ MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO="${MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO:-
 MODSECURITY_MRTS_PREPARED="${MODSECURITY_MRTS_PREPARED:-0}"
 MRTS_ROOT="${MRTS_ROOT:-$FRAMEWORK_ROOT/tools/MRTS}"
 MRTS_BUILD_ROOT="${MRTS_BUILD_ROOT:-$BUILD_ROOT/mrts}"
+# Readiness belongs to this shell. Children verify the manifest and create their
+# own materialization instead of inheriting another connector's writable files.
+MRTS_RUNTIME_READY=0
+MRTS_PACKAGE_READY=0
+case "${MRTS_BASE_INPUTS_CAPTURED:-0}" in
+    1) : ;;
+    *)
+        MRTS_BASE_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
+        MRTS_BASE_EXTRA_CASE_ROOTS="${EXTRA_CASE_ROOTS:-}"
+        MRTS_BASE_INPUTS_CAPTURED=1
+        export MRTS_BASE_RULE_PREAMBLE_FILE MRTS_BASE_EXTRA_CASE_ROOTS MRTS_BASE_INPUTS_CAPTURED
+        ;;
+esac
 
 MRTS_CONFIG_TESTS="${MRTS_CONFIG_TESTS:-$MRTS_ROOT/config_tests}"
 MRTS_GOLDEN_TESTS="${MRTS_GOLDEN_TESTS:-$MRTS_ROOT/generated/tests/regression/tests}"
@@ -124,10 +137,68 @@ mrts_generate_feature_demo() {
     return $?
 }
 
-mrts_generate_all_corpora() {
-    mrts_generate_upstream
-    mrts_generate_feature_demo
+# Compatibility entry points all use the same validated package producer.
+mrts_package_command() {
+    mrts_package_action=$1
+    shift
+    "${PYTHON:-python3}" "$FRAMEWORK_ROOT/ci/provisioning/mrts-package.py" \
+        "$mrts_package_action" \
+        --framework-root "$FRAMEWORK_ROOT" --mrts-root "$MRTS_ROOT" \
+        --connector-root "${CONNECTOR_ROOT:-$FRAMEWORK_ROOT}" \
+        --build-root "$BUILD_ROOT" --package-root "$MRTS_PACKAGE_ROOT" \
+        --include-feature-demo "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" \
+        --upstream-definitions "$MRTS_UPSTREAM_DEFINITIONS" \
+        --feature-demo-definitions "$MRTS_FEATURE_DEMO_DEFINITIONS" "$@"
     return $?
+}
+
+mrts_bind_package_paths() {
+    MRTS_UPSTREAM_ROOT="$1/upstream-config-tests"
+    MRTS_FEATURE_DEMO_ROOT="$1/feature-demo"
+    MRTS_UPSTREAM_RULES_OUT="$MRTS_UPSTREAM_ROOT/rules"
+    MRTS_UPSTREAM_FTW_OUT="$MRTS_UPSTREAM_ROOT/ftw"
+    MRTS_UPSTREAM_CASE_ROOT="$MRTS_UPSTREAM_ROOT/framework-cases"
+    MRTS_UPSTREAM_LOAD_FILE="$MRTS_UPSTREAM_ROOT/mrts.load"
+    MRTS_FEATURE_DEMO_RULES_OUT="$MRTS_FEATURE_DEMO_ROOT/rules"
+    MRTS_FEATURE_DEMO_FTW_OUT="$MRTS_FEATURE_DEMO_ROOT/ftw"
+    MRTS_FEATURE_DEMO_CASE_ROOT="$MRTS_FEATURE_DEMO_ROOT/framework-cases"
+    MRTS_FEATURE_DEMO_LOAD_FILE="$MRTS_FEATURE_DEMO_ROOT/mrts.load"
+    MRTS_LOAD_FILE="$MRTS_UPSTREAM_LOAD_FILE"
+    MRTS_CASE_ROOT="$MRTS_UPSTREAM_CASE_ROOT"
+    export MRTS_LOAD_FILE MRTS_CASE_ROOT
+    return 0
+}
+
+mrts_generate_all_corpora() {
+    case "${MRTS_PACKAGE_READY:-0}:$MODSECURITY_MRTS_PREPARED" in
+        1:*|*:1)
+            case "${MRTS_PACKAGE_ROOT:-}" in
+                "") echo "BLOCKED: prepared MRTS requires MRTS_PACKAGE_ROOT and a validated manifest" >&2; return 77 ;;
+                *) : ;;
+            esac
+            mrts_package_command verify >/dev/null || return $?
+            ;;
+        *)
+            case "${MRTS_PACKAGE_ROOT:-}" in
+                "")
+                    assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || return 77
+                    mkdir -p "$MRTS_BUILD_ROOT" || return $?
+                    mrts_package_parent=$(mktemp -d "$MRTS_BUILD_ROOT/preparation.XXXXXX") || return $?
+                    MRTS_PACKAGE_ROOT="$mrts_package_parent/package"
+                    ;;
+                *) : ;;
+            esac
+            mrts_package_command prepare >/dev/null || return $?
+            ;;
+    esac
+    MRTS_PACKAGE_READY=1
+    MODSECURITY_MRTS_PREPARED=1
+    export MRTS_PACKAGE_ROOT MODSECURITY_MRTS_PREPARED
+    case "${MRTS_RUNTIME_READY:-0}" in
+        1) : ;;
+        *) mrts_bind_package_paths "$MRTS_PACKAGE_ROOT" || return $? ;;
+    esac
+    return 0
 }
 
 mrts_rule_ids() {
@@ -231,149 +302,65 @@ mrts_append_rule_preamble() {
             ;;
     esac
 
-    combined="$BUILD_ROOT/preambles/mrts-combined.load"
-    assert_safe_runtime_path "$BUILD_ROOT/preambles" MRTS_PREAMBLE_DIR || exit 77
-    assert_not_system_path_for_write "$combined" MRTS_COMBINED_PREAMBLE || exit 77
-    mkdir -p "$BUILD_ROOT/preambles"
-    {
-        printf 'Include "%s"\n' "$existing_preamble"
+    assert_safe_runtime_path "$BUILD_ROOT/preambles" MRTS_PREAMBLE_DIR || return 77
+    mkdir -p "$BUILD_ROOT/preambles" || return $?
+    combined=$(mktemp "$BUILD_ROOT/preambles/mrts-combined.XXXXXX.load") || return $?
+    assert_not_system_path_for_write "$combined" MRTS_COMBINED_PREAMBLE || return 77
+    if ! {
+        printf 'Include "%s"\n' "$existing_preamble" &&
         printf 'Include "%s"\n' "$new_preamble"
-    } > "$combined"
+    } > "$combined"; then
+        rm -f "$combined"
+        return 77
+    fi
     MODSECURITY_RULE_PREAMBLE_FILE="$combined"
     export MODSECURITY_RULE_PREAMBLE_FILE
-    return $?
+    return 0
 }
 
 mrts_import_cases() {
-    assert_safe_runtime_path "$MRTS_UPSTREAM_CASE_ROOT" MRTS_UPSTREAM_CASE_ROOT || exit 77
-    assert_safe_runtime_path "$MRTS_FEATURE_DEMO_CASE_ROOT" MRTS_FEATURE_DEMO_CASE_ROOT || exit 77
-    mkdir -p "$MRTS_UPSTREAM_CASE_ROOT" "$MRTS_FEATURE_DEMO_CASE_ROOT"
-    find "$MRTS_UPSTREAM_CASE_ROOT" "$MRTS_FEATURE_DEMO_CASE_ROOT" -type f -name '*.yaml' -exec rm -f {} \;
-    "${PYTHON:-python3}" "$FRAMEWORK_ROOT/ci/provisioning/import-mrts-cases.py" \
-        --framework-root "$FRAMEWORK_ROOT" \
-        --mrts-corpus upstream-config-tests \
-        --source-definition-dir "$MRTS_UPSTREAM_DEFINITIONS" \
-        --upstream-ftw-dir "$MRTS_GOLDEN_TESTS" \
-        --mrts-ftw-dir "$MRTS_UPSTREAM_FTW_OUT" \
-        --mrts-rules-dir "$MRTS_UPSTREAM_RULES_OUT" \
-        --output-dir "$MRTS_UPSTREAM_CASE_ROOT"
-    feature_status=pending
-    feature_reason="MRTS feature-demo corpus is optional/demo and not part of default runtime."
-    case "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" in
-        1)
-            mrts_check_feature_demo_runtime_safe
-            feature_status=computed
-            feature_reason=""
-            ;;
-        *)
-            :
-            ;;
-    esac
-    "${PYTHON:-python3}" "$FRAMEWORK_ROOT/ci/provisioning/import-mrts-cases.py" \
-        --framework-root "$FRAMEWORK_ROOT" \
-        --mrts-corpus feature-demo \
-        --source-definition-dir "$MRTS_FEATURE_DEMO_DEFINITIONS" \
-        --upstream-ftw-dir "$MRTS_FEATURE_DEMO_GOLDEN_TESTS" \
-        --mrts-ftw-dir "$MRTS_FEATURE_DEMO_FTW_OUT" \
-        --mrts-rules-dir "$MRTS_FEATURE_DEMO_RULES_OUT" \
-        --output-dir "$MRTS_FEATURE_DEMO_CASE_ROOT" \
-        --case-status "$feature_status" \
-        --pending-reason "$feature_reason"
-    return $?
+    # Import is transactional and already included in package preparation.
+    mrts_generate_all_corpora || return $?
+    return 0
 }
 
 prepare_mrts_variant() {
-    validate_mrts_variant
+    validate_mrts_variant || return $?
     case "$MODSECURITY_MRTS_VARIANT" in
-        no-mrts)
-            case "${EXTRA_CASE_ROOTS:-}" in
-                "")
-                    ;;
-                *)
-                    export EXTRA_CASE_ROOTS
-                    ;;
-            esac
-            return 0
-            ;;
-        *)
-            :
-            ;;
+        no-mrts) return 0 ;;
+        *) : ;;
     esac
-
-    case "$MODSECURITY_MRTS_PREPARED" in
-        1)
-            MRTS_LOAD_FILE="${MRTS_LOAD_FILE:-$MRTS_UPSTREAM_LOAD_FILE}"
-            if ! mrts_path_matches "$MRTS_LOAD_FILE" regular; then
-                echo "BLOCKED: prepared MRTS load file missing: $MRTS_LOAD_FILE" >&2
-                exit 77
-            fi
-            if ! mrts_path_matches "$MRTS_UPSTREAM_CASE_ROOT" directory; then
-                echo "BLOCKED: prepared MRTS case root missing: $MRTS_UPSTREAM_CASE_ROOT" >&2
-                exit 77
-            fi
-            mrts_append_rule_preamble "$MRTS_LOAD_FILE"
-            mrts_append_extra_case_root "$MRTS_UPSTREAM_CASE_ROOT"
-            mrts_append_reference_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
-            case "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" in
-                1)
-                    if ! mrts_path_matches "$MRTS_FEATURE_DEMO_LOAD_FILE" regular; then
-                        echo "BLOCKED: prepared feature-demo MRTS load file missing: $MRTS_FEATURE_DEMO_LOAD_FILE" >&2
-                        exit 77
-                    fi
-                    mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
-                    mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
-                    ;;
-                *)
-                    :
-                    ;;
-            esac
-            return 0
-            ;;
-        *)
-            :
-            ;;
+    mrts_generate_all_corpora || return $?
+    # A runner receives a private materialization, even if a prepared shared
+    # package was supplied. Repeated calls in this shell reuse only that copy.
+    case "${MRTS_RUNTIME_READY:-0}" in
+        1) return 0 ;;
+        *) : ;;
     esac
-
-    mrts_generate_all_corpora
-    MRTS_LOAD_FILE=$(MRTS_RULES_OUT="$MRTS_UPSTREAM_RULES_OUT" MRTS_LOAD_FILE="$MRTS_UPSTREAM_LOAD_FILE" sh "$FRAMEWORK_ROOT/ci/provisioning/write-mrts-load.sh")
-    mrts_append_rule_preamble "$MRTS_LOAD_FILE"
+    mrts_private_parent=$(mktemp -d "$MRTS_BUILD_ROOT/runtime.XXXXXX") || return $?
+    MRTS_RUNTIME_ROOT="$mrts_private_parent/package"
+    mrts_package_command materialize --output-root "$MRTS_RUNTIME_ROOT" \
+        --port "${MRTS_RUNTIME_PORT:-80}" >/dev/null || return $?
+    mrts_bind_package_paths "$MRTS_RUNTIME_ROOT" || return $?
+    MODSECURITY_RULE_PREAMBLE_FILE="$MRTS_BASE_RULE_PREAMBLE_FILE"
+    EXTRA_CASE_ROOTS="$MRTS_BASE_EXTRA_CASE_ROOTS"
+    mrts_append_rule_preamble "$MRTS_LOAD_FILE" || return $?
+    mrts_append_extra_case_root "$MRTS_UPSTREAM_CASE_ROOT" || return $?
     case "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" in
         1)
-            mrts_check_feature_demo_runtime_safe
-            MRTS_FEATURE_DEMO_LOAD_FILE=$(MRTS_RULES_OUT="$MRTS_FEATURE_DEMO_RULES_OUT" MRTS_LOAD_FILE="$MRTS_FEATURE_DEMO_LOAD_FILE" sh "$FRAMEWORK_ROOT/ci/provisioning/write-mrts-load.sh")
-            mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
+            mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE" || return $?
+            mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT" || return $?
             ;;
-        *)
-            :
-            ;;
+        0) : ;;
+        *) echo "BLOCKED: demo selection must be 0 or 1" >&2; return 77 ;;
     esac
-    mrts_append_extra_case_root "$MRTS_UPSTREAM_CASE_ROOT"
-    mrts_append_reference_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
-    case "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" in
-        1)
-            mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
-            return $?
-            ;;
-        *)
-            :
-            ;;
-    esac
+    MRTS_RUNTIME_READY=1
+    export MRTS_RUNTIME_ROOT
     return 0
 }
 
 prepare_mrts_runtime_variant() {
-    prepare_mrts_variant
-    case "$MODSECURITY_MRTS_VARIANT:$MODSECURITY_MRTS_PREPARED" in
-        with-mrts:1)
-            ;;
-        with-mrts:*)
-            mrts_import_cases
-            return $?
-            ;;
-        *)
-            :
-            ;;
-    esac
+    prepare_mrts_variant || return $?
     return 0
 }
 

@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "ci/provisioning/import-mrts-cases.py"
@@ -62,18 +64,12 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
             }
         )
         self.assertEqual(
-            rendered,
-            [
-                "rules: |",
-                "  SecRuleEngine On",
-                "nested:",
-                "  enabled: true",
-                "items:",
-                "  - name: value",
-                "  -",
-                "    - child",
-                "  - plain",
-            ],
+            yaml.safe_load("\n".join(rendered)),
+            {
+                "rules": "SecRuleEngine On\n",
+                "nested": {"enabled": True},
+                "items": [{"name": "value"}, ["child"], "plain"],
+            },
         )
 
         with tempfile.TemporaryDirectory() as temporary_directory:
