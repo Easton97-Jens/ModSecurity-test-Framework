@@ -49,7 +49,7 @@ HTTP_TOKEN = re.compile(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 BACKEND_KINDS = frozenset(("backend_request", "backend_chunk", "backend_body_finished", "backend_disconnect", "backend_paused_before_eos", "backend_resumed"))
 
 
-def module_at(name, path):
+def module_at(_name, path):
     module = load_source(path)
     return module
 

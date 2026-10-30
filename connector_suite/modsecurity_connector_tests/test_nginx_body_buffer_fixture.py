@@ -11,6 +11,7 @@ from modsecurity_test_framework.connector_context import connector_root, test_ro
 import ast
 import importlib.util
 import unittest
+import tempfile
 from pathlib import Path
 
 
@@ -70,6 +71,29 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
                 ("transaction_cleanup", "logging"),
             )
         ]
+
+    def test_output_root_rejects_shared_ancestor_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            shared = Path(temporary) / "shared"
+            shared.mkdir(mode=0o777)
+            shared.chmod(0o777)
+            destination = shared / "new-fixture"
+            with self.assertRaises(RUNNER_MODULE.FixtureFailure):
+                RUNNER_MODULE.require_absolute_directory(destination, "output root", create=True)
+            self.assertFalse(destination.exists())
+            self.assertEqual(shared.stat().st_mode & 0o777, 0o777)
+
+    def test_output_root_creates_private_leaf_and_preserves_existing_safe_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "new-fixture"
+            self.assertEqual(
+                RUNNER_MODULE.require_absolute_directory(destination, "output root", create=True),
+                destination,
+            )
+            self.assertEqual(destination.stat().st_mode & 0o777, 0o700)
+            destination.chmod(0o750)
+            RUNNER_MODULE.require_absolute_directory(destination, "output root", create=True)
+            self.assertEqual(destination.stat().st_mode & 0o777, 0o750)
 
     def test_fixture_configuration_keeps_the_test_module_separate(self) -> None:
         config = (FIXTURE / "config").read_text(encoding="utf-8")

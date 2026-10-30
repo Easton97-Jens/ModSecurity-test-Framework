@@ -27,6 +27,11 @@ from modsecurity_test_framework.product_sources.ci.lib.framework_revision_pins i
 )
 
 
+from modsecurity_connector_ci.lib.runtime_path_utils import (
+    canonical_project_roots, ensure_safe_runtime_directory,
+)
+
+
 ROOT = connector_root()
 
 
@@ -127,6 +132,23 @@ def prepare_sdk(root: Path, transfer: Path, revision: str) -> None:
          "--transfer", str(transfer), "--revision", revision], env=environment)
 
 
+def fresh_transfer(root: Path, transfer: Path) -> Path:
+    prefixes = root / "sdk/cache-v2/shared/prefix"
+    if (not transfer.is_absolute() or transfer.resolve() != transfer
+            or transfer.is_relative_to(prefixes) or prefixes.is_relative_to(transfer)
+            or transfer.exists() or transfer.is_symlink()
+            or any(transfer.is_relative_to(source) or source.is_relative_to(transfer)
+                   for source in canonical_project_roots())):
+        raise ValueError("SDK transfer requires a fresh canonical external directory")
+    ancestor = transfer.parent
+    while not ancestor.exists():
+        ancestor = ancestor.parent
+    verify_trusted_directory(ancestor)
+    ensure_safe_runtime_directory(transfer)
+    transfer.chmod(0o700)
+    return transfer
+
+
 def pack_sdk(root: Path, transfer: Path, revision: str) -> None:
     check_revision(revision)
     contract = framework_contract()
@@ -148,7 +170,7 @@ def pack_sdk(root: Path, transfer: Path, revision: str) -> None:
         raise ValueError("canonical SDK build provenance disagrees with its actual prefix/source")
     # Prefix siblings include the canonical Expat dependency. Preserve their
     # relative symlinks and absolute prefix locations across same-run jobs.
-    transfer.mkdir(parents=True, exist_ok=False, mode=0o700)
+    transfer = fresh_transfer(root, transfer)
     bundle = transfer / "sdk.tar.gz"
     with tarfile.open(bundle, "w:gz", dereference=False) as archive:
         archive.add(prefixes, arcname=str(prefixes.relative_to(root)))

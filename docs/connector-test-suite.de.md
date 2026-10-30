@@ -39,26 +39,32 @@ ausgewählte Fälle, Ausführungen und beobachtete Läufe sind unterschiedliche
 Größen. Eine Wiederholung ist ein weiterer Versuch, kein zusätzlicher
 eindeutiger Fall. Der Umzug aktiviert keine archivierte Kampagne.
 
-Das finale kanonische Inventar enthält
-**100 Standardfälle / 80 Ausführungen**, **2307 On-demand-Fälle / 1042
-Ausführungen**, **492 feste Framework-Testquellbindungen** und **234
-Produktquellsnapshots**. Sein kompaktes JSON umfasst **2085028 Bytes** und liegt
-unter der unveränderten Zulassungsgrenze von **2 MiB**. Dies sind Auswahl-/
+Das registrierte kanonische Inventar enthält
+**100 Standardfälle / 80 Ausführungen**, **2314 On-demand-Fälle / 1049
+Ausführungen**, **508 feste Framework-Testquellbindungen** und **234
+Produktquellsnapshots**. Sein kompaktes JSON umfasst **2096459 Bytes** und lässt
+**693 Bytes** bis zur unveränderten Zulassungsgrenze von **2097152 Bytes (2 MiB)**.
+Alle 492 bisherigen Bindungsidentitäten bleiben erhalten, alle 508 Bindungen
+werden genutzt; die ursprünglichen 1993 Falldictionaries bleiben exakt gleich. Dies sind Auswahl-/
 Quellmengen, keine Zahlen ausgeführter oder bestandener Fälle. Die Erweiterung
-fügt 55 explizite On-demand-Methoden hinzu: 28 Clean-Pair-Methoden, 14 MRTS-Paket-
+fügt 62 explizite On-demand-Methoden hinzu: 28 Clean-Pair-Methoden, 14 MRTS-Paket-
 Methoden, 3 Klassifikationsguards, 2 Prepared-/Backend-Helfermethoden, 4 Kontext-
-methoden, 2 Methoden für versiegelte Aufrufe sowie je eine Collector- und SDK-Methode; die ursprüngliche Baseline mit 1993 Fällen
+methoden, 2 Methoden für versiegelte Aufrufe sowie je eine Collector- und SDK-Methode und 7 unabhängige Quality-Guards; die ursprüngliche Baseline mit 1993 Fällen
 bleibt unverändert. Eine geschlossene geprüfte Menge von 155 neuen Zeilen mit
 Prozessausführung nutzt in 12 Modulen die Gruppe `migration-integration` mit
-aus dem Target abgeleiteten ID-Hashes; 48 reine Kontrollen behalten die Offline-
-Audit-Gruppe. Die Gruppenzuordnungen der ursprünglichen 1993 Fälle und die ASTs
-der Guardfunktionen bleiben unverändert; die ursprünglichen 40 reinen Kontrollen, beide reinen Helfermethoden und vier geschützte Kontextmethoden bestanden.
+aus dem Target abgeleiteten ID-Hashes; 55 reine Kontrollen behalten die Offline-
+Audit-Gruppe; die Prozessmodul-Allowlist bleibt unverändert. Die Gruppenzuordnungen der ursprünglichen 1993 Fälle und die ASTs
+der Guardfunktionen bleiben unverändert. Jede der sieben neuen Methoden deklariert
+einen Fall und bestand den tatsächlichen Offline-Guard vor Imports ohne Effekte,
+Quellschreibzugriffe oder Skips. Für die JSON-Größe wurde nur Zweckprosa ergänzter
+Migrationsfälle gekürzt; IDs, Varianten, Selektoren, Quellen und Tests änderten
+sich durch diese Kompaktierung nicht; die ursprünglichen 40 reinen Kontrollen, beide reinen Helfermethoden und vier geschützte Kontextmethoden bestanden.
 
 Die 120 neuen fokussierten Methoden bestanden ohne Skips, einschließlich der
 Ergebnisintegritäts-Teilmenge mit 56 Methoden / 131 expandierten Varianten und
 der geschlossenen Pfadregel-Teilmenge mit 9 Methoden / 32 expandierten Varianten.
 Frühere begrenzte Läufe bestanden 136 fokussierte Portabilitätsmethoden,
-30 öffentliche API-Methoden und 3 Makefile-Methoden. Die aktuelle lokale native
+30 öffentliche API-Methoden und 3 Makefile-Methoden. Die frühere lokale native
 Framework-CI bestand 330 Tests in 163.868 Sekunden; die exakten Workflow-Ruff-
 Lint-/Formatprüfungen bestanden alle 38 Dateien in 0.104 Sekunden, und 19 Sonar-
 Vertragsmethoden bestanden in 4.836 Sekunden. Diese lokalen Ergebnisse belegen
@@ -100,9 +106,9 @@ der sechste argv-Fall ist separat registriert. Collector-Metadaten verwenden
 exakte Bindungspaare getrennt von Nutzargumenten; eine neue reine Methode
 deklariert fünf Fälle, ohne einen Snapshot-Helfer hinzuzufügen.
 
-Der frische native Capture kompilierte alle 81 Übersetzungseinheiten in
-35.853 Sekunden mit tatsächlichen SDK-`ALL_INCS` und zugeordneten Header-
-Eingaben ohne Drift. Acht SDK-Zulassungskontrollen vor dem Recipe-Import
+Der erneuerte echte native Capture kompilierte alle 81 Übersetzungseinheiten in
+39.790 Sekunden mit tatsächlichen SDK-`ALL_INCS` und zugeordneten Header-
+Eingaben ohne Quell- oder SDK-/Header-Drift. Acht SDK-Zulassungskontrollen vor dem Recipe-Import
 und 19 native Sonar-Vertragsmethoden bestanden; die ASTs der ursprünglichen
 18 Methoden bleiben exakt erhalten. Vier neue feste Quellbindungen haben
 präzise physische Framework-Eigentümer. Die Closure erhält acht beobachtete,
@@ -112,7 +118,39 @@ wurden nicht global ausgedünnt. Die frische kanonische Security-Prüfung bestan
 Quelldrift gegen Bridge-Arbeitsfassung mit SHA-256
 `1ef4d6fb021605f52c63fef3bf522a325736ceb40457d48c94c091b1e3efc5eb`.
 Dies umfasst den separat registrierten sechsten argv-Fall mit Surrogate-Escapes.
-Finale öffentliche Selektorwiederholungen stehen noch aus.
+Die Quality-Folgekorrekturen betreffen 66 Quelldateien. Sie ersetzen 23
+S1192-Literale in 13 Dateien durch Konstanten, mit Gleichwertigkeitsprüfungen
+für 440 Funktionen. Bei 24 ungenutzten Parameterplätzen in 23 Dateien änderten
+sich nur Deklarationen; 165 betroffene Methoden haben bestandene Beobachtungen
+über begrenzte Läufe. Das breitere Ruff-Ergebnis behält unverändert seine 203
+Baseline-Befunde: Für diese Dateien wird kein vollständiger Lint-PASS behauptet.
+Sechs API-Komplexitätsrefactorings erhalten Guards und Signaturen; 1322
+differenzielle Pfade und 94 Methoden / 286 Teilfälle bestanden. Sieben Go-Helfer-
+Extraktionen in fünf Dateien erhalten nach Helfer-Inlining alle 210 ursprünglichen
+Funktions-ASTs und 112 Testdefinitionen; Normal-/Race-Läufe behalten exakt 205
+terminale Test-/Teiltestidentitäten, alle bestanden ohne Skips. Die 17 YAML-Guards
+und actionlint-/zizmor-Verträge bleiben erhalten; `default: false` des geschützten
+Callees ist wiederhergestellt. Alle 41 Trusted-/Lighttpd-Methoden / 185 Teilfälle
+bestanden unter Erhalt von 40 alten Methoden und 114 Assertions. Die Ausgabeprüfung
+bestand 39 Methoden und 13 Dateisystemprüfungen. HAProxy-Zuständigkeitsprüfungen
+bestanden 39 Methoden unter Erhalt von 25 bestehenden Methoden und allen Assertions.
+Ein begrenzter unabhängiger Review bestand 157 Methoden in 5.016 Sekunden ohne
+Findings. Zwei C-Fixture-Verfeinerungen bestanden drei vorhandene Lebensdauer-/
+Mutationsmethoden in 51.935 Sekunden; alte/neue UTF-8-Smoke-Eingaben kompilierten
+und erzeugten bytegleiches stdout. Die tatsächliche native Evaluator-Übersetzungs-
+einheit und 59 kanonische Lighttpd-Ergebnisse behalten Parität zu 40 alten
+Verträgen. Dies sind lokale Nachweise für die Quality-Folgekorrekturen. Der native Lauf
+bestand 330 Tests in 162.737 Sekunden (äußerer Aufruf: 165.525 Sekunden). Erst
+danach scheiterte sein Folgeschritt, weil der Wrapper System-Python ohne PyYAML
+nutzte; der korrigierte Folgeschritt mit Framework-Interpreter bestand die exakten
+38-Dateien-Ruff-Lint-/Formatprüfungen und 19 Sonar-Vertragsmethoden in 4.838
+Sekunden ohne Installation. Ein Fünf-Connector-Konstantenmodul brauchte
+Formatierung; sein vollständiger AST ist identisch. Alle sechs Generator-/
+Prüfschritte bestanden danach erneut. Alle 15 ausgewählten öffentlichen Methoden
+und alle 15 impliziten Auswahlablehnungen bestanden ohne Skips bei bestandener
+Inventarzulassung. Diese öffentlichen Prüfungen gingen der reinen Formatkorrektur
+voraus; die erneute Zulassung danach bleibt eine separate Prüfung. Die Abnahme
+des nächsten committeten Paars und gehostete New-Head-Gates bleiben erforderlich.
 
 Die CI-Triage identifizierte drei getrennte Migrationsursachen: An der zweiten
 `sudo`-/`env -i`-Grenze verliert NGINX die vertrauenswürdige Run-ID; Envoy CRS
@@ -130,7 +168,7 @@ meldet 80 `former_xfail`- und 10 `mapped_only`-Einträge; Lese- und Fingerprint-
 SHA-256 stimmen überein. Private Framework-/Produkt-Decoy-Kontrollen und der
 bestehende `framework:`-Resolver bestanden. Dies sind lokale Grenz- und Generator-
 nachweise ohne Live-Host-Lauf. Das veröffentlichte Paar `e77`/`4391` bestand
-getrennt. Ein neues Source-Owner-Korrekturpaket mit 13 Dateien ist uncommittet:
+getrennt. Das frühere Source-Owner-Korrekturpaket mit 13 Dateien belegte diese lokalen Prüfungen:
 Start-/Remaining-/HAP-C- sowie Common-SDK-/Security-Prüfungen wählen die echten
 Framework-Make-/Quelleigentümer. Tatsächliche Common-Helfer-C/C++-Kompilierung
 erhält die drei Test-Heredocs und 679 Assertions sowie zwei Framework-Ergebnis-
@@ -143,8 +181,8 @@ NGINX-Request-Window-/Case-Info-Verarbeitung bindet die zugelassene Logs-Wurzel
 und unterstützt deren Geschwisterlayout: 62 vorhandene Methoden bestanden in
 30.853 Sekunden bei unveränderten strengen Lesern. Die aktuelle gehostete CI
 hat 12 bekannte Fehler durch alte Make-Orakel und den NGINX-Wurzelpfad. Die
-öffentliche Parent-/Framework-Source-Owner-Abnahme nach Binding-Refresh steht
-aus; für das neue Harness wird kein Live-Host-PASS und kein frischer kompletter
+öffentlichen Parent-/Framework-Selektorlaufergebnisse nach erfolgreicher
+Inventaraktualisierung stehen noch aus; für das neue Harness wird kein Live-Host-PASS und kein frischer kompletter
 Standardlauf behauptet.
 
 Der Umzug von 1295 Quellpfaden ist von Deduplizierung zu unterscheiden. Die
@@ -226,8 +264,10 @@ ganzen Archivs; diese belegt keine Runtime- oder CI-Aussagen.
 
 Die minimale NGINX-Configure-Probe bestand mit vorhandenen checksum-verifizierten
 Archiven; die SDK-Korrektur nutzt das tatsächliche `BUILD_ROOT`-SDK mit expliziten
-Include-/Library-Pfaden. Die C-Family-Quellbytes bleiben identisch; dafür wird
-keine erneute Erfassung der 81 Einheiten behauptet. 11 bestehende Kontexttests und vier negative CLI-Kontrollen bestanden
+Include-/Library-Pfaden. C-Family-Bytegleichheit beschreibt diese frühere reine
+SDK-Phase. Anfängliche Byte-Erhalt-Aussagen einschließlich der 35 Go-Dateien
+betreffen den ersten Transfer; spätere explizite C-/Go-Verfeinerungen nutzen die
+oben genannten semantischen Nachweise. 11 bestehende Kontexttests und vier negative CLI-Kontrollen bestanden
 ebenfalls. Configure-Erfolg belegt diese Build-/Konfigurationsschicht, keinen
 Laufzeit-Lifecycle. Die tatsächliche C-Family-Erfassung wurde nach der Zerlegung zweimal abgeschlossen:
 81 Übersetzungseinheiten erzeugten 81 eindeutige Objekte; beide Läufe bestanden
@@ -263,7 +303,14 @@ vollständige Framework-Analyse von `4391a424f34ea9c7b7ed09fd1df72a38a23cb909`
 verfehlte ihr Gate mit Zuverlässigkeit B und Security E: 280 ungelöste Issues
 (86 von Sonar klassifizierte Schwachstellen, 193 Code-Smells, ein Bug), null
 Hotspots und 0.0% Duplikation. Diese Kategorien sind keine unabhängig validierten
-Exploits. Beide Issue-Inventare sind vollständig. Das uncommittete Source-Owner-Paket hat
+Exploits. Beide Issue-Inventare sind vollständig. Nach ausdrücklicher Nutzerfreigabe erhielten acht einzeln geprüfte Modellfehler-
+Findings issuespezifische Belegkommentare und Status `FALSE_POSITIVE`; die Server-
+Rücklesung verifizierte jede Disposition gegen unveränderte Quellhashes am exakten
+Head `4391`. Dies ist weder pauschale Disposition noch Risikoakzeptanz oder
+Regeländerung. Die frische headgebundene Rücklesung zeigt jetzt 272 ungelöste
+Issues (78 von Sonar klassifizierte Schwachstellen, 193 Code-Smells, ein Bug),
+null Hotspots und weiterhin Framework-Gate `ERROR`. Der erste Snapshot mit 280
+Issues bleibt historisch; lokale Codekorrekturen brauchen weiterhin eine neue Analyse. Die Quality-Folgekorrekturen haben
 keine erneuerte gehostete Abnahme. Framework hat kein sauberes Quality Gate und ist nicht mergebereit;
 keiner der Migrations-PRs ist gemergt.
 
@@ -464,7 +511,7 @@ UID-1001-Bridge stellte 11 Exporte bereit, das private Ausgabeverzeichnis behiel
 Modus 0700 und die Wrong-Pin-Kontrolle lehnte mit Exit 77 ab. Alle 90 Updater-
 Methoden / 216 Teilfälle bestanden ohne Skips über den 39-Methoden-Lauf
 (93.183 Sekunden) und den 51-Methoden-Lauf (77.813 Sekunden). Diese Paarnachweise
-gehen den uncommitteten Source-Owner-Korrekturen voraus; die Abnahme des nächsten
+gehen den Quality-Folgekorrekturen voraus; die Abnahme des nächsten
 committeten Paars muss erneuert werden. Der frühere
 veraltete DEV-Versuch bleibt abgelehnt. Frühere Apache-H1-Kontrollen auf
 `cfd5e49` / `e52d7d4` behalten ihren begrenzten 28.625-Sekunden-Beleg. Nach den

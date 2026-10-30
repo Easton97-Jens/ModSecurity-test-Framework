@@ -19,7 +19,7 @@ CASES = ('allow', 'p1-deny', 'p2-deny', 'engine-limit', 'limit-boundary',
          'observer-no-handle', 'observer-invalid-handle', 'mrc1-error',
          'auth-cap-boundary', 'auth-cap-overlimit', 'neighbor')
 
-def load(path, name):
+def load(path, _name):
     module = load_source(path)
     return module
 

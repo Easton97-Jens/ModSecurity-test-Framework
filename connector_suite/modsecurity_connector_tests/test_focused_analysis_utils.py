@@ -9,7 +9,6 @@ import io
 import json
 import sys
 import tempfile
-import textwrap
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -120,28 +119,27 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
             script_path.parent.mkdir(parents=True)
             connector_root.mkdir()
             report_dir.mkdir(parents=True)
-            script_path.write_text(
-                textwrap.dedent(
-                    """
-                    def render_markdown(entries, source_counts, runtime_source_counts, generated_at):
-                        return f"# Queue\\n{len(entries)}:{generated_at}:{source_counts['full']}:{runtime_source_counts['runtime']}"
-                    """
-                ).lstrip(),
-                encoding="utf-8",
-            )
+            script_path.write_text("# Fixture metadata; the generator interface is explicit below.\n", encoding="utf-8")
+
+            def render_markdown(entries, source_counts, runtime_source_counts, generated_at):
+                return f"# Queue\n{len(entries)}:{generated_at}:{source_counts['full']}:{runtime_source_counts['runtime']}"
+
+            module = SimpleNamespace(render_markdown=render_markdown)
             report_path_safety.add_safe_roots(connector_root, framework_root, report_dir)
             report_path_safety.add_report_roots(report_dir)
 
-            UTILS.render_connector_work_queue_markdown(
-                report_dir,
-                {
-                    "entries": [{"case_id": "one"}],
-                    "source_counts": {"full": 1},
-                    "runtime_source_counts": {"runtime": 2},
-                    "generated_at": GENERATED_AT,
-                },
-                framework_root,
-            )
+            with patch.object(UTILS, "import_script", return_value=module) as load_generator:
+                UTILS.render_connector_work_queue_markdown(
+                    report_dir,
+                    {
+                        "entries": [{"case_id": "one"}],
+                        "source_counts": {"full": 1},
+                        "runtime_source_counts": {"runtime": 2},
+                        "generated_at": GENERATED_AT,
+                    },
+                    framework_root,
+                )
+            load_generator.assert_called_once_with(script_path, "connector_work_queue_generator")
 
             output_path = generated_report_utils.report_path_from_root(report_dir, "connector_work_queue", "md")
             rendered = output_path.read_text(encoding="utf-8")
@@ -158,38 +156,31 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
             connector_root.mkdir()
             report_dir.mkdir(parents=True)
             script_path.parent.mkdir(parents=True)
-            script_path.write_text(
-                textwrap.dedent(
-                    """
-                    import json
-                    from pathlib import Path
+            script_path.write_text("# Fixture metadata; the generator interface is explicit below.\n", encoding="utf-8")
 
-                    def phase_work_direction(entry):
-                        return ["original"]
+            def original_direction(_entry):
+                return ["original"]
 
-                    def read_json(path):
-                        return json.loads(Path(path).read_text(encoding="utf-8"))
+            def read_json(path):
+                return json.loads(Path(path).read_text(encoding="utf-8"))
 
-                    def read_json_optional(path):
-                        return read_json(path)
+            def build_payload(connector_work_queue, _phase_coverage, _full_runtime_matrix,
+                              _framework_root, _connector_root, inputs):
+                if connector_work_queue.get("raise_error"):
+                    raise RuntimeError("controlled build failure")
+                return {
+                    "generated_at": "2026-07-29T00:00:00Z",
+                    "directions": [module.phase_work_direction(entry) for entry in connector_work_queue["entries"]],
+                    "inputs": inputs,
+                }
 
-                    def parse_phase_coverage(path):
-                        return Path(path).read_text(encoding="utf-8")
-
-                    def build_payload(connector_work_queue, phase_coverage, full_runtime_matrix, framework_root, connector_root, inputs):
-                        if connector_work_queue.get("raise_error"):
-                            raise RuntimeError("controlled build failure")
-                        return {
-                            "generated_at": "2026-07-29T00:00:00Z",
-                            "directions": [phase_work_direction(entry) for entry in connector_work_queue["entries"]],
-                            "inputs": inputs,
-                        }
-
-                    def render_markdown(payload):
-                        return "# Phase Work\\n" + str(payload["directions"])
-                    """
-                ).lstrip(),
-                encoding="utf-8",
+            module = SimpleNamespace(
+                phase_work_direction=original_direction,
+                read_json=read_json,
+                read_json_optional=read_json,
+                parse_phase_coverage=lambda path: Path(path).read_text(encoding="utf-8"),
+                build_payload=build_payload,
+                render_markdown=lambda payload: "# Phase Work\n" + str(payload["directions"]),
             )
             report_path_safety.add_safe_roots(connector_root, framework_root, report_dir)
             report_path_safety.add_report_roots(report_dir)
@@ -201,20 +192,22 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
             coverage_path.write_text("coverage\n", encoding="utf-8")
             matrix_path.write_text("{}\n", encoding="utf-8")
             queue_path.write_text(json.dumps({"entries": [{"case_id": "selected"}, {"case_id": "other"}]}), encoding="utf-8")
-            self.addCleanup(sys.modules.pop, "phase_work_queue_generator", None)
 
             def override(entry: dict[str, object], original, _module) -> list[str]:
                 return ["override"] if entry.get("case_id") == "selected" else original(entry)
 
-            UTILS.regenerate_phase_work_queue(report_dir, framework_root, connector_root, override)
-            payload = json.loads(
-                generated_report_utils.report_path_from_root(report_dir, "phase_work_queue", "json").read_text(encoding="utf-8")
-            )
-            module = sys.modules["phase_work_queue_generator"]
-
-            queue_path.write_text(json.dumps({"raise_error": True, "entries": []}), encoding="utf-8")
-            with self.assertRaisesRegex(RuntimeError, "controlled build failure"):
+            with patch.object(UTILS, "import_script", return_value=module) as load_generator:
                 UTILS.regenerate_phase_work_queue(report_dir, framework_root, connector_root, override)
+                load_generator.assert_called_once_with(script_path, "phase_work_queue_generator")
+                payload = json.loads(
+                    generated_report_utils.report_path_from_root(report_dir, "phase_work_queue", "json").read_text(encoding="utf-8")
+                )
+
+                queue_path.write_text(json.dumps({"raise_error": True, "entries": []}), encoding="utf-8")
+                load_generator.reset_mock()
+                with self.assertRaisesRegex(RuntimeError, "controlled build failure"):
+                    UTILS.regenerate_phase_work_queue(report_dir, framework_root, connector_root, override)
+                load_generator.assert_called_once_with(script_path, "phase_work_queue_generator")
 
         self.assertEqual(payload["directions"], [["override"], ["original"]])
         self.assertEqual(module.phase_work_direction({"case_id": "selected"}), ["original"])
@@ -800,15 +793,22 @@ class FocusedAnalysisUtilsTest(unittest.TestCase):
 
     def test_dynamic_module_loading_keeps_the_module_registration_contract(self) -> None:
         module_name = "focused_analysis_utils_dynamic_module"
-        self.addCleanup(sys.modules.pop, module_name, None)
+        script_path = source_path("ci/lib/case_metadata_utils.py", root=ROOT)
+        module = UTILS.import_script(script_path, module_name)
+
+        self.assertEqual(Path(module.__file__).resolve(), script_path.resolve())
+        self.assertIs(sys.modules[module.__name__], module)
+        self.assertNotIn(module_name, sys.modules)
+
+    def test_dynamic_module_loading_rejects_external_source_and_leaves_no_alias(self) -> None:
+        module_name = "focused_analysis_utils_external_source"
         with tempfile.TemporaryDirectory(prefix="focused-analysis-utils-") as temporary:
             script_path = Path(temporary) / "dynamic_module.py"
-            script_path.write_text("VALUE = 41\n", encoding="utf-8")
+            script_path.write_text('raise AssertionError("untrusted source executed")\n', encoding="utf-8")
 
-            module = UTILS.import_script(script_path, module_name)
-
-        self.assertEqual(module.VALUE, 41)
-        self.assertIs(sys.modules[module_name], module)
+            with self.assertRaises(ValueError):
+                UTILS.import_script(script_path, module_name)
+        self.assertNotIn(module_name, sys.modules)
 
 # Parent default discovery uses the one admitted active-case inventory.
 if __import__("os").environ.get("ON_DEMAND_TESTS") != "1":

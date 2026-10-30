@@ -6,12 +6,11 @@ The producer-owned JSON contract declares target, revision, artifact, sources
 Unknown archives, missing objects, mixed variants and copied product sources
 are rejected. This is build provenance, not a server-side taint success proof.
 """
-from modsecurity_test_framework.connector_context import load_source
+from modsecurity_test_framework.connector_context import load_source, source_path
 
 import argparse
 import ast
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
 import re
@@ -81,7 +80,7 @@ def external_admission(contract, checkout):
         return haproxy_external_admission(sources, context, checkout)
     if context["host"] != "nginx":
         raise ValueError("external source host has no admitted native producer")
-    pin_contract = checkout / "ci/provisioning/components/prepare-runtime-components.py"
+    pin_contract = source_path("ci/provisioning/components/prepare-runtime-components.py", root=checkout)
     if context["pin_contract"] != str(pin_contract) or digest(pin_contract) != context["pin_contract_sha256"]:
         raise ValueError("external source pin contract changed")
     tree = ast.parse(pin_contract.read_text())
@@ -275,7 +274,13 @@ class _CapturedGraph:
 def _declared_sources(contract, checkout):
     expected = set()
     for name in contract["sources"]:
-        path = checkout / name
+        path = (source_path(name, root=checkout)
+                if contract["target"] == "common-targeted-evaluator"
+                and name == "common/scripts/modsecurity_targeted_eval.cc" else checkout / name)
+        if (contract["target"] == "common-targeted-evaluator"
+                and name == "common/scripts/modsecurity_targeted_eval.cc"
+                and path != checkout / "modules/ModSecurity-test-Framework/connector_suite/common/scripts/modsecurity_targeted_eval.cc"):
+            raise ValueError("native evaluator requires the selected Framework at the authenticated nested gitlink")
         if (Path(name).is_absolute() or ".." in Path(name).parts or not path.is_file()
                 or any(character in name for character in ",\r\n\0")):
             raise ValueError("declared target source is not a checkout file")

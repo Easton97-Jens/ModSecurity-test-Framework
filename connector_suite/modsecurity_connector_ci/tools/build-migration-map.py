@@ -28,6 +28,12 @@ from modsecurity_test_framework.connector_context import (
     load_source,
 )
 
+_ACTIVE_INVENTORY_SOURCE = 'connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py'
+_CONNECTOR_MAKEFILE_SOURCE = 'connector_suite/connector.mk'
+_CONNECTOR_CLI_SOURCE = 'modsecurity_test_framework/connector.py'
+_UNASSESSED_TEXT = 'not assessed'
+
+
 INITIAL_BASE = "c5993ed9a7b59fc0bd58f105595ec79f596c88d6"
 UPDATED_BASE = "ec18f9e92286379a2410e917f76e6a5502675804"
 FRAMEWORK_BASE = "3a4f2281568139d94fda6b51dc2e07bb8fc06c67"
@@ -253,7 +259,7 @@ def caller_lines(sources):
     return rows
 
 
-def related(row, callers, *, legacy=False):
+def related(row, callers):
     selector = row["selector"]
     matches = []
     for caller in callers:
@@ -623,7 +629,7 @@ def declared_prerequisites(owner, path, text, selector=None, parsed=None):
 
 def inventory_driver_declarations(text):
     """Bind each selector kind to the actual AST argv construction, not line layout."""
-    path = "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py"
+    path = _ACTIVE_INVENTORY_SOURCE
     result = {}
     for node in ast.walk(ast.parse(text)):
         if not isinstance(node, (ast.Return, ast.Assign)):
@@ -679,7 +685,7 @@ def prerequisite_catalog(rows, product, framework, mapping):
     catalog = {}
     parsed_sources = {}
     driver_path = (
-        "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py"
+        _ACTIVE_INVENTORY_SOURCE
     )
     drivers = inventory_driver_declarations((framework / driver_path).read_text())
     for row in sorted(
@@ -860,9 +866,9 @@ def current_caller_sources(product, framework, rows):
     ]
     fixed = (
         "Makefile",
-        "connector_suite/connector.mk",
-        "modsecurity_test_framework/connector.py",
-        "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py",
+        _CONNECTOR_MAKEFILE_SOURCE,
+        _CONNECTOR_CLI_SOURCE,
+        _ACTIVE_INVENTORY_SOURCE,
         "connector_native_tests/invoke.py",
         "connector_native_tests/go_invoke.py",
         "connector_native_tests/run.py",
@@ -971,7 +977,7 @@ def definition_routes(archive, callers, framework, rows, mapping):
                 if relative.endswith(".py")
                 else None,
                 "automatic_selection": "not inferred; source-owned load_tests and the Connector inventory remain authoritative",
-                "observed_execution": "not assessed",
+                "observed_execution": _UNASSESSED_TEXT,
             }
         )
     for source in archive["native_sources"]:
@@ -1011,7 +1017,7 @@ def definition_routes(archive, callers, framework, rows, mapping):
                     if entry["framework_path"] == relative
                 },
                 "automatic_selection": "not inferred; native source/reference or preserved helper availability is not a selected or executed independent case",
-                "observed_execution": "not assessed",
+                "observed_execution": _UNASSESSED_TEXT,
             }
         )
     return routes
@@ -1034,7 +1040,7 @@ def requirement_ownership(mapping, sources, framework):
     shared.extend(
         path
         for path in (
-            "modsecurity_test_framework/connector.py",
+            _CONNECTOR_CLI_SOURCE,
             "modsecurity_test_framework/connector_context.py",
             "modsecurity_test_framework/workflow_sources.py",
             "connector_native_tests/invoke.py",
@@ -1074,7 +1080,7 @@ def requirement_ownership(mapping, sources, framework):
         for path in (
             "modsecurity_test_framework/connector_integration.py",
             "tests/connector_adapter/test_connector_integration.py",
-            "connector_suite/connector.mk",
+            _CONNECTOR_MAKEFILE_SOURCE,
         )
         if (framework / path).is_file()
     ]
@@ -1197,7 +1203,7 @@ def generate():
     current_sources = current_caller_sources(product, framework, current)
     callers_by_id = {row["id"]: row for row in caller_lines(current_sources)}
     driver_path = (
-        "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py"
+        _ACTIVE_INVENTORY_SOURCE
     )
     for declaration in inventory_driver_declarations(
         (framework / driver_path).read_text()
@@ -1208,8 +1214,8 @@ def generate():
     # not proof that any particular archived selector ran.
     entrypoints = []
     for relative in (
-        "modsecurity_test_framework/connector.py",
-        "connector_suite/connector.mk",
+        _CONNECTOR_CLI_SOURCE,
+        _CONNECTOR_MAKEFILE_SOURCE,
     ):
         for line, text in enumerate((framework / relative).read_text().splitlines(), 1):
             if (
@@ -1242,7 +1248,7 @@ def generate():
                 "prerequisites": {
                     "catalog_execution_id": row["execution_id"],
                     "declared_case_profiles": row["profiles"],
-                    "availability": "not assessed",
+                    "availability": _UNASSESSED_TEXT,
                     "source": "prerequisite_catalog",
                 },
                 "public_entrypoints": [item["id"] for item in entrypoints],

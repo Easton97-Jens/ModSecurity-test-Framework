@@ -15,7 +15,7 @@ PREPARATION_RECEIPT = 'acceptance-preparation.json'
 
 HERE=Path(__file__).resolve().parent
 
-def module(path,name):
+def module(path,_name):
  value = load_source(path);return value
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 def save(path,value):path.write_text(json.dumps(value,indent=2)+'\n')

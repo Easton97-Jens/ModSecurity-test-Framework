@@ -60,7 +60,7 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def load(name, path):
+def load(_name, path):
     module = load_source(path)
     return module
 

@@ -516,6 +516,10 @@ write_matrix_port_plan() {
                 return 2
             fi
             ;;
+        *)
+            # Other baseline values do not enable the optional selector guard.
+            :
+            ;;
     esac
     set -- "$PYTHON" "$FULL_MATRIX_PORT_PLANNER" \
         --port-span "$FULL_MATRIX_PORT_SPAN" \

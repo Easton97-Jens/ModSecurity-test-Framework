@@ -49,26 +49,7 @@ func (t *requestFaultTransaction) RecordHostAction(context.Context, processor.Ho
 func TestI10AuthzTechnicalFailureCannotBecomeAllowOrStaleRule(t *testing.T) {
 	for _, stage := range []string{"p1", "p2"} {
 		t.Run(stage, func(t *testing.T) {
-			opener := &requestFaultOpener{stage: stage}
-			coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer coordinator.Close()
-			server, err := NewAuthzServer(coordinator)
-			if err != nil {
-				t.Fatal(err)
-			}
-			response, err := server.Check(context.Background(), authCheckRequest([]byte("body")))
-			if err == nil || response != nil {
-				t.Fatalf("technical failure became successful authz response: response=%v error=%v", response, err)
-			}
-			if opener.tx.actions != 0 || opener.tx.headers != 1 || opener.tx.closed != 1 {
-				t.Fatalf("callbacks/actions/cleanup: %+v", opener.tx)
-			}
-			if stage == "p1" && opener.tx.body != 0 {
-				t.Fatal("P1 failure reached P2")
-			}
+			assertAuthzTechnicalFailureRemainsTerminal(t, stage)
 		})
 	}
 }
@@ -159,5 +140,29 @@ func assertCompanionInterruptionIsTerminal(t *testing.T, recvErr error, bodyStar
 	}
 	if len(stream.responses) != wantResponses || opener.tx.commits != 1 || len(opener.tx.actions) != 0 {
 		t.Fatal("interruption fabricated a second response or an observed action")
+	}
+}
+
+func assertAuthzTechnicalFailureRemainsTerminal(t *testing.T, stage string) {
+	t.Helper()
+	opener := &requestFaultOpener{stage: stage}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer coordinator.Close()
+	server, err := NewAuthzServer(coordinator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := server.Check(context.Background(), authCheckRequest([]byte("body")))
+	if err == nil || response != nil {
+		t.Fatalf("technical failure became successful authz response: response=%v error=%v", response, err)
+	}
+	if opener.tx.actions != 0 || opener.tx.headers != 1 || opener.tx.closed != 1 {
+		t.Fatalf("callbacks/actions/cleanup: %+v", opener.tx)
+	}
+	if stage == "p1" && opener.tx.body != 0 {
+		t.Fatal("P1 failure reached P2")
 	}
 }

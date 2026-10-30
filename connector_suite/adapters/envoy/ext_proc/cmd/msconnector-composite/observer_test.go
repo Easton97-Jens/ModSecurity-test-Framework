@@ -462,45 +462,50 @@ func TestCompositeObserverRetainsCloseAndValidationFailures(t *testing.T) {
 	for _, mode := range []string{"close", "validation", "serialization"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()
-			path := filepath.Join(t.TempDir(), "events.jsonl")
-			observer, _, err := newCompositeObserver(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var first error
-			if mode == "close" {
-				if err := observer.file.Close(); err != nil {
-					t.Fatal(err)
-				}
-				first = observer.Close()
-			} else if mode == "serialization" {
-				event := sinkTestEvent()
-				oversized := strings.Repeat("\x01", 256)
-				event.DecisionID, event.Connector, event.Outcome, event.Reason = oversized, oversized, oversized, oversized
-				event.RequestPath, event.ResponsePath, event.Transport = oversized, oversized, oversized
-				if err := validateCompositeEvent(event); err != nil {
-					t.Fatalf("serialization fixture validation = %v, want valid metadata", err)
-				}
-				first = observer.Observe(event)
-			} else {
-				first = observer.Observe(composite.Event{})
-			}
-			if first == nil {
-				t.Fatal("failing operation = nil, want error")
-			}
-			if got := observer.Observe(sinkTestEvent()); got != first {
-				t.Fatalf("Observe(after failure) = %v, want %v", got, first)
-			}
-			if got := observer.Close(); got != first {
-				t.Fatalf("Close(after failure) = %v, want %v", got, first)
-			}
-			content, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(content) != 0 {
-				t.Fatalf("Observe(after failure) wrote %d bytes, want 0", len(content))
-			}
+			assertCompositeObserverFailureRetained(t, mode)
 		})
+	}
+}
+
+func assertCompositeObserverFailureRetained(t *testing.T, mode string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	observer, _, err := newCompositeObserver(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var first error
+	if mode == "close" {
+		if err := observer.file.Close(); err != nil {
+			t.Fatal(err)
+		}
+		first = observer.Close()
+	} else if mode == "serialization" {
+		event := sinkTestEvent()
+		oversized := strings.Repeat("\x01", 256)
+		event.DecisionID, event.Connector, event.Outcome, event.Reason = oversized, oversized, oversized, oversized
+		event.RequestPath, event.ResponsePath, event.Transport = oversized, oversized, oversized
+		if err := validateCompositeEvent(event); err != nil {
+			t.Fatalf("serialization fixture validation = %v, want valid metadata", err)
+		}
+		first = observer.Observe(event)
+	} else {
+		first = observer.Observe(composite.Event{})
+	}
+	if first == nil {
+		t.Fatal("failing operation = nil, want error")
+	}
+	if got := observer.Observe(sinkTestEvent()); got != first {
+		t.Fatalf("Observe(after failure) = %v, want %v", got, first)
+	}
+	if got := observer.Close(); got != first {
+		t.Fatalf("Close(after failure) = %v, want %v", got, first)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(content) != 0 {
+		t.Fatalf("Observe(after failure) wrote %d bytes, want 0", len(content))
 	}
 }

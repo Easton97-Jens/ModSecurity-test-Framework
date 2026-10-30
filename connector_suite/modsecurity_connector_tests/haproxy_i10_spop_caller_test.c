@@ -422,7 +422,10 @@ static void check_owner_outcome_event(agent_state *state, int phase, int fault, 
   assert(context.command.decision == &context.outcome_decision);
   memset(borrowed_reason, 'X', sizeof(borrowed_reason) - 1U);
   memset(borrowed_intervention_log, 'X', sizeof(borrowed_intervention_log) - 1U);
-  if (fault < 2) assert(strcmp(context.command.decision->reason, "SECRET-INPUT-NATIVE-LOG") == 0);
+  if (fault < 2) {
+    assert(context.command.decision->reason != NULL);
+    assert(strcmp(context.command.decision->reason, "SECRET-INPUT-NATIVE-LOG") == 0);
+  }
   if (fault == 3) msconnector_error_set(&state->decision_log_error,
       MSCONNECTOR_ERROR_IO, "earlier sink failure", "test");
   unsigned int before = native_cleanups;

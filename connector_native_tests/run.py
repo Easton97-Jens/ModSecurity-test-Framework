@@ -16,6 +16,9 @@ import sys
 import tempfile
 
 
+_COMMON_RUNTIME_PATH = 'common/runtime'
+
+
 SIMPLE_TARGETS = {
     "envoy-bridge": ("envoy", "envoy_bridge", "msconnector_envoy_bridge_self_test()"),
     "lighttpd-bridge": ("lighttpd", "lighttpd_bridge", "msconnector_lighttpd_bridge_self_test() != MSCONNECTOR_STATUS_OK"),
@@ -130,7 +133,7 @@ def run(args: argparse.Namespace) -> int:
     source = directory / "test.c"
     source.write_text(translation_unit(args.target, connector, tests), encoding="utf-8")
     flags = ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread"]
-    for include in (connector, connector / "common/include", connector / "common/runtime",
+    for include in (connector, connector / "common/include", connector / _COMMON_RUNTIME_PATH,
                     connector / "connectors/traefik", connector / "connectors/traefik/src",
                     connector / "connectors/haproxy/src", connector / "connectors/envoy/src"):
         flags.extend(("-I", str(include)))
@@ -142,7 +145,7 @@ def run(args: argparse.Namespace) -> int:
                     for name in ("origin", "capabilities", "intervention", "block_statuses", "http_status", "status", "transaction")]
     else:
         sources += sorted((connector / "common/src").glob("*.c"))
-        sources += sorted((connector / "common/runtime").glob("*.c"))
+        sources += sorted((connector / _COMMON_RUNTIME_PATH).glob("*.c"))
         sources.append(connector / "connectors/profile_registry.c")
         if args.target.startswith("haproxy-"):
             sources.append(connector / "connectors/haproxy/src/haproxy_modsecurity_mapper.c")
@@ -156,7 +159,7 @@ def run(args: argparse.Namespace) -> int:
     # build as proof of the immutable HEAD's source bytes.
     bound = set(sources)
     bound.update((connector / "common/include").rglob("*.h"))
-    bound.update((connector / "common/runtime").glob("*.h"))
+    bound.update((connector / _COMMON_RUNTIME_PATH).glob("*.h"))
     if args.target in SIMPLE_TARGETS:
         family, stem, _ = SIMPLE_TARGETS[args.target]
         product_source = connector / f"connectors/{family}/src/{stem}.c"

@@ -11,7 +11,7 @@ import re
 HERE = Path(__file__).resolve().parent
 
 
-def _load(name, filename):
+def _load(_name, filename):
     module = load_source(HERE / filename)
     return module
 

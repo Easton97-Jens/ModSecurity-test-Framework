@@ -1,11 +1,10 @@
 """Static trust contracts for the protected Lighttpd namespace dispatcher."""
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, test_root
 
 import re
 import unittest
-from pathlib import Path
 
 
 ROOT = connector_root()
@@ -69,7 +68,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             errors.append("workflow must expose only target and the explicit on-demand selector")
         require_markers(
             errors, trigger_body, "explicit specialist selection",
-            ("      on_demand:\n", "        type: boolean\n        default: false"),
+            ("      on_demand:\n", "        required: true\n        type: boolean"),
         )
         require_markers(
             errors,
@@ -668,7 +667,7 @@ def trusted_dispatch_errors(text: str) -> list[str]:
             "GIT_TERMINAL_PROMPT=0",
             "LIGHTTPD_REQUIRE_NAMESPACE_INTEGRATION=1",
             "LIGHTTPD_REQUIRE_UNPRIVILEGED_TEST_RUNNER=1",
-            f"LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT=\"$TEMP_ROOT\"",
+            "LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT=\"$TEMP_ROOT\"",
             f"/usr/bin/dash -eu {SOURCE_TEST_RUNNER}",
         ),
     )
@@ -855,6 +854,7 @@ class TrustedLighttpdNamespaceDispatchWorkflowTest(unittest.TestCase):
         self.assertEqual(trusted_dispatch_errors(WORKFLOW.read_text(encoding="utf-8")), [])
         parent = PARENT_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("  workflow_dispatch:", parent)
+        self.assertIn("        type: boolean\n        default: false", parent)
         self.assertNotIn("  pull_request:", parent)
         self.assertNotIn("  pull_request_target:", parent)
         self.assertIn("ModSecurity-test-Framework/.github/workflows/connector-trusted-lighttpd-namespace.yml@", parent)

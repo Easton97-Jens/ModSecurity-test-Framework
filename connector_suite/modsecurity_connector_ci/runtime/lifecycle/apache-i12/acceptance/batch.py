@@ -47,7 +47,7 @@ cancellation = load_tool('ci/runtime/lifecycle/apache-i12/acceptance/cancellatio
 
 
 
-def load_module(name, path):
+def load_module(_name, path):
     module = load_source(path)
     return module
 

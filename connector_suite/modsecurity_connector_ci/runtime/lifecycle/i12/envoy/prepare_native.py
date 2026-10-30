@@ -53,7 +53,7 @@ def sha(path):
     return evidence_io.reference(path, roots)["sha256"]
 
 
-def load(path, name):
+def load(path, _name):
     module = load_source(path)
     return module
 

@@ -166,25 +166,7 @@ func TestCheckRejectsIncompleteOrAmbiguousBodyBeforeAdmission(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, size := range []int{1, 64} {
-				opener := &recordingOpener{}
-				coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, nil)
-				if err != nil {
-					t.Fatal(err)
-				}
-				server, err := NewAuthzServer(coordinator)
-				if err != nil {
-					coordinator.Close()
-					t.Fatal(err)
-				}
-				req := authCheckRequest(make([]byte, size))
-				h := req.GetAttributes().GetRequest().GetHttp()
-				h.Headers = tc.headers
-				h.HeaderMap = &corev3.HeaderMap{Headers: tc.raw}
-				response, err := server.Check(context.Background(), req)
-				coordinator.Close()
-				if status.Code(err) != codes.InvalidArgument || response != nil || opener.opens != 0 || opener.eos {
-					t.Fatalf("Check(%s,size=%d) response=%v err=%v opens=%d eos=%v, want InvalidArgument before native open/EOS/lease", tc.name, size, response, err, opener.opens, opener.eos)
-				}
+				assertIncompleteBodyRejectedBeforeAdmission(t, tc, size)
 			}
 		})
 	}
@@ -193,29 +175,7 @@ func TestCheckRejectsIncompleteOrAmbiguousBodyBeforeAdmission(t *testing.T) {
 func TestCheckForwardsCompleteBodyBeyondHostFixtureBuffer(t *testing.T) {
 	for _, marker := range []string{"absent", "false", "raw false"} {
 		t.Run(marker, func(t *testing.T) {
-			opener := &recordingOpener{}
-			coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer coordinator.Close()
-			server, err := NewAuthzServer(coordinator)
-			if err != nil {
-				t.Fatal(err)
-			}
-			body := []byte(strings.Repeat("a", 256) + "tail-marker")
-			req := authCheckRequest(body)
-			h := req.GetAttributes().GetRequest().GetHttp()
-			if marker == "false" {
-				h.Headers = map[string]string{"X-Envoy-Auth-Partial-Body": "false"}
-			}
-			if marker == "raw false" {
-				h.HeaderMap = &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: "X-Envoy-Auth-Partial-Body", RawValue: []byte("false")}}}
-			}
-			response, err := server.Check(context.Background(), req)
-			if err != nil || response.GetOkResponse() == nil || !opener.eos || string(opener.body) != string(body) {
-				t.Fatalf("Check(complete,%s) response=%v err=%v body=%q eos=%v, want full body/allow/lease", marker, response, err, opener.body, opener.eos)
-			}
+			assertCompleteBodyForwardedBeyondHostBuffer(t, marker)
 		})
 	}
 }
@@ -921,29 +881,7 @@ func TestProcessMarkedTerminalInvalidRedirectFailsClosed(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			opener := &responseOpener{}
-			coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(coordinator.Close)
-			server, err := NewExtProcServer(coordinator)
-			if err != nil {
-				t.Fatal(err)
-			}
-			stream := &processStream{requests: []*extprocv3.ProcessingRequest{{
-				MetadataContext: &corev3.Metadata{FilterMetadata: map[string]*structpb.Struct{metadataNamespace: terminalBlockMetadata()}},
-				Request:         &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{EndOfStream: true, Headers: &corev3.HeaderMap{Headers: test.headers}}},
-			}}}
-			if err := server.Process(stream); err != nil {
-				t.Fatal(err)
-			}
-			if len(stream.responses) != 1 || stream.responses[0].GetImmediateResponse() == nil || int(stream.responses[0].GetImmediateResponse().GetStatus().GetCode()) != 503 {
-				t.Fatalf("responses=%v, want one fail-closed 503", stream.responses)
-			}
-			if opener.tx != nil {
-				t.Fatal("invalid marked redirect opened a Common transaction")
-			}
+			assertInvalidTerminalRedirectFailsClosed(t, test)
 		})
 	}
 }
@@ -1150,5 +1088,96 @@ func TestProcessP3AllowCommitFailureDoesNotSendSecondDecision(t *testing.T) {
 	}
 	if opener.tx.commits != 1 {
 		t.Fatalf("commit attempts=%d, want 1", opener.tx.commits)
+	}
+}
+
+func assertIncompleteBodyRejectedBeforeAdmission(
+	t *testing.T,
+	tc struct {
+		name    string
+		headers map[string]string
+		raw     []*corev3.HeaderValue
+	},
+	size int,
+) {
+	t.Helper()
+	opener := &recordingOpener{}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewAuthzServer(coordinator)
+	if err != nil {
+		coordinator.Close()
+		t.Fatal(err)
+	}
+	req := authCheckRequest(make([]byte, size))
+	h := req.GetAttributes().GetRequest().GetHttp()
+	h.Headers = tc.headers
+	h.HeaderMap = &corev3.HeaderMap{Headers: tc.raw}
+	response, err := server.Check(context.Background(), req)
+	coordinator.Close()
+	if status.Code(err) != codes.InvalidArgument || response != nil || opener.opens != 0 || opener.eos {
+		t.Fatalf("Check(%s,size=%d) response=%v err=%v opens=%d eos=%v, want InvalidArgument before native open/EOS/lease", tc.name, size, response, err, opener.opens, opener.eos)
+	}
+}
+
+func assertCompleteBodyForwardedBeyondHostBuffer(t *testing.T, marker string) {
+	t.Helper()
+	opener := &recordingOpener{}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 1}, opener, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer coordinator.Close()
+	server, err := NewAuthzServer(coordinator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := []byte(strings.Repeat("a", 256) + "tail-marker")
+	req := authCheckRequest(body)
+	h := req.GetAttributes().GetRequest().GetHttp()
+	if marker == "false" {
+		h.Headers = map[string]string{"X-Envoy-Auth-Partial-Body": "false"}
+	}
+	if marker == "raw false" {
+		h.HeaderMap = &corev3.HeaderMap{Headers: []*corev3.HeaderValue{{Key: "X-Envoy-Auth-Partial-Body", RawValue: []byte("false")}}}
+	}
+	response, err := server.Check(context.Background(), req)
+	if err != nil || response.GetOkResponse() == nil || !opener.eos || string(opener.body) != string(body) {
+		t.Fatalf("Check(complete,%s) response=%v err=%v body=%q eos=%v, want full body/allow/lease", marker, response, err, opener.body, opener.eos)
+	}
+}
+
+func assertInvalidTerminalRedirectFailsClosed(
+	t *testing.T,
+	test struct {
+		name    string
+		headers []*corev3.HeaderValue
+	},
+) {
+	t.Helper()
+	opener := &responseOpener{}
+	coordinator, err := composite.New("envoy", make([]byte, 32), composite.Limits{Capacity: 2}, opener, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(coordinator.Close)
+	server, err := NewExtProcServer(coordinator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream := &processStream{requests: []*extprocv3.ProcessingRequest{{
+		MetadataContext: &corev3.Metadata{FilterMetadata: map[string]*structpb.Struct{metadataNamespace: terminalBlockMetadata()}},
+		Request:         &extprocv3.ProcessingRequest_ResponseHeaders{ResponseHeaders: &extprocv3.HttpHeaders{EndOfStream: true, Headers: &corev3.HeaderMap{Headers: test.headers}}},
+	}}}
+	if err := server.Process(stream); err != nil {
+		t.Fatal(err)
+	}
+	if len(stream.responses) != 1 || stream.responses[0].GetImmediateResponse() == nil || int(stream.responses[0].GetImmediateResponse().GetStatus().GetCode()) != 503 {
+		t.Fatalf("responses=%v, want one fail-closed 503", stream.responses)
+	}
+	if opener.tx != nil {
+		t.Fatal("invalid marked redirect opened a Common transaction")
 	}
 }

@@ -12,7 +12,7 @@ from typing import Callable
 SCRIPTS_DIRECTORY = connector_root() / "scripts"
 
 
-def load_updater(module_name: str, script: Path) -> object:
+def load_updater(_module_name: str, script: Path) -> object:
     """Load the product updater through its collision-checked public namespace."""
     return load_source(script)
 

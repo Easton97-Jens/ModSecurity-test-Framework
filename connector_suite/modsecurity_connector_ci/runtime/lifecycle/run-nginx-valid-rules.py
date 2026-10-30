@@ -19,7 +19,7 @@ import sys
 import time
 
 
-def load_helper(name: str, path: Path):
+def load_helper(_name: str, path: Path):
     module = load_source(path)
     return module
 

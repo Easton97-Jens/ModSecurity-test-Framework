@@ -19,7 +19,7 @@ from modsecurity_connector_ci.runtime.lifecycle.nginx_sequence_upstream import F
 import importlib.util
 
 
-def load(name, path):
+def load(_name, path):
     module = load_source(path)
     return module
 

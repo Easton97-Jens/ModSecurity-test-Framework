@@ -508,18 +508,7 @@ func TestProcessCapacityIsGlobalAcrossGRPCTransports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Admission rejection can arrive before Send. Synchronize that ordering
-	// deliberately: gRPC Send returns EOF for a server-generated error, while
-	// Recv carries the actual status that must still be ResourceExhausted.
-	if _, err := excess.Header(); err != nil && status.Code(err) != codes.ResourceExhausted {
-		t.Fatalf("cross-transport excess stream header error = %v, want nil or ResourceExhausted", err)
-	}
-	if err := excess.Send(request()); err != nil && err != io.EOF {
-		t.Fatal(err)
-	}
-	if _, err := excess.Recv(); status.Code(err) != codes.ResourceExhausted {
-		t.Fatalf("cross-transport excess stream error = %v, want ResourceExhausted", err)
-	}
+	assertCrossTransportCapacityRejected(t, excess, request)
 
 	if err := first.CloseSend(); err != nil {
 		t.Fatal(err)
@@ -1072,5 +1061,25 @@ func TestClaimTransportFailureDoesNotExposeTransportDetails(t *testing.T) {
 		if strings.Contains(claimTransportFailure(input).Error(), "private socket") {
 			t.Fatal("transport classification exposed an underlying error detail")
 		}
+	}
+}
+
+func assertCrossTransportCapacityRejected(
+	t *testing.T,
+	excess extprocv3.ExternalProcessor_ProcessClient,
+	request func() *extprocv3.ProcessingRequest,
+) {
+	t.Helper()
+	// Admission rejection can arrive before Send. Synchronize that ordering
+	// deliberately: gRPC Send returns EOF for a server-generated error, while
+	// Recv carries the actual status that must still be ResourceExhausted.
+	if _, err := excess.Header(); err != nil && status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("cross-transport excess stream header error = %v, want nil or ResourceExhausted", err)
+	}
+	if err := excess.Send(request()); err != nil && err != io.EOF {
+		t.Fatal(err)
+	}
+	if _, err := excess.Recv(); status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("cross-transport excess stream error = %v, want ResourceExhausted", err)
 	}
 }

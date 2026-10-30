@@ -32,6 +32,7 @@ runs:
       shell: bash -e {0}
       run: |
         set -eu
+        readonly ownership_mode_format='%u:%g:%a'
         actual="$(git rev-parse --verify 'HEAD^{commit}')"
         printf '%s\n' "$EXPECTED_PARENT_SHA" | /usr/bin/grep -Eq '^[0-9a-f]{40}$'
         test "$actual" = "$EXPECTED_PARENT_SHA"
@@ -64,20 +65,20 @@ runs:
         esac
         test -d "$functional_job_root"
         test ! -L "$functional_job_root"
-        test "$(/usr/bin/stat -c '%u:%g:%a' "$functional_job_root")" = 0:0:700
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$functional_job_root")" = 0:0:700
         /usr/bin/sudo -n /bin/chmod 711 "$functional_job_root"
-        test "$(/usr/bin/stat -c '%u:%g:%a' "$functional_job_root")" = 0:0:711
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$functional_job_root")" = 0:0:711
         verified_root="$functional_job_root/ModSecurity-conector-nginx-exact-head"
         functional_parent="$functional_job_root/ModSecurity-conector-nginx-functional-parent"
         /usr/bin/sudo -n /bin/mkdir "$verified_root"
         /usr/bin/sudo -n /bin/chown "$runner_uid:$runner_gid" "$verified_root"
         /usr/bin/sudo -n /bin/chmod 700 "$verified_root"
-        test "$(/usr/bin/stat -c '%u:%g:%a' "$verified_root")" = "$runner_uid:$runner_gid:700"
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$verified_root")" = "$runner_uid:$runner_gid:700"
         test ! -e "$functional_parent"
         test ! -L "$functional_parent"
         /usr/bin/sudo -n /bin/mkdir "$functional_parent"
         /usr/bin/sudo -n /bin/chmod 711 "$functional_parent"
-        test "$(/usr/bin/stat -c '%u:%g:%a' "$functional_parent")" = 0:0:711
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$functional_parent")" = 0:0:711
         /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/test -x "$functional_job_root"
         /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/test -x "$functional_parent"
         if /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/test -x "$verified_root"; then
@@ -86,7 +87,7 @@ runs:
         fi
         evidence_root="$verified_root/nginx-functional-a-evidence"
         /bin/mkdir -m 700 "$evidence_root"
-        test "$(/usr/bin/stat -c '%u:%g:%a' "$evidence_root")" = "$runner_uid:$runner_gid:700"
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$evidence_root")" = "$runner_uid:$runner_gid:700"
         build_root="$verified_root/build"
         build_root_apache="$verified_root/apache-build"
         source_root="$verified_root/src"

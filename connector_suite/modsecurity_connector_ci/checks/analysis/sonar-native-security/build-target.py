@@ -5,7 +5,7 @@ Original-source builds, the bounded lighttpd split producer and genuine Go
 postlink receipts are separate contracts. No functional tests or scanner run.
 Each selected binary/module owns its database; broad Parent analysis is separate.
 """
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import source_path, load_tool
 
 import argparse
 import ast
@@ -37,7 +37,7 @@ COMMON_SOURCE_PATTERN = 'common/src/*.c'
 TARGETS = {
     "common-targeted-evaluator": {
         "script": "ci/checks/analysis/check-targeted-evaluator-cpp17.sh",
-        "producer_sha256": "0a39b7bc288eea8ee39764694e7fe5b21335761675590ca093e3d73585f1a6d3",
+        "producer_sha256": "d46ecba988f68a8c70d5f9d9ed26b72d786fa8804616e8695a62359fd490cfc9",
         "evaluator": True,
     },
     "apache-native-module": {"script": "connectors/apache/build/apxs-wrapper.in", "apache": True},
@@ -66,7 +66,7 @@ TARGETS = {
     },
     "lighttpd-stock-sidecar": {
         "script": "connectors/lighttpd/build/build_stock_sidecar.sh",
-        "producer_sha256": "8fccab4cdffa2f31172eebdcb88a839e967ccb31855abdd8de94bee21e7db8c0",
+        "producer_sha256": "66a4df03990bea069bc53f907742786326dafaa8f6cc4a97a4897c385b2e6f97",
         "artifact": "lighttpd-stock-sidecar/lighttpd-stock-sidecar",
         "split": True,
     },
@@ -440,7 +440,7 @@ def finish_go_capture(checkout, root, artifact, environment, log):
 
 def build_nginx(checkout, root, sdk, environment, archive, log):
     """Build only the pinned native dynamic module, keeping configure context."""
-    pin_source = checkout / "ci/provisioning/components/prepare-runtime-components.py"
+    pin_source = source_path("ci/provisioning/components/prepare-runtime-components.py", root=checkout)
     tree = ast.parse(pin_source.read_text())
     pins = {target.id: ast.literal_eval(node.value)
             for node in tree.body if isinstance(node, ast.Assign)
@@ -566,8 +566,8 @@ def build_lighttpd_split(checkout, root, sdk, environment, log):
 
     The native producer combines compilation and linking. This adapter executes
     original sources separately with identical flags, then compares its product
-    bytes with a real canonical native-script build. The independent smoke
-    executable produced by that comparison is never executed or exported.
+    bytes with a real canonical native-script build. Neither resulting
+    sidecar executable is executed by this compilation-only comparison.
     """
     sources = ["connectors/lighttpd/stock_sidecar/stock_sidecar.c",
                "common/runtime/msconnector_runtime.c", PROFILE_REGISTRY_SOURCE]
@@ -613,7 +613,7 @@ def build_targeted_evaluator(checkout, root, sdk, environment, cxx, log):
     flags = ["-std=c++17", "-Wall", "-Wextra", "-Werror", "-isystem", str(overlay)]
     obj = root / "modsecurity_targeted_eval.o"
     artifact = root / "modsecurity_targeted_eval"
-    subprocess.run([environment["CXX"], *flags, "-c", str(checkout / source), "-o", str(obj)],
+    subprocess.run([environment["CXX"], *flags, "-c", str(source_path(source, root=checkout)), "-o", str(obj)],
                    cwd=checkout, env=environment, stdout=log, stderr=subprocess.STDOUT, check=True)
     subprocess.run([environment["CXX"], *flags, str(obj), "-L", str(sdk / "lib"),
                     "-Wl,-rpath," + str(sdk / "lib"), "-lmodsecurity", "-o", str(artifact)],
@@ -622,7 +622,7 @@ def build_targeted_evaluator(checkout, root, sdk, environment, cxx, log):
     # it never executes the evaluator. Its temporary context is not exported.
     compiler = Path(shutil.which(cxx)).resolve(strict=True)
     baseline_environment = dict(environment, CXX=str(compiler), CPP_BUILD_ROOT=str(root / "canonical-build"))
-    subprocess.run(["sh", str(checkout / TARGETS["common-targeted-evaluator"]["script"])],
+    subprocess.run(["sh", str(source_path(TARGETS["common-targeted-evaluator"]["script"], root=checkout))],
                    cwd=checkout, env=baseline_environment, stdout=log, stderr=subprocess.STDOUT, check=True)
     canonical = root / "canonical-build/modsecurity_targeted_eval"
     if digest(canonical) != digest(artifact):
@@ -659,7 +659,7 @@ def verify_native_output_root(checkout, root, sdk, allowed_output_parent):
 def verify_native_build_inputs(checkout, sdk, target):
     """Bind the selected native producer and immutable SDK before build setup."""
     spec = TARGETS[target]
-    if "producer_sha256" in spec and digest(checkout / spec["script"]) != spec["producer_sha256"]:
+    if "producer_sha256" in spec and digest(source_path(spec["script"], root=checkout)) != spec["producer_sha256"]:
         raise ValueError("split adapter canonical producer changed; explicit parity review required")
     library = sdk / "lib/libmodsecurity.so"
     if not library.is_file() or not (sdk / "include/modsecurity/modsecurity.h").is_file():
@@ -835,7 +835,7 @@ def build(checkout, root, sdk, target, cc, cxx, host_archive=None, go_module_cac
         raise ValueError("checkout revision or tracked product sources changed during native build")
     contract = {"target": target, "revision": revision, "artifact": str(artifact),
                 "sources": sources, "external_inputs": {str(library.resolve()): digest(library)},
-                "producer": {"script": spec["script"], "script_sha256": digest(checkout / spec["script"])},
+                "producer": {"script": spec["script"], "script_sha256": digest(source_path(spec["script"], root=checkout))},
                 "compiler_environment": "implicit compiler/loader paths sanitized; source flags explicit in argv",
                 "limitations": ["Dynamic library resolution is declared by SDK path; scanner readback is separate."]}
     add_native_target_context(contract, spec, details)

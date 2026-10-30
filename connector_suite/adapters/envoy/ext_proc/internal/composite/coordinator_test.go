@@ -522,16 +522,7 @@ func TestLifecycleEventsCarryStaticPipelineMetadata(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			deadline := time.Now().Add(time.Second)
-			for time.Now().Before(deadline) {
-				log.mu.Lock()
-				ready := len(log.events) > 0
-				log.mu.Unlock()
-				if ready {
-					break
-				}
-				time.Sleep(time.Millisecond)
-			}
+			waitForRecordedLifecycleEvent(log)
 			log.mu.Lock()
 			defer log.mu.Unlock()
 			if len(log.events) == 0 || log.events[0].RequestPath != test.requestPath || log.events[0].ResponsePath != test.responsePath || log.events[0].Transport != test.transport {
@@ -1022,5 +1013,18 @@ func TestCoordinatorReportsCleanupFailureAfterAdmissionClosesDuringOpen(t *testi
 	}
 	if engine.latest.closeCount != 1 {
 		t.Fatalf("shutdown close calls = %d, want 1", engine.latest.closeCount)
+	}
+}
+
+func waitForRecordedLifecycleEvent(log *eventLog) {
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		log.mu.Lock()
+		ready := len(log.events) > 0
+		log.mu.Unlock()
+		if ready {
+			break
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

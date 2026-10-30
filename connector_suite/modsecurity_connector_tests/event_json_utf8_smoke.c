@@ -19,6 +19,18 @@ static int expect_string(const char *actual, const char *expected) {
     return actual != NULL && expected != NULL && strcmp(actual, expected) == 0;
 }
 
+static int expect_escaped_string(const char *input, char *buffer,
+        size_t capacity, const char *expected) {
+    msconnector_json_escape(input, buffer, capacity);
+    return expect_string(buffer, expected);
+}
+
+static int expect_escaped_bytes(const char *input, size_t length, char *buffer,
+        size_t capacity, const char *expected) {
+    msconnector_json_escape_n(input, length, buffer, capacity);
+    return expect_string(buffer, expected);
+}
+
 static int test_transport_provenance_integrity_projection(void) {
     char excessive_token[65];
     char projected_json[16384];
@@ -105,15 +117,12 @@ int main(void) {
             sizeof(invalid_utf8) - 1U) ||
         !msconnector_json_utf8_is_valid_n(valid_utf8,
             sizeof(valid_utf8) - 1U) ||
-        !expect_string(
-            (msconnector_json_escape(invalid_utf8, escaped, sizeof(escaped)), escaped),
+        !expect_escaped_string(invalid_utf8, escaped, sizeof(escaped),
             "ok\\u0080\\u00c0\\u00af") ||
-        !expect_string(
-            (msconnector_json_escape(valid_utf8, escaped, sizeof(escaped)), escaped),
+        !expect_escaped_string(valid_utf8, escaped, sizeof(escaped),
             valid_utf8) ||
-        !expect_string(
-            (msconnector_json_escape_n(embedded_nul, sizeof(embedded_nul),
-                escaped, sizeof(escaped)), escaped),
+        !expect_escaped_bytes(embedded_nul, sizeof(embedded_nul),
+            escaped, sizeof(escaped),
             "a\\u0000b")) {
         (void)fprintf(stderr, "event JSON UTF-8 escaping control failed\n");
         return 1;

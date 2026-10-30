@@ -11,6 +11,7 @@ on:
         description: Explicitly execute the archived namespace specialist tests outside the automatic active inventory.
         required: true
         type: boolean
+        default: false
 
 permissions: {}
 
@@ -634,10 +635,11 @@ jobs:
           target="$TARGET"
 
           fetch_public_api() {
+            local api_url="$1"
             /usr/bin/env -i HOME=/nonexistent LC_ALL=C PATH=/usr/bin:/bin \
               /usr/bin/curl --fail --silent --show-error --proto '=https' --tlsv1.2 \
                 --connect-timeout 10 --max-time 30 --retry 3 --retry-delay 1 --retry-max-time 30 \
-                -H 'Accept: application/vnd.github+json' "$1"
+                -H 'Accept: application/vnd.github+json' "$api_url"
           }
 
           if [[ "$target" =~ ^[0-9a-f]{40}$ ]]; then

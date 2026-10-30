@@ -1,6 +1,19 @@
 """Shared structural assertions for HAProxy SPOP contract tests."""
 
+from modsecurity_test_framework.connector_context import source_path
 from modsecurity_connector_tests.c_source_contract import function_definition
+
+
+_SPOP_CONTINUE_STATEMENT = 'continue;'
+
+
+def read_spop_native_self_test_source(root) -> str:
+    """Read extracted self-tests separately from the Product runtime contract."""
+    return source_path(
+        "modules/ModSecurity-test-Framework/connector_native_tests/"
+        "connectors/haproxy/src/haproxy_spop_diagnostic_runtime.inc",
+        root=root,
+    ).read_text(encoding="utf-8")
 
 
 def assert_worker_result_order(testcase, source: str, fatal_marker: str) -> None:
@@ -14,7 +27,7 @@ def assert_worker_result_order(testcase, source: str, fatal_marker: str) -> None
     testcase.assertIn("SPOP_ACCEPT_ITERATION_STOP", result_handler)
     testcase.assertIn("int loop_running = 1;", accept_loop)
     testcase.assertIn("while (loop_running && !stop_requested &&", accept_loop)
-    testcase.assertIn("continue;", accept_loop)
+    testcase.assertIn(_SPOP_CONTINUE_STATEMENT, accept_loop)
     testcase.assertIn("handled++;", accept_loop)
 
     capacity = result_handler.index("SPOP_CONNECTION_WORKER_CAPACITY_REJECTED")
@@ -32,7 +45,7 @@ def assert_worker_result_order(testcase, source: str, fatal_marker: str) -> None
     testcase.assertLess(capacity, capacity_return)
     testcase.assertLess(
         iteration_continue,
-        accept_loop.index("continue;", iteration_continue),
+        accept_loop.index(_SPOP_CONTINUE_STATEMENT, iteration_continue),
     )
     testcase.assertLess(iteration_continue, handled)
     testcase.assertLess(
@@ -41,7 +54,7 @@ def assert_worker_result_order(testcase, source: str, fatal_marker: str) -> None
     )
     testcase.assertLess(
         accept_loop.index("loop_running = 0;", iteration_stop),
-        accept_loop.index("continue;", iteration_stop),
+        accept_loop.index(_SPOP_CONTINUE_STATEMENT, iteration_stop),
     )
     testcase.assertLess(iteration_stop, handled)
     testcase.assertLess(

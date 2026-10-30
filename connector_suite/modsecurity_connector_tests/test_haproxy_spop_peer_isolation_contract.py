@@ -4,13 +4,16 @@ from modsecurity_test_framework.connector_context import connector_root, test_ro
 from pathlib import Path
 import unittest
 
-from modsecurity_connector_tests._haproxy_spop_contract_helpers import assert_worker_result_order
+from modsecurity_connector_tests._haproxy_spop_contract_helpers import (
+    assert_worker_result_order, read_spop_native_self_test_source,
+)
 
 
 ROOT = connector_root()
 SOURCE = (
     source_path('connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c', root=ROOT)
 ).read_text(encoding="utf-8")
+NATIVE_SOURCE = read_spop_native_self_test_source(ROOT)
 EXAMPLE = (
     source_path('examples/haproxy/compatibility-spoe/modsecurity-agent.conf', root=ROOT)
 ).read_text(encoding="utf-8")
@@ -36,10 +39,10 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertNotIn("sigaction(SIGPIPE", SOURCE)
 
     def test_blocking_accepted_socket_hits_deadline_and_followup_succeeds(self) -> None:
-        deadline_test = SOURCE.split(
+        deadline_test = NATIVE_SOURCE.split(
             "static int open_write_deadline_sockets", 1
         )[1].split("static int run_spop_write_deadline_self_test", 1)[0]
-        deadline_wrapper = SOURCE.split(
+        deadline_wrapper = NATIVE_SOURCE.split(
             "static int run_spop_write_deadline_self_test", 1
         )[1].split("static int run_spop_peer_close_write_self_test", 1)[0]
         self.assertIn("*server_fd = accept(*listener_fd, 0, 0)", deadline_test)
@@ -101,14 +104,14 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertIn("SPOP_MAX_TRANSACTION_SLOTS_TOTAL / config->worker_count", SOURCE)
 
     def test_peer_close_write_self_test_requires_normal_process_survival(self) -> None:
-        self.assertIn("run_spop_peer_close_write_self_test", SOURCE)
-        self.assertIn("shutdown(sockets[1], SHUT_RD)", SOURCE)
-        self.assertIn("WIFEXITED(status)", SOURCE)
-        self.assertIn("finish_ms - start_ms > 1000U", SOURCE)
+        self.assertIn("run_spop_peer_close_write_self_test", NATIVE_SOURCE)
+        self.assertIn("shutdown(sockets[1], SHUT_RD)", NATIVE_SOURCE)
+        self.assertIn("WIFEXITED(status)", NATIVE_SOURCE)
+        self.assertIn("finish_ms - start_ms > 1000U", NATIVE_SOURCE)
 
     def test_runtime_self_test_covers_reset_slow_peer_and_follow_up_hello(self) -> None:
-        self.assertIn("client healthcheck handshake PASS", SOURCE)
-        self.assertIn("client notify set-var ack disconnect PASS", SOURCE)
+        self.assertIn("client healthcheck handshake PASS", NATIVE_SOURCE)
+        self.assertIn("client notify set-var ack disconnect PASS", NATIVE_SOURCE)
         self.assertIn("read_full_until", SOURCE)
 
     def test_running_owner_timeout_uses_bounded_controlled_restart(self) -> None:
@@ -206,10 +209,10 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
         self.assertLess(remove_socket, wait_workers)
 
     def test_owner_self_test_proves_terminal_rejection_and_fresh_instance(self) -> None:
-        owner_test = SOURCE.split("static int run_spop_owner_queue_self_test", 1)[1].split(
+        owner_test = NATIVE_SOURCE.split("static int run_spop_owner_queue_self_test", 1)[1].split(
             "static int run_spop_body_limit_self_test", 1
         )[0]
-        fresh_state_test = SOURCE.split(
+        fresh_state_test = NATIVE_SOURCE.split(
             "static int run_spop_owner_queue_fresh_state_self_test", 1
         )[1].split("static int run_spop_owner_queue_self_test", 1)[0]
         self.assertIn("!spop_owner_queue_requires_restart(&state)", owner_test)
@@ -261,7 +264,7 @@ class HAProxySPOPPeerIsolationContractTests(unittest.TestCase):
     def test_spoe_samples_use_total_framing_metadata(self) -> None:
         producers = list((source_path('examples/haproxy/spoe-spop', root=ROOT)).glob("*/spoe.cfg"))
         producers.extend(
-            ROOT / name
+            source_path(name, root=ROOT)
             for name in (
                 "examples/haproxy/compatibility-spoe/spoe-modsecurity.conf",
                 "connectors/haproxy/harness/run_haproxy_smoke.sh",

@@ -18,6 +18,10 @@ import stat
 import sys
 
 
+_NATIVE_CFAMILY_RECIPES_PATH = 'ci/checks/analysis/native-cfamily-recipes.py'
+_COMMON_INCLUDE_PATH = 'common/include'
+
+
 DATABASE_FILENAME = "compile_commands.json"
 EVIDENCE_FILENAME = "compilation-evidence.json"
 
@@ -220,14 +224,14 @@ def snapshot_tree(root: Path) -> dict[str, str]:
             or name
             in {
                 "src/v3-api-smoke/Makefile",
-                "ci/checks/analysis/native-cfamily-recipes.py",
+                _NATIVE_CFAMILY_RECIPES_PATH,
                 "ci/checks/analysis/prepare-sonar-cfamily.py",
                 "connector_suite/modsecurity_connector_tests/c_source_contract.py",
             }
         )
     ]
     # New reviewed helpers are included before their first commit as well.
-    for name in ("ci/checks/analysis/native-cfamily-recipes.py",):
+    for name in (_NATIVE_CFAMILY_RECIPES_PATH,):
         if (root / name).is_file() and root / name not in selected:
             selected.append(root / name)
     if len(selected) > 8192:
@@ -244,7 +248,7 @@ def nginx_include_path(
     if any(component.is_symlink() for component in (raw, *raw.parents)):
         raise ValueError("NGINX include has a symlinked component")
     directory = admitted_directory(raw.resolve(), "NGINX include root")
-    if directory in {product, product / "common/include"}:
+    if directory in {product, product / _COMMON_INCLUDE_PATH}:
         return None  # Already explicit Product roots, not host context.
     if sdk_headers is not None and directory == sdk_headers:
         return None  # Already the explicitly admitted and snapshotted SDK headers.
@@ -336,7 +340,7 @@ def compile_arguments(
     return [*arguments, "-c", str(source), "-o", str(obj)]
 
 
-def validated_records(root: Path, units: set[Path], records: list[dict]) -> None:
+def validated_records(_root: Path, units: set[Path], records: list[dict]) -> None:
     captured = [(Path(item["directory"]) / item["file"]).resolve() for item in records]
     if len(captured) != len(set(captured)) or units != set(captured):
         raise ValueError(
@@ -444,7 +448,7 @@ def admit_product_and_hosts(capture: argparse.Namespace) -> None:
 
 def snapshot_capture_inputs(capture: argparse.Namespace) -> None:
     capture.recipes = runpy.run_path(
-        str(capture.root / "ci/checks/analysis/native-cfamily-recipes.py")
+        str(capture.root / _NATIVE_CFAMILY_RECIPES_PATH)
     )
     capture.units = native_inventory(capture.root)
     if capture.units != {
@@ -523,10 +527,10 @@ def materialize_capture(capture: argparse.Namespace, run: Path) -> dict[str, str
     capture.includes = [
         capture.projection,
         capture.root / "connector_native_tests",
-        capture.suite / "common/include",
+        capture.suite / _COMMON_INCLUDE_PATH,
         capture.suite,
         capture.product,
-        capture.product / "common/include",
+        capture.product / _COMMON_INCLUDE_PATH,
         capture.product / "common/runtime",
         capture.headers,
         capture.apache,

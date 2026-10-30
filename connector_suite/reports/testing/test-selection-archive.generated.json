@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "6d5173ef5fc889a87e64ec5b4a6afa3a8d28cc2255c2c1f36cefe59806239cdc",
+  "inventory_sha256": "c8da17068108c40cfb34dabad3380ada3c6962545a420fb144266a41f7d9fab8",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1132,7 +1132,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/event_json_utf8_smoke.c",
       "source": "tests/event_json_utf8_smoke.c",
-      "source_sha256": "2b958bc6df334b6b8ebf785351da20065bd79987855cec7ab7dc9b2fff2da50b"
+      "source_sha256": "8cbe2a27d2894400400df4f55c5a19a315d46860f6fd40c9a3e718ecf5700e9b"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/lighttpd_i10_native.c",
@@ -1212,7 +1212,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_i10_spop_caller_test.c",
       "source": "tests/haproxy_i10_spop_caller_test.c",
-      "source_sha256": "843d5a1ee18819fe9b1ea2362a55e8d45bb4d45e7e5215c26fd670a73156fae9"
+      "source_sha256": "4939e2e3f1fb821b05d0e0bbbe73d04dfee4c4ef9ce7413c2e1b74acdcaeb5f1"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_request_authorization_contract_test.c",
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7809,
+  "on_demand_definition_count": 7816,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -1428,7 +1428,7 @@
         "TestCompositeObserverRetainsCloseAndValidationFailures"
       ],
       "source": "connectors/envoy/ext_proc/cmd/msconnector-composite/observer_test.go",
-      "source_sha256": "c26b6281069fb364fef756d6b496ccc8d3ad837ff17775126e493d7a367ba9f9"
+      "source_sha256": "1f65ee8108c34a1530eb09ee91a248552985ee23b97e3a7ecc8d793294ec16e9"
     },
     {
       "contains_selected_definitions": [],
@@ -1519,7 +1519,7 @@
         "TestCoordinatorReportsCleanupFailureAfterAdmissionClosesDuringOpen"
       ],
       "source": "connectors/envoy/ext_proc/internal/composite/coordinator_test.go",
-      "source_sha256": "cc8c9b2c37a896b4e03177d073e6a8074896f663f4cbc77475856b2de6f69ab4"
+      "source_sha256": "50659c11650976d144603a07dddfaa696959db98539e189570d469c7639d9846"
     },
     {
       "contains_selected_definitions": [],
@@ -1578,7 +1578,7 @@
         "TestProcessP3AllowCommitFailureDoesNotSendSecondDecision"
       ],
       "source": "connectors/envoy/ext_proc/internal/compositeenvoy/server_test.go",
-      "source_sha256": "595be39d20afa24ab6fa4e747d5b397d0c1948b61bb6e5272f24cf3720e6a5d0"
+      "source_sha256": "400c028a7e3cdab1f1323d181a43d00aef8c40162660094358c5d10b20fa2a62"
     },
     {
       "contains_selected_definitions": [],
@@ -1591,7 +1591,7 @@
         "TestI10CompanionMissingEOSAndCancelAreTerminalErrors"
       ],
       "source": "connectors/envoy/ext_proc/internal/compositeenvoy/technical_error_test.go",
-      "source_sha256": "6cfbc98bad68ab30fffa836db5c47a60a9312b9864f0251eed1667c711eb0055"
+      "source_sha256": "bb8bb200cd6a3fbe469dc4e50b178f48d9c7ec5466013fc15cee998273bea0c7"
     },
     {
       "contains_selected_definitions": [],
@@ -1822,7 +1822,7 @@
         "TestClaimTransportFailureDoesNotExposeTransportDetails"
       ],
       "source": "connectors/envoy/ext_proc/internal/responseobserver/protocol_test.go",
-      "source_sha256": "a6c489c75f18ca8062b43455c6c7d533738b05ef2249f13f4004a29a77b15537"
+      "source_sha256": "0d8e8c6b1281eac16f45c593e525969cea63f6ad96197d9242851d91b7405405"
     },
     {
       "contains_selected_definitions": [],
@@ -5002,10 +5002,11 @@
         "modsecurity_connector_tests.test_focused_analysis_utils.FocusedAnalysisUtilsTest.test_queue_totals_keep_entry_failure_and_priority_values",
         "modsecurity_connector_tests.test_focused_analysis_utils.FocusedAnalysisUtilsTest.test_safe_in_root_json_and_text_wrappers_round_trip",
         "modsecurity_connector_tests.test_focused_analysis_utils.FocusedAnalysisUtilsTest.test_outside_paths_are_rejected_and_redacted",
-        "modsecurity_connector_tests.test_focused_analysis_utils.FocusedAnalysisUtilsTest.test_dynamic_module_loading_keeps_the_module_registration_contract"
+        "modsecurity_connector_tests.test_focused_analysis_utils.FocusedAnalysisUtilsTest.test_dynamic_module_loading_keeps_the_module_registration_contract",
+        "modsecurity_connector_tests.test_focused_analysis_utils.FocusedAnalysisUtilsTest.test_dynamic_module_loading_rejects_external_source_and_leaves_no_alias"
       ],
       "source": "tests/test_focused_analysis_utils.py",
-      "source_sha256": "989f3bf0f8e55bac948ce9efe9f5326cb601bbe38781c4b49b4c3f6fff9d6b0b"
+      "source_sha256": "5b891b131788c58ece696ef77794c86c1502619f4a815f05a8ec7ba416255c84"
     },
     {
       "contains_selected_definitions": [],
@@ -6067,7 +6068,7 @@
         "modsecurity_connector_tests.test_haproxy_spop_peer_isolation_contract.HAProxySPOPPeerIsolationContractTests.test_closed_defaults_preserve_explicit_error_status_mapping"
       ],
       "source": "tests/test_haproxy_spop_peer_isolation_contract.py",
-      "source_sha256": "f6c7c1d44cee418fd882097703e493a81ee0989491ab56261cc5d69bb41a5b7c"
+      "source_sha256": "8845f368dd6cd4dabaec3f63c19d95597aa0565fe103d1423ddaf49b13927bcc"
     },
     {
       "contains_selected_definitions": [],
@@ -6116,7 +6117,7 @@
         "modsecurity_connector_tests.test_haproxy_spop_sigpipe_peer_isolation_contract.HAProxySPOPSigpipePeerIsolationContractTests.test_peer_close_and_follow_up_handshake_are_runtime_regressions"
       ],
       "source": "tests/test_haproxy_spop_sigpipe_peer_isolation_contract.py",
-      "source_sha256": "5b790227d2c2acdefcc6d5ada8a29e008a0027acdfdf20d865ee6eca7af0ebec"
+      "source_sha256": "6cfb8c032049389f5239cb11666eed73c897b9808b43cd6f83b42880086eea45"
     },
     {
       "contains_selected_definitions": [],
@@ -7384,6 +7385,8 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_body_buffer_fixture.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_output_root_rejects_shared_ancestor_without_mutation",
+        "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_output_root_creates_private_leaf_and_preserves_existing_safe_mode",
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_fixture_configuration_keeps_the_test_module_separate",
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_native_module_emits_each_required_real_buffer_state",
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_runner_rebuilds_exact_head_modules_and_checks_forwarding",
@@ -7398,7 +7401,7 @@
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_configtest_failure_classification_handles_known_setup_errors"
       ],
       "source": "tests/test_nginx_body_buffer_fixture.py",
-      "source_sha256": "6565ca2d22fc31adbe9a5a7ef3d8a24cc0881d2ec7a9fd7cdfc7a35f88398f72"
+      "source_sha256": "1e68de854b9ac0cd0d5ebebb2616deb063b001d133aa1ebd4121bd5ae4260467"
     },
     {
       "contains_selected_definitions": [],
@@ -9623,6 +9626,7 @@
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_trusted_base_dual_layout_is_rejected_for_any_other_job",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_trusted_base_dual_layout_rejects_every_changed_verifier_boundary",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_trusted_base_dual_layout_requires_the_fixed_base_bootstrap",
+        "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_unproven_trusted_base_context_python_never_gains_order_exemption",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_trusted_base_body_cannot_hide_an_unnamed_early_python_execution",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_normal_jobs_still_require_the_one_exact_current_verifier_command",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_expected_inventory_tracks_normal_and_candidate_jobs",
@@ -9658,7 +9662,7 @@
         "modsecurity_connector_tests.test_python_version_contract.WorkflowActionPinsTest.test_missing_action_is_rejected"
       ],
       "source": "tests/test_python_version_contract.py",
-      "source_sha256": "25250bbf890357fd46a919e0b6fc5c307f2e457d49f59df916c31c02df4443d1"
+      "source_sha256": "e8e63e85add4a36234444f7c755e7f46bbdde0501a0bb119b2836a633aae0a03"
     },
     {
       "contains_selected_definitions": [],
@@ -10488,13 +10492,15 @@
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_settings_reject_false_pr_identity",
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_external_root_rejects_checkout",
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_external_root_rejects_shared_ancestor_without_chmod",
+        "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_output_rejects_shared_ancestor_without_mutation",
+        "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_output_creates_private_fresh_external_directory",
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_preserves_real_relative_library_link",
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_rejects_wrong_revision_source_or_digest",
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_sdk_transfer_rejects_archive_escape",
         "modsecurity_connector_tests.test_sonar_native_ci.SonarNativeCiTests.test_ctu_limits_reject_insufficient_resources"
       ],
       "source": "tests/test_sonar_native_ci.py",
-      "source_sha256": "c4df2953c6d08b369abe37f49a424cee446d89fb3a0c0c0ea6c8be7cdb3f32a8"
+      "source_sha256": "ecfb96298688017758bf16954ca4da60436de065928c7f27f692b0b24ceb4a76"
     },
     {
       "contains_selected_definitions": [],
@@ -10507,13 +10513,14 @@
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_verified_cached_archive_is_read_without_mutation_or_network",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_archive_cannot_escape_its_expected_source_tree",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_output_roots_reject_source_reuse_and_symlink_redirection",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_output_root_rejects_shared_ancestor_without_mutation",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_required_generated_artifacts_must_be_regular_and_nonempty",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_include_manifest_uses_only_existing_configured_host_directories",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_nginx_generated_includes_accept_joined_and_quoted_paths",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_nginx_generated_includes_do_not_backtrack_across_near_matches"
       ],
       "source": "tests/test_sonar_native_context.py",
-      "source_sha256": "934f61aec3ab0ef0c60a2af5f0caf30ae33033fc63a7007c45615dd9e9859594"
+      "source_sha256": "9c814045495ddc3a86ed6124966d64ad4c80f36d327723d0ada3d35219776f9d"
     },
     {
       "contains_selected_definitions": [],
@@ -10532,7 +10539,7 @@
         "modsecurity_connector_tests.test_sonar_native_security.NativeSecurityCaptureTest.test_internal_lto_limit_rejects_unknown_parent_object"
       ],
       "source": "tests/test_sonar_native_security.py",
-      "source_sha256": "9a5dc7bdc20acdb68565224044ae6eb9f47e02909b855d2bea3c4de010fcd3e9"
+      "source_sha256": "4b909ca3484eac091304df1744c2ab08f569d0d5f2552a23ca66c927d53de398"
     },
     {
       "contains_selected_definitions": [],
@@ -11334,7 +11341,7 @@
         "modsecurity_connector_tests.test_trusted_lighttpd_namespace_dispatch_workflow.TrustedLighttpdNamespaceDispatchWorkflowTest.test_representative_boundary_mutations_fail_closed"
       ],
       "source": "tests/test_trusted_lighttpd_namespace_dispatch_workflow.py",
-      "source_sha256": "6ba2fed01b432850634755800bb5bb3f0d84269be23af7433ef17a88384a0ef9"
+      "source_sha256": "8db8e2eec1ca15de947e16eaa2300b9ef1fc02525e0a379504e55a6fcd479e73"
     },
     {
       "contains_selected_definitions": [],

@@ -28,7 +28,7 @@ PARSER_STDOUT = 'check-config.stdout'
 PARSER_STDERR = 'check-config.stderr'
 ENGINE_POINTER = '/processes/engine'
 
-def load(path, name):
+def load(path, _name):
     value = load_source(path)
     return value
 

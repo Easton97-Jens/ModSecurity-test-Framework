@@ -1,7 +1,6 @@
 """Zero-process validator controls; real compilation is separate build evidence."""
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
+from modsecurity_test_framework.connector_context import connector_root, source_path, load_source
 
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -133,8 +132,14 @@ class NativeSecurityCaptureTest(unittest.TestCase):
         source.write_text("/* unit-only generated host glue */\nint host_glue;\n")
         archive = self.root / "nginx-unit.tar.gz"
         archive.write_bytes(b"unit-only pinned archive identity fixture")
-        pin = self.checkout / "ci/provisioning/components/prepare-runtime-components.py"
+        pin = self.root / "framework/connector_suite/modsecurity_connector_ci/provisioning/components/prepare-runtime-components.py"
         pin.parent.mkdir(parents=True)
+        original_source_path = VALIDATOR.source_path
+        pin_owner = patch.object(VALIDATOR, "source_path", side_effect=lambda name, *, root: (
+            pin if name == "ci/provisioning/components/prepare-runtime-components.py"
+            and root == self.checkout else original_source_path(name, root=root)))
+        pin_owner.start()
+        self.addCleanup(pin_owner.stop)
         pin.write_text("NGINX_PINNED_RELEASE_ASSET_NAME = 'nginx-unit.tar.gz'\n"
                        + "NGINX_PINNED_RELEASE_ASSET_SHA256 = '" + VALIDATOR.digest(archive) + "'\n")
         receipt = self.root / "configure-receipt.json"

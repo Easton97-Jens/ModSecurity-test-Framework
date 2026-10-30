@@ -21,6 +21,13 @@ import sys
 import tempfile
 
 
+_MRTS_GITLINK_PATH = 'tools/MRTS'
+_CASE_ID_SUFFIX = '.case'
+_GIT_STATUS_PORCELAIN_ARG = '--porcelain=v1'
+_GIT_STATUS_UNTRACKED_ARG = '--untracked-files=all'
+_GIT_STATUS_SUBMODULE_ARG = '--ignore-submodules=none'
+
+
 GITLINK = "modules/ModSecurity-test-Framework"
 EXECUTION = "common.header-valid-length"
 MAX_OBJECT = 32 * 1024 * 1024
@@ -203,7 +210,7 @@ def validate_version_lock(
         for name, (mode, identity) in framework_files.items()
         if mode == "160000"
     }
-    if set(links) != {"tools/MRTS"}:
+    if set(links) != {_MRTS_GITLINK_PATH}:
         raise IntegrationError(
             "Framework gitlinks must contain exactly the approved tools/MRTS dependency"
         )
@@ -211,11 +218,11 @@ def validate_version_lock(
         raise IntegrationError(
             "Parent version-lock framework_sha does not match its recorded Framework gitlink"
         )
-    if value.get("mrts_sha") != links["tools/MRTS"]:
+    if value.get("mrts_sha") != links[_MRTS_GITLINK_PATH]:
         raise IntegrationError(
             "Parent version-lock mrts_sha does not match the selected Framework MRTS gitlink"
         )
-    return {"framework_sha": recorded, "mrts_sha": exact_revision(links["tools/MRTS"])}
+    return {"framework_sha": recorded, "mrts_sha": exact_revision(links[_MRTS_GITLINK_PATH])}
 
 
 def read_contained(root: Path, relative: str, maximum: int = 16 * 1024 * 1024) -> bytes:
@@ -298,7 +305,7 @@ def probe_contract(
             "script": "ci/checks/common/run-active-header-case.sh",
             "args": ["valid-length"],
         }
-        or [case["id"] for case in probes[0]["cases"]] != [EXECUTION + ".case"]
+        or [case["id"] for case in probes[0]["cases"]] != [EXECUTION + _CASE_ID_SUFFIX]
     ):
         raise IntegrationError(
             "the committed default inventory does not admit the exact Common probe"
@@ -321,8 +328,8 @@ def probe_contract(
         "inventory_sha256": hashlib.sha256(inventory_bytes).hexdigest(),
         "source_map_sha256": hashlib.sha256(mapping_bytes).hexdigest(),
         "selected_execution_ids": [EXECUTION],
-        "selected_case_ids": [EXECUTION + ".case"],
-        "selected_core_case_ids": [EXECUTION + ".case"],
+        "selected_case_ids": [EXECUTION + _CASE_ID_SUFFIX],
+        "selected_core_case_ids": [EXECUTION + _CASE_ID_SUFFIX],
         "selected_offline_exception_case_ids": [],
         "connector_source_bindings": product,
         "connector_source_bindings_sha256": hashlib.sha256(
@@ -368,7 +375,7 @@ def validated_probe_results(output: Path, expected: dict) -> list[dict]:
         or not isinstance(observed[0], dict)
         or observed[0].get("execution_id") != EXECUTION
         or observed[0].get("status") != "passed"
-        or observed[0].get("case_ids") != [EXECUTION + ".case"]
+        or observed[0].get("case_ids") != [EXECUTION + _CASE_ID_SUFFIX]
     ):
         raise IntegrationError(
             "actual Parent Make did not retain the exact successful standard execution"
@@ -389,9 +396,9 @@ def clean_checkout(root: Path, revision: str) -> None:
     if git(
         root,
         "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
-        "--ignore-submodules=none",
+        _GIT_STATUS_PORCELAIN_ARG,
+        _GIT_STATUS_UNTRACKED_ARG,
+        _GIT_STATUS_SUBMODULE_ARG,
     ):
         raise IntegrationError("integration checkout is dirty")
 
@@ -650,9 +657,9 @@ def verify_combination(
         parent_status = git(
             parent,
             "status",
-            "--porcelain=v1",
-            "--untracked-files=all",
-            "--ignore-submodules=none",
+            _GIT_STATUS_PORCELAIN_ARG,
+            _GIT_STATUS_UNTRACKED_ARG,
+            _GIT_STATUS_SUBMODULE_ARG,
         ).decode()
         if selected == pin:
             clean_checkout(parent, revision)
@@ -706,9 +713,9 @@ def verify_combination(
         final_parent = git(
             parent,
             "status",
-            "--porcelain=v1",
-            "--untracked-files=all",
-            "--ignore-submodules=none",
+            _GIT_STATUS_PORCELAIN_ARG,
+            _GIT_STATUS_UNTRACKED_ARG,
+            _GIT_STATUS_SUBMODULE_ARG,
         ).decode()
         if final_parent != parent_status:
             raise IntegrationError("Parent checkout changed during integration")

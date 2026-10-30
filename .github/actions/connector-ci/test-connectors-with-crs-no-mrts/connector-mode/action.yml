@@ -48,7 +48,7 @@ runs:
       run: |
         set -euo pipefail
         for expected_sha in "$EXPECTED_PARENT_SHA" "$EXPECTED_BASE_SHA"; do
-          case "$expected_sha" in ''|*[!0-9a-f]*) echo "FAIL: invalid exact revision" >&2; exit 2 ;; esac
+          case "$expected_sha" in ''|*[!0-9a-f]*) echo "FAIL: invalid exact revision" >&2; exit 2 ;; *) : ;; esac
           test "${#expected_sha}" -eq 40
         done
         test "$EXPECTED_PARENT_SHA" != "$EXPECTED_BASE_SHA"
@@ -93,13 +93,13 @@ runs:
         set -euo pipefail
         case "$CONNECTOR" in apache|envoy|haproxy|lighttpd|traefik) ;; *) exit 2 ;; esac
         case "$CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
-        case "$CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+        case "$CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; *) : ;; esac
         test "${#CRS_RUNTIME_RUN_ID}" -le 48
         case "$SETUP_PYTHON_PATH" in /*) ;; *) echo "FAIL: setup Python is not absolute" >&2; exit 2 ;; esac
-        case "$SETUP_PYTHON_PATH" in *[!A-Za-z0-9_./-]*) echo "FAIL: setup Python path is unsafe" >&2; exit 2 ;; esac
+        case "$SETUP_PYTHON_PATH" in *[!A-Za-z0-9_./-]*) echo "FAIL: setup Python path is unsafe" >&2; exit 2 ;; *) : ;; esac
         test -x "$SETUP_PYTHON_PATH"
         parent_commit=$(git rev-parse HEAD)
-        case "$parent_commit" in *[!0-9a-f]*|"") echo "FAIL: invalid Parent revision" >&2; exit 2 ;; esac
+        case "$parent_commit" in *[!0-9a-f]*|"") echo "FAIL: invalid Parent revision" >&2; exit 2 ;; *) : ;; esac
         test "${#parent_commit}" -eq 40
         cell_parent="$RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts/$parent_commit"
         cell_root="$cell_parent/$CRS_RUNTIME_RUN_ID"
@@ -170,18 +170,20 @@ runs:
       run: |
         set -euo pipefail
         require_sha() {
-          case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
-          test "${#1}" -eq 40
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
         }
         require_decimal() {
-          case "$1" in ''|*[!0-9]*) return 1 ;; esac
-          test "$1" -gt 0
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
         }
         case "$TRUSTED_RUNNER_TEMP:$TRUSTED_EVIDENCE_STAGE_ROOT:$RUNNER_TEMP:$GITHUB_WORKSPACE:$SETUP_PYTHON_PATH" in /*:/*:/*:/*:/*) ;; *) echo "FAIL: unsafe evidence boundary path" >&2; exit 2 ;; esac
         test "$RUNNER_TEMP" = "$TRUSTED_RUNNER_TEMP"
         test "$CRS_RUNTIME_RUN_ID" = "$TRUSTED_CRS_RUNTIME_RUN_ID"
         case "$TRUSTED_CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
-        case "$TRUSTED_CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+        case "$TRUSTED_CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; *) : ;; esac
         test "${#TRUSTED_CRS_RUNTIME_RUN_ID}" -le 48
         test "$CRS" = with-crs
         test "$MRTS" = no-mrts
@@ -210,8 +212,9 @@ runs:
         test "$(/usr/bin/realpath -e -- "$framework_source_root")" = "$framework_source_root"
         test "$FRAMEWORK_SHA" = "$FRAMEWORK_ACTION_REVISION"
         authenticated_projector() {
+          local operation="$1"
           /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C \
-            /usr/bin/python3 -I - "$GITHUB_WORKSPACE" "$PARENT_SHA" "$FRAMEWORK_ACTION_REVISION" "$1" <<'AUTHENTICATED_PROJECTOR'
+            /usr/bin/python3 -I - "$GITHUB_WORKSPACE" "$PARENT_SHA" "$FRAMEWORK_ACTION_REVISION" "$operation" <<'AUTHENTICATED_PROJECTOR'
         import hashlib
         import os
         from pathlib import Path
@@ -404,12 +407,14 @@ runs:
       run: |
         set -euo pipefail
         require_sha() {
-          case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
-          test "${#1}" -eq 40
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
         }
         require_decimal() {
-          case "$1" in ''|*[!0-9]*) return 1 ;; esac
-          test "$1" -gt 0
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
         }
         case "$CONNECTOR" in
           apache)
@@ -433,7 +438,7 @@ runs:
             test "$(/usr/bin/stat -Lc '%d:%i:%u:%g:%a' -- "$TRUSTED_RUNNER_TEMP")" = "$TRUSTED_RUNNER_TEMP_IDENTITY"
             test "$CRS_RUNTIME_RUN_ID" = "$TRUSTED_CRS_RUNTIME_RUN_ID"
             case "$TRUSTED_CRS_RUNTIME_RUN_ID" in [A-Za-z0-9]*) ;; *) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
-            case "$TRUSTED_CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; esac
+            case "$TRUSTED_CRS_RUNTIME_RUN_ID" in *[!A-Za-z0-9._-]*) echo "FAIL: invalid runtime run id" >&2; exit 2 ;; *) : ;; esac
             test "${#TRUSTED_CRS_RUNTIME_RUN_ID}" -le 48
             expected_runtime_root="$TRUSTED_RUNNER_TEMP/ModSecurity-conector-with-crs-no-mrts"
             expected_cell_parent="$expected_runtime_root/$RUNTIME_PARENT_SHA"
@@ -562,12 +567,14 @@ runs:
       run: |
         set -euo pipefail
         require_sha() {
-          case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
-          test "${#1}" -eq 40
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
         }
         require_decimal() {
-          case "$1" in ''|*[!0-9]*) return 1 ;; esac
-          test "$1" -gt 0
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
         }
         require_sha "$PROJECTOR_BLOB"
         require_decimal "$RUNTIME_UID"
@@ -790,12 +797,14 @@ runs:
       run: |
         set -euo pipefail
         require_sha() {
-          case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
-          test "${#1}" -eq 40
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
         }
         require_decimal() {
-          case "$1" in ''|*[!0-9]*) return 1 ;; esac
-          test "$1" -gt 0
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
         }
         require_sha "$PROJECTOR_BLOB"
         require_decimal "$RUNTIME_UID"
@@ -1045,7 +1054,7 @@ runs:
             --audit-log "$AUDIT_LOG"
         else
           case "$VERIFIED_ROOT" in /*) ;; *) echo "FAIL: unsafe Apache runtime evidence root" >&2; exit 2 ;; esac
-          case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; esac
+          case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; *) : ;; esac
           test "${#PARENT_SHA}" -eq 40
           test "$RUN_ID" = "crs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-apache"
           python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py \
@@ -1156,7 +1165,7 @@ runs:
       run: |
         set -euo pipefail
         case "$VERIFIED_ROOT" in /*) ;; *) echo "FAIL: unsafe generic runtime evidence root" >&2; exit 2 ;; esac
-        case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; esac
+        case "$PARENT_SHA" in ''|*[!0-9a-f]*) echo "FAIL: unsafe Parent head" >&2; exit 2 ;; *) : ;; esac
         test "${#PARENT_SHA}" -eq 40
         test "$RUN_ID" = "crs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CONNECTOR}"
         python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/prepare-with-crs-no-mrts-upload.py \
@@ -1242,12 +1251,14 @@ runs:
       run: |
         set -euo pipefail
         require_sha() {
-          case "$1" in ''|*[!0-9a-f]*) return 1 ;; esac
-          test "${#1}" -eq 40
+          local revision="$1"
+          case "$revision" in ''|*[!0-9a-f]*) return 1 ;; *) : ;; esac
+          test "${#revision}" -eq 40
         }
         require_decimal() {
-          case "$1" in ''|*[!0-9]*) return 1 ;; esac
-          test "$1" -gt 0
+          local decimal_value="$1"
+          case "$decimal_value" in ''|*[!0-9]*) return 1 ;; *) : ;; esac
+          test "$decimal_value" -gt 0
         }
         require_sha "$PARENT_SHA"
         summary_uid=$(/usr/bin/id -u)

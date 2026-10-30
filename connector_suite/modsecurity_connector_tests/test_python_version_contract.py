@@ -1,16 +1,15 @@
 """Offline tests for the Parent Python workflow-version contract checker."""
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source, framework_revision
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_source, framework_revision
 from modsecurity_test_framework import workflow_sources
+from modsecurity_test_framework.product_sources.ci.lib.framework_revision_pins import load_framework_revision_pins
 
 import contextlib
-import importlib.util
 import io
 import json
 from pathlib import Path
 import shutil
-import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -137,6 +136,17 @@ class PythonVersionContractTest(unittest.TestCase):
     uses: {reference}
 '''
 
+    def trusted_system_workflow_fixture(self) -> str:
+        wrapper = (ROOT / ".github/workflows" / CHECKER.TRUSTED_SYSTEM_PYTHON_JOB.workflow).read_text()
+        recorded_revision = load_framework_revision_pins(ROOT)["framework_sha"]
+        prefix = "Easton97-Jens/ModSecurity-test-Framework/.github/workflows/connector-trusted-lighttpd-namespace.yml@"
+        recorded_reference = prefix + recorded_revision
+        if wrapper.count(recorded_reference) != 1:
+            raise AssertionError("fixture requires exactly one canonical Parent-pinned Framework workflow")
+        # Only isolated fixture text selects this working Framework's source.
+        # The real Parent caller retains its immutable recorded reference.
+        return wrapper.replace(recorded_reference, prefix + framework_revision(), 1)
+
     def write_complete_contract_root(self, root: Path, candidate_override: str | None = None) -> None:
         by_workflow: dict[str, list[str]] = {}
         for identity in sorted(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS):
@@ -165,10 +175,7 @@ class PythonVersionContractTest(unittest.TestCase):
                 + "".join(jobs),
                 encoding="utf-8",
             )
-        wrapper = (ROOT / ".github/workflows" / CHECKER.TRUSTED_SYSTEM_PYTHON_JOB.workflow).read_text()
-        # Only isolated fixture text projects the unpublished migration marker
-        # to the actual selected Framework revision. Production never falls back.
-        wrapper = wrapper.replace("__FRAMEWORK_MIGRATION_SHA__", framework_revision())
+        wrapper = self.trusted_system_workflow_fixture()
         (workflows / CHECKER.TRUSTED_SYSTEM_PYTHON_JOB.workflow).write_text(wrapper)
         (root / ".python-version").write_text("3.15.6\n", encoding="utf-8")
 
@@ -229,7 +236,7 @@ class PythonVersionContractTest(unittest.TestCase):
             ('persist-credentials: false', 'persist-credentials: true'),
             ('revision=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)', 'revision=$(git rev-parse refs/heads/candidate)'),
             ("hashFiles('" + CHECKER.VERIFIER_PATH + "') != ''", 'true'),
-            ('framework-revision: ${{ steps.framework-gitlink.outputs.revision }}', 'framework-revision: ${{ github.sha }}'),
+            ('EXPECTED_FRAMEWORK_REVISION: ${{ steps.framework-gitlink.outputs.revision }}', 'EXPECTED_FRAMEWORK_REVISION: ${{ github.sha }}'),
         )
         for old, new in mutations:
             with self.subTest(old=old):
@@ -237,6 +244,14 @@ class PythonVersionContractTest(unittest.TestCase):
                 self.assertNotEqual(source, original)
                 errors = CHECKER.validate_normal_job(self.trusted_base_job(source))
                 self.assertTrue(any("trusted-base migration" in error for error in errors), errors)
+
+    def test_unproven_trusted_base_context_python_never_gains_order_exemption(self):
+        original = (ROOT / ".github/workflows/ci-security-codeql.yml").read_text()
+        source = original.replace("--tool connector-context", "--tool unproven-context", 1)
+        self.assertNotEqual(source, original)
+        errors = CHECKER.validate_normal_job(self.trusted_base_job(source))
+        self.assertTrue(any("trusted-base migration" in error for error in errors), errors)
+        self.assertTrue(any("first Python use" in error for error in errors), errors)
 
     def test_trusted_base_body_cannot_hide_an_unnamed_early_python_execution(self):
         original = (ROOT / ".github/workflows/ci-security-codeql.yml").read_text()
@@ -698,8 +713,7 @@ printf '%s\\n' 'make quick-check'
     def test_trusted_system_python_requires_the_complete_dedicated_contract(self):
         identity = CHECKER.TRUSTED_SYSTEM_PYTHON_JOB
         original = (test_root() / ".github/workflows/connector-trusted-lighttpd-namespace.yml").read_text()
-        wrapper = (ROOT / ".github/workflows" / identity.workflow).read_text()
-        wrapper = wrapper.replace("__FRAMEWORK_MIGRATION_SHA__", framework_revision())
+        wrapper = self.trusted_system_workflow_fixture()
         with self.temporary_root() as directory:
             root = Path(directory)
             workflows = root / ".github/workflows"

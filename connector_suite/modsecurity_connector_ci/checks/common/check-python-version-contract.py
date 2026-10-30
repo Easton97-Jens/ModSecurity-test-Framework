@@ -8,10 +8,9 @@ Workflow content is never executed.
 """
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_source
 
 import argparse
-import importlib.util
 import hashlib
 from dataclasses import dataclass
 import json
@@ -67,6 +66,18 @@ TRUSTED_BASE_CONTEXT_GUARD = (
     "${{ hashFiles('" + VERIFIER_PATH + "') != '' }}"
 )
 TRUSTED_BASE_CHECKOUT_REFERENCE = read_action_reference(connector_root(), "actions/checkout")
+TRUSTED_BASE_CONTEXT_NAME = "Bind migrated trusted-base Framework context when available"
+TRUSTED_BASE_CONTEXT_COMMAND = r"""set -euo pipefail
+connector_root="${GITHUB_WORKSPACE:?}"
+connector_revision=$(git -C "$connector_root" rev-parse HEAD)
+python3 -I "$connector_root/ci/run-trusted-framework.py" \
+  --tool connector-context \
+  --connector-root "$connector_root" \
+  --connector-revision "$connector_revision" -- \
+  --connector-root "$connector_root" \
+  --connector-revision "$connector_revision" \
+  --framework-revision "$EXPECTED_FRAMEWORK_REVISION"
+"""
 
 UPDATE_PYTHON_VERSION_WORKFLOW = "update-python-version.yml"
 UPDATE_GO_VERSION_WORKFLOW = "update-go-version.yml"
@@ -178,7 +189,7 @@ EXPECTED_LOCAL_REUSABLE_PYTHON_CALLERS: Mapping[JobIdentity, str] = {
 TRUSTED_SYSTEM_PYTHON_JOB = JobIdentity(
     "run-trusted-lighttpd-namespace-dispatch.yml", "trusted-lighttpd-namespace"
 )
-TRUSTED_SYSTEM_WORKFLOW_SHA256 = "6ce0366fdd0a0c33b1fc807d53b27b738ebc58f01452dccc6497bbf145fc94a1"
+TRUSTED_SYSTEM_WORKFLOW_SHA256 = "37e9223b670faa76d3a2c501d7bec87c037879e2370e498f6110a8678a9ce94c"
 EXPECTED_SYSTEM_PYTHON_JOBS = frozenset({TRUSTED_SYSTEM_PYTHON_JOB})
 
 
@@ -1609,9 +1620,12 @@ def validate_order(
     setup: Step | None,
     verifier: Step | None,
     verifier_name: str = VERIFIER_NAME,
+    *, trusted_base_bootstrap: Step | None = None,
 ) -> list[str]:
     errors: list[str] = []
-    first_use = first_python_use(steps, identity)
+    first_use = first_python_use(
+        [step for step in steps if step is not trusted_base_bootstrap], identity
+    )
     if setup is None:
         if first_use is not None:
             errors.append(
@@ -1720,17 +1734,27 @@ def trusted_base_migration_violations(job: Job, steps: Sequence[Step], verifier:
                 }):
             errors.append("trusted-base migration checkout must retain the exact base ref, submodule and credential contract")
     gitlinks = [step for step in steps if step.scalar("id") == "framework-gitlink"]
-    contexts = [step for step in steps if step.scalar("uses") ==
-                "./modules/ModSecurity-test-Framework/.github/actions/connector-context"]
+    contexts = [step for step in steps if step.scalar("name") == TRUSTED_BASE_CONTEXT_NAME]
+    setups = [step for step in steps if step.scalar("id") == "setup-python"]
     if len(gitlinks) != 1 or not exact_script(gitlinks[0].run(), TRUSTED_BASE_GITLINK_COMMAND):
         errors.append("trusted-base migration requires the exact committed Framework gitlink reader")
-    if (len(contexts) != 1 or contexts[0].scalar("if") != TRUSTED_BASE_CONTEXT_GUARD or
-            contexts[0].nested_mapping("with") != {
-                "framework-revision": "${{ steps.framework-gitlink.outputs.revision }}"
-            }):
-        errors.append("trusted-base migration requires the exact guarded local Framework context")
-    if len(checkouts) == len(gitlinks) == len(contexts) == 1:
-        if not (checkouts[0].index < gitlinks[0].index < contexts[0].index < verifier.index):
+    if len(contexts) != 1:
+        errors.append("trusted-base migration requires the exact guarded authenticated Framework context")
+    else:
+        context = contexts[0]
+        keys = [entry[0] for _, _, entry in direct_step_entries(context.lines, context.indent)]
+        if (len(keys) != 5 or set(keys) != {"name", "if", "shell", "env", "run"}
+                or context.scalar("if") != TRUSTED_BASE_CONTEXT_GUARD
+                or context.scalar("shell") != "bash"
+                or context.nested_mapping("env") != {
+                    "EXPECTED_FRAMEWORK_REVISION": "${{ steps.framework-gitlink.outputs.revision }}"
+                }
+                or not exact_script(context.run(), TRUSTED_BASE_CONTEXT_COMMAND)):
+            errors.append("trusted-base migration requires the exact guarded authenticated Framework context")
+    if len(setups) != 1:
+        errors.append("trusted-base migration requires the unique canonical setup-python step")
+    if len(checkouts) == len(gitlinks) == len(contexts) == len(setups) == 1:
+        if not (checkouts[0].index < gitlinks[0].index < contexts[0].index < setups[0].index < verifier.index):
             errors.append("trusted-base migration bootstrap must precede its verifier in reviewed order")
     return errors
 
@@ -1755,11 +1779,18 @@ def validate_normal_job(job: Job) -> list[str]:
         errors.extend(normal_setup_violations(job, setup))
 
     verifier = verifier_step(steps)
+    trusted_base_bootstrap = None
     if verifier is not None:
         errors.extend(normal_verifier_violations(verifier, job.identity))
         if exact_script(verifier.run(), TRUSTED_BASE_VERIFIER_COMMAND):
-            errors.extend(trusted_base_migration_violations(job, steps, verifier))
-    errors.extend(validate_order(job.identity, steps, setup, verifier))
+            migration_errors = trusted_base_migration_violations(job, steps, verifier)
+            errors.extend(migration_errors)
+            if not migration_errors:
+                trusted_base_bootstrap = next(
+                    step for step in steps if step.scalar("name") == TRUSTED_BASE_CONTEXT_NAME
+                )
+    errors.extend(validate_order(job.identity, steps, setup, verifier,
+                                 trusted_base_bootstrap=trusted_base_bootstrap))
     return finalize_job_validation(job.identity, steps, errors)
 
 

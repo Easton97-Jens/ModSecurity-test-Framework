@@ -58,7 +58,7 @@ def provenance_socket_receipt(path):
  return receipt
 
 
-def module(path,name):
+def module(path,_name):
  value = load_source(path);return value
 
 

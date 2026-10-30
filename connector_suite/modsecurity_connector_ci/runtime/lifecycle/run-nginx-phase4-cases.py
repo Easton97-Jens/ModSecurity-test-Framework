@@ -18,7 +18,7 @@ HERE = Path(__file__).resolve().parent
 import importlib.util
 
 
-def load(name, path):
+def load(_name, path):
     module = load_source(path)
     return module
 

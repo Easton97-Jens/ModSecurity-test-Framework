@@ -16,6 +16,9 @@ import re
 import stat
 import types
 
+_WORKER_SELF_MAPS_HELPER_NAME = 'worker-self-maps.so'
+
+
 RAW_LIMIT = 1024 * 1024
 ARTIFACT_LIMIT = 64 * 1024 * 1024
 MODE = "native-nginx-http-module"
@@ -408,7 +411,7 @@ def read_invocation(reader, descriptor, case_id, operation, sources):
         if helper_present:
             require(isinstance(expected_helper, str) and SHA256.fullmatch(expected_helper)
                     and artifacts[helper_key] == expected_helper, "explicit actual worker helper digest required")
-            raw["worker-self-maps.so"] = reader.read(prefix + "worker-self-maps.so", expected_helper, ARTIFACT_LIMIT)
+            raw[_WORKER_SELF_MAPS_HELPER_NAME] = reader.read(prefix + _WORKER_SELF_MAPS_HELPER_NAME, expected_helper, ARTIFACT_LIMIT)
             raw[ledger] = reader.read(prefix + ledger, captures[ledger], 64 * 1024)
         raw.update(read_hash_map(reader, prefix, {key: value for key, value in artifacts.items()
                                                 if key != helper_key}, COMMON_RAW))
@@ -430,7 +433,7 @@ def read_invocation(reader, descriptor, case_id, operation, sources):
                     "complete original worker maps must match sealed self-map ledger")
             paths = {line.split(None, 5)[5] for line in maps.decode("utf-8").splitlines()
                      if len(line.split(None, 5)) == 6}
-            require({str(reader.root / prefix / leaf) for leaf in ("worker-self-maps.so", "nginx-module.so")} <= paths,
+            require({str(reader.root / prefix / leaf) for leaf in (_WORKER_SELF_MAPS_HELPER_NAME, "nginx-module.so")} <= paths,
                     "actual worker maps omit fixed helper or module snapshot")
     else:
         raw.update(read_hash_map(reader, prefix, receipt.get("raw_sha256"), COMMON_RAW))

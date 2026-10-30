@@ -1,10 +1,9 @@
 """Native context preparation fails before importing unverified host headers."""
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
+from modsecurity_test_framework.connector_context import connector_root, source_path, load_source
 
 import hashlib
-import importlib.util
 import io
 from pathlib import Path
 import tarfile
@@ -21,7 +20,7 @@ class SonarNativeContextTests(unittest.TestCase):
     def test_contract_versions_remain_ascii_after_concise_regex_change(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            nginx = root / "ci/provisioning/components/prepare-runtime-components.py"
+            nginx = root / "framework/connector_suite/modsecurity_connector_ci/provisioning/components/prepare-runtime-components.py"
             haproxy = root / "connectors/haproxy/htx-overlay/version-contract.json"
             lighttpd = root / "connectors/lighttpd/lighttpd-version.contract"
             for path in (nginx, haproxy, lighttpd):
@@ -41,7 +40,10 @@ class SonarNativeContextTests(unittest.TestCase):
                     "NGINX_PINNED_RELEASE_ASSET_SHA256": "0" * 64,
                 }
                 nginx.write_text("\n".join(f"{key} = {value!r}" for key, value in pins.items()))
-                with self.subTest(version=version), mock.patch.object(NATIVE, "ROOT", root):
+                with self.subTest(version=version), mock.patch.object(NATIVE, "ROOT", root), \
+                        mock.patch.object(NATIVE, "source_path", side_effect=lambda name, *, root: (
+                            nginx if name == "ci/provisioning/components/prepare-runtime-components.py"
+                            else root / name)):
                     if allowed:
                         self.assertEqual(NATIVE.contracts()["nginx"]["version"], version)
                     else:
@@ -132,6 +134,17 @@ class SonarNativeContextTests(unittest.TestCase):
             output = NATIVE.fresh_root(str(parent / "new-private-context"))
             self.assertTrue(output.is_dir())
             self.assertEqual(output.stat().st_mode & 0o777, 0o700)
+
+    def test_output_root_rejects_shared_ancestor_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            shared = Path(temporary) / "shared"
+            shared.mkdir(mode=0o777)
+            shared.chmod(0o777)
+            destination = shared / "new-context"
+            with self.assertRaisesRegex(ValueError, "untrusted shared writes"):
+                NATIVE.fresh_root(str(destination))
+            self.assertFalse(destination.exists())
+            self.assertEqual(shared.stat().st_mode & 0o777, 0o777)
 
     def test_required_generated_artifacts_must_be_regular_and_nonempty(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

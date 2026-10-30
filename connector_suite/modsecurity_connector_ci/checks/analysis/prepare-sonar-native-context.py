@@ -27,10 +27,16 @@ from urllib.parse import urlsplit
 
 ROOT = connector_root()
 
-from modsecurity_connector_ci.lib.runtime_path_utils import is_safe_runtime_root
+from modsecurity_connector_ci.lib.runtime_path_utils import (
+    canonical_project_roots, ensure_safe_runtime_directory, is_safe_runtime_root,
+)
 from modsecurity_test_framework.product_sources.ci.lib.framework_revision_pins import (
     FRAMEWORK_PATH, load_framework_revision_pins,
 )
+
+verify_trusted_directory = load_tool(
+    "ci/checks/analysis/sonar-native-security/source_mapping.py"
+).verify_trusted_directory
 
 GIT_PREFIX = ("git", "--no-replace-objects")
 
@@ -204,11 +210,18 @@ def fresh_root(value: str) -> Path:
     path = Path(value)
     if (not path.is_absolute() or ".." in path.parts or any(c in value for c in "\r\n,\0")
             or not is_safe_runtime_root(path) or path.is_relative_to(ROOT)
-            or ROOT.is_relative_to(path)):
+            or ROOT.is_relative_to(path)
+            or any(path.is_relative_to(source) or source.is_relative_to(path)
+                   for source in canonical_project_roots())):
         raise ValueError("native context root must be a safe absolute external path")
     if path.exists() or path.is_symlink():
         raise ValueError("native context root must be fresh")
-    path.mkdir(parents=True, mode=0o700)
+    ancestor = path.parent
+    while not ancestor.exists():
+        ancestor = ancestor.parent
+    verify_trusted_directory(ancestor)
+    ensure_safe_runtime_directory(path)
+    path.chmod(0o700)
     return path
 
 

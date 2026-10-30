@@ -17,6 +17,9 @@ from connector_suite.adapters.lighttpd.harness.run_stock_sidecar_real_backend im
 )
 
 
+_MODSECURITY_SHARED_LIBRARY_NAME = 'libmodsecurity.so'
+
+
 def product_source_digest(root: Path) -> str:
     """Match the product builder's ordered, NUL-framed source receipt."""
     paths = [root / relative for relative in (
@@ -52,7 +55,7 @@ def main() -> int:
     include = Path(os.environ["MODSECURITY_INCLUDE_DIR"])
     libraries = Path(os.environ["MODSECURITY_LIB_DIR"])
     if (not include.is_absolute() or not (include / "modsecurity/modsecurity.h").is_file()
-            or not libraries.is_absolute() or not (libraries / "libmodsecurity.so").is_file()):
+            or not libraries.is_absolute() or not (libraries / _MODSECURITY_SHARED_LIBRARY_NAME).is_file()):
         raise ValueError("explicit absolute libmodsecurity SDK paths are required")
     binary = args.sidecar_binary
     commit, state = repository_revision()
@@ -61,7 +64,7 @@ def main() -> int:
     source_digest = file_sha256(source, "Runtime begin smoke source")
     product_manifest_digest = file_sha256(binary.parent / "stock-sidecar-artifact.manifest", "Sidecar manifest")
     if (product_source_digest(context.connector) != product["sidecar_source_inputs_sha256"] or
-            file_sha256((libraries / "libmodsecurity.so").resolve(strict=True), "ModSecurity library") != product["modsecurity_library_sha256"]):
+            file_sha256((libraries / _MODSECURITY_SHARED_LIBRARY_NAME).resolve(strict=True), "ModSecurity library") != product["modsecurity_library_sha256"]):
         raise ValueError("smoke compile inputs differ from the product artifact provenance")
     smoke = output / "runtime-begin-smoke"
     command = [compiler, "-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
@@ -79,7 +82,7 @@ def main() -> int:
     if (product_source_digest(context.connector) != product["sidecar_source_inputs_sha256"] or
             file_sha256(source, "Runtime begin smoke source") != source_digest or
             file_sha256(binary.parent / "stock-sidecar-artifact.manifest", "Sidecar manifest") != product_manifest_digest or
-            file_sha256((libraries / "libmodsecurity.so").resolve(strict=True), "ModSecurity library") != product["modsecurity_library_sha256"]):
+            file_sha256((libraries / _MODSECURITY_SHARED_LIBRARY_NAME).resolve(strict=True), "ModSecurity library") != product["modsecurity_library_sha256"]):
         raise ValueError("smoke or product source provenance changed during compilation")
     values = {
         **product, "schema_version": "1", "artifact_kind": "lighttpd_stock_sidecar_test_artifacts",

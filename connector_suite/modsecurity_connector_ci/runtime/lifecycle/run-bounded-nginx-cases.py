@@ -39,7 +39,7 @@ class CaseRunError(ValueError):
     """A bounded functional input or its live result could not be verified."""
 
 
-def load_module(name: str, path: Path):
+def load_module(_name: str, path: Path):
     module = load_source(path)
     return module
 

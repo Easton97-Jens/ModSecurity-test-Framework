@@ -4,13 +4,16 @@ from modsecurity_test_framework.connector_context import connector_root, test_ro
 from pathlib import Path
 import unittest
 
-from modsecurity_connector_tests._haproxy_spop_contract_helpers import assert_worker_result_order
+from modsecurity_connector_tests._haproxy_spop_contract_helpers import (
+    assert_worker_result_order, read_spop_native_self_test_source,
+)
 
 
 ROOT = connector_root()
 SOURCE = (
     source_path('connectors/haproxy/src/haproxy_spop_diagnostic_runtime.c', root=ROOT)
 ).read_text(encoding="utf-8")
+NATIVE_SOURCE = read_spop_native_self_test_source(ROOT)
 
 
 class HAProxySPOPSigpipePeerIsolationContractTests(unittest.TestCase):
@@ -65,11 +68,11 @@ class HAProxySPOPSigpipePeerIsolationContractTests(unittest.TestCase):
         self.assertIn("now - last_peer_failure_log_ms >= 1000U", SOURCE)
 
     def test_peer_close_and_follow_up_handshake_are_runtime_regressions(self) -> None:
-        self.assertIn("run_spop_peer_close_write_self_test", SOURCE)
-        self.assertIn("shutdown(sockets[1], SHUT_RD)", SOURCE)
-        self.assertIn("client healthcheck handshake PASS", SOURCE)
-        self.assertIn("client notify set-var ack disconnect PASS", SOURCE)
-        self.assertIn("finish_ms - start_ms > 1000U", SOURCE)
+        self.assertIn("run_spop_peer_close_write_self_test", NATIVE_SOURCE)
+        self.assertIn("shutdown(sockets[1], SHUT_RD)", NATIVE_SOURCE)
+        self.assertIn("client healthcheck handshake PASS", NATIVE_SOURCE)
+        self.assertIn("client notify set-var ack disconnect PASS", NATIVE_SOURCE)
+        self.assertIn("finish_ms - start_ms > 1000U", NATIVE_SOURCE)
 
 
 

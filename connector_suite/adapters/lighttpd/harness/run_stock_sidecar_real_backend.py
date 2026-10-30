@@ -22,6 +22,9 @@ import tempfile
 import time
 
 
+_STOCK_SIDECAR_MANIFEST_LABEL = 'Stock lighttpd Sidecar artifact manifest'
+
+
 REPOSITORY_ROOT = connector_root()
 _CI_LIB = REPOSITORY_ROOT / "ci" / "lib"
 
@@ -568,8 +571,8 @@ def verify_stock_launch_artifacts(binary: Path, module_dir: Path,
 def verify_product_sidecar_manifest(binary: Path, binary_digest: str,
                                     parent_commit: str, source_tree_state: str) -> dict[str, str]:
     manifest = binary.parent / "stock-sidecar-artifact.manifest"
-    verify_artifact_path_chain(manifest, "Stock lighttpd Sidecar artifact manifest")
-    values = metadata_values(manifest, "Stock lighttpd Sidecar artifact manifest")
+    verify_artifact_path_chain(manifest, _STOCK_SIDECAR_MANIFEST_LABEL)
+    values = metadata_values(manifest, _STOCK_SIDECAR_MANIFEST_LABEL)
     expected = {
         "schema_version": "2",
         "artifact_kind": "lighttpd_stock_sidecar",
@@ -607,7 +610,7 @@ def verify_sidecar_build_manifest(binary: Path, binary_digest: str,
         "artifact_kind": "lighttpd_stock_sidecar_test_artifacts",
         "framework_revision": framework_revision(),
         "product_manifest_sha256": file_sha256(binary.parent / "stock-sidecar-artifact.manifest",
-                                               "Stock lighttpd Sidecar artifact manifest"),
+                                               _STOCK_SIDECAR_MANIFEST_LABEL),
         "runtime_begin_smoke_source_sha256": file_sha256(
             source_path("connectors/lighttpd/stock_sidecar/runtime_begin_smoke.c"),
             "Stock lighttpd runtime begin smoke source"),

@@ -7,6 +7,9 @@ import json
 from typing import Any, Mapping
 
 
+_RESULT_IDENTITY_TOKEN_PATTERN = '[A-Za-z0-9:._/-]{1,256}'
+
+
 RESULT_BINDING_FIELDS = ("run_id", "case_id", "request_id", "transaction_id", "source_revision")
 
 
@@ -15,7 +18,7 @@ def validate_result_context(binding: Mapping[str, Any]) -> dict[str, str]:
     validated: dict[str, str] = {}
     for field in ("run_id", "case_id", "source_revision"):
         value = binding.get(field)
-        if not isinstance(value, str) or re.fullmatch(r"[A-Za-z0-9:._/-]{1,256}", value) is None:
+        if not isinstance(value, str) or re.fullmatch(_RESULT_IDENTITY_TOKEN_PATTERN, value) is None:
             raise ValueError(f"result identity requires a bounded explicit {field}")
         validated[field] = value
     if re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", validated["source_revision"]) is None:
@@ -28,7 +31,7 @@ def validate_result_binding(binding: Mapping[str, Any]) -> dict[str, str]:
     validated = validate_result_context(binding)
     for field in ("request_id", "transaction_id"):
         value = binding.get(field)
-        if not isinstance(value, str) or re.fullmatch(r"[A-Za-z0-9:._/-]{1,256}", value) is None:
+        if not isinstance(value, str) or re.fullmatch(_RESULT_IDENTITY_TOKEN_PATTERN, value) is None:
             raise ValueError(f"result identity requires a bounded explicit {field}")
         validated[field] = value
     return validated
@@ -86,7 +89,7 @@ def validate_summary_identity(run_id: Any = None, source_revision: Any = None) -
     for field, value in (("run_id", run_id), ("source_revision", source_revision)):
         if value in (None, ""):
             continue
-        if not isinstance(value, str) or re.fullmatch(r"[A-Za-z0-9:._/-]{1,256}", value) is None:
+        if not isinstance(value, str) or re.fullmatch(_RESULT_IDENTITY_TOKEN_PATTERN, value) is None:
             raise ValueError(f"summary requires a bounded explicit {field} identity")
         if field == "source_revision" and re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", value) is None:
             raise ValueError("summary requires an exact source revision identity")

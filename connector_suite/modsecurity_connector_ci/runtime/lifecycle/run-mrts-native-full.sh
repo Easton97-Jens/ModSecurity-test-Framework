@@ -487,6 +487,7 @@ run_native_target() {
     case "$target" in
         apache2_ubuntu) native_port=$MRTS_NATIVE_APACHE_PORT ;;
         nginx-pr24) native_port=$MRTS_NATIVE_NGINX_PORT ;;
+        *) echo "ERROR: unsupported MRTS_NATIVE_TARGETS item: $target" >&2; return 2 ;;
     esac
     if ! materialize_mrts_outputs "$target_root" "$native_port" >> "$run_log" 2>&1; then
         reason="private MRTS materialization failed"

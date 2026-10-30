@@ -54,7 +54,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "${#GITHUB_SHA}" -eq 40
-          case "$GITHUB_SHA" in *[!0-9a-f]*) exit 77;; esac
+          case "$GITHUB_SHA" in *[!0-9a-f]*) exit 77;; *) : ;; esac
           test "${GITHUB_REPOSITORY}" = Easton97-Jens/ModSecurity-conector
       - name: Resolve and re-read the canonical PR identity from the trusted dispatcher
         id: dispatch

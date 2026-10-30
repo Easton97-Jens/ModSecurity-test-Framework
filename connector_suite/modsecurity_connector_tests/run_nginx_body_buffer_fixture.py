@@ -27,6 +27,19 @@ import time
 from pathlib import Path
 from typing import Any
 
+from modsecurity_test_framework.connector_context import load_tool
+from modsecurity_connector_ci.lib.runtime_path_utils import (
+    canonical_project_roots, ensure_safe_runtime_directory, is_safe_runtime_root,
+)
+
+
+verify_trusted_directory = load_tool(
+    "ci/checks/analysis/sonar-native-security/source_mapping.py"
+).verify_trusted_directory
+
+
+_NGINX_ERROR_LOG_NAME = 'error.log'
+
 
 FIXTURE_PAYLOAD = b"P4-FIXTURE-BODY!"
 FIXTURE_PAYLOAD_BYTES = len(FIXTURE_PAYLOAD)
@@ -49,11 +62,29 @@ def fail(message: str) -> None:
     raise FixtureFailure(message)
 
 
+def create_output_directory(path: Path, label: str) -> None:
+    if (path.resolve() != path or not is_safe_runtime_root(path)
+            or any(path.is_relative_to(source) or source.is_relative_to(path)
+                   for source in canonical_project_roots())):
+        fail(f"{label} must be a canonical external runtime path")
+    ancestor = path
+    while not ancestor.exists():
+        ancestor = ancestor.parent
+    try:
+        verify_trusted_directory(ancestor)
+        created = not path.exists()
+        ensure_safe_runtime_directory(path)
+        if created:
+            path.chmod(0o700)
+    except ValueError as exc:
+        raise FixtureFailure(f"{label} has unsafe ancestry: {exc}") from exc
+
+
 def require_absolute_directory(path: Path, label: str, *, create: bool = False) -> Path:
     if not path.is_absolute() or path == Path("/"):
         fail(f"{label} must be an absolute non-root path")
     if create:
-        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        create_output_directory(path, label)
     try:
         details = path.lstat()
     except FileNotFoundError as exc:
@@ -262,7 +293,7 @@ def write_config(
         (
             f"user {nginx_user} {nginx_group};",
             "worker_processes 1;",
-            f"error_log {prefix / 'logs' / 'error.log'} notice;",
+            f"error_log {prefix / 'logs' / _NGINX_ERROR_LOG_NAME} notice;",
             f"pid {prefix / 'logs' / 'nginx.pid'};",
             "events { worker_connections 32; }",
             "http {",
@@ -487,7 +518,7 @@ def run_server_cases(
             response = raw_request(port, f"/{mode}")
             body = response_body(response)
             time.sleep(0.05)
-            error_log = read_bounded(prefix / "logs" / "error.log")
+            error_log = read_bounded(prefix / "logs" / _NGINX_ERROR_LOG_NAME)
             require_fixture_log(
                 error_log,
                 mode,
@@ -747,14 +778,14 @@ def main(argv: list[str]) -> int:
             ),
         )
     )
-    allocation_error = read_bounded(allocation_prefix / "logs" / "error.log")
+    allocation_error = read_bounded(allocation_prefix / "logs" / _NGINX_ERROR_LOG_NAME)
     if "cannot allocate file-backed response body scratch" not in allocation_error:
         fail("allocation-failure case did not reach the connector scratch allocation")
     if len(re.findall(
         r"body-buffer-fixture allocation-wrapper-hits=1(?:\D|$)", allocation_error
     )) != 1:
         fail("allocation-failure case did not record exactly one fixture wrapper hit")
-    normal_error = read_bounded(normal_prefix / "logs" / "error.log")
+    normal_error = read_bounded(normal_prefix / "logs" / _NGINX_ERROR_LOG_NAME)
     for expected_error, label in (
         ("invalid file-backed response body metadata", "invalid-metadata"),
         ("missing file-backed response body source", "missing-source"),

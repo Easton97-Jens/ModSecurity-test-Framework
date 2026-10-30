@@ -81,7 +81,7 @@ def refresh_connector_queue_totals(data: dict[str, Any]) -> None:
     totals["priority"] = dict(sorted(priority_counts.items()))
 
 
-def import_script(path: Path, module_name: str) -> Any:
+def import_script(path: Path, _module_name: str) -> Any:
     module = load_source(path)
     return module
 

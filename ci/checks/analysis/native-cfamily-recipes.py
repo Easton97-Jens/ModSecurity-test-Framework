@@ -7,6 +7,9 @@ from pathlib import Path
 import runpy
 
 
+_C_SOURCE_CONTRACT_PATH = 'connector_suite/modsecurity_connector_tests/c_source_contract.py'
+
+
 NATIVE_UNITS = (
     "connector_suite/adapters/apache/harness/mod_phase4_terminal_rogue.c",
     "connector_suite/adapters/envoy/src/envoy_ext_authz_response_companion_test.c",
@@ -141,7 +144,7 @@ def materialize_host_includes(source: str, output: Path) -> dict[str, str]:
         raise ValueError("private fixture include directory is required")
     root = Path(__file__).resolve().parents[3]
     definition = runpy.run_path(
-        str(root / "connector_suite/modsecurity_connector_tests/c_source_contract.py")
+        str(root / _C_SOURCE_CONTRACT_PATH)
     )["function_definition"]
     structs = source[
         source.index("struct haproxy_modsecurity_htx_filter_config {") : source.index(
@@ -215,7 +218,7 @@ def lighttpd_parts(
     """Preserve the existing exact productive lighttpd test extraction."""
     root = Path(__file__).resolve().parents[3]
     helper = runpy.run_path(
-        str(root / "connector_suite/modsecurity_connector_tests/c_source_contract.py")
+        str(root / _C_SOURCE_CONTRACT_PATH)
     )
     definition, matching = helper["function_definition"], helper["matching_delimiter"]
     result = {}
@@ -282,7 +285,7 @@ def spop_fixture_helper() -> str:
     """Read the exact extracted Framework helper used by the real caller fixture."""
     root = Path(__file__).resolve().parents[3]
     definition = runpy.run_path(
-        str(root / "connector_suite/modsecurity_connector_tests/c_source_contract.py")
+        str(root / _C_SOURCE_CONTRACT_PATH)
     )["function_definition"]
     source = (
         root

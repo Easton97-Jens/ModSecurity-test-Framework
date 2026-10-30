@@ -181,6 +181,27 @@ class SonarNativeCiTests(unittest.TestCase):
                     CI.external_root(shared)
             self.assertEqual(shared.stat().st_mode & 0o777, 0o777)
 
+    def test_sdk_transfer_output_rejects_shared_ancestor_without_mutation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            shared = parent / "shared"
+            shared.mkdir(mode=0o777)
+            shared.chmod(0o777)
+            destination = shared / "transfer"
+            with self.assertRaisesRegex(ValueError, "untrusted shared writes"):
+                CI.fresh_transfer(parent / "sdk-run", destination)
+            self.assertFalse(destination.exists())
+            self.assertEqual(shared.stat().st_mode & 0o777, 0o777)
+
+    def test_sdk_transfer_output_creates_private_fresh_external_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            destination = parent / "transfer"
+            self.assertEqual(CI.fresh_transfer(parent / "sdk-run", destination), destination)
+            self.assertEqual(destination.stat().st_mode & 0o777, 0o700)
+            with self.assertRaisesRegex(ValueError, "fresh canonical external"):
+                CI.fresh_transfer(parent / "sdk-run", destination)
+
     def test_sdk_transfer_preserves_real_relative_library_link(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

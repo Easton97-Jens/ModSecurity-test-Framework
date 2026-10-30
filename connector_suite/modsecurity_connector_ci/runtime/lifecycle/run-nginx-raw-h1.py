@@ -21,7 +21,7 @@ import time
 import importlib.util
 
 
-def load_helper(name, path):
+def load_helper(_name, path):
     module = load_source(path)
     return module
 

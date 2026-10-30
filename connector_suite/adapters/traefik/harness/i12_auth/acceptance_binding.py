@@ -15,7 +15,7 @@ def read(path):
     return json.loads(path.read_text()) if path.is_file() else None
 
 
-def load(path, name):
+def load(path, _name):
     value = load_source(path)
     return value
 
