@@ -3,19 +3,26 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import sys
+import stat
+import uuid
 from pathlib import Path
+from modsecurity_test_framework.result_identity import validate_request_observation
 
-from msconnector_models import (
+from modsecurity_test_framework.runners.msconnector_models import (
     RESULT_STATUSES,
+    RESULT_BINDING_FIELDS,
     SummaryContext,
     connector_summary as build_connector_summary,
     empty_connector_summary,
+    validate_result_binding,
+    validate_result_context,
 )
-from runner_core import (
+from modsecurity_test_framework.runners.runner_core import (
     CONNECTORS,
     assert_case_artifacts,
     case_info as build_case_info,
@@ -253,6 +260,30 @@ def materialize(args: argparse.Namespace) -> int:
     if not is_runtime_materializable(case):
         raise ValueError("case is explicitly non-materializable and cannot enter a connector runtime")
     output_root = _materialize_output_root(args)
+    native_profile = getattr(args, "native_profile", None)
+    if native_profile:
+        if os.environ.get("APACHE_NATIVE_ORACLE_OVERRIDE"):
+            raise ValueError("native profile and historical Apache oracle override cannot be combined")
+        from modsecurity_test_framework.runners.apache_native_header_rules import adapt_native_case
+
+        original_case = case
+        case, adaptation = adapt_native_case(
+            case, profile=native_profile,
+            case_sha256=hashlib.sha256(Path(args.case).read_bytes()).hexdigest(),
+        )
+        if adaptation is not None:
+            write_rules_file(
+                original_case, str(args.rules_file) + ".original-oracle",
+                output_root=output_root,
+                audit_log_file=args.audit_log_file,
+                audit_log_dir=args.audit_log_dir,
+                rules_preamble_file=args.rules_preamble_file or None,
+            )
+            write_contained_text_file(
+                str(args.rules_file) + ".native-profile.json",
+                json.dumps(adaptation, indent=2, sort_keys=True) + "\n",
+                output_root=output_root,
+            )
     write_rules_file(
         case,
         args.rules_file,
@@ -370,6 +401,8 @@ def _add_case_info_context(info: dict[str, object], args: argparse.Namespace, ac
     if phase4_related:
         info.setdefault("phase", 4)
     info["observed_status"] = actual_status
+    if actual_status is not None:
+        info["visible_http_status"] = actual_status
     info["observed_transport_result"] = args.observed_transport_result or "http_status"
     if args.reason:
         info["reason"] = args.reason
@@ -391,7 +424,11 @@ def _add_phase4_log_evidence(info: dict[str, object], phase4_log_file: str | Non
     if not phase4_log_file:
         return
     info["connector_phase4_log_path"] = phase4_log_file
-    metadata = phase4_log_metadata(phase4_log_file)
+    binding = {field: info.get(field) for field in RESULT_BINDING_FIELDS}
+    metadata = phase4_log_metadata(
+        phase4_log_file,
+        binding=binding if info.get("transaction_id") else None,
+    )
     for key in (
         "phase",
         "response_headers_seen",
@@ -408,7 +445,16 @@ def _add_phase4_log_evidence(info: dict[str, object], phase4_log_file: str | Non
     ):
         if key in metadata:
             info[key] = metadata[key]
-    info.update(phase4_runtime_evidence(metadata))
+    evidence = phase4_runtime_evidence(metadata)
+    # A WAF intervention and the response actually observed by the client are
+    # separate facts, including for a correctly matched late intervention.
+    if "http_status" in evidence:
+        info["intervention_http_status"] = evidence.pop("http_status")
+    if "visible_http_status" in evidence:
+        info["intervention_visible_http_status"] = evidence.pop("visible_http_status")
+    info.update(evidence)
+    if info.get("actual_status") is not None:
+        info["visible_http_status"] = info["actual_status"]
 
 
 def _write_or_print_case_info(info: dict[str, object], args: argparse.Namespace) -> None:
@@ -432,19 +478,233 @@ def case_info(args: argparse.Namespace) -> int:
     case = load_case(args.case)
     actual_status = int(args.actual_status) if args.actual_status not in (None, "") else None
     info = build_case_info(case, args.case, args.connector, args.status, actual_status)
+    identity = {field: getattr(args, field, "") for field in RESULT_BINDING_FIELDS}
+    identity["case_id"] = identity["case_id"] or str(case["name"])
+    capture_log = getattr(args, "capture_request_log", None)
+    capture_window = getattr(args, "capture_request_window", None)
+    window = None
+    request_bound = False
+    window_bytes = None
+    if capture_window:
+        window_bytes = _request_artifact(Path(capture_window), _required_output_root(args, "case-info"), 16384)
+        window = json.loads(window_bytes)
+        context = validate_result_context(identity)
+        _validate_request_window(window, Path(capture_window), _required_output_root(args, "case-info"),
+                                 context, Path(args.case), completed=True)
+        if identity["request_id"] and identity["request_id"] != window["request_id"]:
+            raise ValueError("request window nonce conflicts with explicit request_id")
+        identity["request_id"] = window["request_id"]
+    if capture_log and (Path(capture_log).exists() or window is not None) and (actual_status not in (None, 0) or window is not None):
+        try:
+            captured = captured_request_transaction(case, capture_log, _required_output_root(args, "case-info"), window=window, context=identity)
+            if identity["transaction_id"] and identity["transaction_id"] != captured:
+                raise ValueError("captured host transaction conflicts with explicit transaction_id")
+            identity["transaction_id"] = captured
+            identity["request_id"] = identity["request_id"] or (window["request_id"] if window else captured)
+        except NoObservedHostTransaction:
+            if (window is not None and not identity["transaction_id"] and args.status in {"pass", "fail"}
+                    and actual_status is not None and 100 <= actual_status <= 599):
+                request_bound = True
+            elif args.status != "fail" or identity["transaction_id"]:
+                raise
+        except ValueError as exc:
+            if args.status != "fail" or identity["transaction_id"]:
+                raise
+            info["identity_error"] = str(exc)
+            print(f"failed request identity unresolved: {exc}", file=sys.stderr)
+    if request_bound:
+        info.update(identity)
+        info.update(transaction_id=None, transaction_ids=[], evidence_identity="request_bound",
+                    runtime_verified=False, promotion_allowed=False, live_executed=True)
+        info["request_observation"] = dict(window)
+        info["request_observation"]["receipt_sha256"] = hashlib.sha256(window_bytes).hexdigest()
+        validate_request_observation(info)
+    elif any(identity[field] for field in RESULT_BINDING_FIELDS if field != "case_id"):
+        if args.status in {"fail", "blocked", "not_executable", "skipped"} and not identity["transaction_id"]:
+            info.update(validate_result_context(identity))
+            info["live_executed"] = actual_status is not None and 100 <= actual_status <= 599
+            info["evidence_identity"] = "unbound" if args.status == "fail" else "not_executed"
+            info["runtime_verified"] = False
+            info["promotion_allowed"] = False
+        else:
+            info.update(validate_result_binding(identity))
+            info["transaction_ids"] = [info["transaction_id"]]
+            info["evidence_identity"] = "bound"
+    else:
+        info["case_id"] = str(case["name"])
+        info["evidence_identity"] = "unbound"
+        info["runtime_verified"] = False
+        info["promotion_allowed"] = False
     _add_case_info_context(info, args, actual_status)
-    _add_phase4_log_evidence(info, args.phase4_log_file or args.nginx_phase4_log_file)
+    if args.status in {"pass", "fail"}:
+        info["request_attempted"] = window is not None or actual_status is not None or bool(info.get("transaction_id"))
+        info["live_executed"] = bool(info.get("transaction_id")) or (actual_status is not None and 100 <= actual_status <= 599)
+    if not request_bound:
+        _add_phase4_log_evidence(info, args.phase4_log_file or args.nginx_phase4_log_file)
     _write_or_print_case_info(info, args)
     return 0
 
 
+def _request_artifact(path: Path, output_root: Path, maximum: int) -> bytes:
+    """Read one bounded regular run artifact without following path links."""
+    root = output_root.resolve(strict=True)
+    if (not path.is_absolute() or ".." in path.parts
+            or any(component.is_symlink() for component in (path, *path.parents))
+            or not path.resolve(strict=True).is_relative_to(root)):
+        raise ValueError("request identity artifact must stay inside the explicit output root")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        observed = os.fstat(stream.fileno())
+        if not stat.S_ISREG(observed.st_mode) or observed.st_size > maximum:
+            raise ValueError("request identity artifact must be a bounded regular file")
+        data = stream.read(maximum + 1)
+    if len(data) > maximum:
+        raise ValueError("request identity artifact exceeds the size limit")
+    return data
+
+
+def _window_anchor(receipt: Path) -> Path:
+    return receipt.with_name(receipt.name + ".start.json")
+
+
+def _validate_request_window(window: dict, receipt: Path, root: Path, context: dict,
+                             case: Path, *, completed: bool) -> None:
+    """Bind the completed window to its separately retained begin nonce."""
+    if not isinstance(window, dict) or window.get("schema_version") != 2:
+        raise ValueError("request window schema is invalid")
+    if any(window.get(field) != value for field, value in context.items()):
+        raise ValueError("request window belongs to another run, case or source revision")
+    if window.get("case_sha256") != hashlib.sha256(case.read_bytes()).hexdigest():
+        raise ValueError("request window belongs to another case source")
+    if not isinstance(window.get("request_id"), str) or re.fullmatch(r"request-[0-9a-f]{32}", window["request_id"]) is None:
+        raise ValueError("request window nonce is invalid")
+    anchor_bytes = _request_artifact(_window_anchor(receipt), root, 16384)
+    anchor = json.loads(anchor_bytes)
+    fields = ("schema_version", "run_id", "case_id", "source_revision", "request_id", "case_sha256",
+              "event_log", "start_offset", "prefix_sha256")
+    expected_fields = set(fields) | {"state", "begin_sha256"}
+    if completed:
+        expected_fields |= {"end_offset", "interval_sha256"}
+    if set(window) != expected_fields:
+        raise ValueError("request window receipt fields are incomplete")
+    if (not isinstance(anchor, dict) or anchor.get("state") != "begun"
+            or any(anchor.get(field) != window.get(field) for field in fields)
+            or hashlib.sha256(anchor_bytes).hexdigest() != window.get("begin_sha256")):
+        raise ValueError("request window nonce or begin receipt changed")
+    if window.get("state") != ("completed" if completed else "begun"):
+        raise ValueError("request window must be completed exactly once")
+
+
+def _create_window_anchor(path: Path, raw: bytes, root: Path) -> None:
+    if (not path.is_absolute() or ".." in path.parts
+            or any(component.is_symlink() for component in (path, *path.parents))
+            or not path.parent.resolve(strict=True).is_relative_to(root.resolve(strict=True))):
+        raise ValueError("request nonce anchor must stay inside the explicit output root")
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(raw)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def request_window(args: argparse.Namespace) -> int:
+    """Bracket one actual client call without retaining its request payload."""
+    root = _required_output_root(args, "request-window")
+    case = load_case(args.case)
+    context = validate_result_context({"run_id": args.run_id, "case_id": case["name"],
+                                       "source_revision": args.source_revision})
+    log = Path(args.event_log)
+    if (not log.is_absolute() or ".." in log.parts
+            or any(component.is_symlink() for component in (log, *log.parents))
+            or not log.resolve(strict=False).is_relative_to(root.resolve(strict=True))):
+        raise ValueError("request event log must stay inside the explicit output root")
+    data = _request_artifact(log, root, 16 * 1024 * 1024) if log.exists() else b""
+    if args.phase == "begin":
+        receipt = {"schema_version": 2, "state": "begun", **context, "request_id": "request-" + uuid.uuid4().hex,
+                   "case_sha256": hashlib.sha256(Path(args.case).read_bytes()).hexdigest(),
+                   "event_log": str(log), "start_offset": len(data),
+                   "prefix_sha256": hashlib.sha256(data).hexdigest()}
+        anchor_bytes = (json.dumps(receipt, sort_keys=True) + "\n").encode("utf-8")
+        _create_window_anchor(_window_anchor(Path(args.receipt)), anchor_bytes, root)
+        receipt["begin_sha256"] = hashlib.sha256(anchor_bytes).hexdigest()
+    else:
+        receipt = json.loads(_request_artifact(Path(args.receipt), root, 16384))
+        _validate_request_window(receipt, Path(args.receipt), root, context, Path(args.case), completed=False)
+        if any(receipt.get(field) != value for field, value in context.items()) or receipt.get("event_log") != str(log):
+            raise ValueError("request window identity changed during the client call")
+        start = receipt.get("start_offset")
+        if type(start) is not int or start < 0 or start > len(data) or hashlib.sha256(data[:start]).hexdigest() != receipt.get("prefix_sha256"):
+            raise ValueError("request event log changed before its captured interval")
+        receipt["end_offset"] = len(data)
+        receipt["interval_sha256"] = hashlib.sha256(data[start:]).hexdigest()
+        receipt["state"] = "completed"
+    write_contained_text_file(args.receipt, json.dumps(receipt, sort_keys=True) + "\n", output_root=root)
+    return 0
+
+
+class NoObservedHostTransaction(ValueError):
+    """A validated request interval contains no matching host transaction."""
+
+
+def captured_request_transaction(case: dict, log: str, output_root: Path, *, window: dict | None = None,
+                                 context: dict | None = None) -> str:
+    """Read an actual host transaction for the exact request in its private run log.
+
+    A filename or the last intervention is never an identity. Multiple attempts
+    of the same request require a producer-supplied explicit binding instead.
+    """
+    path = Path(log)
+    data = _request_artifact(path, output_root, 16 * 1024 * 1024) if path.exists() else b""
+    if window is not None:
+        start, end = window.get("start_offset"), window.get("end_offset")
+        if (window.get("state") != "completed" or window.get("event_log") != str(path) or type(start) is not int or type(end) is not int
+                or not 0 <= start <= end <= len(data)
+                or hashlib.sha256(data[:start]).hexdigest() != window.get("prefix_sha256")
+                or hashlib.sha256(data[start:end]).hexdigest() != window.get("interval_sha256")):
+            raise ValueError("request event interval is missing or no longer matches its receipt")
+        data = data[start:end]
+    request = case.get("request", {})
+    method, uri = request.get("method", "GET"), request.get("path", "/")
+    permitted_uris = {uri}
+    if window is not None and "?" in uri:
+        permitted_uris.add(uri.partition("?")[0] + "?<redacted>")
+    transactions: set[str] = set()
+    for line in data.decode("utf-8").splitlines():
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        if not isinstance(event, dict):
+            raise ValueError("request identity log must contain event objects")
+        nested = event.get("request")
+        nested = nested if isinstance(nested, dict) else {}
+        if event.get("method", nested.get("method")) != method or event.get("uri", nested.get("uri")) not in permitted_uris:
+            continue
+        expected = window or context or {}
+        for field in ("run_id", "case_id", "source_revision"):
+            if expected.get(field) and field in event and event[field] != expected[field]:
+                raise ValueError(f"captured request identity mismatch: {field}")
+        transaction = event.get("transaction_id")
+        if not isinstance(transaction, str) or re.fullmatch(r"[A-Za-z0-9:._/-]{1,256}", transaction) is None:
+            raise ValueError("matching request event lacks a valid observed host transaction")
+        transactions.add(transaction)
+    if not transactions:
+        raise NoObservedHostTransaction("request identity requires exactly one matching observed host transaction")
+    if len(transactions) != 1:
+        raise ValueError("request identity requires exactly one matching observed host transaction")
+    return transactions.pop()
+
+
 def read_jsonl(path: Path) -> list[dict[str, object]]:
     entries = []
-    if path.exists():
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                if line.strip():
-                    entries.append(json.loads(line))
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                entry = json.loads(line)
+                if not isinstance(entry, dict):
+                    raise ValueError("required result rows must be JSON objects")
+                entries.append(entry)
+    if not entries:
+        raise ValueError("required result source is empty")
     return entries
 
 
@@ -459,13 +719,12 @@ def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]
     counts = summary.get("summary", {})
     summary["runtime_mode"] = args.runtime_mode
     summary["attempted"] = len(entries)
-    summary["total_cases"] = len(entries)
+    summary["total_cases"] = len(summary["cases"])
     summary["evidence_root"] = str(Path(args.summary_json).parent)
     summary["jsonl_path"] = args.input_jsonl
     summary["per_case_result_root"] = args.per_case_result_root or ""
     summary["command"] = args.command or ""
     summary["exit_status"] = args.exit_status
-    summary["run_id"] = args.run_id or os.environ.get("SMOKE_RUN_ID", "")
     summary["run_started_at"] = args.run_started_at or os.environ.get("SMOKE_RUN_STARTED_AT", "")
     if isinstance(counts, dict):
         summary["failed_due_to_live_mismatches"] = bool(counts.get("fail", 0))
@@ -474,6 +733,8 @@ def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]
 
 def summary_context(args: argparse.Namespace) -> SummaryContext:
     return SummaryContext(
+        run_id=getattr(args, "run_id", "") or os.environ.get("SMOKE_RUN_ID", ""),
+        source_revision=getattr(args, "source_revision", "") or os.environ.get("CONNECTOR_REVISION", ""),
         connector_path=args.connector_path,
         validation_mode=args.validation_mode,
         environment=args.environment,
@@ -507,6 +768,13 @@ def write_summary_text(entries: list[dict[str, object]], path: Path) -> None:
 def summarize_results(args: argparse.Namespace) -> int:
     entries = read_jsonl(Path(args.input_jsonl))
     summary = {args.connector: connector_summary(args, entries)}
+    cases = summary[args.connector]["cases"]
+    expected_cases = getattr(args, "expected_case", [])
+    if expected_cases and (len(expected_cases) != len(set(expected_cases)) or set(expected_cases) != set(cases)):
+        raise ValueError("required selected-case results are missing, duplicated or unexpected")
+    expected_count = getattr(args, "expected_count", None)
+    if expected_count is not None and (expected_count < 1 or len(cases) != expected_count):
+        raise ValueError("required distinct-case result count does not match selection")
     summary_json = Path(args.summary_json)
     summary_json.parent.mkdir(parents=True, exist_ok=True)
     summary_json.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -589,6 +857,7 @@ def build_parser() -> argparse.ArgumentParser:
         "materialize",
         help="write connector runtime files from a shared YAML case",
     )
+    materialize_parser.add_argument("--native-profile", choices=("apache-native",))
     materialize_parser.add_argument("--case", required=True)
     materialize_parser.add_argument("--output-root")
     materialize_parser.add_argument("--rules-file", required=True)
@@ -658,9 +927,23 @@ def build_parser() -> argparse.ArgumentParser:
     info_parser.add_argument("--error-log-file")
     info_parser.add_argument("--phase4-log-file")
     info_parser.add_argument("--nginx-phase4-log-file")
+    info_parser.add_argument("--capture-request-log")
+    info_parser.add_argument("--capture-request-window")
     info_parser.add_argument("--output")
     info_parser.add_argument("--output-root")
+    for field in RESULT_BINDING_FIELDS:
+        info_parser.add_argument("--" + field.replace("_", "-"), default="")
     info_parser.set_defaults(func=case_info)
+
+    window_parser = subparsers.add_parser("request-window", help="bind a host event interval around one actual request")
+    window_parser.add_argument("--phase", required=True, choices=("begin", "end"))
+    window_parser.add_argument("--case", required=True)
+    window_parser.add_argument("--event-log", required=True)
+    window_parser.add_argument("--receipt", required=True)
+    window_parser.add_argument("--output-root", required=True)
+    window_parser.add_argument("--run-id", required=True)
+    window_parser.add_argument("--source-revision", required=True)
+    window_parser.set_defaults(func=request_window)
 
     summarize_parser = subparsers.add_parser(
         "summarize-results",
@@ -668,6 +951,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     summarize_parser.add_argument("--connector", required=True, choices=CONNECTOR_CHOICES)
     summarize_parser.add_argument("--input-jsonl", required=True)
+    summarize_parser.add_argument("--expected-case", action="append", default=[])
+    summarize_parser.add_argument("--expected-count", type=int)
     summarize_parser.add_argument("--summary-json", required=True)
     summarize_parser.add_argument("--summary-text", required=True)
     summarize_parser.add_argument("--import-status-file")
@@ -689,6 +974,7 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--command", default="")
     summarize_parser.add_argument("--exit-status", default="")
     summarize_parser.add_argument("--run-id", default="")
+    summarize_parser.add_argument("--source-revision", default="")
     summarize_parser.add_argument("--run-started-at", default="")
     summarize_parser.add_argument("--per-case-result-root", default="")
     summarize_parser.set_defaults(func=summarize_results)
@@ -709,7 +995,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="write an empty connector summary for blocked or failed preparation",
     )
     empty_parser.add_argument("--connector", required=True, choices=CONNECTOR_CHOICES)
-    empty_parser.add_argument("--status", required=True, choices=RESULT_STATUSES)
+    empty_parser.add_argument("--status", required=True,
+                              choices=tuple(status for status in RESULT_STATUSES if status != "pass"))
     empty_parser.add_argument("--message", required=True)
     empty_parser.add_argument("--summary-json", required=True)
     empty_parser.add_argument("--summary-text", required=True)
@@ -734,7 +1021,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return int(args.func(args))
+    try:
+        return int(args.func(args))
+    except (OSError, ValueError) as exc:
+        print(f"case result rejected: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

@@ -135,8 +135,8 @@ class NativeBundleRouterTests(unittest.TestCase):
                               "connector": "nginx", "integration_mode": bundle.MODE, "phase": "logging", "rule_id": "",
                               "status": "ok", "action": "allow", "actual_action": "allow", "transaction_id": "a" * 32,
                               "method": "POST", "uri": self.observed["native_access"]["uri"],
-                              "reason": "common_return=0;common_complete=1;native_cleanup_completed=1;error_class=protocol_error",
-                              "cleanup_reason": "protocol_error"}
+                              "reason": "common_return=0;common_complete=1;native_cleanup_completed=1;error_class=connector_error",
+                              "cleanup_reason": "connector_error"}
         projection_parent = self.root / "projections"
         token = hashlib.sha256((self.run_id + ":" + self.case).encode()).hexdigest()[:32]
         projection = projection_parent / ("common-input-" + token)
@@ -149,7 +149,7 @@ class NativeBundleRouterTests(unittest.TestCase):
                     "worker-maps.log": (str(self.output / "nginx-module.so") + "\n" + str(self.output / "nginx-binary")).encode(),
                     "nginx-error.log": self.observed["native_diagnostic"].encode(), "configtest.stdout": b"",
                     "configtest.stderr": (str(self.output / "nginx.conf") + " syntax is ok\ntest is successful\n").encode(),
-                    "client.stdout": b"400", "client.stderr": b"", "startup.stdout": b"", "startup.stderr": b""}
+                    "client.stdout": b"500", "client.stderr": b"", "startup.stdout": b"", "startup.stderr": b""}
         self.receipt = {"schema_version": 1, "case_id": self.case, "run_id": self.run_id, "operation": "common_mapper_input_fault",
                         **{field: self.sources[field] for field in ("parent_sha", "framework_sha", "mrts_sha")},
                         "configtest_exit_code": 0, "projection_parent": str(projection_parent), "projection_root": str(projection)}
@@ -188,7 +188,7 @@ class NativeBundleRouterTests(unittest.TestCase):
     def test_original_sealed_pointer_layer_not_canonical_pass(self):
         proof = self.validate()
         self.assertEqual(proof["errors"], [])
-        self.assertEqual(proof["actual_status"], 400)
+        self.assertEqual(proof["actual_status"], 500)
         self.assertEqual(proof["transaction_ids"], ["a" * 32])
         self.assertEqual(len(proof["events"]), 2)
         self.assertTrue(proof["layer_verified"])

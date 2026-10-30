@@ -7,8 +7,7 @@ from pathlib import Path
 import sys
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import nginx_phase4_contracts as contracts
+from modsecurity_test_framework.runners import nginx_phase4_contracts as contracts
 
 
 def fixture(record):

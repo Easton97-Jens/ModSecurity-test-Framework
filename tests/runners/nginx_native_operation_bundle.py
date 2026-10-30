@@ -12,8 +12,6 @@ import os
 from pathlib import Path
 import re
 import stat
-import sys
-import threading
 import types
 
 RAW_LIMIT = 1024 * 1024
@@ -22,7 +20,6 @@ MODE = "native-nginx-http-module"
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 RUN_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
-_HELPER_LOCK = threading.RLock()
 RAW_CASES = frozenset({"invalid_content_length", "conflicting_content_length", "duplicate_transfer_encoding", "content_length_overflow"})
 INPUT_CASES = frozenset({"body_size_nonzero_with_null_data", "header_count_nonzero_with_null_headers"})
 MIME_CASES = frozenset({"phase4_in_scope_content_type", "phase4_content_type_with_charset", "phase4_out_of_scope_content_type", "phase4_missing_content_type"})
@@ -225,7 +222,9 @@ def verify_source_authority(record, envelope, sources):
 
 
 def load_helpers(case_id, source_bytes, framework_root):
-    """Execute only caller-authorized, independently reopened source bytes."""
+    """Execute reopened sources with a private authenticated dependency table."""
+    import builtins
+
     _, main = route(case_id)
     dependencies = []
     if case_id in PHASE4_CASES:
@@ -237,27 +236,28 @@ def load_helpers(case_id, source_bytes, framework_root):
                 "captured HTTP/1.1 framing source is required")
         dependencies.append("nginx_http11_framing")
     modules = {}
-    previous = {}
-    # Imports are scoped under the lock and restored, not taken from arbitrary
-    # already-imported modules or receipt-controlled sys.path entries.
-    with _HELPER_LOCK:
-        try:
-            for name in dependencies + [main]:
-                relative = "tests/runners/" + name + ".py"
-                module = types.ModuleType(name)
-                module.__file__ = str(framework_root / relative)
-                previous[name] = sys.modules.get(name)
-                sys.modules[name] = module
-                if case_id in SEQUENCE_CASES and name == main:
-                    module._AUTHENTICATED_WIRE = modules["nginx_http11_framing"]
-                exec(compile(source_bytes["framework:" + relative], module.__file__, "exec"), module.__dict__)
-                modules[name] = module
-        finally:
-            for name, original in previous.items():
-                if original is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = original
+    names = frozenset(dependencies + [main])
+
+    def authenticated_import(name, globals=None, locals=None, fromlist=(), level=0):
+        short = name.removeprefix("modsecurity_test_framework.runners.")
+        if level == 0 and short in names:
+            require(short in modules, "authenticated helper dependency order mismatch")
+            return modules[short]
+        if level == 0 and name == "modsecurity_test_framework.runners":
+            require(fromlist and all(item in modules for item in fromlist),
+                    "uncaptured helper import is forbidden")
+            return types.SimpleNamespace(**{item: modules[item] for item in fromlist})
+        return builtins.__import__(name, globals, locals, fromlist, level)
+
+    for name in dependencies + [main]:
+        relative = "tests/runners/" + name + ".py"
+        module = types.ModuleType("modsecurity_test_framework.authenticated_helpers." + name)
+        module.__file__ = str(framework_root / relative)
+        module.__dict__["__builtins__"] = {**vars(builtins), "__import__": authenticated_import}
+        if case_id in SEQUENCE_CASES and name == main:
+            module._AUTHENTICATED_WIRE = modules["nginx_http11_framing"]
+        exec(compile(source_bytes["framework:" + relative], module.__file__, "exec"), module.__dict__)
+        modules[name] = module
     return modules[main]
 
 
@@ -563,19 +563,19 @@ def validate_input(helper, receipt, raw, case_id, run_id):
     require(json_lines(raw["native-access.jsonl"]) == [observed["native_access"]]
             and json_lines(raw["native-input-fault.jsonl"]) == [observed["native_fault"]], "actual fault/access ledger projection mismatch")
     events = actual_events(raw, "phase1-events.jsonl")
-    protocol = [event for event in events if event.get("phase") in (1, "1", "request_headers") and event.get("event") == "protocol_error"]
-    require(protocol == observed["native_events"], "actual native protocol event projection mismatch")
-    require(len(events) == 2 and events[0] == protocol[0] and events[1].get("event") == "transaction_cleanup",
-            "terminal P1 mapper failure permits only its protocol error then cleanup source event")
+    errors = [event for event in events if event.get("phase") in (1, "1", "request_headers") and event.get("event") == "phase1_error"]
+    require(errors == observed["native_events"], "actual native connector error projection mismatch")
+    require(len(events) == 2 and events[0] == errors[0] and events[1].get("event") == "transaction_cleanup",
+            "terminal P1 mapper failure permits only its connector error then cleanup source event")
     exact(events[0], {"transaction_id": observed["transaction_id"], "method": "", "uri": ""},
           "actual pre-mapping terminal source identity")
     require(re.findall(rb'\bmodsecurity_transaction_id\s+"([^"\r\n]+)"\s*;', raw["nginx.conf"]) == [observed["transaction_id"].encode()], "actual configured mapper transaction differs from native ledger")
-    require(observed["native_diagnostic"].encode() in raw["nginx-error.log"] and raw["client.stdout"] == b"400"
+    require(observed["native_diagnostic"].encode() in raw["nginx-error.log"] and raw["client.stdout"] == b"500"
             and raw["client.stderr"] == b"", "actual diagnostic/client bytes mismatch")
-    cleanup_events(events, [observed["transaction_id"]], error_class="protocol_error",
+    cleanup_events(events, [observed["transaction_id"]], error_class="connector_error",
                    uris={observed["transaction_id"]: observed["native_access"]["uri"]})
     observed_roles(observed["roles"], observed["cleanup"], run_id)
-    return {"events": events, "transaction_ids": [observed["transaction_id"]], "actual_status": 400, "observation": observed}
+    return {"events": events, "transaction_ids": [observed["transaction_id"]], "actual_status": 500, "observation": observed}
 
 
 def validate_configtest(receipt, raw, case_id):

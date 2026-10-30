@@ -16,22 +16,22 @@ class CommonInputFaultContractTest(unittest.TestCase):
     def observation(self, case):
         transaction = "a" * 32
         return {"schema_version": 1, "case_id": case, "run_id": "unit", "operation": "common_mapper_input_fault",
-                "protocol": "http1", "client_exit_code": 0, "observed_http_status": 400,
+                "protocol": "http1", "client_exit_code": 0, "observed_http_status": 500,
                 "path": "/no-crs/input-fault/" + case,
                 "transaction_id": transaction,
                 "roles": {"master_uid": 0, "worker_uid": 65534, "master_pid": 123, "worker_pid": 124, "run_id": "unit"},
                 "cleanup": {"verified": True, "master_running": False, "worker_running": False, "listener_open": False,
                             "master_pid": 123, "worker_pid": 124, "run_id": "unit"},
-                "native_access": {"transaction_id": transaction, "uri": "/no-crs/input-fault/" + case, "status": 400},
+                "native_access": {"transaction_id": transaction, "uri": "/no-crs/input-fault/" + case, "status": 500},
                 "native_fault": {"case_id": case, "transaction_id": transaction, "pid": 124, "ppid": 123,
                                  "uid": 65534, "validator_return": 0, "diagnostic_match": True,
                                  "body_size": 1 if case.startswith("body_") else 0,
                                  "body_data_null": True, "header_count": 1, "headers_null": case.startswith("header_")},
                 "native_diagnostic": "modsecurity common request mapper validation failed: " +
                    ("missing body data" if case.startswith("body_") else "missing headers"),
-                "native_events": [{"event": "protocol_error", "message_id": "MSCONN_EVENT_PROTOCOL_ERROR",
+                "native_events": [{"event": "phase1_error", "message_id": "MSCONN_EVENT_CONNECTOR_ERROR",
                     "connector": "nginx", "integration_mode": "native-nginx-http-module", "phase": "request_headers",
-                    "transaction_id": transaction, "status": "error", "reason": "protocol_error", "rule_id": "",
+                    "transaction_id": transaction, "status": "error", "reason": "connector_error", "rule_id": "", "http_status": 500,
                     "method": "", "uri": ""}]}
 
     def test_two_required_native_mapper_operations_retain_actual_host_contract(self):
@@ -39,7 +39,7 @@ class CommonInputFaultContractTest(unittest.TestCase):
             with self.subTest(case=case):
                 self.assertEqual(self.contract.observation_errors(self.observation(case), case, "unit"), [])
                 self.assertEqual(self.contract.CONTRACTS[case]["phase"], 1)
-                self.assertEqual(self.contract.CONTRACTS[case]["expected_status"], 400)
+                self.assertEqual(self.contract.CONTRACTS[case]["expected_status"], 500)
 
     def test_wrong_transaction_foreign_worker_missing_guard_or_engine_rule_never_pass(self):
         for case in self.contract.CONTRACTS:
@@ -67,15 +67,15 @@ class CommonInputFaultContractTest(unittest.TestCase):
             row["native_events"][0]["phase"] = True
             self.assertTrue(self.contract.observation_errors(row, case, "unit"))
             row = self.observation(case)
-            row["native_events"][0]["event"] = "phase1_error"
+            row["native_events"][0]["event"] = "protocol_error"
             self.assertTrue(self.contract.observation_errors(row, case, "unit"))
 
     def test_identity_types_and_old_body_failure_remain_rejected(self):
         for case in self.contract.CONTRACTS:
-            changes = ((None, "observed_http_status", 405), (None, "client_exit_code", False),
+            changes = ((None, "observed_http_status", 400), (None, "observed_http_status", 405), (None, "client_exit_code", False),
                        (None, "run_id", "foreign"), (None, "case_id", "foreign"),
                        (None, "path", "/different"), (None, "transaction_id", ""),
-                       ("native_access", "status", 200), ("native_access", "uri", "/different"),
+                       ("native_access", "status", 200), ("native_access", "status", 400), ("native_access", "uri", "/different"),
                        ("native_fault", "uid", 0), ("native_fault", "validator_return", False),
                        ("roles", "master_pid", True), ("roles", "worker_pid", 123),
                        ("cleanup", "listener_open", True))
@@ -92,7 +92,8 @@ class CommonInputFaultContractTest(unittest.TestCase):
     def test_native_event_cause_identity_cardinality_and_diagnostic_are_exact(self):
         for case in self.contract.CONTRACTS:
             for field, value in (("transaction_id", "b" * 32), ("message_id", "OTHER"),
-                                 ("connector", "apache"), ("reason", "engine_error"),
+                                 ("connector", "apache"), ("reason", "engine_error"), ("reason", "protocol_error"),
+                                 ("http_status", 400), ("http_status", True),
                                  ("status", "ok"), ("phase", 2),
                                  ("integration_mode", "external"), ("method", "POST"),
                                  ("uri", "/no-crs/input-fault/foreign")):

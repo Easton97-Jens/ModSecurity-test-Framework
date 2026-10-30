@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import re
 
+# These are server-owned invalid mapped pointers, injected after parsing a valid
+# HTTP request. They are distinct from malformed client framing (HTTP 400).
 CONTRACTS = {
-    "body_size_nonzero_with_null_data": {"phase": 1, "expected_status": 400, "expected_result": "mapping_error",
+    "body_size_nonzero_with_null_data": {"phase": 1, "expected_status": 500, "expected_result": "mapping_error",
                                         "diagnostic": "missing body data"},
-    "header_count_nonzero_with_null_headers": {"phase": 1, "expected_status": 400, "expected_result": "mapping_error",
+    "header_count_nonzero_with_null_headers": {"phase": 1, "expected_status": 500, "expected_result": "mapping_error",
                                               "diagnostic": "missing headers"},
 }
 
@@ -46,11 +48,12 @@ def native_fault_errors(value, case_id, transaction, roles):
 
 def native_event_errors(events, transaction):
     if not isinstance(events, list) or len(events) != 1:
-        return ["exactly one real native protocol error is required"]
+        return ["exactly one real native connector error is required"]
     event = events[0]
-    required = {"event": "protocol_error", "message_id": "MSCONN_EVENT_PROTOCOL_ERROR", "connector": "nginx",
+    required = {"event": "phase1_error", "message_id": "MSCONN_EVENT_CONNECTOR_ERROR", "connector": "nginx",
                 "integration_mode": "native-nginx-http-module", "transaction_id": transaction,
-                "status": "error", "reason": "protocol_error", "rule_id": "", "method": "", "uri": ""}
+                "status": "error", "reason": "connector_error", "http_status": 500,
+                "rule_id": "", "method": "", "uri": ""}
     if (not exact_fields(event, required) or type(event.get("phase")) not in (int, str)
             or event.get("phase") not in (1, "1", "request_headers")):
         return ["native error classification must bind the actual transaction without a rule"]
@@ -67,7 +70,7 @@ def observation_errors(value, case_id, run_id):
         return ["unsupported Common input fault operation"]
     identity = {"schema_version": 1, "case_id": case_id, "run_id": run_id,
                 "operation": "common_mapper_input_fault", "protocol": "http1",
-                "client_exit_code": 0, "observed_http_status": 400,
+                "client_exit_code": 0, "observed_http_status": 500,
                 "path": "/no-crs/input-fault/" + case_id}
     errors = [] if exact_fields(value, identity) else ["actual native fault invocation identity mismatch"]
     transaction = value.get("transaction_id")
@@ -77,7 +80,7 @@ def observation_errors(value, case_id, run_id):
     errors.extend(role_errors(roles, value.get("cleanup"), run_id))
     if not isinstance(roles, dict):
         return errors
-    access = {"uri": identity["path"], "status": 400, "transaction_id": transaction}
+    access = {"uri": identity["path"], "status": 500, "transaction_id": transaction}
     if not exact_fields(value.get("native_access"), access):
         errors.append("actual access must bind the request and native transaction")
     errors.extend(native_fault_errors(value, case_id, transaction, roles))
