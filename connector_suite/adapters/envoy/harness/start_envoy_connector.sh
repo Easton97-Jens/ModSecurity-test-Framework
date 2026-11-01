@@ -105,6 +105,13 @@ chmod 700 "$PRIVATE_SOCKET_DIR" || {
     echo "envoy_start_smoke: FAIL - private response-observer directory must be owner-only" >&2
     exit 1
 }
+PYTHONPATH="$TEST_ROOT:$TEST_ROOT/connector_suite" "$PYTHON_BIN" -P \
+    -m modsecurity_connector_ci.runtime.common.hostruntime_preflight \
+    --connector envoy --profile envoy-ext-authz-observer \
+    --execution-context-only --runtime-root "$START_ROOT" \
+    --output-dir "$START_ROOT/execution-context" \
+    --uds-root "$PRIVATE_SOCKET_DIR" --uds-path "$COMPANION_SOCKET" || \
+    missing_dependency "private UDS execution context; see execution-context/status.json"
 if [ "${#RESPONSE_OBSERVER_SOCKET}" -ge 108 ] || [ "${#COMPANION_SOCKET}" -ge 108 ]; then
     echo "envoy_start_smoke: FAIL - private response-observer socket path is too long" >&2
     exit 1
