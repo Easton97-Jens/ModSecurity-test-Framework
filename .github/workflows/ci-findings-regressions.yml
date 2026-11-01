@@ -161,18 +161,18 @@ jobs:
       - name: Run explicit header and isolated wildcard regressions without skips
         run: |
           set -euo pipefail
-          # The mapped root in each child user namespace must own its private
-          # temporary directory; it cannot traverse a runner-owned mode-0700 one.
-          runner_identity="$(id -u):$(id -g)"
-          sudo -n chown 0:0 "$TMPDIR"
-          trap 'sudo -n chown "$runner_identity" "$TMPDIR"' EXIT
-          # Root is confined to this disposable CI runner. The tests create
-          # fresh user/network namespaces and verify isolation before binding;
-          # no AppArmor, sysctl, host networking or security policy is changed.
+          # Map namespace root to the checkout owner. Nested user namespaces
+          # then retain access to that owner's private source and temp paths.
+          # The tests still create and verify fresh network namespaces before
+          # wildcard binds; this launcher changes only the user namespace.
+          runner_uid="$(id -u)"
+          runner_gid="$(id -g)"
           sudo -n env PYTHONPATH="$PYTHONPATH" TEST_ROOT="$TEST_ROOT" \
             FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
             CONNECTOR_REVISION="$CONNECTOR_REVISION" TMPDIR="$TMPDIR" \
             PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 ON_DEMAND_TESTS=1 \
+            /usr/bin/unshare --user --map-users "0:$runner_uid:1" \
+            --map-groups "0:$runner_gid:1" --setuid 0 --setgid 0 \
             "$(command -v python3)" - <<'PY'
           import sys
           import unittest
