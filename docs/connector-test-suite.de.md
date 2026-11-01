@@ -19,7 +19,54 @@ Die einseitige Abhängigkeit bleibt Connector → Framework. Das Framework erhä
 kein Connector-Submodul. Das MRTS-Werkzeug bleibt gepinnt und schreibgeschützt;
 Framework-Paket-/Importkorrekturen haben eine getrennte Followup-Zuständigkeit.
 
+## N30-Sicherungsstand zur Owner-Berechtigung kanonischer Inventare
+
+Dies dokumentiert Implementierung und lokale Prüfung zum N30-Sicherungsstand; alle folgenden N29-Abschnitte sind historisch.
+Aktuelle Lieferung, Pins, gehostete Prüfungen und Paarfakten stehen in Framework-
+PR #142 und Connector-PR #434 und müssen für die gewählte Revision erneut gelesen werden.
+
+Der gehostete Traefik-sudo-Aufruf lehnte sein kanonisches Inventar ab. Die
+Quellprüfung identifizierte die Owner-Allowlist `{0, euid}` als zu eng für den
+gewählten runner-eigenen Framework-Checkout über diese Identitätsgrenze. Die
+numerische Owner-UID wurde gehostet nicht per stat erfasst; 1001 ist eine Ableitung.
+
+Die begrenzte Korrektur leitet eine Berechtigung für kanonische Eingaben aus der
+unabhängig gewählten, validierten Framework-Wurzel ab, einem echten Verzeichnis
+ohne Gruppen-/Fremdschreibrechte. Nur kanonische Lesezugriffe dürfen im gesamten
+gehaltenen Deskriptor-Walk `{0, euid, selected_root_uid}` zulassen. Alternative
+Inventarwurzeln und ihre Nachfahreneingaben bleiben auf den effektiven Nutzer
+beschränkt; der Checkout-Owner autorisiert keine Alternative. Nofollow, Typ-/Größen-
+grenzen, Quellwurzel-Ausschlüsse und deklarierte Alternativwurzeln bleiben erhalten.
+Die Korrektur ist angewendet und erhält alle 62 vorherigen Methoden-ASTs. Eine gemeinsame Meldungskonstante ersetzt 3 identische Literale bei exakt erhaltenen Fehlerbytes; das C-Fixture ergänzt nur Zeiger-Constness bei erhaltener Body-Semantik.
+
+Neue explizite Methoden / Fälle: **4 / 16**.
+Die Standardgrenze bleibt **100 Fälle / 80 Ausführungen**; der finale optionale Katalog
+enthält **2551 Fälle / 1133 Ausführungen**
+mit **522 Framework-Bindungen / 235 Produktpfaden**.
+JSON-Bytes / expandierte UTF-8-Pfadbytes: **1144468 / 1099374**;
+beide behalten die Grenze **2097152 Bytes (2 MiB)**. Inventar-SHA-256:
+`242cacd401596e95a9f462755f0bfe60afcff205b5be1b2e4c0ec66d04840453`. Alle 4 neuen Methoden / 16 Fälle bestanden den tatsächlichen Guard mit 0 ausgewählten Effekten, Quellschreibzugriffen oder Skips. Der öffentliche Lauf bestand in 22.464 Sekunden; die Zulassung bestand in 5.748 Sekunden und ein aggregierter Aufruf ohne Opt-in lieferte den erwarteten Exitstatus 2 in 8.337 Sekunden. Die vollständige Suite mit 66 Methoden / 72 Subtests einschließlich 2 tatsächlicher Discovery-Kontrollen, die gemappte Suite mit 7 Methoden / 3 Subtests und die Wartungssuite mit 36 Methoden / 3 Subtests bestanden ohne Skips; die separate vollständige Zulassung bestand in 5.984 Sekunden. Strenge C17-Fixtureprüfungen bestanden 2 Methoden / 6 Varianten in 2.363 Sekunden und 7 Eventvertragsmethoden in 0.830 Sekunden; tatsächliche UID-65534-Ausführung war NOT_EXECUTED. Die native Suite mit 330 Tests bestand in 162.131 Sekunden, die exakte Ruff-Auswahl mit 38 Dateien in 0.249 Sekunden und 19 Sonar-Verträge in 4.965 Sekunden. Alle 6 Inventar-/Archiv-/Map-Erzeugungs- und Prüfoperationen bestanden nach dem Parent-Cleanup.
+
+Das frühere aufgezeichnete N29-Paar, Connector
+`47029a4d7ae6b0a9cc97d0a5f49b1db521854c20` / Framework
+`ed02c5bbe06c67493fe3c9671197a7b8a1484b72`, bestand in **139.475 Sekunden**.
+Die getrennte DEV-Abnahme wählte Framework
+`78461314f5b1df294de02e1cb7c8a3fa00910bbb` in **139.831 Sekunden**.
+Alle **90 Updatermethoden / 216 Subtests** bestanden mit **0 Skips**. Diese Belege
+behalten ihren Paarumfang und qualifizieren keine künftige N30-Revision. Tatsächliche
+UID-1001-Ausführung bleibt **NOT_EXECUTED**; ein Owner-Policymodell ist kein Runtime-Beleg.
+
+Das einzeln geprüfte Lighttpd-Pfadfluss-Finding auf Framework `ed02c5bbe06c67493fe3c9671197a7b8a1484b72` ist nun FALSE_POSITIVE, mit tatsächlichem Guard, gepinntem Parserbeleg und Status-/Kommentarrücklesung; der dokumentierte Stand umfasst 80 einzeln belegte Einstufungen. Dies ist keine pauschale Einstufung oder Gatebehauptung für einen neuen Head.
+
+Verbundene Parent-eigene 2%-Duplikationsanforderung: Der frühere Messwert war 38 neue duplizierte Zeilen / 1933 neue Zeilen. Der getrennte Cleanup entfernt 6 nachweislich unerreichbare Validierungszeilen unter bestehenden `Path.parts`-, Absolutpfad- und Kein-`..`-Vorbedingungen; FD-/Nofollow-/Hash-/Größen-/Werkzeug-/Exit-77-Kontrollen und Gates bleiben erhalten. Die tatsächliche Bridge-Charakterisierung bestand 30 Vorher-/Nachher-Paare mit 60 Ausführungen; 66 bestehende Bridge-/Workflow-/Buildermethoden bestanden mit 0 Skips. Die Quellprüfungen blieben stabil. Der aktualisierte Duplikationsmesswert benötigt weiterhin die Sonar-Rücklesung für den exakten Head; kein verbesserter Prozentsatz wird behauptet.
+
 ## N29-Folgeänderungen und Veröffentlichungsstand (2026-11-01)
+
+Dies ist der festgehaltene Vorbereitungsstand vor Veröffentlichung der
+N29-Folgeänderung. Veröffentlichungs-, Pin-, Scanner- und Paarstatus in diesem
+Abschnitt beziehen sich auf diesen Stand. Spätere Lieferung und Prüfungen für
+den exakten Head werden in Framework-PR #142 und abhängigem Connector-PR #434
+festgehalten; sie sind für die gewählte Revision erneut zu lesen.
 
 Dieser Abschnitt ersetzt frühere Aussagen zum aktuellen Stand. Die folgenden
 N28-Zahlen, alten Paarbelege und Scannerinventare bleiben historische Snapshots;

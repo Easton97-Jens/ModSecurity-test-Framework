@@ -12,7 +12,53 @@
 
 ## Motivation and problem statement
 
+### N30 canonical-inventory owner capability checkpoint
+
+This records implementation and local verification at the N30 checkpoint; all following N29 sections are historical.
+Current-head delivery, pins, hosted checks and pair facts belong to Framework
+PR #142 and Connector PR #434 and must be reread for the selected revision.
+
+The hosted Traefik sudo invocation rejected its canonical inventory. Source
+review identified the owner whitelist `{0, euid}` as too narrow for the selected
+runner-owned Framework checkout across that identity boundary. The hosted
+owner's numeric UID was not captured by stat; identifying it as 1001 is inference.
+
+The narrow correction derives a canonical-input capability from the independently
+selected, validated Framework root, a real directory without group/other write
+access. Only canonical reads may admit `{0, euid, selected_root_uid}` throughout
+the held-descriptor walk. Alternate inventory authorities and their descendant
+inputs remain restricted to the effective user; the selected checkout's owner
+cannot authorize an alternate. Nofollow, type/size limits, source-root exclusions
+and predeclared alternate-root requirements remain. The correction is applied and preserves all 62 previous method ASTs. One shared message constant replaces 3 identical literals while preserving exact error bytes; the C fixture adds only pointer constness and retains its body semantics.
+
+New explicit methods / cases: **4 / 16**.
+The standard cap remains **100 cases / 80 executions**; the final optional catalog
+contains **2551 cases / 1133 executions**,
+with **522 Framework bindings / 235 Product paths**.
+Raw JSON / expanded UTF-8 path bytes: **1144468 / 1099374**;
+both retain the **2097152-byte (2 MiB)** bound. Inventory SHA-256:
+`242cacd401596e95a9f462755f0bfe60afcff205b5be1b2e4c0ec66d04840453`. All 4 new methods / 16 cases passed the actual guard with 0 selected effects, source writes or skips. The public run passed in 22.464 seconds; admission passed in 5.748 seconds and one aggregate missing-opt-in invocation returned the expected exit status 2 in 8.337 seconds. The full 66-method suite / 72 subtests, including 2 actual discovery controls, the mapped 7-method / 3-subtest suite and maintenance 36-method / 3-subtest suite passed without skips; separate full admission passed in 5.984 seconds. Strict C17 fixture checks passed 2 methods / 6 variants in 2.363 seconds and 7 event-contract methods in 0.830 seconds; actual UID 65534 execution was NOT_EXECUTED. The native 330-test suite passed in 162.131 seconds, the exact 38-file Ruff selection in 0.249 seconds and 19 Sonar contracts in 4.965 seconds. All 6 inventory/archive/map generation and check operations passed after the Parent cleanup.
+
+The earlier recorded N29 pair, Connector
+`47029a4d7ae6b0a9cc97d0a5f49b1db521854c20` / Framework
+`ed02c5bbe06c67493fe3c9671197a7b8a1484b72`, passed in **139.475 seconds**.
+Separate DEV acceptance selected Framework
+`78461314f5b1df294de02e1cb7c8a3fa00910bbb` in **139.831 seconds**.
+All **90 updater methods / 216 subtests** passed with **0 skips**. These receipts
+retain that pair's scope and do not qualify a future N30 revision. Actual UID 1001
+execution remains **NOT_EXECUTED**; an owner-policy model is not that runtime proof.
+
+The individually reviewed Lighttpd path-flow finding on Framework `ed02c5bbe06c67493fe3c9671197a7b8a1484b72` is now FALSE_POSITIVE, with the actual guard, pinned parser proof and status/comment readback; the documented total is 80 individually proven dispositions. This is no blanket dismissal or new-head gate claim.
+
+Related Parent-owned 2% duplication requirement: the earlier metric was 38 new duplicated lines / 1933 new lines. The separate cleanup removes 6 proven unreachable validation lines under existing `Path.parts`, absolute-path and no-`..` preconditions; FD/nofollow/hash/size/tool/exit-77 controls and gates remain. Actual bridge characterization passed 30 before/after pairs with 60 executions, and 66 existing bridge/workflow/builder methods passed with 0 skips. Source checks remained stable. The refreshed duplication metric still requires exact-head Sonar readback; no improved percentage is claimed.
+
 ### N29 follow-up and publication status (2026-11-01)
+
+This is the recorded preparation checkpoint before publication of the N29
+follow-up. Publication, pin, scanner and pair statuses in this section refer to
+that checkpoint. Later delivery and exact-head checks are recorded on Framework
+PR #142 and dependent Connector PR #434; read them again for the selected
+revision.
 
 This section supersedes earlier current-status statements. The N28 quantities,
 old pair receipts and scanner inventories below remain historical snapshots;

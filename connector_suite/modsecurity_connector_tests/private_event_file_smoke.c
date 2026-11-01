@@ -545,7 +545,7 @@ static int remove_test_entry(int directory, const char *name, int flags)
     return unlinkat(directory, name, flags) == 0 || errno == ENOENT;
 }
 
-static int cleanup_test_root_contents(private_event_file_test_paths *paths)
+static int cleanup_test_root_contents(const private_event_file_test_paths *paths)
 {
     int result = 1;
     int owned = open_test_directory_at(paths->root_fd, "root-owned");

@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "04233fe7c0f6d5f885f8a6666e6d08352efbb7c9430e54bf566f7671fe780184",
+  "inventory_sha256": "242cacd401596e95a9f462755f0bfe60afcff205b5be1b2e4c0ec66d04840453",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1277,7 +1277,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/private_event_file_smoke.c",
       "source": "tests/private_event_file_smoke.c",
-      "source_sha256": "5f378e65d61fca731ccac779d4be9daa35eb3dc687a6979c30fc73a1629e2262"
+      "source_sha256": "4581d43e2e5564dd3fdde4261c81040c96bcd99ccb30f58c589c75a42712469b"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/request_body_telemetry_test.c",
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7896,
+  "on_demand_definition_count": 7900,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -3163,10 +3163,14 @@
         "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_output_double_slash_external_alias_preserves_admission",
         "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_relative_fixture_path_keeps_existing_cli_semantics",
         "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_root_owned_canonical_inventory_retains_unprivileged_reader_policy",
-        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_canonical_inventory_remains_environment_independent"
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_canonical_inventory_remains_environment_independent",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryCanonicalOwnerTests.test_canonical_checkout_owner_preserves_selected_reader_roles",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryCanonicalOwnerTests.test_canonical_checkout_owner_rejects_mismatched_held_owners",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryCanonicalOwnerTests.test_canonical_checkout_owner_rejects_unsafe_roots_and_modes",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryCanonicalOwnerTests.test_alternate_inventory_cannot_inherit_selected_checkout_owner"
       ],
       "source": "tests/test_active_test_inventory.py",
-      "source_sha256": "5c59b3f9c65556718e948115e91985f72510f2b9f43c3317865cc202c812287d"
+      "source_sha256": "b8c70997a8af96e54617f5ecb4b2e4b409418f83f9e6398723066921001d3904"
     },
     {
       "contains_selected_definitions": [],

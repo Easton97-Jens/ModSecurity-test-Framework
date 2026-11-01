@@ -1,6 +1,7 @@
 """Exercise admission and expansion before any selected child starts."""
 from modsecurity_test_framework.connector_context import connector_root, source_path
 from contextlib import redirect_stderr, redirect_stdout, chdir
+from contextlib import contextmanager
 import copy
 import hashlib
 import io
@@ -871,6 +872,131 @@ class InventoryInputAuthorityTests(unittest.TestCase):
         status, output, error = self.check(canonical, {})
         self.assertEqual(status, 0, error)
         self.assertEqual(json.loads(output)["selected_case_ids"], ["fixture.authority.case"])
+
+
+def _inventory_owner_metadata(observed, owner, permissions=None):
+    fields = list(observed)
+    fields[4] = owner
+    if permissions is not None:
+        fields[0] = (observed.st_mode & ~0o777) | permissions
+    return os.stat_result(fields)
+
+
+class InventoryCanonicalOwnerTests(unittest.TestCase):
+    setUp = InventoryInputAuthorityTests.setUp
+
+    def _canonical_fixture(self, *, real=True):
+        selected = self.framework if real else self.root
+        path = selected / active.INVENTORY_PATH
+        path.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
+        path.write_text(json.dumps(self.data))
+        return selected, path
+
+    @contextmanager
+    def _selected_context(self, selected, canonical, *, real=True):
+        with (patch.object(active, "_real_checkout", return_value=real),
+              patch.object(active, "test_root", return_value=selected),
+              patch.object(active, "source_path", return_value=canonical)):
+            yield
+
+    @contextmanager
+    def _owner_policy(self, selected, *, reader=0, checkout_owner=1001,
+                      overrides=None, permissions=None, runner_ancestry=True):
+        # Owner-policy model only: held real descriptors and private real bytes
+        # remain in use; no actual UID/ownership transition is represented.
+        overrides, permissions = overrides or {}, permissions or {}
+        original_fstat, original_lstat = os.fstat, Path.lstat
+
+        def descriptor_metadata(descriptor):
+            observed = original_fstat(descriptor)
+            physical = Path(os.readlink("/proc/self/fd/" + str(descriptor)))
+            owner = observed.st_uid
+            if physical == selected or selected in physical.parents:
+                owner = checkout_owner
+            if runner_ancestry and (physical == self.workspace or self.workspace in physical.parents):
+                owner = checkout_owner
+            return _inventory_owner_metadata(observed, overrides.get(physical, owner), permissions.get(physical))
+
+        def selected_metadata(path, *args, **kwargs):
+            observed = original_lstat(path, *args, **kwargs)
+            if path == selected:
+                return _inventory_owner_metadata(observed, checkout_owner, permissions.get(path))
+            return observed
+
+        with (patch.object(active.os, "geteuid", return_value=reader),
+              patch.object(active.os, "fstat", side_effect=descriptor_metadata),
+              patch.object(Path, "lstat", selected_metadata)):
+            yield
+
+    def _assert_owner_denial_before_buffer_read(self, path):
+        with (patch.object(active.os, "fdopen", wraps=os.fdopen) as buffered,
+              self.assertRaises(active.InventoryError)):
+            active._read_inventory(path, root=self.root)
+        buffered.assert_not_called()
+
+    def test_canonical_checkout_owner_preserves_selected_reader_roles(self):
+        for variant, reader, owner, real in (
+            ("root-framework-runner", 0, 1001, True),
+            ("root-synthetic-runner", 0, 1001, False),
+            ("runner-own-checkout", 1001, 1001, True),
+            ("runner-root-checkout", 1001, 0, True),
+        ):
+            with self.subTest(variant=variant):
+                selected, path = self._canonical_fixture(real=real)
+                with (self._selected_context(selected, path, real=real),
+                      self._owner_policy(selected, reader=reader, checkout_owner=owner)):
+                    value, digest = active._read_inventory(path, root=self.root)
+                self.assertEqual(value, self.data)
+                self.assertEqual(digest, hashlib.sha256(path.read_bytes()).hexdigest())
+
+    def test_canonical_checkout_owner_rejects_mismatched_held_owners(self):
+        selected, path = self._canonical_fixture()
+        for variant, target in (
+            ("third-uid-ancestor", self.workspace),
+            ("third-uid-descendant", selected / "config"),
+            ("third-uid-leaf", path),
+            ("selected-root-owner-replaced", selected),
+        ):
+            with (self.subTest(variant=variant),
+                  self._selected_context(selected, path),
+                  self._owner_policy(selected, overrides={target: 1002})):
+                self._assert_owner_denial_before_buffer_read(path)
+
+    def test_canonical_checkout_owner_rejects_unsafe_roots_and_modes(self):
+        selected, path = self._canonical_fixture()
+        alias = self.workspace / "framework-alias"
+        alias.symlink_to(selected, target_is_directory=True)
+        for variant, target, mode in (
+            ("selected-group-writable", selected, 0o775),
+            ("selected-other-writable", selected, 0o757),
+            ("selected-symlink", alias, None),
+            ("shared-ancestor", self.workspace, 0o775),
+            ("shared-leaf", path, 0o666),
+        ):
+            with self.subTest(variant=variant):
+                chosen = alias if variant == "selected-symlink" else selected
+                canonical = chosen / active.INVENTORY_PATH
+                modes = {} if mode is None else {target: mode}
+                with (self._selected_context(chosen, canonical),
+                      self._owner_policy(chosen, permissions=modes)):
+                    self._assert_owner_denial_before_buffer_read(canonical)
+
+    def test_alternate_inventory_cannot_inherit_selected_checkout_owner(self):
+        selected, canonical = self._canonical_fixture()
+        authority = self.workspace / "external-alternate"
+        authority.mkdir(mode=0o700)
+        path = authority / "inventory.json"
+        path.write_text(json.dumps(self.data))
+        for variant, target in (
+            ("foreign-ancestor", self.workspace),
+            ("foreign-authority", authority),
+            ("foreign-leaf", path),
+        ):
+            with (self.subTest(variant=variant),
+                  patch.dict(os.environ, {"RUNNER_TEMP": str(authority)}, clear=True),
+                  self._selected_context(selected, canonical),
+                  self._owner_policy(selected, overrides={target: 1001}, runner_ancestry=False)):
+                self._assert_owner_denial_before_buffer_read(path)
 
 
 # Parent default discovery uses the one admitted active-case inventory.

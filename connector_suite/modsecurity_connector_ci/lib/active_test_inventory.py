@@ -32,6 +32,7 @@ HARD_CASE_LIMIT = 100
 INVENTORY_PATH = Path("config/testing/active-cases.json")
 MAX_INPUT_BYTES = 2 * 1024 * 1024
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
+INVENTORY_DIRECTORY_ERROR = "inventory directory authority is invalid"
 IDENTIFIER = re.compile(r"[a-z][a-z0-9_.-]{0,127}", re.ASCII)
 PYTHON_TARGET = re.compile(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*){2,}", re.ASCII)
 GO_TEST = re.compile(r"Test\w+(?:/[A-Za-z0-9_.:=+-]+)*", re.ASCII)
@@ -463,6 +464,14 @@ def _inventory_authorities(path: Path, root: Path) -> tuple[Path, ...]:
     return tuple(candidates)
 
 
+def _canonical_inventory_owners(root: Path) -> frozenset[int]:
+    selected = _lexical_absolute_path(test_root() if _real_checkout(root) else root)
+    observed = selected.lstat()
+    if not stat.S_ISDIR(observed.st_mode) or observed.st_mode & 0o022:
+        raise InventoryError("canonical inventory checkout must be a real directory without group/other write permission")
+    return frozenset({0, os.geteuid(), observed.st_uid})
+
+
 def _open_inventory_directory(path: Path, owners: frozenset[int]) -> int:
     descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
@@ -474,20 +483,19 @@ def _open_inventory_directory(path: Path, owners: frozenset[int]) -> int:
             observed = os.fstat(descriptor)
             sticky = (observed.st_uid == 0 and observed.st_mode & stat.S_ISVTX
                      )
-            if (observed.st_uid not in {0, os.geteuid()}
+            if (observed.st_uid not in owners | {0, os.geteuid()}
                     or observed.st_mode & 0o022 and not sticky):
-                raise InventoryError("inventory directory authority is invalid")
+                raise InventoryError(INVENTORY_DIRECTORY_ERROR)
         observed = os.fstat(descriptor)
         if observed.st_uid not in owners or observed.st_mode & 0o022:
-            raise InventoryError("inventory directory authority is invalid")
+            raise InventoryError(INVENTORY_DIRECTORY_ERROR)
         return descriptor
     except BaseException:
         os.close(descriptor)
         raise
 
 
-def _read_inventory_authorized(path: Path, authority: Path, *, canonical: bool) -> bytes:
-    owners = frozenset({0, os.geteuid()} if canonical else {os.geteuid()})
+def _read_inventory_authorized(path: Path, authority: Path, *, owners: frozenset[int]) -> bytes:
     directory = _open_inventory_directory(authority, owners)
     try:
         relative = path.relative_to(authority)
@@ -498,7 +506,7 @@ def _read_inventory_authorized(path: Path, authority: Path, *, canonical: bool) 
             directory = child
             observed = os.fstat(directory)
             if observed.st_uid not in owners or observed.st_mode & 0o022:
-                raise InventoryError("inventory directory authority is invalid")
+                raise InventoryError(INVENTORY_DIRECTORY_ERROR)
         descriptor = os.open(relative.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
                              dir_fd=directory)
         try:
@@ -522,10 +530,12 @@ def _read_inventory(path: Path, *, root: Path) -> tuple[dict[str, Any], str]:
         raise InventoryError("inventory input must not traverse parent directories")
     path = _lexical_absolute_path(path)
     authorities = _inventory_authorities(path, root)
+    owners = (_canonical_inventory_owners(root) if path == _canonical_inventory_path(root)
+              else frozenset({os.geteuid()}))
     data = None
     for authority in authorities:
         try:
-            data = _read_inventory_authorized(path, authority, canonical=path == _canonical_inventory_path(root))
+            data = _read_inventory_authorized(path, authority, owners=owners)
             break
         except (OSError, InventoryError):
             continue
