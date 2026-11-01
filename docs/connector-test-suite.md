@@ -19,6 +19,20 @@ The one-way dependency remains Connector → Framework. The Framework has no
 Connector submodule. The MRTS tool remains pinned and read-only; Framework
 package/import corrections have separate followup ownership.
 
+## N34 literal consolidation after hosted analysis
+
+The first analysis of Framework PR #145 passed its Quality Gate but reported
+8 open literal-duplication findings on the refactored lines. The correction adds
+8 same-value artifact-name constants; their previous occurrence counts
+(8, 5, 6, 3, 3, 3, 3, 3) each become 1. Together with the N32 constants there
+are 11 shared artifact names. Inlining only these 8 additions reconstructs the
+entire preceding module AST exactly. Test expectations, reader control flow,
+raw artifact names, allowlists, limits and error bytes remain equivalent.
+No finding is suppressed or accepted; fresh current-head analysis and final
+integration checks remain required. The N32 results below describe that earlier
+checkpoint.
+
+
 ## N32 native receipt reader follow-up
 
 The Framework master checkpoint `7b33a0b73084e1864c268892f0bc15ba712fa9a5`

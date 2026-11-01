@@ -19,6 +19,20 @@ Die einseitige Abhängigkeit bleibt Connector → Framework. Das Framework erhä
 kein Connector-Submodul. Das MRTS-Werkzeug bleibt gepinnt und schreibgeschützt;
 Framework-Paket-/Importkorrekturen haben eine getrennte Followup-Zuständigkeit.
 
+## N34-Literalkonsolidierung nach gehosteter Analyse
+
+Die erste Analyse von Framework-PR #145 bestand ihr Quality Gate, meldete aber
+8 offene Literalduplikate auf den umgebauten Zeilen. Die Korrektur ergänzt
+8 wertgleiche Konstanten für Artefaktnamen; ihre bisherigen Häufigkeiten
+(8, 5, 6, 3, 3, 3, 3, 3) werden jeweils 1. Zusammen mit den N32-Konstanten gibt
+es 11 gemeinsame Artefaktnamen. Das Inlining nur dieser 8 Ergänzungen rekonstruiert
+den gesamten vorherigen Modul-AST exakt. Testerwartungen, Reader-Kontrollfluss,
+rohe Artefaktnamen, Allowlists, Grenzen und Fehlerbytes bleiben äquivalent.
+Kein Finding wird unterdrückt oder akzeptiert; eine neue headgenaue Analyse und
+finale Integrationsprüfungen bleiben erforderlich. Die folgenden N32-Ergebnisse
+beschreiben jenen früheren Sicherungsstand.
+
+
 ## N32-Folgekorrektur des nativen Receipt-Readers
 
 Der Framework-Masterstand `7b33a0b73084e1864c268892f0bc15ba712fa9a5`
