@@ -1,4 +1,5 @@
 from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.private_network_test import private_network_test
 import errno
 import io
 import json
@@ -19,9 +20,9 @@ from unittest.mock import patch
 
 REPO_ROOT = connector_root()
 HARNESS = source_path('connectors/lighttpd/harness', root=REPO_ROOT)
-PROBE = HARNESS / "lighttpd_backend_close_probe.py"
-RUNNER = HARNESS / "run_lighttpd_backend_close.sh"
-GUARD = HARNESS / "lighttpd_backend_close_linux_guard.py"
+PROBE = source_path('connectors/lighttpd/harness/lighttpd_backend_close_probe.py', root=REPO_ROOT)
+RUNNER = source_path('connectors/lighttpd/harness/run_lighttpd_backend_close.sh', root=REPO_ROOT)
+GUARD = source_path('connectors/lighttpd/harness/lighttpd_backend_close_linux_guard.py', root=REPO_ROOT)
 SPEC = spec_from_file_location("lighttpd_backend_close_probe", PROBE)
 PROBE_MODULE = module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -815,6 +816,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                     29851,
                 )
 
+    @private_network_test
     def test_linux_guard_no_listener_probe_rejects_ipv6_wildcard_listener(self):
         if not socket.has_ipv6:
             self.skipTest("IPv6 is unavailable")
@@ -834,6 +836,7 @@ class BackendCloseHarnessContractTest(unittest.TestCase):
                 self.skipTest(f"IPv6 wildcard listener unavailable for v6only={v6only}: {exc}")
             finally:
                 listener.close()
+            GUARD_MODULE.assert_listener_absent("127.0.0.1", port)
 
     def test_linux_guard_tcp6_absence_rejects_ipv4_mapped_listener(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import socket
 import stat
@@ -44,6 +45,9 @@ class ProbeHandler(http.server.BaseHTTPRequestHandler):
         marker = self.headers.get("X-Modsec-Smoke")
         status = {"block": 403, "alternative-status": 429}.get(marker, 200)
         request_id = self.headers.get("X-Modsec-Transaction-Id", "")
+        if ProbeHandler.reflect_transaction and re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", request_id) is None:
+            self.send_error(400, "Invalid transaction identifier")
+            return
         transaction_id = (
             request_id
             if ProbeHandler.reflect_transaction
@@ -330,6 +334,29 @@ class TrustedLighttpdRuntimeSupervisorTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(SUPERVISOR.SupervisorError, "reflected"):
                 SUPERVISOR.run_fixed_probe(server.server_port, reflected_case)
+        finally:
+            server.shutdown()
+            thread.join(timeout=5)
+            server.server_close()
+
+    def test_probe_handler_rejects_folded_and_control_transaction_headers(self) -> None:
+        server, thread = self.running_server()
+        try:
+            ProbeHandler.reflect_transaction = True
+            for value in (b"lighttpd-1\r\n folded", b"lighttpd-1\x01control", b"lighttpd-1\x7fcontrol"):
+                with self.subTest(value=value):
+                    with socket.create_connection(("127.0.0.1", server.server_port), timeout=2) as client:
+                        client.sendall(
+                            b"OPTIONS / HTTP/1.0\r\nHost: localhost\r\n"
+                            b"X-Modsec-Transaction-Id: " + value + b"\r\n\r\n"
+                        )
+                        response = bytearray()
+                        while chunk := client.recv(4096):
+                            response.extend(chunk)
+                            self.assertLess(len(response), 16384)
+                    self.assertTrue(response.startswith(b"HTTP/1.0 400 "), bytes(response))
+                    self.assertNotIn(b"X-Msconnector-Host-Transaction-Id:", response)
+                    self.assertNotIn(value, response)
         finally:
             server.shutdown()
             thread.join(timeout=5)

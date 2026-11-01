@@ -5,9 +5,9 @@
     "native_preserved_function_count": 69,
     "native_preserved_function_lines": 2011,
     "native_sources": 88,
-    "python_go_source_sets": 635,
+    "python_go_source_sets": 636,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "e7730ed0bdcffabff83cf1711c009c1046f046e46e3fe00e296e75dd425addbc"
+    "sha256": "f1d57a53b3a1d9daa2aef7a05f277a4ac4e3caef359d2a8d591ff761e28b0912"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -1277,8 +1277,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:106",
-      "line": 106,
+      "id": "Connector:connectors/envoy/Makefile:105",
+      "line": 105,
       "make_target": "hostruntime-preflight-envoy",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1288,8 +1288,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:109",
-      "line": 109,
+      "id": "Connector:connectors/envoy/Makefile:108",
+      "line": 108,
       "make_target": "hostruntime-preflight-envoy-ext-authz",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1299,8 +1299,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:112",
-      "line": 112,
+      "id": "Connector:connectors/envoy/Makefile:111",
+      "line": 111,
       "make_target": "hostruntime-preflight-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1310,8 +1310,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:118",
-      "line": 118,
+      "id": "Connector:connectors/envoy/Makefile:117",
+      "line": 117,
       "make_target": "self-test",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1321,8 +1321,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:156",
-      "line": 156,
+      "id": "Connector:connectors/envoy/Makefile:155",
+      "line": 155,
       "make_target": "test-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1332,8 +1332,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:188",
-      "line": 188,
+      "id": "Connector:connectors/envoy/Makefile:186",
+      "line": 186,
       "make_target": "runtime-smoke-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1343,8 +1343,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:201",
-      "line": 201,
+      "id": "Connector:connectors/envoy/Makefile:199",
+      "line": 199,
       "make_target": "transport-cancel-smoke-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1354,8 +1354,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:206",
-      "line": 206,
+      "id": "Connector:connectors/envoy/Makefile:204",
+      "line": 204,
       "make_target": "check-envoy-config",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1365,8 +1365,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:224",
-      "line": 224,
+      "id": "Connector:connectors/envoy/Makefile:222",
+      "line": 222,
       "make_target": "runtime-smoke-envoy",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1376,8 +1376,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:34",
-      "line": 34,
+      "id": "Connector:connectors/envoy/Makefile:33",
+      "line": 33,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1387,8 +1387,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:36",
-      "line": 36,
+      "id": "Connector:connectors/envoy/Makefile:35",
+      "line": 35,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1398,8 +1398,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:40",
-      "line": 40,
+      "id": "Connector:connectors/envoy/Makefile:39",
+      "line": 39,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -3081,8 +3081,52 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/workflows/ci-findings-regressions.yml:86",
-      "line": 86,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:158",
+      "line": 158,
+      "make_target": null,
+      "owner": "Framework",
+      "path": ".github/workflows/ci-findings-regressions.yml",
+      "selection_note": "source caller only; execution and automatic case admission are separate",
+      "source_kind": "ci-workflow",
+      "source_line": "python3 -m unittest discover -s tests/security_regression \\"
+    },
+    {
+      "admission_only": false,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:178",
+      "line": 178,
+      "make_target": null,
+      "owner": "Framework",
+      "path": ".github/workflows/ci-findings-regressions.yml",
+      "selection_note": "source caller only; execution and automatic case admission are separate",
+      "source_kind": "ci-workflow",
+      "source_line": "import unittest"
+    },
+    {
+      "admission_only": false,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:192",
+      "line": 192,
+      "make_target": null,
+      "owner": "Framework",
+      "path": ".github/workflows/ci-findings-regressions.yml",
+      "selection_note": "source caller only; execution and automatic case admission are separate",
+      "source_kind": "ci-workflow",
+      "source_line": "result = unittest.TextTestRunner(verbosity=2).run("
+    },
+    {
+      "admission_only": false,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:193",
+      "line": 193,
+      "make_target": null,
+      "owner": "Framework",
+      "path": ".github/workflows/ci-findings-regressions.yml",
+      "selection_note": "source caller only; execution and automatic case admission are separate",
+      "source_kind": "ci-workflow",
+      "source_line": "unittest.defaultTestLoader.loadTestsFromNames(names)"
+    },
+    {
+      "admission_only": false,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:92",
+      "line": 92,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/workflows/ci-findings-regressions.yml",
@@ -11070,7 +11114,7 @@
       "actual_callers": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:156",
+        "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11081,7 +11125,7 @@
       "current_caller_ids": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:156",
+        "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11147,7 +11191,7 @@
       "actual_callers": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:156",
+        "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11158,7 +11202,7 @@
       "current_caller_ids": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:156",
+        "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -135077,14 +135121,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:206",
+        "Connector:connectors/envoy/Makefile:204",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:206",
+        "Connector:connectors/envoy/Makefile:204",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
@@ -135149,14 +135193,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:206",
+        "Connector:connectors/envoy/Makefile:204",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:206",
+        "Connector:connectors/envoy/Makefile:204",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
@@ -135359,12 +135403,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -135422,12 +135466,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -135485,12 +135529,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -136224,14 +136268,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:224",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:224",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
@@ -136293,14 +136337,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:224",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:224",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
@@ -150561,6 +150605,8 @@
         "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_invalid_port_fails_closed_with_diagnostic",
         "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_ipv6_only_listener_does_not_block_ipv4_loopback",
         "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_live_loopback_listener_is_rejected",
+        "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_private_network_marker_cannot_authorize_the_parent_namespace",
+        "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_private_network_rejects_interfaces_beyond_loopback",
         "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_time_wait_does_not_mean_live_listener",
         "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_wildcard_listener_is_rejected"
       ],
@@ -154595,6 +154641,7 @@
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_plan_rejects_crs_configuration_and_untrusted_ruleset",
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_plan_rejects_privileged_binary_and_receipt_overlap",
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_private_receipt_is_atomic_owner_private_and_not_replaceable",
+        "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_probe_handler_rejects_folded_and_control_transaction_headers",
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_process_executable_and_module_observation_use_proc_identities",
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_runtime_start_requires_the_private_pid_namespace_init",
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_supervisor_blocks_before_start_without_runtime_no_crs_provenance",
@@ -157467,6 +157514,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:358"
       ],
       "framework_path": "tests/security_regression/test_apr_util_provenance.py",
@@ -157505,7 +157553,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_ci_root_bootstrap_hardening.CiRootBootstrapHardeningTests.test_v3_api_smoke_rejects_make_function_path_inputs_before_make"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_ci_root_bootstrap_hardening.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157530,7 +157580,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_runtime_staging_rejects_a_symlink_destination"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_common_shell_sonar_contracts.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157573,7 +157625,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_validate_canonical_rejects_environment_default_pin_even_with_attacker_env"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_common_version_atomic_provenance.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157590,7 +157644,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_version_descriptor_series.DescriptorSeriesTests.test_lighttpd_rejects_duplicate_slash_series_base"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_common_version_descriptor_series.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157607,7 +157663,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_version_http_client.CommonVersionHttpClientTests.test_repository_api_scope_rejects_path_tricks_before_token_use"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_common_version_http_client.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157652,7 +157710,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_versions_sonar_provenance.CommonVersionProvenanceTests.test_update_rejects_invalid_network_values_without_mutating_target"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_common_versions_sonar_provenance.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157676,7 +157736,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_connector_smoke_common_hardening.ConnectorSmokeCommonHardeningTests.test_runtime_provenance_writer_rejects_symlinks_and_replaces_regular_files"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_connector_smoke_common_hardening.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157713,6 +157775,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:350"
       ],
       "framework_path": "tests/security_regression/test_crs_git_ref_provenance.py",
@@ -157730,7 +157793,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_crs_version_pinning_paths.CrsVersionPinningPathTests.test_rejects_provenance_assignments_in_space_and_newline_paths"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_crs_version_pinning_paths.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157760,7 +157825,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_generate_case_matrix_sonar.GenerateCaseMatrixSonarTests.test_runtime_snapshot_sections_keep_shared_status_and_evidence_order"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_generate_case_matrix_sonar.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157779,7 +157846,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_generate_connector_work_queue_sonar.ConnectorWorkQueueSonarTests.test_summary_paths_are_confined_before_any_file_read"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_generate_connector_work_queue_sonar.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157802,7 +157871,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_generate_phase_work_queue_sonar.GeneratePhaseWorkQueueSonarTests.test_status_normalization_has_no_duplicate_status_literal"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_generate_phase_work_queue_sonar.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157822,7 +157893,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_generated_report_utils_sonar.GeneratedReportUtilsSonarTests.test_redaction_uses_lexical_components_not_public_temp_absolute_literals"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_generated_report_utils_sonar.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157854,6 +157927,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:362"
       ],
       "framework_path": "tests/security_regression/test_httpd_source_recovery.py",
@@ -157874,7 +157948,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_import_mrts_cases_sonar.ImportMrtsCasesSonarTests.test_rendering_and_definition_index_preserve_contract"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_import_mrts_cases_sonar.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157889,7 +157965,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_materialize_connector_source.MaterializeConnectorSourceTests.test_rejects_file_and_directory_symlinks_before_copying"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_materialize_connector_source.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157924,6 +158002,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:354"
       ],
       "framework_path": "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py",
@@ -157950,7 +158029,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_mrts_common_posix_reliability.MrtsCommonPosixReliabilityTests.test_source_has_no_test_command_or_bash_conditional"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_mrts_common_posix_reliability.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157970,7 +158051,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_mrts_common_sonar.MrtsCommonSonarRegressionTests.test_variant_validation_accepts_supported_values_and_reports_errors_on_stderr"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_mrts_common_sonar.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -157997,7 +158080,8 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:86"
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:92"
       ],
       "framework_path": "tests/security_regression/test_mrts_definition_guard.py",
       "observed_execution": "not assessed",
@@ -158021,7 +158105,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_mrts_import_integrity.MrtsImportIntegrityTests.test_writer_failure_keeps_previous_catalog"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_mrts_import_integrity.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158064,7 +158150,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_mrts_package.MrtsPackageTests.test_shell_metacharacters_in_paths_remain_data"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_mrts_package.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [
@@ -158114,7 +158202,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_mrts_result_integrity.MRTSResultIntegrityTests.test_zero_exit_with_skips_and_missing_results_writes_incomplete"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_mrts_result_integrity.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158129,7 +158219,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_multipart_newline_runtime_difference.MultipartNewlineRuntimeDifferenceTests.test_materialized_part_bytes_and_expected_outcomes"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_multipart_newline_runtime_difference.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158164,6 +158256,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:366"
       ],
       "framework_path": "tests/security_regression/test_nginx_archive_digest.py",
@@ -158182,7 +158275,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_nginx_release_provenance.NginxReleaseProvenanceTests.test_provenance_check_uses_only_the_official_latest_release_endpoint"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_nginx_release_provenance.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158200,7 +158295,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_no_crs_catalog_maintainability_wave.NoCrsCatalogMaintainabilityWaveTests.test_protocol_validation_preserves_success_and_error_order"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_no_crs_catalog_maintainability_wave.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158219,7 +158316,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_no_crs_finalize_argument_safety.NoCrsFinalizeArgumentSafetyTests.test_wrapper_preserves_the_finalizer_exit_code"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_no_crs_finalize_argument_safety.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158235,7 +158334,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_normalizer_payload_safety.NormalizerPayloadSafetyTests.test_valid_event_remains_normalizable"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_normalizer_payload_safety.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158259,7 +158360,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_parser_hardening.MarkdownHeadingHardeningTests.test_rejects_non_atx_heading_markers"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_parser_hardening.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158275,7 +158378,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_pcre2_archive_digest.Pcre2ArchiveDigestTests.test_pcre2_guard_precedes_extraction_without_url_fallback"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_pcre2_archive_digest.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158297,7 +158402,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_portable_audit_fixture_contract.PortableAuditFixtureContractTests.test_required_audit_requires_a_boolean_required_flag"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_portable_audit_fixture_contract.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158314,7 +158421,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_response_body_promotion_path_safety.ResponseBodyPromotionPathSafetyTests.test_report_root_is_contained_by_selected_repository"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_response_body_promotion_path_safety.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158335,7 +158444,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_runner_core_output_containment.RunnerCoreOutputContainmentTests.test_rules_file_writes_nested_output_within_the_trusted_root"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_runner_core_output_containment.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158369,6 +158480,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:235"
       ],
       "framework_path": "tests/security_regression/test_runtime_component_download.py",
@@ -158397,6 +158509,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:223"
       ],
       "framework_path": "tests/security_regression/test_runtime_component_lock.py",
@@ -158431,6 +158544,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:226"
       ],
       "framework_path": "tests/security_regression/test_runtime_component_sync.py",
@@ -158452,7 +158566,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_runtime_snapshot_sonar.RuntimeSnapshotSonarTests.test_stale_summary_and_external_case_paths_are_not_used"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_runtime_snapshot_sonar.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158480,7 +158596,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_second_remediation.SecondRemediationTests.test_with_mrts_and_xml_failures_not_report_only"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_second_remediation.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158498,7 +158616,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_security_data_flow_case_schema.SecurityDataFlowCaseSchemaTests.test_non_materializable_contract_cannot_reclassify_an_active_case"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_security_data_flow_case_schema.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158515,7 +158635,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_security_regressions.SecurityRegressionTests.test_malicious_release_tags_rejected"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_security_regressions.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158547,7 +158669,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.SonarSecretBoundaryTests.test_reviewed_same_repository_scanner_is_allowed"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_sonar_analysis_contract.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [
@@ -158565,7 +158689,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonarcloud_utility_wave_regressions.WorkflowMappingValueRegressionTests.test_advanced_mapping_values_are_rejected_without_rejecting_long_comments"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_sonarcloud_utility_wave_regressions.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158581,7 +158707,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_summarize_results_path_safety.SummarizeResultsPathSafetyTests.test_requires_an_explicit_approved_root"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_summarize_results_path_safety.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158602,8 +158730,30 @@
         "modsecurity_test_framework.selftests.security_regression.test_synchronized_upstream_security_boundaries.SynchronizedUpstreamSecurityBoundaryTests.test_real_host_evidence_cannot_target_the_synthetic_upstream"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_synchronized_upstream_security_boundaries.py",
+      "observed_execution": "not assessed",
+      "source_binding_execution_ids": [],
+      "source_load_tests_filter": false
+    },
+    {
+      "archive_declared_selected_definition_ids": [],
+      "archive_source": "framework/tests/security_regression/test_traefik_auth_backend.py",
+      "automatic_selection": "not inferred; source-owned load_tests and the Connector inventory remain authoritative",
+      "definition_ids": [
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_all_catalog_cases_preserve_artifacts_receipts_and_responses",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_literal_traversal_leaves_real_outside_artifacts_unchanged",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_loopback_rejects_unread_body_and_preserves_valid_wire",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_noncanonical_targets_reject_before_body_or_files",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_raw_parser_rejects_normalized_targets_without_continue"
+      ],
+      "direct_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
+      "framework_path": "tests/security_regression/test_traefik_auth_backend.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
       "source_load_tests_filter": false
@@ -158627,6 +158777,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:370"
       ],
       "framework_path": "tests/security_regression/test_traefik_runtime_pin_contract.py",
@@ -158645,7 +158796,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_variable_documentation_assignment_regex.VariableDocumentationAssignmentRegexTests.test_unicode_whitespace_before_assignment_operator_remains_valid"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_variable_documentation_assignment_regex.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158684,6 +158837,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:373"
       ],
       "framework_path": "tests/security_regression/test_workflow_action_pins.py",
@@ -158708,6 +158862,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158",
         "Framework:Makefile:308"
       ],
       "framework_path": "tests/security_regression/test_workflow_security_contract.py",
@@ -158731,7 +158886,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_workflow_yaml_resource_limits.WorkflowYamlResourceLimitTests.test_small_valid_aliases_remain_supported"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_workflow_yaml_resource_limits.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -158747,7 +158904,9 @@
         "modsecurity_test_framework.selftests.security_regression.test_write_case_matrix_security.WriteCaseMatrixSecurityTests.test_writes_only_below_a_private_build_root"
       ],
       "direct_caller_ids": [],
-      "discovery_candidate_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+      ],
       "framework_path": "tests/security_regression/test_write_case_matrix_security.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
@@ -164920,7 +165079,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-      "sha256_framework_source": "147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8",
+      "sha256_framework_source": "fc007bdea733980700a74609acb41e5332977516b19f2f6e2823ecb5860557fd",
       "sha256_updated_base": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
     },
     {
@@ -165946,7 +166105,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "e047c633d44c50dbcd67d5411b4d0c963e995809c9af14d3e9a315981f57b9f5",
-      "sha256_framework_source": "747fcd97e4f19089226ca40f5edc2e0bc1a931bfeaf8ba0111b077a34af95036",
+      "sha256_framework_source": "489a2757713b52f9147d2b910396708f6c09c0513fbcdb432fe210212b0ab7ee",
       "sha256_updated_base": "e047c633d44c50dbcd67d5411b4d0c963e995809c9af14d3e9a315981f57b9f5"
     },
     {
@@ -166603,7 +166762,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "732a853d610383d58ffa240f29f100406f18a859df89d7b9a91d2662670c0703",
-      "sha256_framework_source": "732a853d610383d58ffa240f29f100406f18a859df89d7b9a91d2662670c0703",
+      "sha256_framework_source": "8b95a3e3391ebe485f87c128436c15f06e5726bc25955f7aa8f58e067ac7149f",
       "sha256_updated_base": "732a853d610383d58ffa240f29f100406f18a859df89d7b9a91d2662670c0703"
     },
     {
@@ -166981,7 +167140,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "e7730ed0bdcffabff83cf1711c009c1046f046e46e3fe00e296e75dd425addbc",
+      "sha256_framework_source": "f1d57a53b3a1d9daa2aef7a05f277a4ac4e3caef359d2a8d591ff761e28b0912",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {
@@ -170410,7 +170569,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "1fe55612e06d5ece623288256fd4834ef5248012649552d9a863bf3065876637",
-      "sha256_framework_source": "5f4ed72ccac53d06197242f7081b890e35344523c696599fe95590a35b94ea06",
+      "sha256_framework_source": "dd239fbf1d69e15c054dcff96a8a5ebb6943ff452139da94aea0cd014dbd40d5",
       "sha256_updated_base": "1fe55612e06d5ece623288256fd4834ef5248012649552d9a863bf3065876637"
     },
     {
@@ -171571,7 +171730,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "b066d5840bb013161b6c7f6638acc1ba1d100a0b767242e69c661762577e8f00",
-      "sha256_framework_source": "4dd1abe1282db074ee0392357da33182590e01f9a99a006813fa4674d1558513",
+      "sha256_framework_source": "c99f13b983f997ee2a498ef24864cb03fca042be8cb2a6b16be723f4ede7e420",
       "sha256_updated_base": "b066d5840bb013161b6c7f6638acc1ba1d100a0b767242e69c661762577e8f00"
     },
     {
@@ -171749,7 +171908,7 @@
   "framework_revision": "3a4f2281568139d94fda6b51dc2e07bb8fc06c67",
   "generator": "connector_suite/modsecurity_connector_ci/tools/build-migration-map.py",
   "inputs": {
-    "current_inventory_sha256": "147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8",
+    "current_inventory_sha256": "fc007bdea733980700a74609acb41e5332977516b19f2f6e2823ecb5860557fd",
     "initial_inventory_sha256": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
     "source_map_sha256": "efd8ec2d12ab62762d251c3b8ecd85185a3c397b7b0a258ed95fc39e183a71e8",
     "updated_base_inventory_sha256": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
