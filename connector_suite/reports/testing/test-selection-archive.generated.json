@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "ea9c0b07d76ed9a1e1bb1b647c750e0044fd8544e88dbf5741d07266a1f16ab7",
+  "inventory_sha256": "6293afad847d79070d6dd322f2ac7672696f64e219647b7b5dc8099e66a64dac",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7946,
+  "on_demand_definition_count": 7965,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -1944,7 +1944,7 @@
         "connector_suite.adapters.lighttpd.tests.test_backend_close_harness_contract.BackendCloseHarnessContractTest.test_upstream_rejects_wrong_request_path"
       ],
       "source": "connectors/lighttpd/tests/test_backend_close_harness_contract.py",
-      "source_sha256": "747fcd97e4f19089226ca40f5edc2e0bc1a931bfeaf8ba0111b077a34af95036"
+      "source_sha256": "489a2757713b52f9147d2b910396708f6c09c0513fbcdb432fe210212b0ab7ee"
     },
     {
       "contains_selected_definitions": [],
@@ -5023,6 +5023,24 @@
       ],
       "source": "tests/test_evidence_output_security.py",
       "source_sha256": "9160c23dbb72f85a30483d51353dee9474015540354e77b126c2da391efd7fca"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_execution_context_preflight.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_actual_child_identity_file_write_and_uds",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_mapping_failure_never_runs_child",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_independent_private_uds_root_and_containment",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_actual_worker_transition_traverse_only_and_private_denial",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_distinct_launcher_inherits_daemon_context_from_setpriv",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_missing_transition_capabilities_is_blocked",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_symlink_read_write_and_missing_deny_are_blocked",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_uds_length_and_existing_socket_are_blocked_without_removal",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_unresponsive_child_is_bounded_and_reaped",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_cli_context_only_preserves_not_run_runtime_without_binary"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_execution_context_preflight.py",
+      "source_sha256": "22c6a17f1425922ddbc910211147f21f7d2945a72edab03afc5f720b30ca187b"
     },
     {
       "contains_selected_definitions": [],
@@ -8636,6 +8654,8 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_port_cleanup_probe.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_private_network_marker_cannot_authorize_the_parent_namespace",
+        "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_private_network_rejects_interfaces_beyond_loopback",
         "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_time_wait_does_not_mean_live_listener",
         "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_free_ipv4_port_is_accepted_in_current_namespace",
         "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_live_loopback_listener_is_rejected",
@@ -8647,7 +8667,7 @@
         "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests.test_dual_stack_listener_cannot_be_hidden_by_reuseaddr"
       ],
       "source": "tests/test_nginx_port_cleanup_probe.py",
-      "source_sha256": "5f4ed72ccac53d06197242f7081b890e35344523c696599fe95590a35b94ea06"
+      "source_sha256": "5c56fed9464741b5cf96acf6d52c5f776dfdcfc0bf6125f1d46774a977611704"
     },
     {
       "contains_selected_definitions": [],
@@ -8993,6 +9013,7 @@
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_domain_records_are_closed_and_keep_actual_descriptor_and_bytes",
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_phase_helpers_have_at_most_seven_explicit_parameters",
+        "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_blocked_context_precedes_projection_configtest_and_child",
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_success_receipts_are_raw_bound_without_canonical_promotion",
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_original_fault_descriptor_reaches_child_but_not_configtest",
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_receipt_context_keeps_mapping_override_semantics_and_original_raw_hash",
@@ -9011,7 +9032,7 @@
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_framing_capture_retains_original_wire_bytes_and_parser_fields"
       ],
       "source": "tests/test_nginx_sequence_driver_phases.py",
-      "source_sha256": "43a8dc85960ae87800fafa1abe14600f2edc5272730cb67c8c5ffdef68b63826"
+      "source_sha256": "09a11f0d9bf0d081d30e5e545203b6b1f470fa84a666d5bdf01e7315812a38a3"
     },
     {
       "contains_selected_definitions": [],
@@ -11483,11 +11504,12 @@
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_child_environment_fixes_the_no_crs_ruleset",
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_runtime_start_requires_the_private_pid_namespace_init",
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_fixed_probe_rejects_reflected_or_reused_transaction_identifier",
+        "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_probe_handler_rejects_folded_and_control_transaction_headers",
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_supervisor_blocks_before_start_without_runtime_no_crs_provenance",
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_early_process_identity_failure_cleanup_helper_terminates_the_live_child"
       ],
       "source": "tests/test_trusted_lighttpd_runtime_supervisor.py",
-      "source_sha256": "4dd1abe1282db074ee0392357da33182590e01f9a99a006813fa4674d1558513"
+      "source_sha256": "c99f13b983f997ee2a498ef24864cb03fca042be8cb2a6b16be723f4ede7e420"
     },
     {
       "contains_selected_definitions": [],
@@ -14322,6 +14344,19 @@
       ],
       "source": "framework/tests/security_regression/test_synchronized_upstream_security_boundaries.py",
       "source_sha256": "cdad2d05dee750dc307a7d6956d24a759fd4f8db3666ce895567c91c76956472"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "tests/security_regression/test_traefik_auth_backend.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_noncanonical_targets_reject_before_body_or_files",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_literal_traversal_leaves_real_outside_artifacts_unchanged",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_raw_parser_rejects_normalized_targets_without_continue",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_all_catalog_cases_preserve_artifacts_receipts_and_responses",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_loopback_rejects_unread_body_and_preserves_valid_wire"
+      ],
+      "source": "framework/tests/security_regression/test_traefik_auth_backend.py",
+      "source_sha256": "acaaa4293e394c0222ef5706106e880d3ddfd9141855fd9ba83445c80078f081"
     },
     {
       "contains_selected_definitions": [],

@@ -4,6 +4,7 @@ import http.server
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import socket
 import sys
@@ -12,10 +13,31 @@ import time
 root = Path('/task/backend');root.mkdir(mode=0o700)
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
+
+    def parse_request(self):
+        # The stdlib collapses leading // and whitespace before do_POST. Check
+        # the original target first, including before any 100-continue reply.
+        fields = self.raw_requestline[:-2].split(b' ')
+        if (not self.raw_requestline.endswith(b'\r\n') or len(fields) != 3
+                or re.fullmatch(rb'/[a-z0-9-]{1,23}', fields[1]) is None):
+            self.command = None
+            self.requestline = ''
+            self.request_version = 'HTTP/1.1'
+            self.close_connection = True
+            self.send_error(400)
+            return False
+        return super().parse_request()
+
     def do_POST(self):
+        # observer-invalid-handle is the longest current catalog name (23).
+        matched = re.fullmatch(r'/([a-z0-9-]{1,23})', self.path)
+        if matched is None:
+            self.send_error(400)
+            return
+        name = matched.group(1)
         length = int(self.headers.get('Content-Length', '0'))
         if not 0 <= length <= 8192:self.send_error(400);return
-        body = self.rfile.read(length);name = self.path.lstrip('/')
+        body = self.rfile.read(length)
         (root / (name + '.request-body.raw')).write_bytes(body)
         response = b'i12-response-marker:' + name.encode() + b'\n'
         if name == 'p4-safe':response = b'i12-block-response\n'

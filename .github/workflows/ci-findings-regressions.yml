@@ -13,6 +13,12 @@ on:
       - "ci/tools/install-hash-locked-ci-dependencies.sh"
       - "requirements-ci.lock"
       - ".github/workflows/ci-findings-regressions.yml"
+      - "connector_suite/adapters/traefik/harness/i12_auth/backend.py"
+      - "connector_suite/modsecurity_connector_tests/test_trusted_lighttpd_runtime_supervisor.py"
+      - "connector_suite/modsecurity_connector_tests/test_nginx_port_cleanup_probe.py"
+      - "connector_suite/adapters/lighttpd/tests/test_backend_close_harness_contract.py"
+      - "modsecurity_test_framework/private_network_test.py"
+      - "tests/security_regression/test_traefik_auth_backend.py"
   workflow_dispatch:
 
 permissions:
@@ -95,3 +101,98 @@ jobs:
           set -eu
           umask 077
           python3 ci/checks/security/check-mrts-definition-integration.py --expected-head "$EXPECTED_FRAMEWORK_SHA"
+
+  codeql-boundaries:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    env:
+      FRAMEWORK_ROOT: ${{ github.workspace }}
+      TEST_ROOT: ${{ github.workspace }}
+      PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/connector_suite
+      # Reuse the existing Sonar analysis Product input, without updating a pin.
+      CONNECTOR_REVISION: cfd5e49cada3fc793ef50993147e3796a0907443
+      PYTHONNOUSERSITE: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up repository Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Prepare external test paths
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/codeql-boundary-tmp" "$RUNNER_TEMP/codeql-boundary-pip"
+          {
+            echo "TMPDIR=$RUNNER_TEMP/codeql-boundary-tmp"
+            echo "PIP_CACHE_DIR=$RUNNER_TEMP/codeql-boundary-pip"
+            echo "CONNECTOR_ROOT=$RUNNER_TEMP/codeql-boundary-product"
+          } >> "$GITHUB_ENV"
+
+      - name: Install existing hash-locked test dependencies
+        run: bash ci/tools/install-hash-locked-ci-dependencies.sh
+
+      - name: Materialize explicit read-only Product input
+        run: |
+          set -euo pipefail
+          test ! -e "$CONNECTOR_ROOT"
+          git -c credential.helper= clone --no-checkout --filter=blob:none \
+            https://github.com/Easton97-Jens/ModSecurity-conector.git "$CONNECTOR_ROOT"
+          git -C "$CONNECTOR_ROOT" -c credential.helper= fetch --no-tags origin "$CONNECTOR_REVISION"
+          git -C "$CONNECTOR_ROOT" checkout --detach "$CONNECTOR_REVISION"
+          test "$(git -C "$CONNECTOR_ROOT" rev-parse HEAD)" = "$CONNECTOR_REVISION"
+          test -z "$(git -C "$CONNECTOR_ROOT" status --porcelain --untracked-files=all)"
+
+      - name: Run backend artifact and HTTP regressions
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests/security_regression \
+            -p test_traefik_auth_backend.py -v
+
+      - name: Run explicit header and isolated wildcard regressions without skips
+        run: |
+          set -euo pipefail
+          # The mapped root in each child user namespace must own its private
+          # temporary directory; it cannot traverse a runner-owned mode-0700 one.
+          runner_identity="$(id -u):$(id -g)"
+          sudo -n chown 0:0 "$TMPDIR"
+          trap 'sudo -n chown "$runner_identity" "$TMPDIR"' EXIT
+          # Root is confined to this disposable CI runner. The tests create
+          # fresh user/network namespaces and verify isolation before binding;
+          # no AppArmor, sysctl, host networking or security policy is changed.
+          sudo -n env PYTHONPATH="$PYTHONPATH" TEST_ROOT="$TEST_ROOT" \
+            FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+            CONNECTOR_REVISION="$CONNECTOR_REVISION" TMPDIR="$TMPDIR" \
+            PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 ON_DEMAND_TESTS=1 \
+            "$(command -v python3)" - <<'PY'
+          import sys
+          import unittest
+
+          supervisor = "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest."
+          nginx = "modsecurity_connector_tests.test_nginx_port_cleanup_probe.NginxPortCleanupProbeTests."
+          lighttpd = "connector_suite.adapters.lighttpd.tests.test_backend_close_harness_contract.BackendCloseHarnessContractTest."
+          names = [
+              supervisor + "test_probe_handler_rejects_folded_and_control_transaction_headers",
+              supervisor + "test_fixed_probe_rejects_reflected_or_reused_transaction_identifier",
+              nginx + "test_wildcard_listener_is_rejected",
+              nginx + "test_dual_stack_listener_cannot_be_hidden_by_reuseaddr",
+              nginx + "test_private_network_marker_cannot_authorize_the_parent_namespace",
+              nginx + "test_private_network_rejects_interfaces_beyond_loopback",
+              lighttpd + "test_linux_guard_no_listener_probe_rejects_ipv6_wildcard_listener",
+          ]
+          result = unittest.TextTestRunner(verbosity=2).run(
+              unittest.defaultTestLoader.loadTestsFromNames(names)
+          )
+          if result.skipped:
+              raise SystemExit("BLOCKED: required isolated regression was skipped")
+          sys.exit(0 if result.wasSuccessful() else 1)
+          PY

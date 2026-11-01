@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.private_network_test import private_network_test
 
 import errno
 import json
@@ -13,9 +14,10 @@ import subprocess
 import sys
 import time
 import unittest
+from unittest import mock
 
 
-HARNESS = connector_root() / "connectors/nginx/harness/run_nginx_smoke.sh"
+HARNESS = source_path("connectors/nginx/harness/run_nginx_smoke.sh", root=connector_root())
 
 
 def shell_function(source: str, name: str) -> str:
@@ -61,6 +63,32 @@ def bind_errno(port: int, *, reuseaddr: bool) -> int | None:
 class NginxPortCleanupProbeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.function = cleanup_port_function()
+
+    def test_private_network_marker_cannot_authorize_the_parent_namespace(self) -> None:
+        body = mock.Mock()
+        environment = {
+            "FRAMEWORK_WILDCARD_TEST_ID": self.id(),
+            "FRAMEWORK_WILDCARD_TEST_PARENT_NETNS": os.readlink("/proc/self/ns/net"),
+        }
+        with mock.patch.dict(os.environ, environment):
+            with self.assertRaises(AssertionError):
+                private_network_test(body)(self)
+        body.assert_not_called()
+
+    def test_private_network_rejects_interfaces_beyond_loopback(self) -> None:
+        body = mock.Mock()
+        environment = {
+            "FRAMEWORK_WILDCARD_TEST_ID": self.id(),
+            "FRAMEWORK_WILDCARD_TEST_PARENT_NETNS": "net:[parent]",
+        }
+        with (
+            mock.patch.dict(os.environ, environment),
+            mock.patch("modsecurity_test_framework.private_network_test.os.readlink", return_value="net:[child]"),
+            mock.patch("modsecurity_test_framework.private_network_test.socket.if_nameindex", return_value=[(1, "lo"), (2, "eth0")]),
+        ):
+            with self.assertRaises(AssertionError):
+                private_network_test(body)(self)
+        body.assert_not_called()
 
     def probe(self, port: int, protocol: str = "http1") -> tuple[subprocess.CompletedProcess[str], dict]:
         env = {
@@ -137,6 +165,7 @@ class NginxPortCleanupProbeTests(unittest.TestCase):
             self.assertGreaterEqual(diagnostic.get("tcp_listeners", 0), 1)
             self.assertEqual(diagnostic.get("tcp_bind"), "skipped")
 
+    @private_network_test
     def test_wildcard_listener_is_rejected(self) -> None:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
             listener.bind(("0.0.0.0", 0))
@@ -144,6 +173,10 @@ class NginxPortCleanupProbeTests(unittest.TestCase):
             result, diagnostic = self.probe(listener.getsockname()[1])
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(diagnostic.get("result"), "listener_present")
+            port = listener.getsockname()[1]
+        result, diagnostic = self.probe(port)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(diagnostic.get("result"), "freed")
 
     def test_invalid_port_fails_closed_with_diagnostic(self) -> None:
         result, diagnostic = self.probe(0)
@@ -200,6 +233,7 @@ class NginxPortCleanupProbeTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(diagnostic.get("result"), "freed")
 
+    @private_network_test
     def test_dual_stack_listener_cannot_be_hidden_by_reuseaddr(self) -> None:
         if not socket.has_ipv6:
             self.skipTest("IPv6 unavailable")
@@ -217,6 +251,9 @@ class NginxPortCleanupProbeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(diagnostic.get("result"), "tcp_bind_failed")
             self.assertEqual(diagnostic.get("tcp_bind_errno"), errno.EADDRINUSE)
+        result, diagnostic = self.probe(port)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(diagnostic.get("result"), "freed")
 
 
 
