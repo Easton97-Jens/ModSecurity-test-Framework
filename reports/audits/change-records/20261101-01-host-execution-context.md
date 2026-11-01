@@ -43,6 +43,8 @@ The implementation-stage coordinator ran the explicit Framework interpreter thro
 
 Delivery verification repeated all 13 preflight tests in the approved host context and all seven focused integration tests in a fresh external directory: both selections exited 0. `update-inventory-bindings.py --check` reports `INVENTORY_BINDINGS_VERIFIED`; helper binding updates preserve all previous source references and case/selector semantics. Delivery run: `20261101-context-delivery`. New private logs/evidence remain outside Git.
 
+The Connector bilingual integration checker also exposed the German guide's language-switch order. The guide and paired record now place the English link before the German language label. The existing checker accepts the corrected guide; no checker or runtime logic was changed for this correction.
+
 ## Security impact
 
 This change strengthens prerequisite and evidence classification; it is not a validated vulnerability remediation. It does not grant host privileges, alter protected broker trust or weaken private-path isolation. No secrets, raw payloads or environment dump are included.

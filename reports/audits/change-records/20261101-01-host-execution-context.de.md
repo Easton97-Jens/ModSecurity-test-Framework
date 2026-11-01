@@ -1,6 +1,6 @@
 # Änderungsnachweis
 
-**Sprache:** Deutsch | [English](20261101-01-host-execution-context.md)
+**Sprache:** [English](20261101-01-host-execution-context.md) | Deutsch
 
 ## Identität
 
@@ -42,6 +42,8 @@ Die Lieferprüfung verlangt außerdem null neue SonarQube-Cloud-Issues und Secur
 Der Koordinator des Implementierungsstands führte den expliziten Framework-Interpreter über `rtk bypass env PYTHONPATH=<Framework>:<Framework>/connector_suite TEST_ROOT=<Framework> CONNECTOR_ROOT=<Parent> CONNECTOR_REVISION=a6001a09210bc9516256d28af5da45d73f0fe2f2 <Framework-interpreter> -P -m unittest -v` aus: Die zehn Methoden in `test_execution_context_preflight` sowie drei ausgewählte bestehende Binary-Preflight-Regressionen bestanden (13 Tests im Hostkontext). Sieben gezielte NGINX-Pfad-/Orchestrierungsprüfungen bestanden, darunter die Sperre vor Projektion, Configtest und Kindprozessstart. Exakte Selektoren/Ergebnisse liegen in `private/final-preflight-tests.log` und `private/final-integration-tests.log` unter dem Task-Evidenzroot. Shell-Syntax (drei Skripte), Python-AST (fünf geänderte Module), begrenztes Gitleaks-Scanning (16 geänderte Quelldateien, keine Funde) und `git diff --check` beider Repositories bestanden. Framework `rtk make check-bilingual-docs check-doc-links check-change-records PYTHON=<Framework-interpreter> BUILD_ROOT=<task>/private/docs-checks TMP_ROOT=<task>/private/docs-checks/tmp LOG_ROOT=<task>/private/docs-checks/logs` bestand. Parent-V3.2-Struktur und die geänderten Kontext-Digests bestanden; die vollständige Inheritance-Prüfung behält unabhängige Altfehler.
 
 Die Lieferverifikation wiederholte alle 13 Preflight-Tests im genehmigten Hostkontext und alle sieben gezielten Integrationsprüfungen in einem frischen externen Verzeichnis: Beide Auswahlen endeten mit Exit 0. `update-inventory-bindings.py --check` meldet `INVENTORY_BINDINGS_VERIFIED`; die Helper-Bindungen erhalten alle vorherigen Quellreferenzen und Fall-/Selektorsemantik. Lieferlauf: `20261101-context-delivery`. Neue private Logs/Evidenz bleiben außerhalb von Git.
+
+Der Zweisprachigkeitsprüfer der Connector-Integration zeigte außerdem die falsche Reihenfolge der Sprachumschaltung im deutschen Leitfaden. Leitfaden und gepaarter Nachweis setzen den englischen Link jetzt vor die deutsche Sprachbezeichnung. Der bestehende Prüfer akzeptiert den korrigierten Leitfaden; für diese Korrektur wurden weder Prüfer noch Runtime-Logik geändert.
 
 ## Sicherheitsauswirkung
 

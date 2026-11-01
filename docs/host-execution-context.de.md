@@ -1,6 +1,6 @@
 # Host-Ausführungskontext
 
-**Sprache:** Deutsch | [English](host-execution-context.md)
+**Sprache:** [English](host-execution-context.md) | Deutsch
 
 Reale Connector-Tests benötigen den Ausführungskontext des gewählten Profils. UID 0 allein belegt keine Host-Root-Rechte: UID/GID-Abbildungen, effektive Capabilities, Zusatzgruppen, Pfaddurchquerung und Socket-Zugriff sind ebenfalls relevant. In jeder neuen Sitzung und vor dem ausgewählten Harness ist ein frischer Preflight nötig; ein früheres PASS autorisiert oder belegt keinen späteren Runtime-Lauf.
 
