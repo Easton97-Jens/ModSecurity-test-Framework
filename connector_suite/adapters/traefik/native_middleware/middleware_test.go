@@ -39,6 +39,7 @@ type recordingTransaction struct {
 	closed         []Summary
 	headerDecision func(Direction, []Header, bool) Decision
 	bodyDecision   func(Direction, []byte, bool) Decision
+	bodyError      func(Direction, []byte, bool) error
 }
 
 func (transaction *recordingTransaction) ProcessHeaders(value context.Context, direction Direction, headers []Header, end bool) (Decision, error) {
@@ -184,6 +185,9 @@ func (transaction *recordingTransaction) ProcessBody(value context.Context, dire
 	if transaction.bodyDecision != nil {
 		return transaction.bodyDecision(direction, body, end), nil
 	}
+	if transaction.bodyError != nil {
+		return allowDecision(), transaction.bodyError(direction, body, end)
+	}
 	return allowDecision(), nil
 }
 
@@ -193,14 +197,20 @@ func (transaction *recordingTransaction) Close(value context.Context, summary Su
 }
 
 type recordingEngine struct {
-	transaction *recordingTransaction
+	transaction Transaction
 	metadata    []Metadata
 }
 
 func (engine *recordingEngine) Open(_ context.Context, metadata Metadata) (Transaction, error) {
-	engine.transaction.opens++
+	if transaction, ok := engine.transaction.(interface{ recordOpen() }); ok {
+		transaction.recordOpen()
+	}
 	engine.metadata = append(engine.metadata, metadata)
 	return engine.transaction, nil
+}
+
+func (transaction *recordingTransaction) recordOpen() {
+	transaction.opens++
 }
 
 func TestMiddlewarePreservesRawAuthorityInMetadata(t *testing.T) {
@@ -313,6 +323,11 @@ func TestTraefikMiddlewareEntryPointSignature(t *testing.T) {
 
 func newTestMiddleware(t *testing.T, next http.Handler, transaction *recordingTransaction) *Middleware {
 	t.Helper()
+	return newTestMiddlewareWithTransaction(t, next, transaction)
+}
+
+func newTestMiddlewareWithTransaction(t *testing.T, next http.Handler, transaction Transaction) *Middleware {
+	t.Helper()
 	config := CreateConfig()
 	config.EngineSocketPath = "/run/msconnector-test.sock"
 	config.MaxRequestChunkBytes = 3
@@ -322,6 +337,79 @@ func newTestMiddleware(t *testing.T, next http.Handler, transaction *recordingTr
 		t.Fatal(err)
 	}
 	return middleware
+}
+
+type commitErrorTransaction struct {
+	*recordingTransaction
+	err         error
+	commitCalls int
+}
+
+func (transaction *commitErrorTransaction) SetResponseCommit(context.Context, bool, bool) error {
+	transaction.commitCalls++
+	return transaction.err
+}
+
+type acknowledgementErrorTransaction struct {
+	*recordingTransaction
+	appliedErr error
+	lateErr    error
+}
+
+func (transaction *acknowledgementErrorTransaction) AcknowledgeApplied(context.Context, Decision) error {
+	return transaction.appliedErr
+}
+
+func (transaction *acknowledgementErrorTransaction) AcknowledgeLateLogOnly(context.Context, int) error {
+	return transaction.lateErr
+}
+
+func newDeniedResponseRecording() *recordingTransaction {
+	return &recordingTransaction{
+		bodyDecision: func(direction Direction, _ []byte, _ bool) Decision {
+			if direction == DirectionResponse {
+				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+			}
+			return allowDecision()
+		},
+	}
+}
+
+func newLateAcknowledgementErrorTransaction(lateErr error) (*recordingTransaction, *acknowledgementErrorTransaction) {
+	responseCalls := 0
+	recording := &recordingTransaction{
+		bodyDecision: func(direction Direction, _ []byte, end bool) Decision {
+			if direction == DirectionResponse && !end {
+				responseCalls++
+				if responseCalls == 2 {
+					return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+				}
+			}
+			return allowDecision()
+		},
+	}
+	return recording, &acknowledgementErrorTransaction{
+		recordingTransaction: recording,
+		lateErr:              lateErr,
+	}
+}
+
+func serveResponseScenario(t *testing.T, response http.ResponseWriter, target string, next http.Handler, transaction Transaction) {
+	t.Helper()
+	middleware := newTestMiddlewareWithTransaction(t, next, transaction)
+	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, target, nil))
+}
+
+func serveStoppedResponseScenario(t *testing.T, response http.ResponseWriter, target string, next http.Handler, transaction Transaction) {
+	t.Helper()
+	expectHostStop(t, func() { serveResponseScenario(t, response, target, next, transaction) })
+}
+
+func assertResponseIncomplete(t *testing.T, description string, recording *recordingTransaction) {
+	t.Helper()
+	if len(recording.closed) != 1 || !recording.closed[0].ResponseIncomplete || recording.closed[0].ResponseEOS {
+		t.Fatalf("%s did not close incomplete: %#v", description, recording.closed)
+	}
 }
 
 type trackingRequestBody struct {
@@ -900,6 +988,145 @@ func TestReadFromUsesUnderlyingReaderFromAndKeepsChunksBounded(t *testing.T) {
 	assertBoundedBodies(t, transaction.bodyCalls, DirectionResponse, 2, len("read-from"))
 }
 
+func TestReadFromEngineEOSErrorAfterHostCommitDoesNotWriteFailure(t *testing.T) {
+	engineErr := errors.New("response eos engine unavailable")
+	transaction := &recordingTransaction{
+		bodyError: func(direction Direction, _ []byte, end bool) error {
+			if direction == DirectionResponse && end {
+				return engineErr
+			}
+			return nil
+		},
+	}
+	var readFromErr error
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		readerFrom, ok := writer.(io.ReaderFrom)
+		if !ok {
+			t.Fatal("wrapped ResponseWriter does not implement io.ReaderFrom")
+		}
+		_, readFromErr = readerFrom.ReadFrom(&plainReader{reader: strings.NewReader("body")})
+	}), transaction)
+	response := &readerFromResponseWriter{header: make(http.Header)}
+
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-eos-error", nil))
+	})
+
+	if !errors.Is(readFromErr, engineErr) {
+		t.Fatalf("ReadFrom() error = %v, want %v", readFromErr, engineErr)
+	}
+	if got, want := response.body.String(), "body"; got != want {
+		t.Fatalf("response body = %q, want %q", got, want)
+	}
+	if strings.Contains(response.body.String(), "response rejected") {
+		t.Fatalf("post-commit EOS error appended a synthetic failure body: %q", response.body.String())
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].ResponseEOS {
+		t.Fatalf("post-commit EOS error fabricated response EOS: %#v", transaction.closed)
+	}
+	responseEOSCalls := 0
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionResponse && call.end {
+			responseEOSCalls++
+		}
+	}
+	if responseEOSCalls != 1 {
+		t.Fatalf("response EOS callbacks = %d, want 1 attempted callback", responseEOSCalls)
+	}
+}
+
+func TestReadFromInitialZeroProgressPreservesPreCommitResponseDeny(t *testing.T) {
+	const upstreamBody = "sensitive upstream body"
+	transaction := &recordingTransaction{
+		bodyDecision: func(direction Direction, _ []byte, end bool) Decision {
+			if direction == DirectionResponse && !end {
+				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+			}
+			return allowDecision()
+		},
+	}
+	var readFromCount int64
+	var readFromErr error
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		readerFrom, ok := writer.(io.ReaderFrom)
+		if !ok {
+			t.Fatal("wrapped ResponseWriter does not implement io.ReaderFrom")
+		}
+		readFromCount, readFromErr = readerFrom.ReadFrom(&zeroThenReader{reader: strings.NewReader(upstreamBody)})
+	}), transaction)
+	response := &readerFromResponseWriter{header: make(http.Header)}
+
+	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-zero-deny", nil))
+
+	if readFromErr != nil {
+		t.Fatalf("ReadFrom() error = %v", readFromErr)
+	}
+	if got, want := readFromCount, int64(len(upstreamBody)); got != want {
+		t.Fatalf("ReadFrom() count = %d, want %d", got, want)
+	}
+	if response.readFromCalled {
+		t.Fatal("zero-progress pre-commit ReadFrom delegated around response controls")
+	}
+	if got, want := response.status, http.StatusForbidden; got != want {
+		t.Fatalf("response status = %d, want %d", got, want)
+	}
+	if got, want := response.body.String(), "request rejected\n"; got != want {
+		t.Fatalf("response body = %q, want %q", got, want)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].ResponseEOS {
+		t.Fatalf("rejected zero-progress ReadFrom fabricated response EOS: %#v", transaction.closed)
+	}
+}
+
+func TestReadFromInitialSourceErrorDoesNotInventResponseEOS(t *testing.T) {
+	sourceErr := errors.New("upstream response source failed")
+	for _, test := range []struct {
+		name string
+		data string
+	}{
+		{name: "before_body", data: ""},
+		{name: "after_body", data: "ok"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			assertInitialSourceErrorDoesNotInventResponseEOS(t, test.data, sourceErr)
+		})
+	}
+}
+
+func assertInitialSourceErrorDoesNotInventResponseEOS(t *testing.T, data string, sourceErr error) {
+	t.Helper()
+
+	transaction := &recordingTransaction{}
+	var readFromErr error
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		readerFrom, ok := writer.(io.ReaderFrom)
+		if !ok {
+			t.Fatal("wrapped ResponseWriter does not implement io.ReaderFrom")
+		}
+		_, readFromErr = readerFrom.ReadFrom(&errorReader{data: []byte(data), err: sourceErr})
+	}), transaction)
+	response := &readerFromResponseWriter{header: make(http.Header)}
+
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/read-from-source-error", nil))
+	})
+
+	if !errors.Is(readFromErr, sourceErr) {
+		t.Fatalf("ReadFrom() error = %v, want %v", readFromErr, sourceErr)
+	}
+	if got, want := response.body.String(), data; got != want {
+		t.Fatalf("response body = %q, want %q", got, want)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].ResponseEOS {
+		t.Fatalf("initial source error fabricated response EOS: %#v", transaction.closed)
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionResponse && call.end {
+			t.Fatalf("initial source error invoked a response EOS callback: %#v", transaction.bodyCalls)
+		}
+	}
+}
+
 func TestOptionalResponseWriterInterfacesArePreserved(t *testing.T) {
 	transaction := &recordingTransaction{}
 	state := &streamState{
@@ -1074,6 +1301,286 @@ func TestIncompleteHostWriteDoesNotInventResponseEOS(t *testing.T) {
 	}
 }
 
+func TestEmptyHostWriteDoesNotInventResponseEOS(t *testing.T) {
+	transaction := &recordingTransaction{}
+	var writeErr error
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, writeErr = writer.Write(nil)
+	}), transaction)
+	response := &failingResponseWriter{header: make(http.Header)}
+
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/empty-disconnect", nil))
+	})
+
+	if !errors.Is(writeErr, io.ErrClosedPipe) {
+		t.Fatalf("Write() error = %v, want %v", writeErr, io.ErrClosedPipe)
+	}
+	if len(transaction.closed) != 1 || transaction.closed[0].ResponseEOS {
+		t.Fatalf("empty host write fabricated response EOS: %#v", transaction.closed)
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionResponse && call.end {
+			t.Fatalf("empty host write invoked a response EOS callback: %#v", transaction.bodyCalls)
+		}
+	}
+}
+
+func TestResponseCommitErrorDoesNotInventResponseEOS(t *testing.T) {
+	commitErr := errors.New("response commit acknowledgement failed")
+	recording := &recordingTransaction{}
+	transaction := &commitErrorTransaction{recordingTransaction: recording, err: commitErr}
+	handlerContinued := false
+	middleware := newTestMiddlewareWithTransaction(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte("body that cannot be committed to the engine"))
+		handlerContinued = true
+	}), transaction)
+	response := httptest.NewRecorder()
+
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/commit-error", nil))
+	})
+
+	if handlerContinued {
+		t.Fatal("handler continued after response commit acknowledgement failed")
+	}
+	if got := response.Body.String(); got != "" {
+		t.Fatalf("response body after commit acknowledgement failure = %q, want empty", got)
+	}
+	if len(recording.closed) != 1 || recording.closed[0].ResponseEOS {
+		t.Fatalf("commit acknowledgement failure fabricated response EOS: %#v", recording.closed)
+	}
+	for _, call := range recording.bodyCalls {
+		if call.direction == DirectionResponse && call.end {
+			t.Fatalf("commit acknowledgement failure invoked a response EOS callback: %#v", recording.bodyCalls)
+		}
+	}
+}
+
+func TestNoBodyResponseCommitErrorDoesNotInventResponseEOS(t *testing.T) {
+	commitErr := errors.New("empty response commit acknowledgement failed")
+	recording := &recordingTransaction{}
+	transaction := &commitErrorTransaction{recordingTransaction: recording, err: commitErr}
+	middleware := newTestMiddlewareWithTransaction(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), transaction)
+	response := httptest.NewRecorder()
+
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/empty-commit-error", nil))
+	})
+
+	if got, want := response.Code, http.StatusOK; got != want {
+		t.Fatalf("response status = %d, want %d", got, want)
+	}
+	if len(recording.closed) != 1 || recording.closed[0].ResponseEOS {
+		t.Fatalf("empty response commit acknowledgement fabricated response EOS: %#v", recording.closed)
+	}
+}
+
+func TestDirectResponseEOSErrorAtFinishMarksResponseIncomplete(t *testing.T) {
+	engineErr := errors.New("response EOS engine unavailable")
+	transaction := &recordingTransaction{
+		bodyError: func(direction Direction, _ []byte, end bool) error {
+			if direction == DirectionResponse && end {
+				return engineErr
+			}
+			return nil
+		},
+	}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte("body"))
+	}), transaction)
+	response := httptest.NewRecorder()
+
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/direct-eos-error", nil))
+	})
+
+	if len(transaction.closed) != 1 || !transaction.closed[0].ResponseIncomplete || transaction.closed[0].ResponseEOS {
+		t.Fatalf("direct response EOS error did not close incomplete: %#v", transaction.closed)
+	}
+}
+
+func TestPreCommitDenialWriteFailureMarksResponseIncomplete(t *testing.T) {
+	transaction := &recordingTransaction{
+		bodyDecision: func(direction Direction, _ []byte, _ bool) Decision {
+			if direction == DirectionResponse {
+				return Decision{Action: ActionDeny, Status: http.StatusForbidden}
+			}
+			return allowDecision()
+		},
+	}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte("blocked response"))
+	}), transaction)
+	response := &failingResponseWriter{header: make(http.Header)}
+
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/denial-write-error", nil))
+	})
+
+	if len(transaction.closed) != 1 || !transaction.closed[0].ResponseIncomplete || transaction.closed[0].ResponseEOS {
+		t.Fatalf("denial write failure did not close incomplete: %#v", transaction.closed)
+	}
+}
+
+func TestPreCommitDenialDoesNotReenterCommitAfterAppliedOutcome(t *testing.T) {
+	recording := newDeniedResponseRecording()
+	transaction := &commitErrorTransaction{
+		recordingTransaction: recording,
+		err:                  errors.New("denial response commit failed"),
+	}
+	response := httptest.NewRecorder()
+	serveResponseScenario(t, response, "http://example.test/denial-commit-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte("blocked response"))
+	}), transaction)
+	if transaction.commitCalls != 0 || response.Code != http.StatusForbidden || response.Body.String() != "request rejected\n" {
+		t.Fatalf("applied denial = commits %d status %d body %q, want 0 403 complete denial", transaction.commitCalls, response.Code, response.Body.String())
+	}
+	if len(recording.closed) != 1 || recording.closed[0].ResponseIncomplete || recording.closed[0].ResponseEOS {
+		t.Fatalf("applied denial cleanup = %#v, want one non-incomplete, non-EOS close", recording.closed)
+	}
+}
+
+func TestEvaluationFailureCommitErrorMarksResponseIncomplete(t *testing.T) {
+	recording := &recordingTransaction{
+		bodyError: func(direction Direction, _ []byte, end bool) error {
+			if direction == DirectionResponse && !end {
+				return errors.New("response evaluation failed")
+			}
+			return nil
+		},
+	}
+	transaction := &commitErrorTransaction{
+		recordingTransaction: recording,
+		err:                  errors.New("failure response commit failed"),
+	}
+	serveResponseScenario(t, httptest.NewRecorder(), "http://example.test/failure-commit-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte("body"))
+	}), transaction)
+	assertResponseIncomplete(t, "failure commit error", recording)
+}
+
+func TestPreCommitResponseEOSErrorFallbackMarksResponseIncomplete(t *testing.T) {
+	transaction := &recordingTransaction{
+		bodyError: func(direction Direction, _ []byte, end bool) error {
+			if direction == DirectionResponse && end {
+				return errors.New("pre-commit response EOS failed")
+			}
+			return nil
+		},
+	}
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), transaction)
+	response := httptest.NewRecorder()
+
+	middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/precommit-eos-error", nil))
+
+	if got, want := response.Code, http.StatusInternalServerError; got != want {
+		t.Fatalf("fallback status = %d, want %d", got, want)
+	}
+	if len(transaction.closed) != 1 || !transaction.closed[0].ResponseIncomplete || transaction.closed[0].ResponseEOS {
+		t.Fatalf("pre-commit response EOS fallback did not close incomplete: %#v", transaction.closed)
+	}
+}
+
+func TestPreCommitDenialAcknowledgementErrorMarksResponseIncomplete(t *testing.T) {
+	recording := newDeniedResponseRecording()
+	transaction := &acknowledgementErrorTransaction{
+		recordingTransaction: recording,
+		appliedErr:           errors.New("outcome acknowledgement failed"),
+	}
+	serveStoppedResponseScenario(t, httptest.NewRecorder(), "http://example.test/denial-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte("blocked response"))
+	}), transaction)
+	assertResponseIncomplete(t, "denial acknowledgement error", recording)
+}
+
+func TestLateDecisionAcknowledgementErrorMarksResponseIncomplete(t *testing.T) {
+	recording, transaction := newLateAcknowledgementErrorTransaction(errors.New("late outcome acknowledgement failed"))
+	serveStoppedResponseScenario(t, httptest.NewRecorder(), "http://example.test/late-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte("one"))
+		_, _ = writer.Write([]byte("two"))
+	}), transaction)
+	assertResponseIncomplete(t, "late acknowledgement error", recording)
+	if got, want := recording.closed[0].LateAction, ""; got != want {
+		t.Fatalf("late action = %q, want %q", got, want)
+	}
+	for _, call := range recording.bodyCalls {
+		if call.direction == DirectionResponse && call.end {
+			t.Fatalf("late acknowledgement error invoked a response EOS callback: %#v", recording.bodyCalls)
+		}
+	}
+}
+
+func TestReadFromLateDecisionAcknowledgementErrorDoesNotInventResponseEOS(t *testing.T) {
+	recording, transaction := newLateAcknowledgementErrorTransaction(errors.New("late ReadFrom acknowledgement failed"))
+	response := &readerFromResponseWriter{header: make(http.Header)}
+	serveStoppedResponseScenario(t, response, "http://example.test/read-from-late-ack-error", http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		readerFrom, ok := writer.(io.ReaderFrom)
+		if !ok {
+			t.Fatal("wrapped ResponseWriter does not implement io.ReaderFrom")
+		}
+		_, _ = readerFrom.ReadFrom(&plainReader{reader: strings.NewReader("one-two")})
+	}), transaction)
+
+	if !response.readFromCalled {
+		t.Fatal("ReaderFrom late-ack path did not delegate after the pre-commit chunk")
+	}
+	assertResponseIncomplete(t, "ReaderFrom late acknowledgement error", recording)
+	for _, call := range recording.bodyCalls {
+		if call.direction == DirectionResponse && call.end {
+			t.Fatalf("ReaderFrom late acknowledgement error invoked a response EOS callback: %#v", recording.bodyCalls)
+		}
+	}
+}
+
+func TestEngineErrorAfterCommittedResponseDoesNotInventResponseEOS(t *testing.T) {
+	engineErr := errors.New("response engine unavailable")
+	responseChunks := 0
+	transaction := &recordingTransaction{
+		bodyError: func(direction Direction, _ []byte, end bool) error {
+			if direction != DirectionResponse || end {
+				return nil
+			}
+			responseChunks++
+			if responseChunks == 2 {
+				return engineErr
+			}
+			return nil
+		},
+	}
+	handlerContinued := false
+	middleware := newTestMiddleware(t, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		if _, err := writer.Write([]byte("ok")); err != nil {
+			t.Fatalf("first Write() error = %v", err)
+		}
+		_, _ = writer.Write([]byte("later"))
+		handlerContinued = true
+	}), transaction)
+	response := httptest.NewRecorder()
+
+	expectHostStop(t, func() {
+		middleware.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/engine-error", nil))
+	})
+
+	if handlerContinued {
+		t.Fatal("handler continued after post-commit engine failure")
+	}
+	if got, want := response.Body.String(), "ok"; got != want {
+		t.Fatalf("response body = %q, want %q", got, want)
+	}
+	if len(transaction.closed) != 1 {
+		t.Fatalf("Close calls = %d, want 1", len(transaction.closed))
+	}
+	if transaction.closed[0].ResponseEOS {
+		t.Fatalf("post-commit engine error fabricated response EOS: %#v", transaction.closed[0])
+	}
+	for _, call := range transaction.bodyCalls {
+		if call.direction == DirectionResponse && call.end {
+			t.Fatalf("post-commit engine error invoked a response EOS callback: %#v", transaction.bodyCalls)
+		}
+	}
+}
+
 func assertBoundedBodies(t *testing.T, calls []bodyCall, direction Direction, maximum, wantBytes int) {
 	t.Helper()
 	bytesSeen := 0
@@ -1143,6 +1650,34 @@ type plainReader struct {
 
 func (reader *plainReader) Read(buffer []byte) (int, error) {
 	return reader.reader.Read(buffer)
+}
+
+type zeroThenReader struct {
+	reader io.Reader
+	zero   bool
+}
+
+func (reader *zeroThenReader) Read(buffer []byte) (int, error) {
+	if !reader.zero {
+		reader.zero = true
+		return 0, nil
+	}
+	return reader.reader.Read(buffer)
+}
+
+type errorReader struct {
+	data []byte
+	err  error
+	read bool
+}
+
+func (reader *errorReader) Read(buffer []byte) (int, error) {
+	if reader.read {
+		return 0, reader.err
+	}
+	reader.read = true
+	count := copy(buffer, reader.data)
+	return count, reader.err
 }
 
 type readerFromResponseWriter struct {

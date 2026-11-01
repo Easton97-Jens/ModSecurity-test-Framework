@@ -168,6 +168,30 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         self.assertIn("trusted_ca:", template)
         self.assertIn('filename: "@TLS_CERTIFICATE@"', template)
 
+    def test_ext_proc_h2_capabilities_remain_profile_only(self) -> None:
+        capabilities = json.loads(
+            (ROOT / "connectors" / "envoy" / "capabilities.json").read_text(encoding="utf-8")
+        )["capabilities"]
+
+        self.assertEqual(capabilities["http2_downstream"]["state"], "configured_not_exercised")
+        self.assertEqual(capabilities["http2_tls_alpn"]["state"], "configured_not_exercised")
+        self.assertIn("no canonical HTTP/2 host case", capabilities["http2_downstream"]["reason"])
+        self.assertIn("no negotiated-ALPN HTTP/2 runtime observation", capabilities["http2_tls_alpn"]["reason"])
+        for name in (
+            "http2_upstream",
+            "http2_cleartext_h2c",
+            "http2_multiplexing",
+            "http2_stream_reset",
+            "http3_downstream",
+            "http3_upstream",
+            "http3_quic",
+            "http3_alt_svc",
+            "http3_multiplexing",
+            "http3_stream_reset",
+        ):
+            with self.subTest(capability=name):
+                self.assertEqual(capabilities[name]["state"], "not_implemented")
+
     def test_first_body_byte_is_read_once_without_header_remainder(self) -> None:
         helper = load_helper()
 
@@ -1029,6 +1053,52 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                     self.assertEqual(rejected.returncode, 2, rejected.stderr)
                     self.assertIn("TLS certificate path contains an unsupported control character", rejected.stderr)
                     self.assertFalse(rejected_output.exists())
+
+    def test_ext_proc_materializer_selects_fail_closed_downstream_protocols(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            certificate = root / "loopback.crt"
+            private_key = root / "loopback.key"
+
+            def materialize(profile: str, output: Path) -> subprocess.CompletedProcess[str]:
+                environment = dict(os.environ)
+                environment.update({
+                    "EXT_PROC_DOWNSTREAM_PROTOCOL": profile,
+                    "TLS_CERTIFICATE": str(certificate),
+                    "TLS_PRIVATE_KEY": str(private_key),
+                    "OUTPUT_CONFIG": str(output),
+                })
+                return subprocess.run(
+                    ["sh", str(EXT_PROC_CONFIG_MATERIALIZER)],
+                    cwd=ROOT,
+                    env=environment,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+
+            h1_output = root / "http1.yaml"
+            h1 = materialize("http1", h1_output)
+            self.assertEqual(h1.returncode, 0, h1.stderr)
+            h1_rendered = h1_output.read_text(encoding="utf-8")
+            self.assertIn("# Generated downstream protocol profile: http1", h1_rendered)
+            self.assertIn('alpn_protocols:\n            - "http/1.1"', h1_rendered)
+            self.assertIn("codec_type: HTTP1", h1_rendered)
+            self.assertNotIn("codec_type: HTTP1\n          http2_protocol_options: {}", h1_rendered)
+
+            h2_output = root / "h2.yaml"
+            h2 = materialize("h2", h2_output)
+            self.assertEqual(h2.returncode, 0, h2.stderr)
+            h2_rendered = h2_output.read_text(encoding="utf-8")
+            self.assertIn("# Generated downstream protocol profile: h2", h2_rendered)
+            self.assertIn('alpn_protocols:\n            - "h2"', h2_rendered)
+            self.assertIn("codec_type: HTTP2\n          http2_protocol_options: {}", h2_rendered)
+
+            invalid_output = root / "invalid.yaml"
+            invalid = materialize("h3", invalid_output)
+            self.assertEqual(invalid.returncode, 2, invalid.stderr)
+            self.assertIn("unsupported downstream protocol profile", invalid.stderr)
+            self.assertFalse(invalid_output.exists())
 
     def test_tls_renderer_explicitly_accepts_control_free_paths(self) -> None:
         renderer = TLS_YAML_RENDERER.read_text(encoding="utf-8")

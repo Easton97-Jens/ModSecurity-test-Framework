@@ -611,6 +611,24 @@ class NginxUpstreamSecurityContractTests(unittest.TestCase):
             connection.index('"Keep-Alive"'),
         )
 
+        transfer_encoding = function_definition(
+            self.header, "ngx_http_modsecurity_resolv_header_transfer_encoding"
+        )
+        h2_transfer_guard = conditional_block(transfer_encoding, "if (r->stream)")
+        self.assertIn("return 1;", h2_transfer_guard)
+        self.assertLess(
+            transfer_encoding.index("if (r->stream)"),
+            transfer_encoding.index("if (r->chunked)"),
+        )
+        h3_transfer_guard = conditional_block(
+            transfer_encoding, "if (r->http_version == NGX_HTTP_VERSION_30)"
+        )
+        self.assertIn("return 1;", h3_transfer_guard)
+        self.assertLess(
+            transfer_encoding.index("if (r->http_version == NGX_HTTP_VERSION_30)"),
+            transfer_encoding.index("if (r->chunked)"),
+        )
+
         header_filter = function_definition(self.header, "ngx_http_modsecurity_header_filter")
         self.assertIn("NGX_HTTP_VERSION_30", header_filter)
         self.assertIn('http_response_ver = "HTTP 3.0";', header_filter)

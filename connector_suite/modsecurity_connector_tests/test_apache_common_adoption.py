@@ -5,13 +5,14 @@ from modsecurity_test_framework.connector_context import connector_root, test_ro
 
 import ast
 import hashlib
-import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+
+from modsecurity_connector_tests.checker_fixture_repository import fixture_environment
 
 
 ROOT = connector_root()
@@ -139,6 +140,9 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
         apache_destination = destination / "connectors" / "apache"
         apache_destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(APACHE_DIRECTORY, apache_destination)
+        shutil.copytree(
+            source_path("common/include", root=ROOT), destination / "common" / "include"
+        )
         for relative_path in (
             Path("docs/connectors/apache.md"),
             Path("reports/audits/architecture-and-evidence.md"),
@@ -155,8 +159,7 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
             filters = self._copy_repository(repository)
             if mutate is not None:
                 mutate(filters)
-            environment = os.environ.copy()
-            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+            environment = fixture_environment(repository)
             return subprocess.run(
                 [
                     sys.executable,
@@ -427,6 +430,38 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
 
         for original, replacement in mutations:
             with self.subTest(original=original.strip()):
+                def mutate(filters: Path) -> None:
+                    replace_once(filters, original, replacement)
+
+                self._assert_rejected(
+                    mutate,
+                    "Apache Phase3 checks both response-header tables",
+                )
+
+    def test_phase3_negotiated_protocol_guards_cannot_be_bypassed(self) -> None:
+        mutations = (
+            (
+                "response_protocol = apache_response_protocol(r);",
+                'response_protocol = "HTTP 1.1";',
+            ),
+            (
+                "if (response_protocol == NULL)",
+                "if (response_protocol != NULL)",
+            ),
+            (
+                "msc_process_response_headers(msr->t, original_status,\n"
+                "                response_protocol)",
+                'msc_process_response_headers(msr->t, original_status, "HTTP 1.1")',
+            ),
+            (
+                "if (!msconnector_native_phase_succeeded(\n"
+                "            msc_process_response_headers",
+                "if (msconnector_native_phase_succeeded(\n"
+                "            msc_process_response_headers",
+            ),
+        )
+        for original, replacement in mutations:
+            with self.subTest(original=original):
                 def mutate(filters: Path) -> None:
                     replace_once(filters, original, replacement)
 

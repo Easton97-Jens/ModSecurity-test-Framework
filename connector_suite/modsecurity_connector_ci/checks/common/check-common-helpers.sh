@@ -876,12 +876,53 @@ int main(void) {
     assert(strcmp(msconnector_late_intervention_action_name(MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY), "log_only") == 0);
     {
         msconnector_late_intervention_policy late_policy;
+        msconnector_late_intervention_context late_context;
         msconnector_late_intervention_policy_init(&late_policy);
         assert(msconnector_late_intervention_resolve(&late_policy, 0, 0, 1) == MSCONNECTOR_LATE_INTERVENTION_DENY_IF_POSSIBLE);
         assert(msconnector_late_intervention_resolve(&late_policy, 1, 0, 1) == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION);
         assert(msconnector_late_intervention_resolve(&late_policy, 0, 1, 1) == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION);
         assert(msconnector_late_intervention_resolve(&late_policy, 0, 0, 0) == MSCONNECTOR_LATE_INTERVENTION_DENY_IF_POSSIBLE);
         assert(msconnector_late_intervention_resolve(&late_policy, 1, 0, 0) == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY);
+        assert(msconnector_protocol_kind_parse("HTTP/1.1") == MSCONNECTOR_PROTOCOL_HTTP_1_1);
+        assert(msconnector_protocol_kind_parse("HTTP 2.0") == MSCONNECTOR_PROTOCOL_HTTP_2);
+        assert(msconnector_protocol_kind_parse("h3") == MSCONNECTOR_PROTOCOL_HTTP_3);
+        assert(msconnector_protocol_kind_parse("HTTP/9.9") == MSCONNECTOR_PROTOCOL_UNKNOWN);
+        assert(strcmp(msconnector_protocol_kind_name(MSCONNECTOR_PROTOCOL_HTTP_3), "h3") == 0);
+        assert(msconnector_protocol_is_multiplexed(MSCONNECTOR_PROTOCOL_HTTP_2));
+        assert(msconnector_protocol_is_multiplexed(MSCONNECTOR_PROTOCOL_HTTP_3));
+        assert(!msconnector_protocol_is_multiplexed(MSCONNECTOR_PROTOCOL_HTTP_1_1));
+
+        msconnector_late_intervention_context_init(&late_context);
+        late_context.protocol = MSCONNECTOR_PROTOCOL_HTTP_2;
+        late_context.response_headers_committed = 1;
+        late_context.has_stream_id = 1;
+        late_context.stream_id = 7U;
+        late_context.stream_reset_supported = 1;
+        assert(msconnector_late_intervention_resolve_for_context(&late_policy,
+            &late_context, 1) == MSCONNECTOR_LATE_INTERVENTION_STREAM_RESET);
+
+        late_context.has_stream_id = 0;
+        assert(msconnector_late_intervention_resolve_for_context(&late_policy,
+            &late_context, 1) == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION);
+        late_context.has_stream_id = 1;
+        late_context.stream_id = 0U;
+        assert(msconnector_late_intervention_resolve_for_context(&late_policy,
+            &late_context, 1) == MSCONNECTOR_LATE_INTERVENTION_ABORT_CONNECTION);
+        late_context.protocol = MSCONNECTOR_PROTOCOL_HTTP_3;
+        late_context.stream_id = 0U;
+        assert(msconnector_late_intervention_resolve_for_context(&late_policy,
+            &late_context, 1) == MSCONNECTOR_LATE_INTERVENTION_STREAM_RESET);
+        late_context.output_ended = 1;
+        assert(msconnector_late_intervention_resolve_for_context(&late_policy,
+            &late_context, 1) == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY);
+
+        late_policy.strict_action = MSCONNECTOR_LATE_INTERVENTION_STREAM_RESET;
+        assert(msconnector_late_intervention_resolve(&late_policy, 1, 0, 1) ==
+            MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY);
+        late_context.output_ended = 0;
+        late_context.protocol = MSCONNECTOR_PROTOCOL_HTTP_2;
+        assert(msconnector_late_intervention_resolve_for_context(&late_policy,
+            &late_context, 1) == MSCONNECTOR_LATE_INTERVENTION_LOG_ONLY);
     }
     {
         char escaped[32];

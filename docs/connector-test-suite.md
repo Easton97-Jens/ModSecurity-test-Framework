@@ -19,6 +19,22 @@ The one-way dependency remains Connector → Framework. The Framework has no
 Connector submodule. The MRTS tool remains pinned and read-only; Framework
 package/import corrections have separate followup ownership.
 
+## Protocol-parity companion integration (2026-11-01)
+
+The separate Framework integration for Parent Draft #348 preserves13 migrated
+checker/test deltas and24 test definitions, together with Drafts #143/#144.
+The standard selection remains100 cases/80 executions; changed source bindings,
+archive and migration map are regenerated through their native tools. No old
+Parent test path is restored or archived campaign activated.
+
+Mutation-checker subprocesses bind a real isolated copied fixture and its exact
+post-mutation Git HEAD. Changing cwd alone leaves the inherited Product context
+unchanged and can falsely accept broken fixtures. Production context validation
+is not mocked or weakened. Go race and Common checks remain unit/compile proof,
+not real H2/H3 host qualification. Framework-master integration and exact Parent
+pin/lock/workflow updates require fresh delivery evidence; no merge is claimed
+at this preparation checkpoint.
+
 ## N35 complete artifact-name consolidation
 
 The N34 analysis removed its 8 preceding findings but exposed 1 further

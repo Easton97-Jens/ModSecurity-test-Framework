@@ -484,6 +484,34 @@ func TestUDSEngineUsesOneSessionForFullLifecycle(t *testing.T) {
 	}
 }
 
+func TestUDSIncompleteResponseClosesWithoutFinish(t *testing.T) {
+	socketPath, server := startUDSTestServer(t, nil)
+	engine := newUnixSocketEngine(socketPath)
+	transaction, err := engine.Open(context.Background(), Metadata{
+		Method:      http.MethodGet,
+		RequestURI:  "/incomplete",
+		HTTPVersion: "HTTP/1.1",
+		Hostname:    "example.test",
+	})
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		transaction.Close(context.Background(), Summary{ResponseIncomplete: true})
+	})
+	if _, err := transaction.ProcessHeaders(context.Background(), DirectionRequest, nil, false); err != nil {
+		t.Fatalf("ProcessHeaders() error = %v", err)
+	}
+
+	transaction.Close(context.Background(), Summary{ResponseIncomplete: true})
+
+	calls := server.wait(t)
+	assertUDSOrder(t, calls, []byte{udsOpcodeBegin})
+	if countUDSCalls(calls, udsOpcodeFinish) != 0 || countUDSCalls(calls, udsOpcodeDestroy) != 0 {
+		t.Fatalf("incomplete response sent a normal finalization: %#v", calls)
+	}
+}
+
 func TestUDSEngineCancellationClosesBlockedConnection(t *testing.T) {
 	transaction, requestRead, serverDone := startBlockedUDSTransaction(t, time.Second, "/cancel")
 

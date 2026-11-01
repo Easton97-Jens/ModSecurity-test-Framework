@@ -3,13 +3,14 @@
 from __future__ import annotations
 from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
 
-import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+
+from modsecurity_connector_tests.checker_fixture_repository import fixture_environment
 
 
 ROOT = connector_root()
@@ -192,8 +193,7 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             repository = self._copy_repository(Path(temporary))
             if mutate is not None:
                 mutate(repository)
-            environment = os.environ.copy()
-            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+            environment = fixture_environment(repository)
             return subprocess.run(
                 [sys.executable, str(repository / "ci" / "checks" / "connectors" / "nginx" / CHECKER.name)],
                 cwd=repository,
@@ -650,6 +650,31 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
                     replace_in_function(repository / "connectors/nginx/src/ngx_http_modsecurity_mapper.c",
                                         "int ngx_http_modsecurity_map_request", old, new)
                 self._assert_rejected(mutate,
+                    "NGINX mapper propagates internal failure 500 and independently bounded client header-count failure 400")
+
+    def test_mapper_client_limit_counts_the_synthetic_authority_host(self) -> None:
+        mutations = (
+            (
+                "header_count = ngx_http_modsecurity_count_list_headers(&r->headers_in.headers);",
+                "header_count = 0U;",
+            ),
+            (
+                "authority = ngx_http_modsecurity_http3_authority(r);",
+                "authority.len = 0U;",
+            ),
+            (
+                "(authority.len > 0U && header_count == contract->max_header_count)",
+                "(authority.len > 0U && header_count > contract->max_header_count)",
+            ),
+        )
+        for old, new in mutations:
+            with self.subTest(fragment=old):
+                def mutate(repository, old=old, new=new):
+                    replace_in_function(
+                        repository / "connectors/nginx/src/ngx_http_modsecurity_mapper.c",
+                        "int ngx_http_modsecurity_map_request", old, new)
+                self._assert_rejected(
+                    mutate,
                     "NGINX mapper propagates internal failure 500 and independently bounded client header-count failure 400")
 
     def test_extra_unparseable_mapper_status_assignment_is_rejected(self) -> None:
