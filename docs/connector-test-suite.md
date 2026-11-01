@@ -19,6 +19,38 @@ The one-way dependency remains Connector → Framework. The Framework has no
 Connector submodule. The MRTS tool remains pinned and read-only; Framework
 package/import corrections have separate followup ownership.
 
+## Compiler and Apache migration-integrity follow-up (2026-11-01)
+
+After #148 reached Framework master `91f5370c7eddcebdc7e49d2099c58054ec2d5d5d`,
+existing compiler-guide checks still expected pre-migration harness paths and
+Root-only Make rules. They now inspect the migrated harness links and actual
+Framework rules only when the selected Parent Makefile explicitly forwards to
+them. Existing positive and negative target controls remain effective.
+
+The Apache full-AST golden is updated only after independent reconstruction of
+the six source-context migration replacements produced byte-identical checker
+source. Predicates, messages, ordering and control flow are unchanged; the full
+AST guard and mutation sensitivity remain. All 44 existing compiler/Apache
+methods pass with the explicitly selected Parent input; no test methods, cases
+or selectors are added. Standard selection remains 100/80, optional 2586/1140.
+
+The external Parent compiler-generator repair and its eventual Framework pin
+are separate delivery work. New follow-up hosted CI/Sonar and integration are
+pending; Parent #348 remains Draft/unmerged. This is migration-integrity proof,
+not live TLS/H2/H3 qualification. See the paired
+[change record](../reports/audits/change-records/20261101-03-compiler-migration-integrity.md).
+The following preparation checkpoints retain their historical status.
+
+While the first #150 head was being checked, independent #147 advanced master
+to `5ef57603a4933f18c988f1f9f32b93f478182440`. A normal merge preserves its
+two additional preflight source bindings and their five default consumers,
+then regenerates the inventory/archive/map with #150's compiler binding.
+The combined inventory has 528 fixed Framework bindings / 235 Product paths;
+100/80 standard and 2586/1140 optional selection stay unchanged. Initial
+526-binding observations describe the earlier base, not this reconciliation.
+Fresh checks for the reconciled head are required; no additional host run is
+implied by inheriting the preflight code.
+
 ## Protocol-parity companion integration (2026-11-01)
 
 The separate Framework integration for Parent Draft #348 preserves13 migrated
