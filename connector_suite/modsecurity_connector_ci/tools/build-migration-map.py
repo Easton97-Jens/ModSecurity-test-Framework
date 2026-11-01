@@ -49,6 +49,15 @@ SHIMS = {
     "ci/runtime/broker/nginx_exact_head_root_launcher.py",
     "ci/runtime/broker/nginx_exact_head_result_collector.py",
 }
+# Added after the immutable ownership migration. Keep the original migration
+# inputs strict instead of pretending these Framework-owned sources existed in
+# a historical Connector Git tree.
+POST_MIGRATION_SOURCES = frozenset({
+    "connectors/traefik/native_middleware/informational_response_test.go",
+    "connectors/traefik/scripts/runtime-native-informational.sh",
+    "connectors/traefik/scripts/runtime_native_informational.py",
+    "connectors/traefik/scripts/native-informational-rules.conf",
+})
 INVENTORY = "config/testing/active-cases.json"
 NAMESPACES = (
     ("tests.", "modsecurity_connector_tests."),
@@ -637,6 +646,21 @@ def mapped_file_records(mapping, framework, product, initial_blobs, updated_blob
             }
         )
     return files
+
+
+def post_migration_file_records(mapping, framework, product):
+    records = []
+    for logical in sorted(POST_MIGRATION_SOURCES.intersection(mapping)):
+        physical = mapping[logical]
+        file = framework / physical
+        if file.is_symlink() or not file.is_file():
+            raise ValueError("mapped Framework file is missing or linked: " + physical)
+        if (product / logical).exists():
+            raise ValueError("unexpected duplicate Connector test source: " + logical)
+        records.append({"logical_path": logical, "framework_path": physical,
+                        "sha256_framework_source": digest(file.read_bytes()),
+                        "migration_source": False})
+    return records
 
 
 def public_entrypoint_records(framework):
@@ -1427,8 +1451,10 @@ def generate():
             or name.decode().endswith("Makefile")
         )
     ]
+    historical_mapping = {name: path for name, path in mapping.items()
+                          if name not in POST_MIGRATION_SOURCES}
     updated_blobs = original_sources(
-        product, UPDATED_BASE, [*mapping, INVENTORY, *originals]
+        product, UPDATED_BASE, [*historical_mapping, INVENTORY, *originals]
     )
     initial_paths = set(
         git(product, "ls-tree", "-rz", "--name-only", INITIAL_BASE).split(b"\0")
@@ -1436,10 +1462,10 @@ def generate():
     initial_blobs = original_sources(
         product,
         INITIAL_BASE,
-        [name for name in mapping if name.encode() in initial_paths] + [INVENTORY],
+        [name for name in historical_mapping if name.encode() in initial_paths] + [INVENTORY],
     )
     initial_blobs.update(
-        {name: None for name in mapping if name.encode() not in initial_paths}
+        {name: None for name in historical_mapping if name.encode() not in initial_paths}
     )
     initial_inventory = json.loads(initial_blobs[INVENTORY])
     updated_inventory = json.loads(updated_blobs[INVENTORY])
@@ -1453,7 +1479,7 @@ def generate():
     if counts(initial_inventory) != counts(updated_inventory):
         raise ValueError("the updated original base changed selection counts")
     files = mapped_file_records(
-        mapping, framework, product, initial_blobs, updated_blobs
+        historical_mapping, framework, product, initial_blobs, updated_blobs
     )
     previous_callers = caller_lines(
         ("Connector-updated-base", path, updated_blobs[path].decode())
@@ -1508,6 +1534,7 @@ def generate():
             "new_cases_on_demand_only": True,
         },
         "files": files,
+        "post_migration_framework_sources": post_migration_file_records(mapping, framework, product),
         "cases": cases,
         "old_callers": previous_callers,
         "callers": callers,
