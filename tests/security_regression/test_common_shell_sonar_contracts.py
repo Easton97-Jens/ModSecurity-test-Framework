@@ -24,6 +24,104 @@ def run_common_shell(script: str) -> subprocess.CompletedProcess[str]:
 
 
 class CommonShellSonarContractsTest(unittest.TestCase):
+    @staticmethod
+    def create_nginx_source_fixture(
+        root: Path, *, configured: bool = True, quic: bool = True
+    ) -> None:
+        headers = [
+            "src/core/ngx_config.h",
+            "src/core/ngx_core.h",
+            "src/http/ngx_http.h",
+        ]
+        if configured:
+            headers.append("objs/ngx_auto_config.h")
+        for header in headers:
+            path = root / header
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        if quic:
+            (root / "src/event/quic").mkdir(parents=True)
+
+    def test_nginx_configured_quic_source_flags_preserve_include_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "nginx-src"
+            self.create_nginx_source_fixture(source)
+            script = (
+                f". {shlex.quote(str(COMMON))}\n"
+                f"ci_nginx_source_dir_flags {shlex.quote(str(source))}\n"
+            )
+
+            result = run_common_shell(script)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                result.stdout.split(),
+                [
+                    f"-I{source}/src/core",
+                    f"-I{source}/src/http",
+                    f"-I{source}/src/http/modules",
+                    f"-I{source}/src/http/v2",
+                    f"-I{source}/src/http/v3",
+                    f"-I{source}/src/event",
+                    f"-I{source}/src/event/quic",
+                    f"-I{source}/src/os/unix",
+                    f"-I{source}/objs",
+                ],
+            )
+
+    def test_nginx_configured_non_quic_source_remains_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "nginx-src"
+            self.create_nginx_source_fixture(source, quic=False)
+            self.assertFalse((source / "src/event/quic").exists())
+            script = (
+                f". {shlex.quote(str(COMMON))}\n"
+                f"ci_nginx_source_dir_flags {shlex.quote(str(source))}\n"
+            )
+
+            result = run_common_shell(script)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(f"-I{source}/src/core", result.stdout.split())
+            self.assertIn(f"-I{source}/objs", result.stdout.split())
+
+    def test_nginx_unconfigured_source_is_rejected_without_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "nginx-src"
+            self.create_nginx_source_fixture(source, configured=False)
+            script = (
+                f". {shlex.quote(str(COMMON))}\n"
+                f"ci_nginx_source_dir_flags {shlex.quote(str(source))}\n"
+            )
+
+            result = run_common_shell(script)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertEqual(result.stdout, "")
+
+    def test_nginx_explicit_flat_headers_take_precedence_over_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "nginx-src"
+            self.create_nginx_source_fixture(source)
+            include = root / "include"
+            include.mkdir()
+            for header in ("ngx_config.h", "ngx_core.h", "ngx_http.h"):
+                (include / header).touch()
+            script = textwrap.dedent(
+                f"""
+                . {shlex.quote(str(COMMON))}
+                NGINX_INCLUDE_DIR={shlex.quote(str(include))}
+                NGINX_SOURCE_DIR={shlex.quote(str(source))}
+                ci_nginx_include_flags
+                """
+            )
+
+            result = run_common_shell(script)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.split(), [f"-I{include}"])
+
     def test_runtime_staging_rejects_a_symlink_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

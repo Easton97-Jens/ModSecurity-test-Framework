@@ -1203,30 +1203,34 @@ func TestTrailersFinalizeIncrementalBodiesAtEOS(t *testing.T) {
 }
 
 func TestRequestMetadataUsesEnvoyAttributesWithoutPeerInference(t *testing.T) {
-	attributes, err := structpb.NewStruct(map[string]any{
-		"request.protocol":    "HTTP/1.1",
-		"source.address":      "192.0.2.10",
-		"source.port":         45678,
-		"destination.address": "198.51.100.7",
-		"destination.port":    443,
-	})
-	if err != nil {
-		t.Fatalf("NewStruct() error = %v", err)
-	}
-	metadata, err := requestMetadataFromEnvoy([]Header{
-		{Name: ":method", Value: []byte("POST")},
-		{Name: ":path", Value: []byte("/metadata")},
-		{Name: ":authority", Value: []byte("example.test")},
-	}, map[string]*structpb.Struct{"envoy.filters.http.ext_proc": attributes})
-	if err != nil {
-		t.Fatalf("requestMetadataFromEnvoy() error = %v", err)
-	}
-	if got, want := metadata, (RequestMetadata{
-		Method: "POST", URI: "/metadata", Protocol: "HTTP/1.1", Hostname: "example.test",
-		ClientAddress: "192.0.2.10", ClientPort: 45678,
-		ServerAddress: "198.51.100.7", ServerPort: 443,
-	}); got != want {
-		t.Fatalf("metadata = %#v, want %#v", got, want)
+	for _, protocol := range []string{"HTTP/1.1", "HTTP/2"} {
+		t.Run(protocol, func(t *testing.T) {
+			attributes, err := structpb.NewStruct(map[string]any{
+				"request.protocol":    protocol,
+				"source.address":      "192.0.2.10",
+				"source.port":         45678,
+				"destination.address": "198.51.100.7",
+				"destination.port":    443,
+			})
+			if err != nil {
+				t.Fatalf("NewStruct() error = %v", err)
+			}
+			metadata, err := requestMetadataFromEnvoy([]Header{
+				{Name: ":method", Value: []byte("POST")},
+				{Name: ":path", Value: []byte("/metadata")},
+				{Name: ":authority", Value: []byte("example.test")},
+			}, map[string]*structpb.Struct{"envoy.filters.http.ext_proc": attributes})
+			if err != nil {
+				t.Fatalf("requestMetadataFromEnvoy() error = %v", err)
+			}
+			if got, want := metadata, (RequestMetadata{
+				Method: "POST", URI: "/metadata", Protocol: protocol, Hostname: "example.test",
+				ClientAddress: "192.0.2.10", ClientPort: 45678,
+				ServerAddress: "198.51.100.7", ServerPort: 443,
+			}); got != want {
+				t.Fatalf("metadata = %#v, want %#v", got, want)
+			}
+		})
 	}
 }
 
@@ -1272,6 +1276,112 @@ func TestRequestMetadataAcceptsCaseInsensitiveMatchingAuthorityAndHost(t *testin
 	}
 	if got, want := metadata.Hostname, "Example.TEST:8443"; got != want {
 		t.Fatalf("Hostname = %q, want authority %q", got, want)
+	}
+}
+
+func TestRequestMetadataRejectsInvalidRequestPseudoHeaders(t *testing.T) {
+	for name, headers := range map[string][]Header{
+		"duplicate method": {
+			{Name: ":method", Value: []byte("GET")},
+			{Name: ":method", Value: []byte("POST")},
+		},
+		"duplicate path": {
+			{Name: ":path", Value: []byte("/one")},
+			{Name: ":path", Value: []byte("/two")},
+		},
+		"duplicate scheme": {
+			{Name: ":scheme", Value: []byte("https")},
+			{Name: ":scheme", Value: []byte("http")},
+		},
+		"unknown pseudo header": {
+			{Name: ":status", Value: []byte("200")},
+		},
+		"uppercase pseudo header": {
+			{Name: ":METHOD", Value: []byte("GET")},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			headers = append(headers, Header{Name: "host", Value: []byte("example.test")})
+			if _, err := requestMetadataFromEnvoy(headers, nil); err == nil {
+				t.Fatal("requestMetadataFromEnvoy() accepted an invalid request pseudo header")
+			}
+		})
+	}
+}
+
+func TestRequestMetadataRejectsConnectionSpecificHeadersForHTTP2(t *testing.T) {
+	for _, connectionHeader := range []string{
+		"connection",
+		"keep-alive",
+		"proxy-connection",
+		"transfer-encoding",
+		"upgrade",
+	} {
+		t.Run(connectionHeader, func(t *testing.T) {
+			attributes, err := structpb.NewStruct(map[string]any{"request.protocol": "HTTP/2"})
+			if err != nil {
+				t.Fatalf("NewStruct() error = %v", err)
+			}
+			if _, err := requestMetadataFromEnvoy([]Header{
+				{Name: "host", Value: []byte("example.test")},
+				{Name: connectionHeader, Value: []byte("value")},
+			}, map[string]*structpb.Struct{
+				"envoy.filters.http.ext_proc": attributes,
+			}); err == nil {
+				t.Fatalf("requestMetadataFromEnvoy() accepted %q for HTTP/2", connectionHeader)
+			}
+		})
+	}
+
+	h2Attributes, err := structpb.NewStruct(map[string]any{"request.protocol": "HTTP/2"})
+	if err != nil {
+		t.Fatalf("NewStruct() error = %v", err)
+	}
+	if _, err := requestMetadataFromEnvoy([]Header{
+		{Name: "host", Value: []byte("example.test")},
+		{Name: "te", Value: []byte("gzip")},
+	}, map[string]*structpb.Struct{
+		"envoy.filters.http.ext_proc": h2Attributes,
+	}); err == nil {
+		t.Fatal("requestMetadataFromEnvoy() accepted invalid TE for HTTP/2")
+	}
+	if _, err := requestMetadataFromEnvoy([]Header{
+		{Name: "host", Value: []byte("example.test")},
+		{Name: "te", Value: []byte("trailers")},
+	}, map[string]*structpb.Struct{
+		"envoy.filters.http.ext_proc": h2Attributes,
+	}); err != nil {
+		t.Fatalf("requestMetadataFromEnvoy() rejected HTTP/2 TE trailers: %v", err)
+	}
+
+	attributes, err := structpb.NewStruct(map[string]any{"request.protocol": "HTTP/1.1"})
+	if err != nil {
+		t.Fatalf("NewStruct() error = %v", err)
+	}
+	if _, err := requestMetadataFromEnvoy([]Header{
+		{Name: "host", Value: []byte("example.test")},
+		{Name: "connection", Value: []byte("keep-alive")},
+	}, map[string]*structpb.Struct{
+		"envoy.filters.http.ext_proc": attributes,
+	}); err != nil {
+		t.Fatalf("requestMetadataFromEnvoy() rejected an HTTP/1.1 connection header: %v", err)
+	}
+	if _, err := requestMetadataFromEnvoy([]Header{
+		{Name: "host", Value: []byte("example.test")},
+		{Name: "te", Value: []byte("gzip")},
+	}, map[string]*structpb.Struct{
+		"envoy.filters.http.ext_proc": attributes,
+	}); err != nil {
+		t.Fatalf("requestMetadataFromEnvoy() rejected an HTTP/1.1 TE header: %v", err)
+	}
+}
+
+func TestRequestMetadataRejectsHeaderValueControlCharacters(t *testing.T) {
+	if _, err := requestMetadataFromEnvoy([]Header{
+		{Name: "host", Value: []byte("example.test")},
+		{Name: "x-forwarded-for", Value: []byte("192.0.2.10\r\nX-Injected: yes")},
+	}, nil); err == nil {
+		t.Fatal("requestMetadataFromEnvoy() accepted a header value with CR/LF")
 	}
 }
 

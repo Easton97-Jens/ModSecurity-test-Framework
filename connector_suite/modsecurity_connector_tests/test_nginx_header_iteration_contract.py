@@ -4,6 +4,7 @@ from modsecurity_test_framework.connector_context import connector_root, test_ro
 from pathlib import Path
 import unittest
 
+from modsecurity_connector_tests.c_source_contract import function_definition
 
 ROOT = connector_root()
 NGINX_SRC = source_path('connectors/nginx/src', root=ROOT)
@@ -18,7 +19,14 @@ class NginxHeaderIterationContractTest(unittest.TestCase):
         access = ACCESS.read_text(encoding="utf-8")
         response = HEADER_FILTER.read_text(encoding="utf-8")
 
-        self.assertEqual(common.count("ngx_http_modsecurity_next_header("), 1)
+        self.assertIn(
+            "return &(*data)[(*index)++];",
+            function_definition(common, "ngx_http_modsecurity_next_header"),
+        )
+        self.assertIn(
+            "ngx_http_modsecurity_next_header(&part, &data,",
+            function_definition(common, "ngx_http_modsecurity_http3_authority"),
+        )
         self.assertIn("while ((header = ngx_http_modsecurity_next_header(", access)
         self.assertIn("while ((header = ngx_http_modsecurity_next_header(", response)
         self.assertNotIn("ngx_http_modsecurity_advance_request_header_part", access)

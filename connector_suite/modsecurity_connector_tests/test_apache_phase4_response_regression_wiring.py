@@ -274,6 +274,42 @@ class ApachePhase4ResponseRegressionWiringTest(unittest.TestCase):
         self.assertNotIn("ap_flush_conn(r->connection)", filters)
         self.assertIn("msc_discard_response_brigade(msr);", utils)
 
+    def test_phase3_derives_negotiated_response_protocol_and_fails_closed_when_unknown(self) -> None:
+        source = FILTERS.read_text(encoding="utf-8")
+        start = source.index("static apr_status_t apache_output_filter_process_headers")
+        end = source.index(
+            "static apr_status_t apache_output_filter_prepare_response_brigade", start
+        )
+        phase3 = source[start:end]
+
+        self.assertIn("apache_response_protocol(r)", phase3)
+        self.assertRegex(
+            phase3,
+            r"!msconnector_native_phase_succeeded\(\s*"
+            r"msc_process_response_headers\(msr->t, original_status,\s*"
+            r"response_protocol\)\)",
+        )
+        self.assertIn("response_protocol == NULL", phase3)
+        self.assertIn("apache_send_precommit_terminal_error(msr, filter, brigade,", phase3)
+        self.assertLess(
+            phase3.index("response_protocol == NULL"),
+            phase3.index("msc_process_response_headers(msr->t, original_status,"),
+        )
+
+        helper_start = source.index("static const char *apache_response_protocol")
+        helper_end = source.index("static apr_status_t apache_output_filter_process_headers", helper_start)
+        helper = source[helper_start:helper_end]
+        self.assertIn("ap_get_protocol(r->connection)", helper)
+        self.assertIn('strcmp(connection_protocol, "h2")', helper)
+        self.assertIn('strcmp(connection_protocol, "h2c")', helper)
+        self.assertIn('strncmp(connection_protocol, "h3", 2)', helper)
+        self.assertIn('strcmp(connection_protocol, AP_PROTOCOL_HTTP1)', helper)
+        self.assertIn("HTTP_VERSION(1, 0)", helper)
+        self.assertIn("HTTP_VERSION(1, 1)", helper)
+        self.assertIn('return "HTTP 2.0"', helper)
+        self.assertIn('return "HTTP 3.0"', helper)
+        self.assertNotIn("r->protocol", helper)
+
     def test_example_guidance_matches_the_progressive_phase4_contract(self) -> None:
         english = APACHE_EXAMPLE_README.read_text(encoding="utf-8")
         german = APACHE_EXAMPLE_README_DE.read_text(encoding="utf-8")

@@ -19,6 +19,33 @@ Die einseitige Abhängigkeit bleibt Connector → Framework. Das Framework erhä
 kein Connector-Submodul. Das MRTS-Werkzeug bleibt gepinnt und schreibgeschützt;
 Framework-Paket-/Importkorrekturen haben eine getrennte Followup-Zuständigkeit.
 
+## Protokollparitäts-Begleitintegration (2026-11-01)
+
+Die separate Framework-Integration für Parent-Draft #348 erhält13 migrierte
+Prüfer-/Testdeltas und24 Testdefinitionen gemeinsam mit Drafts #143/#144.
+Die Standardauswahl bleibt bei100 Fällen/80 Ausführungen; geänderte
+Quellbindungen, Archiv und Migrationsmap werden nativ regeneriert. Keine alten
+Parent-Testpfade werden wiederhergestellt oder Archivkampagnen aktiviert.
+
+Mutationsprüferprozesse binden eine echte isolierte kopierte Fixture samt
+exaktem Git-HEAD nach Mutation. Nur cwd zu ändern erhält den geerbten
+Produktkontext und kann kaputte Fixtures fälschlich akzeptieren.
+Produktionskontextprüfung wird weder gemockt noch abgeschwächt. Go-Race- und
+Common-Prüfungen bleiben Unit-/Compile-Nachweise, keine echte H2-/H3-Host-
+Qualifikation. Framework-Master-Integration und exakte Parent-Pin-/Lock-/Workflow-
+Updates benötigen frische Auslieferungsevidenz; an diesem Vorbereitungscheckpoint
+wird kein Merge behauptet.
+
+Vor der Integration wird der unabhängig veröffentlichte Master #146 normal
+gemergt; vier generierte Katalogkonflikte werden ohne Verlust beider Quellmengen
+neu erzeugt. Standardauswahl bleibt100/80; optional wird2586/1140 übernommen.
+Seine31 neuen Informational-Response-Leaves benötigen ihren separaten Produktfix
+und sind nicht durch den frischen Traefik-Race-Lauf mit16 Paritätstests abgedeckt.
+Frühere volle Traefik-Ergebnisse beschreiben die Suite vor #146. Der Sprachlink
+des geerbten deutschen Leitfadens folgt dem Parent-Zweisprachigkeitsvertrag.
+Neue CI/Sonar sowie tatsächlicher Merge/Master/Pin bleiben getrennt erforderliche
+Auslieferungsevidenz.
+
 ## N35-Vollständige Konsolidierung der Artefaktnamen
 
 Die N34-Analyse beseitigte ihre 8 vorangegangenen Findings, zeigte aber 1 weiteres

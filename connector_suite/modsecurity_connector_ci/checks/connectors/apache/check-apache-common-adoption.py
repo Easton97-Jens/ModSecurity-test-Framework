@@ -30,7 +30,8 @@ RESPONSE_HEADERS_PHASE = "MSCONNECTOR_PHASE_RESPONSE_HEADERS"
 RESPONSE_BODY_PHASE = "MSCONNECTOR_PHASE_RESPONSE_BODY"
 P2_PROCESS = "if (!msconnector_native_phase_succeeded(msc_process_request_body(msr->t)))"
 P3_PROCESS = ('if (!msconnector_native_phase_succeeded(\n'
-              '            msc_process_response_headers(msr->t, original_status, "HTTP 1.1")))')
+              '            msc_process_response_headers(msr->t, original_status,\n'
+              '                response_protocol)))')
 P4_PROCESS = "if (!msconnector_native_phase_succeeded(msc_process_response_body(msr->t)))"
 P2_APPEND_GUARD = (
     r"!\s*msconnector_native_body_append_can_continue\s*\(\s*"
@@ -43,6 +44,11 @@ BUCKET_NEXT_LOOP = "bucket = APR_BUCKET_NEXT(bucket))"
 RETURN_APR_SUCCESS_PATTERN = r"\breturn\s+APR_SUCCESS\s*;"
 RETURN_INPUT_TERMINAL_ERROR_PATTERN = (
     r"\breturn\s+apache_input_filter_terminal_error\s*\("
+)
+REMOVE_PHASE3_OUTPUT_FILTER_PATTERN = r"\bap_remove_output_filter\s*\(\s*filter\s*\)"
+RETURN_PHASE3_TERMINAL_ERROR_PATTERN = (
+    r"\breturn\s+apache_send_precommit_terminal_error\s*\(\s*msr\s*,\s*"
+    r"filter\s*,\s*brigade\s*,\s*HTTP_INTERNAL_SERVER_ERROR\s*\)"
 )
 
 def patterns_in_order(text: str, *patterns: str) -> bool:
@@ -507,11 +513,15 @@ review_guards: list[tuple[bool, str]] = [
             r"\bif\s*\(\s*!\s*error_headers_added\s*\|\|\s*!\s*response_headers_added\s*\|\|",
             r"\bcontent_type\s*!=\s*NULL\s*&&\s*content_type\s*\[\s*0\s*\]\s*!=\s*'\\0'\s*&&",
             r"\bmsc_add_response_header\s*\(\s*msr->t\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*\"Content-Type\"\s*,\s*\(\s*const\s+unsigned\s+char\s*\*\s*\)\s*content_type\s*\)\s*!=\s*1",
-            r"\bap_remove_output_filter\s*\(\s*filter\s*\)",
-            r"\breturn\s+apache_send_precommit_terminal_error\s*\(\s*msr\s*,\s*filter\s*,\s*brigade\s*,\s*HTTP_INTERNAL_SERVER_ERROR\s*\)",
+            REMOVE_PHASE3_OUTPUT_FILTER_PATTERN,
+            RETURN_PHASE3_TERMINAL_ERROR_PATTERN,
+            r"\bresponse_protocol\s*=\s*apache_response_protocol\s*\(\s*r\s*\)\s*;",
+            r"\bif\s*\(\s*response_protocol\s*==\s*NULL\s*\)",
+            REMOVE_PHASE3_OUTPUT_FILTER_PATTERN,
+            RETURN_PHASE3_TERMINAL_ERROR_PATTERN,
             re.escape(P3_PROCESS),
-            r"\bap_remove_output_filter\s*\(\s*filter\s*\)",
-            r"\breturn\s+apache_send_precommit_terminal_error\s*\(\s*msr\s*,\s*filter\s*,\s*brigade\s*,\s*HTTP_INTERNAL_SERVER_ERROR\s*\)",
+            REMOVE_PHASE3_OUTPUT_FILTER_PATTERN,
+            RETURN_PHASE3_TERMINAL_ERROR_PATTERN,
             r"\bmsc_apache_contract_complete\s*\(\s*msr\s*,\s*MSCONNECTOR_PHASE_RESPONSE_HEADERS\s*\)",
             r"\bmsr->response_headers_processed\s*=\s*1\s*;",
             r"\bintervention\s*=\s*process_intervention\s*\(\s*msr->t\s*,\s*r\s*\)",
