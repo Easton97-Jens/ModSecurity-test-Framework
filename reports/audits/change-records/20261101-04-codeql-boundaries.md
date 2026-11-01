@@ -10,7 +10,7 @@
 | UTC date | 2026-11-01 |
 | Framework base revision | `5ef57603a4933f18c988f1f9f32b93f478182440` |
 | Integration base (normal merge into task branch) | `b85280278310f4034af78149ac13671438965c7b` (#150 independently merged; source changes preserved) |
-| Issue or pull request | New remediation PR from `codex/framework-codeql-remediation-20261101` pending; #147 already merged, independent #150 untouched |
+| Issue or pull request | [#151](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/151), `codex/framework-codeql-remediation-20261101`; #147 already merged, independent #150 preserved |
 
 ## Motivation and problem statement
 
@@ -94,6 +94,7 @@ All local commands use RTK. `FRAMEWORK_ROOT` denotes the Framework worktree, `CO
 | `rtk bypass env PYTHONPATH=${FRAMEWORK_ROOT}:${FRAMEWORK_ROOT}/connector_suite TMPDIR=${RUN_ROOT} PYTHONDONTWRITEBYTECODE=1 ${PYTHON} -P -m modsecurity_test_framework.connector --connector-root ${CONNECTOR_ROOT} --connector-revision 2abad408cae7e5a103d12a9a9e432129bfe0468f --test-root ${FRAMEWORK_ROOT} --profile codeql-boundaries --output-root ${RUN_ROOT}/admission --check` | 0 | Admission only: 100 default/2,586 optional cases; no tests executed | framework-codeql-20261101 |
 | Syntax compilation of six changed/new Python sources; exact seven-selector CI runner in approved host context | 0 | Syntax passes; seven methods pass without skips | framework-codeql-20261101 |
 | Controlled private-directory import probe; exact seven-selector runner through the owner-mapped outer user namespace | 0 | Old root mapping fails the private-owner import; owner mapping passes both outer and nested imports. All seven actual methods pass without skips through the revised launcher | framework-codeql-20261101/namespace-import-probe.py; ci-selected-regressions.py |
+| Two private-network guard exception tests after Sonar S5778 correction | 0 | Both methods pass; only the guard invocation remains inside assertRaises, with decorator construction outside | framework-codeql-20261101; independent follow-up review found no weakened assertion |
 
 The malformed-header test failed in all three subtests before the fix, then passed. Initial counterevidence attempts with missing connector context, an incorrect test-class selector, a pre-body assertion inappropriate to auth_proxy, and a minimum-version attribute assumption failed; corrected scoped checks above distinguish actual protection from assumptions. No failed attempt is counted as a pass.
 
@@ -109,7 +110,7 @@ This complete English/German Change Record pair records Framework scope. Evidenc
 
 ## Checks not run
 
-At local commit, current-head hosted CI/CodeQL/Sonar remain pending; results belong in the PR description and external lifecycle evidence. PR #151's previous head 2615ebb failed the new isolation job because three nested namespace processes could not import modules from runner-owned private directories (job 124970023439). The owner-mapped launcher fixes the reproduced permission boundary; its exact seven selectors pass locally without skips and received independent review. Local Sonar scan-before-read was explicitly waived by the user after scanner CPU incompatibility; hosted scanning and Quality Gates remain required. Ordinary namespace execution was blocked by sandbox policy; approved host execution supplies the separate runtime evidence.
+At local commit, current-head hosted CI/CodeQL/Sonar remain pending; results belong in the PR description and external lifecycle evidence. Previous head 9ddac92 passed every applicable GitHub job, including all CodeQL languages, backend 5/5 and header/isolation 7/7 without skips. Sonar bound that exact commit to an OK Quality Gate, zero bugs/vulnerabilities/hotspots, and two S5778 test-maintainability issues. Those two tests now construct their decorated callable outside assertRaises; only the actual guard invocation can satisfy the exception assertion. Both tests pass and independent review found no weakened assertion. Earlier nested-namespace import failures were corrected by mapping namespace root to the runner's filesystem owner. Local Sonar scan-before-read was explicitly waived by the user; hosted scanners and Quality Gates remain required. Ordinary sandbox namespace execution was blocked; approved host and hosted CI execution provide separate runtime evidence.
 
 ## Limitations and residual risk
 

@@ -10,7 +10,7 @@
 | UTC-Datum | 2026-11-01 |
 | Framework-Basisrevision | `5ef57603a4933f18c988f1f9f32b93f478182440` |
 | Integrationsbasis (regulärer Merge in Task-Branch) | `b85280278310f4034af78149ac13671438965c7b` (#150 unabhängig gemergt; Quellenänderungen bewahrt) |
-| Issue oder Pull Request | Neuer Remediation-PR aus `codex/framework-codeql-remediation-20261101` noch ausstehend; #147 bereits zusammengeführt, unabhängiger #150 unverändert |
+| Issue oder Pull Request | [#151](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/151), `codex/framework-codeql-remediation-20261101`; #147 bereits gemergt, unabhängiger #150 erhalten |
 
 ## Motivation und Problemstellung
 
@@ -94,6 +94,7 @@ Alle lokalen Befehle verwenden RTK. `FRAMEWORK_ROOT` bezeichnet den Framework-Wo
 | `rtk bypass env PYTHONPATH=${FRAMEWORK_ROOT}:${FRAMEWORK_ROOT}/connector_suite TMPDIR=${RUN_ROOT} PYTHONDONTWRITEBYTECODE=1 ${PYTHON} -P -m modsecurity_test_framework.connector --connector-root ${CONNECTOR_ROOT} --connector-revision 2abad408cae7e5a103d12a9a9e432129bfe0468f --test-root ${FRAMEWORK_ROOT} --profile codeql-boundaries --output-root ${RUN_ROOT}/admission --check` | 0 | Nur Zulassungsprüfung: 100 Standard-/2.586 optionale Fälle; keine Tests ausgeführt | framework-codeql-20261101 |
 | Syntaxkompilierung sechs geänderter/neuer Python-Quellen; exakter CI-Runner mit sieben Selektoren im genehmigten Hostkontext | 0 | Syntax besteht; sieben Methoden bestehen ohne Skips | framework-codeql-20261101 |
 | Kontrollierte Importprobe mit privatem Verzeichnis; exakter Runner mit sieben Selektoren durch die äußere User-Namespace mit Eigentümerabbildung | 0 | Alte Root-Abbildung scheitert am Import aus fremdem Privatverzeichnis; Eigentümerabbildung besteht äußeren und verschachtelten Import. Alle sieben echten Methoden bestehen durch den korrigierten Launcher ohne Skips | framework-codeql-20261101/namespace-import-probe.py; ci-selected-regressions.py |
+| Zwei Ausnahme-Tests der privaten Netzwerk-Guards nach Sonar-S5778-Korrektur | 0 | Beide Methoden bestehen; nur der Guard-Aufruf bleibt innerhalb von assertRaises, der Decorator wird vorher aufgebaut | framework-codeql-20261101; unabhängige Folgeprüfung ohne abgeschwächte Assertion |
 
 Der Test fehlerhafter Header scheiterte vor dem Fix in allen drei Untertests und bestand danach. Erste Gegenevidenzversuche mit fehlendem Connector-Kontext, falschem Testklassenselektor, unpassender Vor-Body-Assertion für auth_proxy und angenommener Mindestversions-Eigenschaft scheiterten; korrigierte begrenzte Prüfungen oben unterscheiden tatsächlichen Schutz von Annahmen. Kein fehlgeschlagener Versuch wird als Erfolg gezählt.
 
@@ -109,7 +110,7 @@ Dieses vollständige englisch/deutsche Change-Record-Paar dokumentiert Framework
 
 ## Nicht ausgeführte Prüfungen
 
-Zum lokalen Commit stehen Hosted-CI/CodeQL/Sonar des aktuellen Heads noch aus; deren Ergebnisse werden in PR-Beschreibung und externer Lifecycle-Evidenz nachgeführt. Am vorherigen Head 2615ebb von PR #151 scheiterte der neue Isolationsjob, weil drei verschachtelte Namespace-Prozesse keine Module aus privaten Runner-Verzeichnissen importieren konnten (Job 124970023439). Der Launcher mit Eigentümerabbildung korrigiert die reproduzierte Berechtigungsgrenze; seine exakt sieben Selektoren bestehen lokal ohne Skips und wurden unabhängig geprüft. Die lokale Sonar-Prüfung vor Dateilesen wurde nach CPU-Inkompatibilität des Scanners ausdrücklich vom Nutzer aufgehoben; Hosted-Scans und Quality Gates bleiben erforderlich. Normale Namespace-Ausführung war durch Sandbox-Richtlinie blockiert; genehmigte Hostausführung liefert die getrennte Laufzeitevidenz.
+Zum lokalen Commit stehen Hosted-CI/CodeQL/Sonar des aktuellen Heads noch aus; deren Ergebnisse werden in PR-Beschreibung und externer Lifecycle-Evidenz nachgeführt. Der vorherige Head 9ddac92 bestand alle anwendbaren GitHub-Jobs einschließlich aller CodeQL-Sprachen, Backend 5/5 und Header/Isolation 7/7 ohne Skips. Sonar ordnete genau diesem Commit ein Quality Gate OK, null Bugs/Sicherheitslücken/Hotspots sowie zwei S5778-Wartbarkeitshinweise in Tests zu. Diese zwei Tests bauen den dekorierten Aufruf jetzt außerhalb von assertRaises auf; nur der tatsächliche Guard-Aufruf kann die Ausnahme-Assertion erfüllen. Beide Tests bestehen; unabhängige Prüfung fand keine abgeschwächte Assertion. Frühere Importfehler verschachtelter Namespaces wurden durch Abbildung von Namespace-Root auf den Runner-Dateisystemeigentümer korrigiert. Die lokale Sonar-Prüfung vor Dateilesen wurde ausdrücklich vom Nutzer aufgehoben; Hosted-Scanner und Quality Gates bleiben erforderlich. Normale Sandbox-Namespace-Ausführung war blockiert; genehmigte Host- und Hosted-CI-Ausführung liefern getrennte Laufzeitevidenz.
 
 ## Einschränkungen und Restrisiko
 

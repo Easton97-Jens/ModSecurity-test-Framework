@@ -66,17 +66,19 @@ class NginxPortCleanupProbeTests(unittest.TestCase):
 
     def test_private_network_marker_cannot_authorize_the_parent_namespace(self) -> None:
         body = mock.Mock()
+        isolated_body = private_network_test(body)
         environment = {
             "FRAMEWORK_WILDCARD_TEST_ID": self.id(),
             "FRAMEWORK_WILDCARD_TEST_PARENT_NETNS": os.readlink("/proc/self/ns/net"),
         }
         with mock.patch.dict(os.environ, environment):
             with self.assertRaises(AssertionError):
-                private_network_test(body)(self)
+                isolated_body(self)
         body.assert_not_called()
 
     def test_private_network_rejects_interfaces_beyond_loopback(self) -> None:
         body = mock.Mock()
+        isolated_body = private_network_test(body)
         environment = {
             "FRAMEWORK_WILDCARD_TEST_ID": self.id(),
             "FRAMEWORK_WILDCARD_TEST_PARENT_NETNS": "net:[parent]",
@@ -87,7 +89,7 @@ class NginxPortCleanupProbeTests(unittest.TestCase):
             mock.patch("modsecurity_test_framework.private_network_test.socket.if_nameindex", return_value=[(1, "lo"), (2, "eth0")]),
         ):
             with self.assertRaises(AssertionError):
-                private_network_test(body)(self)
+                isolated_body(self)
         body.assert_not_called()
 
     def probe(self, port: int, protocol: str = "http1") -> tuple[subprocess.CompletedProcess[str], dict]:
