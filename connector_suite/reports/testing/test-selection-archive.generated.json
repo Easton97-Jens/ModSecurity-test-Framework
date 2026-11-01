@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "242cacd401596e95a9f462755f0bfe60afcff205b5be1b2e4c0ec66d04840453",
+  "inventory_sha256": "b2bf54076b99300fcdd54d211795e03a4d646f8e1c4ec7b502b6dee69966054e",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -12931,7 +12931,7 @@
         "modsecurity_test_framework.selftests.no_crs.test_nginx_native_canonical_binding.NativeCanonicalBindingTests.test_authority_retention_preserves_original_bytes_and_independent_tuple"
       ],
       "source": "framework/tests/no_crs/test_nginx_native_canonical_binding.py",
-      "source_sha256": "81d4e79ce17c9fd46067716662461db5aa45f6dc4e3838604bfb6fd5647d25ac"
+      "source_sha256": "3e30f13880562816ea8dea5d768f9706ca6f91cd6a2399b999b828d3230a696a"
     },
     {
       "contains_selected_definitions": [],

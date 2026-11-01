@@ -17,6 +17,9 @@ import stat
 import types
 
 _WORKER_SELF_MAPS_HELPER_NAME = 'worker-self-maps.so'
+NGINX_MODULE_LEAF = "nginx-module.so"
+WORKER_MAPS_LEAF = "worker-maps.log"
+INPUT_FAULT_OBSERVATION_LEAF = "input-fault-observation.json"
 
 
 RAW_LIMIT = 1024 * 1024
@@ -335,16 +338,16 @@ class BundleReader:
         return raw
 
 
-COMMON_RAW = frozenset({"nginx.conf", "nginx-binary", "nginx-module.so", "no-crs-baseline.conf", "rules.conf",
+COMMON_RAW = frozenset({"nginx.conf", "nginx-binary", NGINX_MODULE_LEAF, "no-crs-baseline.conf", "rules.conf",
                         "configtest.stdout", "configtest.stderr", "stdout.log", "stderr.log", "startup.stdout", "startup.stderr",
-                        "nginx-error.log", "worker-maps.log", "roles.json", "cleanup.json", "client.stdout", "client.stderr",
+                        "nginx-error.log", WORKER_MAPS_LEAF, "roles.json", "cleanup.json", "client.stdout", "client.stderr",
                         "response.bin", "response.headers", "phase4-events.jsonl", "phase1-events.jsonl", "native-events.jsonl",
                         "native-access.jsonl", "access.jsonl", "fault-request.bin", "fault-response.bin", "control-request.bin", "control-response.bin",
                         "native-input-fault.jsonl", "native-input-fault.so", "response-header-fixture.json"})
 SEQUENCE_HASHES = {
-    "binary_sha256": "nginx-binary", "module_sha256": "nginx-module.so", "rules_sha256": "no-crs-baseline.conf",
+    "binary_sha256": "nginx-binary", "module_sha256": NGINX_MODULE_LEAF, "rules_sha256": "no-crs-baseline.conf",
     "observed_sha256": "sequence-observation.json", "config_sha256": "nginx.conf", "native_access_sha256": "native-access.jsonl",
-    "events_sha256": "phase1-events.jsonl", "worker_maps_sha256": "worker-maps.log",
+    "events_sha256": "phase1-events.jsonl", "worker_maps_sha256": WORKER_MAPS_LEAF,
     "native_writes_sha256": "native-write-observations.jsonl", "native_finish_sha256": "native-finish-observations.jsonl",
     "native_budget_sha256": "native-budget-observations.jsonl", "request_wire_sha256": "request-wire.bin", "response_wire_sha256": "response-wire.bin",
     "native_begin_sha256": "native-begin-observations.jsonl",
@@ -355,7 +358,7 @@ SEQUENCE_HASHES = {
 def read_hash_map(reader, prefix, mapping, allowed):
     require(isinstance(mapping, dict) and set(mapping) <= allowed, "closed raw artifact hash mapping required")
     require(all(isinstance(value, str) and SHA256.fullmatch(value) for value in mapping.values()), "exact raw artifact seals required")
-    return {leaf: reader.read(prefix + leaf, expected, ARTIFACT_LIMIT if leaf in {"nginx-binary", "nginx-module.so"} else RAW_LIMIT)
+    return {leaf: reader.read(prefix + leaf, expected, ARTIFACT_LIMIT if leaf in {"nginx-binary", NGINX_MODULE_LEAF} else RAW_LIMIT)
             for leaf, expected in mapping.items()}
 
 
@@ -365,10 +368,18 @@ def receipt_seal(receipt, field):
     return value
 
 
-def read_invocation(reader, descriptor, case_id, operation, sources):
+def _invocation_receipt_leaf(case_id):
+    if case_id in SEQUENCE_CASES:
+        return "sequence-source.json"
+    if case_id in INPUT_CASES:
+        return "input-fault-source.json"
+    return "source-result.json"
+
+
+def _read_original_invocation(reader, descriptor, case_id, operation, sources):
     path = descriptor.get("receipt_path")
     parts = relative_parts(path)
-    expected_leaf = "sequence-source.json" if case_id in SEQUENCE_CASES else "input-fault-source.json" if case_id in INPUT_CASES else "source-result.json"
+    expected_leaf = _invocation_receipt_leaf(case_id)
     require(parts[-1] == expected_leaf, "original producer receipt leaf required")
     require(case_id in EVENT_CASES or parts == [expected_leaf], "main invocation must use the fixed original receipt leaf")
     original = reader.read(path, descriptor.get("receipt_sha256"))
@@ -391,62 +402,81 @@ def read_invocation(reader, descriptor, case_id, operation, sources):
         require(row.get("run_id") == run_id, "source/receipt run identity mismatch")
     prefix = "/".join(parts[:-1])
     prefix = prefix + "/" if prefix else ""
+
+    return receipt, prefix, original
+
+
+def _read_sequence_invocation(reader, prefix, receipt, case_id, raw):
+    for field, leaf in SEQUENCE_HASHES.items():
+        if field in receipt and receipt[field] is not None:
+            raw[leaf] = reader.read(prefix + leaf, receipt[field], ARTIFACT_LIMIT if field in {"binary_sha256", "module_sha256"} else RAW_LIMIT)
+    require({"nginx-binary", NGINX_MODULE_LEAF, "no-crs-baseline.conf", "sequence-observation.json", "nginx.conf", "native-access.jsonl"} <= set(raw), "sequence receipt omits required raw seals")
+    if case_id in FAULT_SOURCES:
+        leaf = {"nginx_transaction_fault.c": "native-transaction-fault.so", "nginx_finish_fault.c": "native-finish-fault.so", "nginx_write_fault.c": "native-write-fault.so", "nginx_engine_budget_fault.c": "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
+        raw[leaf] = reader.read(prefix + leaf, receipt_seal(receipt, "fault_library_sha256"), ARTIFACT_LIMIT)
+    # Original sequence producer retains these actual captures but has no
+    # individual receipt seal for them. They are reopened and manifest-sealed
+    # here rather than inventing fields in its original receipt.
+    for leaf in ("configtest.stdout", "configtest.stderr", "startup.stdout", "startup.stderr", "nginx-error.log", "phase1-events.jsonl"):
+        if leaf not in raw:
+            raw[leaf] = reader.read(prefix + leaf)
+
+
+def _validate_worker_self_maps(reader, prefix, raw, ledger):
+    header, separator, maps = raw[ledger].partition(b"\n")
+    require(separator and len(header) <= 1024, "bounded worker self-map framing required")
+    identity = json_object(header)
+    fields = {"version", "pid", "ppid", "uid", "gid", "starttime", "bytes"}
+    require(set(identity) == fields and all(type(value) is int for value in identity.values()),
+            "exact numeric worker self-map identity required")
+    roles = json_object(raw[INPUT_FAULT_OBSERVATION_LEAF]).get("roles", {})
+    exact(identity, {"version": 1, "pid": roles.get("worker_pid"), "ppid": roles.get("master_pid"),
+                     "uid": 65534, "gid": 65534, "bytes": len(maps)}, "actual worker self-map identity")
+    require(identity["starttime"] > 0 and maps.endswith(b"\n") and maps == raw.get(WORKER_MAPS_LEAF),
+            "complete original worker maps must match sealed self-map ledger")
+    paths = {line.split(None, 5)[5] for line in maps.decode("utf-8").splitlines()
+             if len(line.split(None, 5)) == 6}
+    require({str(reader.root / prefix / leaf) for leaf in (_WORKER_SELF_MAPS_HELPER_NAME, NGINX_MODULE_LEAF)} <= paths,
+            "actual worker maps omit fixed helper or module snapshot")
+
+
+def _read_input_invocation(reader, prefix, receipt, sources, raw):
+    artifacts, captures = receipt.get("artifacts_sha256"), receipt.get("raw_artifacts_sha256")
+    require(isinstance(artifacts, dict) and isinstance(captures, dict), "closed input artifact maps required")
+    helper_key, ledger = "worker_self_map_library_sha256", "worker-self-maps.raw"
+    helper_present = helper_key in artifacts
+    require(helper_present == (ledger in captures), "worker helper and sealed ledger must be paired")
+    expected_helper = sources.get(helper_key)
+    require(expected_helper is None or helper_present, "explicit worker helper must be declared")
+    if helper_present:
+        require(isinstance(expected_helper, str) and SHA256.fullmatch(expected_helper)
+                and artifacts[helper_key] == expected_helper, "explicit actual worker helper digest required")
+        raw[_WORKER_SELF_MAPS_HELPER_NAME] = reader.read(prefix + _WORKER_SELF_MAPS_HELPER_NAME, expected_helper, ARTIFACT_LIMIT)
+        raw[ledger] = reader.read(prefix + ledger, captures[ledger], 64 * 1024)
+    raw.update(read_hash_map(reader, prefix, {key: value for key, value in artifacts.items()
+                                            if key != helper_key}, COMMON_RAW))
+    raw.update(read_hash_map(reader, prefix, {key: value for key, value in captures.items()
+                                            if key != ledger}, COMMON_RAW))
+    raw[INPUT_FAULT_OBSERVATION_LEAF] = reader.read(prefix + INPUT_FAULT_OBSERVATION_LEAF, receipt_seal(receipt, "observed_sha256"))
+    raw["nginx.conf"] = reader.read(prefix + "nginx.conf", receipt_seal(receipt, "config_sha256"))
+
+    if helper_present:
+        _validate_worker_self_maps(reader, prefix, raw, ledger)
+
+
+def read_invocation(reader, descriptor, case_id, operation, sources):
+    receipt, prefix, original = _read_original_invocation(reader, descriptor, case_id, operation, sources)
     raw = {}
     if case_id in SEQUENCE_CASES:
-        for field, leaf in SEQUENCE_HASHES.items():
-            if field in receipt and receipt[field] is not None:
-                raw[leaf] = reader.read(prefix + leaf, receipt[field], ARTIFACT_LIMIT if field in {"binary_sha256", "module_sha256"} else RAW_LIMIT)
-        require({"nginx-binary", "nginx-module.so", "no-crs-baseline.conf", "sequence-observation.json", "nginx.conf", "native-access.jsonl"} <= set(raw), "sequence receipt omits required raw seals")
-        if case_id in FAULT_SOURCES:
-            leaf = {"nginx_transaction_fault.c": "native-transaction-fault.so", "nginx_finish_fault.c": "native-finish-fault.so", "nginx_write_fault.c": "native-write-fault.so", "nginx_engine_budget_fault.c": "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
-            raw[leaf] = reader.read(prefix + leaf, receipt_seal(receipt, "fault_library_sha256"), ARTIFACT_LIMIT)
-        # Original sequence producer retains these actual captures but has no
-        # individual receipt seal for them. They are reopened and manifest-sealed
-        # here rather than inventing fields in its original receipt.
-        for leaf in ("configtest.stdout", "configtest.stderr", "startup.stdout", "startup.stderr", "nginx-error.log", "phase1-events.jsonl"):
-            if leaf not in raw:
-                raw[leaf] = reader.read(prefix + leaf)
+        _read_sequence_invocation(reader, prefix, receipt, case_id, raw)
     elif case_id in INPUT_CASES:
-        artifacts, captures = receipt.get("artifacts_sha256"), receipt.get("raw_artifacts_sha256")
-        require(isinstance(artifacts, dict) and isinstance(captures, dict), "closed input artifact maps required")
-        helper_key, ledger = "worker_self_map_library_sha256", "worker-self-maps.raw"
-        helper_present = helper_key in artifacts
-        require(helper_present == (ledger in captures), "worker helper and sealed ledger must be paired")
-        expected_helper = sources.get(helper_key)
-        require(expected_helper is None or helper_present, "explicit worker helper must be declared")
-        if helper_present:
-            require(isinstance(expected_helper, str) and SHA256.fullmatch(expected_helper)
-                    and artifacts[helper_key] == expected_helper, "explicit actual worker helper digest required")
-            raw[_WORKER_SELF_MAPS_HELPER_NAME] = reader.read(prefix + _WORKER_SELF_MAPS_HELPER_NAME, expected_helper, ARTIFACT_LIMIT)
-            raw[ledger] = reader.read(prefix + ledger, captures[ledger], 64 * 1024)
-        raw.update(read_hash_map(reader, prefix, {key: value for key, value in artifacts.items()
-                                                if key != helper_key}, COMMON_RAW))
-        raw.update(read_hash_map(reader, prefix, {key: value for key, value in captures.items()
-                                                if key != ledger}, COMMON_RAW))
-        raw["input-fault-observation.json"] = reader.read(prefix + "input-fault-observation.json", receipt_seal(receipt, "observed_sha256"))
-        raw["nginx.conf"] = reader.read(prefix + "nginx.conf", receipt_seal(receipt, "config_sha256"))
-        if helper_present:
-            header, separator, maps = raw[ledger].partition(b"\n")
-            require(separator and len(header) <= 1024, "bounded worker self-map framing required")
-            identity = json_object(header)
-            fields = {"version", "pid", "ppid", "uid", "gid", "starttime", "bytes"}
-            require(set(identity) == fields and all(type(value) is int for value in identity.values()),
-                    "exact numeric worker self-map identity required")
-            roles = json_object(raw["input-fault-observation.json"]).get("roles", {})
-            exact(identity, {"version": 1, "pid": roles.get("worker_pid"), "ppid": roles.get("master_pid"),
-                             "uid": 65534, "gid": 65534, "bytes": len(maps)}, "actual worker self-map identity")
-            require(identity["starttime"] > 0 and maps.endswith(b"\n") and maps == raw.get("worker-maps.log"),
-                    "complete original worker maps must match sealed self-map ledger")
-            paths = {line.split(None, 5)[5] for line in maps.decode("utf-8").splitlines()
-                     if len(line.split(None, 5)) == 6}
-            require({str(reader.root / prefix / leaf) for leaf in (_WORKER_SELF_MAPS_HELPER_NAME, "nginx-module.so")} <= paths,
-                    "actual worker maps omit fixed helper or module snapshot")
+        _read_input_invocation(reader, prefix, receipt, sources, raw)
     else:
         raw.update(read_hash_map(reader, prefix, receipt.get("raw_sha256"), COMMON_RAW))
-        for field, leaf in (("binary_sha256", "nginx-binary"), ("module_sha256", "nginx-module.so")):
+        for field, leaf in (("binary_sha256", "nginx-binary"), ("module_sha256", NGINX_MODULE_LEAF)):
             if field in receipt:
                 raw[leaf] = reader.read(prefix + leaf, receipt[field], ARTIFACT_LIMIT)
-    for field, leaf in (("binary_sha256", "nginx-binary"), ("module_sha256", "nginx-module.so")):
+    for field, leaf in (("binary_sha256", "nginx-binary"), ("module_sha256", NGINX_MODULE_LEAF)):
         require(leaf in raw and digest(raw[leaf]) == sources[field], "actual build snapshot mismatch: " + leaf)
     return receipt, raw, original
 
@@ -621,10 +651,10 @@ def validate_raw_h1(helper, receipt, raw, case_id, run_id):
 
 
 def validate_input(helper, receipt, raw, case_id, run_id):
-    require_leaves(raw, {"native-access.jsonl", "native-input-fault.jsonl", "phase1-events.jsonl", "worker-maps.log", "nginx-error.log",
+    require_leaves(raw, {"native-access.jsonl", "native-input-fault.jsonl", "phase1-events.jsonl", WORKER_MAPS_LEAF, "nginx-error.log",
                          "configtest.stdout", "configtest.stderr", "client.stdout", "client.stderr", "startup.stdout", "startup.stderr"})
     exact(receipt, {"configtest_exit_code": 0}, "actual input configtest")
-    observed = json_object(raw["input-fault-observation.json"])
+    observed = json_object(raw[INPUT_FAULT_OBSERVATION_LEAF])
     errors = helper.observation_errors(observed, case_id, run_id)
     require(not errors, "; ".join(errors))
     require(json_lines(raw["native-access.jsonl"]) == [observed["native_access"]]
@@ -658,9 +688,9 @@ def validate_configtest(receipt, raw, case_id):
     require(len(modules) == 1, "one actual module load required")
     configuration_path = modules[0].rsplit(b"/", 1)[0] + b"/nginx.conf"
     require(configuration_path in raw[leaf] and b"syntax is ok" in raw[leaf] and b"test is successful" in raw[leaf], "actual successful configtest diagnostics must bind configuration")
-    if "worker-maps.log" in raw:
-        require(modules[0] in raw["worker-maps.log"]
-                and modules[0].rsplit(b"/", 1)[0] + b"/nginx-binary" in raw["worker-maps.log"], "actual worker mappings do not bind snapshots")
+    if WORKER_MAPS_LEAF in raw:
+        require(modules[0] in raw[WORKER_MAPS_LEAF]
+                and modules[0].rsplit(b"/", 1)[0] + b"/nginx-binary" in raw[WORKER_MAPS_LEAF], "actual worker mappings do not bind snapshots")
 
 
 def native_error(events, name, message_id, phase, transaction, path):
@@ -741,7 +771,7 @@ def sequence_cleanup(case_id, observed, accesses, events, raw):
 
 
 def validate_sequence(helper, receipt, raw, case_id, run_id):
-    require_leaves(raw, {"worker-maps.log"})
+    require_leaves(raw, {WORKER_MAPS_LEAF})
     observed = json_object(raw["sequence-observation.json"])
     errors = helper.observation_errors(observed, case_id, run_id)
     require(not errors, "; ".join(errors))

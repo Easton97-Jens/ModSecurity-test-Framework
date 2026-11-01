@@ -7,7 +7,7 @@
     "native_sources": 88,
     "python_go_source_sets": 633,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "4418e46137d17c620922ed541649b1bbb9fa36d0c9d68f85315cfdca9ce60326"
+    "sha256": "da1422ba1fa41b37811828631d687503473480d8d7aef1cbc237ab6cb378ffd0"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -162766,7 +162766,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-      "sha256_framework_source": "242cacd401596e95a9f462755f0bfe60afcff205b5be1b2e4c0ec66d04840453",
+      "sha256_framework_source": "b2bf54076b99300fcdd54d211795e03a4d646f8e1c4ec7b502b6dee69966054e",
       "sha256_updated_base": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
     },
     {
@@ -164827,7 +164827,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "4418e46137d17c620922ed541649b1bbb9fa36d0c9d68f85315cfdca9ce60326",
+      "sha256_framework_source": "da1422ba1fa41b37811828631d687503473480d8d7aef1cbc237ab6cb378ffd0",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {
@@ -169595,7 +169595,7 @@
   "framework_revision": "3a4f2281568139d94fda6b51dc2e07bb8fc06c67",
   "generator": "connector_suite/modsecurity_connector_ci/tools/build-migration-map.py",
   "inputs": {
-    "current_inventory_sha256": "242cacd401596e95a9f462755f0bfe60afcff205b5be1b2e4c0ec66d04840453",
+    "current_inventory_sha256": "b2bf54076b99300fcdd54d211795e03a4d646f8e1c4ec7b502b6dee69966054e",
     "initial_inventory_sha256": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
     "source_map_sha256": "29808fffdaa6c3843e1f2ab17f0d25ab19e9b9c1f74ef9461c59a5b96b841944",
     "updated_base_inventory_sha256": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
