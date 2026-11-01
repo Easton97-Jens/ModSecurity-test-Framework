@@ -1,0 +1,19 @@
+--- a/payload
++++ b/payload
+@@ -393,16 +392,0 @@
+-int msconnector_lifecycle_observer_snapshot(msconnector_lifecycle_observer_state *state) {
+-    int saved = errno;
+-    if (state == NULL || output_fd < 0 || budget == NULL) { errno = saved; return 0; }
+-    (void)pthread_mutex_lock(&lock);
+-    const struct observed_subject observed = subject(NULL, 0, 0);
+-    event("observer", "snapshot", 0U, &observed, "null", NULL);
+-    state->live_mappings = 0U;
+-    for (size_t index = 0U; index < MAP_CAPACITY; ++index)
+-        if (mappings[index].key != NULL) ++state->live_mappings;
+-    state->pending_calls = pending;
+-    state->invalid = atomic_load(&budget->invalid);
+-    (void)pthread_mutex_unlock(&lock);
+-    errno = saved;
+-    return 1;
+-}
+-

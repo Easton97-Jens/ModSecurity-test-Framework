@@ -1,0 +1,19 @@
+{
+  "status": "connector-neutral contract only",
+  "runtime_claim": false,
+  "capabilities": {
+    "connection-metadata": "connection metadata smoke",
+    "request-headers": "phase1 request header rule test",
+    "request-body-buffered": "phase2 request body rule test",
+    "request-body-streaming": "request body streaming capability test",
+    "response-headers": "phase3 response header rule test",
+    "response-body-buffered": "phase4 response body rule test",
+    "response-body-streaming": "response body streaming capability test",
+    "audit-log-artifacts": "audit log artifact exists",
+    "error-log-artifacts": "error log artifact exists",
+    "rule-reload": "rule reload test",
+    "config-reload": "config reload test",
+    "custom-transaction-id": "transaction id visible in event/log output",
+    "phase4-hard-abort": "phase4 hard-abort-after-200 event test"
+  }
+}

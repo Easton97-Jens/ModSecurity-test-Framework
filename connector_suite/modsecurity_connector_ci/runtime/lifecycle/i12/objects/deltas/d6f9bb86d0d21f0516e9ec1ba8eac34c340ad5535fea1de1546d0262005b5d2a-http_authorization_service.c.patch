@@ -1,0 +1,7 @@
+--- a/payload
++++ b/payload
+@@ -3,0 +4 @@
++#include "native-lifecycle-observer.h"
+@@ -1161,0 +1163,2 @@
++    (void)msconnector_lifecycle_authorization_request_eos(transaction,
++        parsed->content_length, parsed->body_size, remaining);

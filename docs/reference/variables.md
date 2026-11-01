@@ -20,6 +20,7 @@ reference for repeated names.
 | [`NO_CRS_RUN_ID`](#no_crs_run_id) | No-CRS | Canonical runs | `local` | filesystem-safe token | Evidence-run identity |
 | [`CONNECTOR`](#connector-capabilities_file-evidence_stage-and-no_crs_artifact_profile) | No-CRS | Connector targets | none | connector key | Capability-manifest selector |
 | [`PYTHON`](#tooling-status-values-and-sensitive-data) | tooling | No | `.venv/bin/python` or `python3` | executable path | Interpreter used by Make |
+| [`PYTHONSAFEPATH`](#tooling-status-values-and-sensitive-data) | tooling | No | unset | `1` enables safe module search | Excludes implicit working/script paths; MRTS uses an isolated child with its exact trusted script directory |
 | [`PROTOCOL_URL`](#protocol_url) | protocol | `protocol-client` | none | `http(s)://` URL | Explicit client target |
 | `<fresh-source-root>` | five-connector CRS fixture | `verify-fixture` and `validate` | none | absolute directory | Fresh CRS source root containing `coreruleset/` |
 | `<private-root>` | five-connector evidence | `validate` and `aggregate` | none | private absolute directory | Externally produced evidence and validator outputs |
@@ -426,6 +427,18 @@ inputs still require provenance review before use.
 | `HOME`, `PWD`, `TMPDIR` | host shell paths | host shell | inherited from the shell; use an explicit Framework root for reproducibility. |
 | `TARGET` | Make target name | supplied by `make` or the caller | `TARGET=linux-glibc`; allowed values depend on the invoked upstream build. |
 | `USER_TOKEN` | sensitive authentication value | no repository default | `<secret-from-secure-store>`; never commit, log, or pass it in a visible process argument. |
+
+### Connector source-checkout interface
+
+| Variable | Meaning and required value |
+|---|---|
+| `CONNECTOR_REVISION` | Exact Git HEAD of the explicitly selected product checkout; callers must not supply a different revision. |
+| `CONNECTOR_TEST_OUTPUT_ROOT` | Existing trusted output directory outside both source checkouts; reject symlinked ancestry. |
+| `EXTERNAL_OUTPUT` | Caller-selected alias for that external output directory in documentation examples; no implicit default. |
+| `FRAMEWORK_PYTHON` | Explicit compatible Python interpreter used for the selected Framework source checkout. |
+| `ON_DEMAND_TESTS` | Set to `1` only for an explicitly selected specialist invocation; this does not authorize every archived case. |
+| `PYTHONPATH` | Only the selected Framework root and its `connector_suite/` directory for Connector source-checkout tests; omit product and unrelated directories. |
+| `PYTHONSAFEPATH` | Set to `1` and invoke Python with `-P` to exclude the implicit unsafe working/script directory from module search. |
 
 ### NGINX fixed-release provenance
 

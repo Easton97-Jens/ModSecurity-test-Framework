@@ -36,6 +36,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import runpy
 from typing import Any
 from urllib.parse import quote, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -104,9 +105,40 @@ ALLOWED_UPDATE_PATHS = frozenset(
 # The proposed-tree checkers need this canonical, read-only helper in addition
 # to the files the publisher may update.  Keep this input surface separate so
 # validation dependencies cannot silently expand the publisher's write scope.
+INTEGRATION_READONLY_INPUT_PATHS = frozenset(
+    {
+        ".github/actions/connector-ci/ci-findings-regressions/nginx-b09-regression/action.yml",
+        ".github/actions/connector-ci/open-connectors-smoke/open-connectors-smoke/action.yml",
+        ".github/actions/connector-ci/quick-framework-check/quick-check/action.yml",
+        ".github/actions/connector-ci/reusable-five-connectors-profile/aggregate/action.yml",
+        ".github/actions/connector-ci/reusable-five-connectors-profile/no-crs/action.yml",
+        ".github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile/action.yml",
+        ".github/actions/connector-ci/test-apache/apache-autotools-bootstrap/action.yml",
+        ".github/actions/connector-ci/test-apache/apache-structure/action.yml",
+        ".github/actions/connector-ci/test-common/common-structure/action.yml",
+        ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/aggregate-with-crs-no-mrts/action.yml",
+        ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml",
+        ".github/actions/connector-ci/test-envoy/envoy-contract/action.yml",
+        ".github/actions/connector-ci/test-full-smoke-sequential/cleanup-artifacts/action.yml",
+        ".github/actions/connector-ci/test-full-smoke-sequential/manual-heavy-runtime-validation/action.yml",
+        ".github/actions/connector-ci/test-haproxy/haproxy-structure/action.yml",
+        ".github/actions/connector-ci/test-lighttpd/lighttpd-contract/action.yml",
+        ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml",
+        ".github/actions/connector-ci/test-nginx/nginx-structure/action.yml",
+        ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
+        ".github/actions/connector-context/action.yml",
+        ".github/workflows/connector-nginx-root-broker-historical.yml",
+        ".github/workflows/connector-protected-nginx-exact-head.yml",
+        ".github/workflows/connector-protected-nginx-root-broker-caller.yml",
+        ".github/workflows/connector-trusted-lighttpd-namespace.yml",
+        "ci/checks/security/connector_action_pins.py",
+        "ci/tooling/connector-actions.lock.json",
+    }
+)
 PROPOSED_VALIDATION_INPUT_PATHS = frozenset(
     {
         *ALLOWED_UPDATE_PATHS,
+        *INTEGRATION_READONLY_INPUT_PATHS,
         COMMON_SH_PATH,
         "ci/tools/install-hash-locked-ci-dependencies.sh",
     }
@@ -304,6 +336,20 @@ def ensure_locked_action_workflow_coverage(root: Path, lock: dict[str, Any]) -> 
     """Fail if a lock-managed Action appears outside publisher-approved paths."""
 
     workflow_paths = workflow_source_paths(root)
+    integration = runpy.run_path(
+        str(
+            Path(__file__).resolve().parents[1]
+            / "checks/security/connector_action_pins.py"
+        )
+    )
+    native_paths = []
+    for path in workflow_paths:
+        if path.name in integration["WORKFLOWS"]:
+            errors = integration["validate_source"](root, str(path.relative_to(root)))
+            if errors:
+                raise UpdateError("; ".join(errors))
+        else:
+            native_paths.append(path)
     missing: dict[str, list[str]] = {}
     actions = lock.get("actions")
     if not isinstance(actions, dict):
@@ -316,7 +362,7 @@ def ensure_locked_action_workflow_coverage(root: Path, lock: dict[str, Any]) -> 
         )
         referenced = {
             str(path.relative_to(root))
-            for path in workflow_paths
+            for path in native_paths
             if reference.search(path.read_text(encoding="utf-8"))
         }
         unapproved = sorted(referenced.difference(WORKFLOW_UPDATE_PATHS))

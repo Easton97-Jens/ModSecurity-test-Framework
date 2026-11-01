@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import runpy
 import stat
 import tempfile
 
-from runtime_path_safety import nearest_existing_directory, private_runtime_root
+_runtime_safety = runpy.run_path(
+    str(Path(__file__).with_name("runtime_path_safety.py"))
+)
+nearest_existing_directory = _runtime_safety["nearest_existing_directory"]
+private_runtime_root = _runtime_safety["private_runtime_root"]
 
 
 def _source_roots() -> list[Path]:
@@ -24,7 +29,18 @@ def _check_dedicated_external_root(path: Path, label: str) -> None:
     # task area must be below tmp, with an additional dedicated directory.
     parts = path.parts
     if len(parts) < 3 or parts[1] in {
-        "bin", "sbin", "usr", "etc", "dev", "proc", "sys", "boot", "lib", "lib64", "root", "run",
+        "bin",
+        "sbin",
+        "usr",
+        "etc",
+        "dev",
+        "proc",
+        "sys",
+        "boot",
+        "lib",
+        "lib64",
+        "root",
+        "run",
     }:
         raise ValueError(f"{label} must be a dedicated external runtime root")
     if parts[1] == "var" and (len(parts) < 4 or parts[2] != "tmp"):
@@ -40,7 +56,9 @@ def _check_ownership(path: Path, label: str) -> None:
     existing = nearest_existing_directory(path)
     info = existing.lstat()
     if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) & 0o022:
-        raise ValueError(f"{label} requires an owned directory without group or public write access")
+        raise ValueError(
+            f"{label} requires an owned directory without group or public write access"
+        )
     for parent in existing.parents:
         info = parent.lstat()
         if info.st_uid not in (0, os.geteuid()):
@@ -56,10 +74,15 @@ def approved_runtime_root(value: str | Path, label: str) -> Path:
     path = private_runtime_root(value, label)
     _check_dedicated_external_root(path, label)
     _check_ownership(path, label)
-    anchors = [Path(value) for name in ("CODEX_TEMP_ROOT", "RUNNER_TEMP")
-               if (value := os.environ.get(name))]
+    anchors = [
+        Path(value)
+        for name in ("CODEX_TEMP_ROOT", "RUNNER_TEMP")
+        if (value := os.environ.get(name))
+    ]
     if anchors and not any(
-        anchor.is_absolute() and path != anchor.resolve() and path.is_relative_to(anchor.resolve())
+        anchor.is_absolute()
+        and path != anchor.resolve()
+        and path.is_relative_to(anchor.resolve())
         for anchor in anchors
     ):
         raise ValueError(f"{label} is outside the configured external runtime roots")

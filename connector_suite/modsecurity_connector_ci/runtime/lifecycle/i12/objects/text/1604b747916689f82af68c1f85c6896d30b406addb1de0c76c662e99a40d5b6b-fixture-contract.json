@@ -1,0 +1,75 @@
+{
+  "actual_runtime": null,
+  "full_lifecycle_qualification": null,
+  "original_nulls_preserved": true,
+  "original_selected_requirement": {
+    "canonical_source_case_id": null,
+    "case_id": "NEED-request-eos-once",
+    "config_invocation": null,
+    "derived_invocation": null,
+    "execution_kind": "host_case_or_missing_fixture",
+    "expected_oracle": {
+      "event_fields": [],
+      "native_result": null,
+      "phase": null,
+      "physical_evidence_not_projection": true,
+      "rule_id": null,
+      "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove.",
+      "visible_status": null
+    },
+    "harness_path": "connectors/apache/harness/run_apache_smoke.sh",
+    "historical_alias_ids": [],
+    "mandatory_missing_observations": [
+      "client-exit-signal-headers-bytes-sha256",
+      "independent-backend-request-count",
+      "original-physical-native-events-first-cause",
+      "commit-eos-order",
+      "transport-framing-reset-scope",
+      "once-finish-and-resource-release",
+      "uid-isolation-and-exact-source-host-config-run-binding"
+    ],
+    "missing_harness_reason": null,
+    "native_invocation": null,
+    "origin": "missing_host_fixture_or_oracle",
+    "requirement_mapping": [
+      "I12::apache-native::obligation::request-eos-once"
+    ],
+    "run_scoped_case_id": "I12::apache-native::NEED-request-eos-once",
+    "runner_case": null,
+    "source_fixture_paths": [],
+    "status": "PLANNED"
+  },
+  "supplemental_contract": {
+    "common_cleanup_calls": 1,
+    "common_finish_calls": 1,
+    "common_nonterminal_rule_id": 91041002,
+    "common_physical_nonterminal_request_rule_match_count": 1,
+    "common_physical_terminal_event_count": 0,
+    "effective_rules": "Test-owned non-disruptive P3Content-Type pass + P4bodymarker pass/log; request and response body access enabled, native text/plain MIME. One benign scoped POST/path P1 pass/log marker exercises the genuine existing Common physical event sink; native P4 marker remains non-disruptive.",
+    "expected_rule_or_oracle_source": "Actual fixture rule/config contract + SDK3.0.14 source branch; still requires independent actual physical retest.",
+    "independent_backend_main_request_count": 1,
+    "native_p4_marker_rule_id": 91041001,
+    "native_request_body_process_calls": 1,
+    "native_response_body_process_calls": 1,
+    "native_transaction_cleanup_calls": 1,
+    "profile": "apache-native",
+    "request": {
+      "body_bytes": 23,
+      "body_sha256": "f16ec3878d479dcc02c2976f76e25ed6acdf9715ccafd6765a48518e6524f516",
+      "method": "POST",
+      "path": "/i12/apache/eos"
+    },
+    "request_actual_apr_eos": 1,
+    "response": {
+      "body_bytes": 24,
+      "body_sha256": "c4342069ea607092f542f4fe8ea9ae05ff9b14d256d4abaf59e67d6eb91e6450",
+      "content_type": "text/plain",
+      "http_status": 200
+    },
+    "response_actual_apr_eos": 1,
+    "scenario": "one small POST allow + separate original request-shaped GET allow neighbor",
+    "separate_neighbor_request_count": 1,
+    "values_are_expectations_not_observations": true,
+    "wire_observation": "Actual one-request client socket recv timestamps and source-copy actual next-filter ap_pass_brigade enter/return callbacks. No kernel-send inference."
+  }
+}

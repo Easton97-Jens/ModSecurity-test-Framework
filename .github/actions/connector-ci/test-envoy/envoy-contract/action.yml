@@ -1,0 +1,130 @@
+name: test-envoy / envoy-contract
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up toolchain
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+    - name: Set up Go for response observer tests
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: .go-version
+        check-latest: false
+        cache: false
+    - name: Execute Envoy technical-error callers and negative controls
+      env:
+        TMPDIR: ${{ runner.temp }}
+        RUNNER_TEMP: ${{ runner.temp }}
+      shell: bash -e {0}
+      run: make check-i10-envoy-callers
+    - name: Test Envoy response observer
+      env:
+        GOTOOLCHAIN: local
+        TMPDIR: /tmp
+      shell: bash -e {0}
+      run: |
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --module connectors/envoy/ext_proc
+        (cd connectors/envoy/ext_proc && go build -mod=readonly ./cmd/msconnector-envoy-response-observer)
+    - name: Check Envoy Common and host contracts
+      shell: bash -e {0}
+      run: |
+        set -eu
+        make check-envoy-common-adoption
+        make check-remaining-connectors-host-integration
+        make check-remaining-connectors-build-wiring
+        make check-remaining-connectors-start-wiring
+        make check-remaining-connectors-claim-policy
+    - name: Exercise private socket and transport regressions
+      env:
+        TMPDIR: ${{ runner.temp }}
+        PYTHONDONTWRITEBYTECODE: "1"
+      shell: bash -e {0}
+      run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group envoy
+    - name: Set up repository-selected Go for the native bridge
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: .go-version
+        check-latest: false
+        cache: false
+    - name: Install native bridge build prerequisites
+      shell: bash -e {0}
+      run: |
+        set -eu
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --yes \
+          build-essential autoconf automake libtool pkg-config bison flex \
+          libpcre2-dev libyajl-dev libxml2-dev libcurl4-openssl-dev libssl-dev zlib1g-dev
+        # Parent owns the CPython 3.15 artifact; preserve Framework dependency versions.
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache \
+          --framework-lock modules/ModSecurity-test-Framework/requirements-ci.lock
+    - name: Compile the real Common and CGo bridge without discovering tests
+      env:
+        GOTOOLCHAIN: local
+        ALLOW_RUNTIME_DOWNLOADS: "1"
+        ALLOW_RUNTIME_BUILDS: "1"
+        RUNTIME_COMPONENT_TARGET: shared
+        VERIFIED_RUN_ROOT: ${{ runner.temp }}/pr382-envoy-native
+        SOURCE_ROOT: ${{ runner.temp }}/pr382-envoy-native/src
+        BUILD_ROOT: ${{ runner.temp }}/pr382-envoy-native/build
+        TMP_ROOT: ${{ runner.temp }}/pr382-envoy-native/tmp
+        LOG_ROOT: ${{ runner.temp }}/pr382-envoy-native/logs
+        CACHE_ROOT: ${{ runner.temp }}/pr382-envoy-native/cache-v2
+        CONNECTOR_COMPONENT_CACHE: ${{ runner.temp }}/pr382-envoy-native/cache-v2/shared
+        GOCACHE: ${{ runner.temp }}/pr382-envoy-native/go-cache
+        GOTMPDIR: ${{ runner.temp }}/pr382-envoy-native/tmp/go
+        PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        CODEX_RUN_ROOT: ${{ runner.temp }}/pr382-envoy-native/component-tests
+        TMPDIR: ${{ runner.temp }}/pr382-envoy-native/tmp
+      shell: bash -e {0}
+      run: |
+        set -eu
+        umask 077
+        mkdir -p "$GOTMPDIR"
+        go version
+        sh modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/provisioning/cache/with-runtime-components.sh \
+          sh connectors/envoy/build/build_ext_proc.sh
+        sh modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/provisioning/cache/with-runtime-components.sh \
+          make check-native-engine-body-inspection PYTHON="$PYTHON"
+    - name: Collect host runtime preflight evidence
+      if: always()
+      env:
+        CONNECTOR: envoy
+        RUNTIME_LOCK: modules/ModSecurity-test-Framework/ci/provisioning/runtime-component-lock.json
+      shell: bash -e {0}
+      run: |
+        set -u
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/common/collect_hostruntime_preflight_evidence.py \
+          --connector "$CONNECTOR" \
+          --runtime-lock "$RUNTIME_LOCK" \
+          --runner-temp "$RUNNER_TEMP" \
+          --binary-name envoy \
+          --profile envoy-ext-authz \
+          --config connectors/envoy/config/envoy-ext-authz.conf \
+          --fixture connectors/envoy/config/envoy-ext-proc-service.json \
+          --profile envoy-ext-proc \
+          --config connectors/envoy/config/envoy-ext-authz.conf \
+          --fixture connectors/envoy/config/envoy-ext-proc-service.json
+    - name: Upload sanitized host runtime evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: envoy-hostruntime-evidence
+        path: ${{ runner.temp }}/hostruntime-evidence/envoy
+        if-no-files-found: error

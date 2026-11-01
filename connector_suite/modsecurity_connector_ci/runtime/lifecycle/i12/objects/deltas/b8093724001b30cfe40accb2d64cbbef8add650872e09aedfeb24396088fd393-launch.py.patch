@@ -1,0 +1,13 @@
+--- a/payload
++++ b/payload
+@@ -19 +19 @@
+-rules=r'''SecRuleEngine On
++rules='''SecRuleEngine On
+@@ -36 +35,0 @@
+-SecRule REQUEST_HEADERS:Content-Type "@streq text/plain" "id:1999441,phase:1,pass,log,msg:'I12_HEADER_EXACT_TEXTPLAIN'"
+@@ -67 +66 @@
+-    env=dict(os.environ,MSCONNECTOR_LIFECYCLE_FD=str(fd),MSCONNECTOR_LIFECYCLE_RUN='20261014-hap-predicate-direct-3',MSCONNECTOR_LIFECYCLE_PROFILE='haproxy-native-htx',MSCONNECTOR_LIFECYCLE_CASE='NEED-request-content-type-present')
++    env=dict(os.environ,MSCONNECTOR_LIFECYCLE_FD=str(fd),MSCONNECTOR_LIFECYCLE_RUN='20261014-haproxy-htx-01',MSCONNECTOR_LIFECYCLE_PROFILE='haproxy-native-htx',MSCONNECTOR_LIFECYCLE_CASE='NEED-request-eos-once')
+@@ -81 +80 @@
+-    receipt={'commands':receipts,'snapshots':snapshots,'source_instrumentation_is_test_only':True,'selected_id':'I12::haproxy-native-htx::NEED-request-content-type-present','full_lifecycle_pass':None,'effective_rules_sha256':hashlib.sha256((TASK/'rules.conf').read_bytes()).hexdigest(),'effective_config_sha256':hashlib.sha256((TASK/'haproxy.cfg').read_bytes()).hexdigest() if (TASK/'haproxy.cfg').exists() else None}
++    receipt={'commands':receipts,'snapshots':snapshots,'source_instrumentation_is_test_only':True,'selected_id':'I12::haproxy-native-htx::NEED-request-eos-once','full_lifecycle_pass':None,'effective_rules_sha256':hashlib.sha256((TASK/'rules.conf').read_bytes()).hexdigest(),'effective_config_sha256':hashlib.sha256((TASK/'haproxy.cfg').read_bytes()).hexdigest() if (TASK/'haproxy.cfg').exists() else None}

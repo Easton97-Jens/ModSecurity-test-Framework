@@ -5,6 +5,8 @@ a trusted build. No artifacts are written and no native events are manufactured.
 """
 from __future__ import annotations
 
+from modsecurity_test_framework.connector_context import source_path, test_root
+
 import hashlib
 import json
 import math
@@ -12,9 +14,46 @@ import os
 from pathlib import Path
 import re
 import stat
-import sys
-import threading
 import types
+
+_WORKER_SELF_MAPS_HELPER_NAME = 'worker-self-maps.so'
+NGINX_MODULE_LEAF = "nginx-module.so"
+WORKER_MAPS_LEAF = "worker-maps.log"
+INPUT_FAULT_OBSERVATION_LEAF = "input-fault-observation.json"
+NGINX_CONFIG_LEAF = "nginx.conf"
+BASELINE_CONFIG_LEAF = "no-crs-baseline.conf"
+NGINX_ERROR_LEAF = "nginx-error.log"
+ROLES_LEAF = "roles.json"
+CLIENT_STDOUT_LEAF = "client.stdout"
+CLIENT_STDERR_LEAF = "client.stderr"
+CLEANUP_LEAF = "cleanup.json"
+SOURCE_RESULT_LEAF = "source-result.json"
+NGINX_TRANSACTION_FAULT_SOURCE = "nginx_transaction_fault.c"
+NGINX_FINISH_FAULT_SOURCE = "nginx_finish_fault.c"
+NGINX_WRITE_FAULT_SOURCE = "nginx_write_fault.c"
+NGINX_ENGINE_BUDGET_FAULT_SOURCE = "nginx_engine_budget_fault.c"
+NGINX_BINARY_LEAF = "nginx-binary"
+SEQUENCE_OBSERVATION_LEAF = "sequence-observation.json"
+NATIVE_ACCESS_LEAF = "native-access.jsonl"
+PHASE1_EVENTS_LEAF = "phase1-events.jsonl"
+NATIVE_BUDGET_OBSERVATIONS_LEAF = "native-budget-observations.jsonl"
+REQUEST_WIRE_LEAF = "request-wire.bin"
+NATIVE_BEGIN_OBSERVATIONS_LEAF = "native-begin-observations.jsonl"
+CONFIGTEST_STDOUT_LEAF = "configtest.stdout"
+CONFIGTEST_STDERR_LEAF = "configtest.stderr"
+STDOUT_LOG_LEAF = "stdout.log"
+STDERR_LOG_LEAF = "stderr.log"
+STARTUP_STDOUT_LEAF = "startup.stdout"
+STARTUP_STDERR_LEAF = "startup.stderr"
+PHASE4_EVENTS_LEAF = "phase4-events.jsonl"
+NATIVE_EVENTS_LEAF = "native-events.jsonl"
+ACCESS_LEAF = "access.jsonl"
+FAULT_REQUEST_LEAF = "fault-request.bin"
+FAULT_RESPONSE_LEAF = "fault-response.bin"
+CONTROL_REQUEST_LEAF = "control-request.bin"
+CONTROL_RESPONSE_LEAF = "control-response.bin"
+NATIVE_INPUT_FAULT_LEAF = "native-input-fault.jsonl"
+
 
 RAW_LIMIT = 1024 * 1024
 ARTIFACT_LIMIT = 64 * 1024 * 1024
@@ -22,7 +61,6 @@ MODE = "native-nginx-http-module"
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 RUN_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
-_HELPER_LOCK = threading.RLock()
 RAW_CASES = frozenset({"invalid_content_length", "conflicting_content_length", "duplicate_transfer_encoding", "content_length_overflow"})
 INPUT_CASES = frozenset({"body_size_nonzero_with_null_data", "header_count_nonzero_with_null_headers"})
 MIME_CASES = frozenset({"phase4_in_scope_content_type", "phase4_content_type_with_charset", "phase4_out_of_scope_content_type", "phase4_missing_content_type"})
@@ -31,12 +69,12 @@ EVENT_CASES = frozenset({"event_metadata_truncation", "event_json_limit"})
 SEQUENCE_CASES = frozenset({"single_request_cleanup", "multiple_sequential_requests", "keep_alive_requests_if_supported", "clean_shutdown", "keepalive_allow_allow", "keepalive_allow_deny_allow", "early_mapping_failure_cleanup", "transaction_begin_failure_cleanup", "phase4_strict_http1_client_abort", "phase4_strict_host_survives", "phase4_strict_followup_request_succeeds", "keepalive_after_strict_new_connection", "keepalive_safe_followup", "response_short_write_resume", "response_write_would_block_resume", "transport_keep_alive", "transport_sequential_requests", "finish_failure_propagation", "engine_timeout_before_commit", "engine_timeout_after_commit", "transport_http11_content_length", "transport_http11_chunked"})
 CASE_IDS = RAW_CASES | INPUT_CASES | MIME_CASES | PHASE4_CASES | EVENT_CASES | SEQUENCE_CASES
 FAULT_SOURCES = {
-    "transaction_begin_failure_cleanup": "nginx_transaction_fault.c",
-    "finish_failure_propagation": "nginx_finish_fault.c",
-    "response_short_write_resume": "nginx_write_fault.c",
-    "response_write_would_block_resume": "nginx_write_fault.c",
-    "engine_timeout_before_commit": "nginx_engine_budget_fault.c",
-    "engine_timeout_after_commit": "nginx_engine_budget_fault.c",
+    "transaction_begin_failure_cleanup": NGINX_TRANSACTION_FAULT_SOURCE,
+    "finish_failure_propagation": NGINX_FINISH_FAULT_SOURCE,
+    "response_short_write_resume": NGINX_WRITE_FAULT_SOURCE,
+    "response_write_would_block_resume": NGINX_WRITE_FAULT_SOURCE,
+    "engine_timeout_before_commit": NGINX_ENGINE_BUDGET_FAULT_SOURCE,
+    "engine_timeout_after_commit": NGINX_ENGINE_BUDGET_FAULT_SOURCE,
 }
 
 
@@ -192,10 +230,44 @@ def required_source_paths(case_id):
         parent.update({"ci/runtime/lifecycle/nginx_sequence_client.py", "ci/runtime/lifecycle/nginx_sequence_upstream.py"})
         framework.add("tests/runners/nginx_http11_framing.py")
     if case_id in INPUT_CASES:
-        parent.add("tests/fixtures/nginx_common_input_fault.c")
+        parent.update({"tests/fixtures/nginx_common_input_fault.c",
+                       "tests/fixtures/nginx_worker_self_maps.c",
+                       "ci/runtime/lifecycle/nginx-worker-self-maps.py"})
     if case_id in FAULT_SOURCES:
         parent.add("tests/fixtures/" + FAULT_SOURCES[case_id])
     return frozenset({"parent:" + item for item in parent} | {"framework:" + item for item in framework})
+
+
+def _read_source_authority(name, sources):
+    """Read one source using its explicit reviewed Parent or Framework owner."""
+    owner, relative = name.split(":", 1)
+    root = sources.get(owner + "_root")
+    if owner == "parent":
+        # Admit the original authority with the same no-follow/owner guards.
+        descriptor = open_directory(root)
+        try:
+            metadata = os.fstat(descriptor)
+            require(metadata.st_uid == os.geteuid() and not metadata.st_mode & 0o022,
+                    "owned non-writable artifact authority required")
+        finally:
+            os.close(descriptor)
+        selected_parent = os.environ.get("CONNECTOR_ROOT")
+        if selected_parent and root.resolve() == Path(selected_parent).resolve():
+            require(sources.get("framework_root") == test_root(),
+                    "reviewed source requires the explicit selected Framework root")
+        path = source_path(relative, root=root)
+        roots = (root, sources.get("framework_root"))
+        require(all(isinstance(selected, Path) and selected.is_absolute()
+                    and ".." not in selected.parts for selected in roots),
+                "absolute artifact authority required")
+        require(any(path.is_relative_to(selected) for selected in roots),
+                "reviewed source must stay inside explicit Parent/Framework roots")
+        # Framework is a separate authority even when nested under Parent.
+        authority = roots[1] if path.is_relative_to(roots[1]) else roots[0]
+        raw = read_bounded_file(authority, path.relative_to(authority).as_posix())
+    else:
+        raw = read_bounded_file(root, relative)
+    return raw
 
 
 def verify_source_authority(record, envelope, sources):
@@ -211,9 +283,7 @@ def verify_source_authority(record, envelope, sources):
     require(isinstance(mapping, dict) and set(mapping) == required, "closed producer/source path set mismatch")
     captured = {}
     for name in sorted(required):
-        owner, relative = name.split(":", 1)
-        root = sources.get(owner + "_root")
-        raw = read_bounded_file(root, relative)
+        raw = _read_source_authority(name, sources)
         require(mapping[name] == digest(raw), "actual producer/source bytes mismatch: " + name)
         captured[name] = raw
     for container in (record.get("provenance"), record.get("result")):
@@ -225,7 +295,9 @@ def verify_source_authority(record, envelope, sources):
 
 
 def load_helpers(case_id, source_bytes, framework_root):
-    """Execute only caller-authorized, independently reopened source bytes."""
+    """Execute reopened sources with a private authenticated dependency table."""
+    import builtins
+
     _, main = route(case_id)
     dependencies = []
     if case_id in PHASE4_CASES:
@@ -237,27 +309,28 @@ def load_helpers(case_id, source_bytes, framework_root):
                 "captured HTTP/1.1 framing source is required")
         dependencies.append("nginx_http11_framing")
     modules = {}
-    previous = {}
-    # Imports are scoped under the lock and restored, not taken from arbitrary
-    # already-imported modules or receipt-controlled sys.path entries.
-    with _HELPER_LOCK:
-        try:
-            for name in dependencies + [main]:
-                relative = "tests/runners/" + name + ".py"
-                module = types.ModuleType(name)
-                module.__file__ = str(framework_root / relative)
-                previous[name] = sys.modules.get(name)
-                sys.modules[name] = module
-                if case_id in SEQUENCE_CASES and name == main:
-                    module._AUTHENTICATED_WIRE = modules["nginx_http11_framing"]
-                exec(compile(source_bytes["framework:" + relative], module.__file__, "exec"), module.__dict__)
-                modules[name] = module
-        finally:
-            for name, original in previous.items():
-                if original is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = original
+    names = frozenset(dependencies + [main])
+
+    def authenticated_import(name, globals=None, locals=None, fromlist=(), level=0):
+        short = name.removeprefix("modsecurity_test_framework.runners.")
+        if level == 0 and short in names:
+            require(short in modules, "authenticated helper dependency order mismatch")
+            return modules[short]
+        if level == 0 and name == "modsecurity_test_framework.runners":
+            require(fromlist and all(item in modules for item in fromlist),
+                    "uncaptured helper import is forbidden")
+            return types.SimpleNamespace(**{item: modules[item] for item in fromlist})
+        return builtins.__import__(name, globals, locals, fromlist, level)
+
+    for name in dependencies + [main]:
+        relative = "tests/runners/" + name + ".py"
+        module = types.ModuleType("modsecurity_test_framework.authenticated_helpers." + name)
+        module.__file__ = str(framework_root / relative)
+        module.__dict__["__builtins__"] = {**vars(builtins), "__import__": authenticated_import}
+        if case_id in SEQUENCE_CASES and name == main:
+            module._AUTHENTICATED_WIRE = modules["nginx_http11_framing"]
+        exec(compile(source_bytes["framework:" + relative], module.__file__, "exec"), module.__dict__)
+        modules[name] = module
     return modules[main]
 
 
@@ -298,19 +371,19 @@ class BundleReader:
         return raw
 
 
-COMMON_RAW = frozenset({"nginx.conf", "nginx-binary", "nginx-module.so", "no-crs-baseline.conf", "rules.conf",
-                        "configtest.stdout", "configtest.stderr", "stdout.log", "stderr.log", "startup.stdout", "startup.stderr",
-                        "nginx-error.log", "worker-maps.log", "roles.json", "cleanup.json", "client.stdout", "client.stderr",
-                        "response.bin", "response.headers", "phase4-events.jsonl", "phase1-events.jsonl", "native-events.jsonl",
-                        "native-access.jsonl", "access.jsonl", "fault-request.bin", "fault-response.bin", "control-request.bin", "control-response.bin",
-                        "native-input-fault.jsonl", "native-input-fault.so", "response-header-fixture.json"})
+COMMON_RAW = frozenset({NGINX_CONFIG_LEAF, NGINX_BINARY_LEAF, NGINX_MODULE_LEAF, BASELINE_CONFIG_LEAF, "rules.conf",
+                        CONFIGTEST_STDOUT_LEAF, CONFIGTEST_STDERR_LEAF, STDOUT_LOG_LEAF, STDERR_LOG_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF,
+                        NGINX_ERROR_LEAF, WORKER_MAPS_LEAF, ROLES_LEAF, CLEANUP_LEAF, CLIENT_STDOUT_LEAF, CLIENT_STDERR_LEAF,
+                        "response.bin", "response.headers", PHASE4_EVENTS_LEAF, PHASE1_EVENTS_LEAF, NATIVE_EVENTS_LEAF,
+                        NATIVE_ACCESS_LEAF, ACCESS_LEAF, FAULT_REQUEST_LEAF, FAULT_RESPONSE_LEAF, CONTROL_REQUEST_LEAF, CONTROL_RESPONSE_LEAF,
+                        NATIVE_INPUT_FAULT_LEAF, "native-input-fault.so", "response-header-fixture.json"})
 SEQUENCE_HASHES = {
-    "binary_sha256": "nginx-binary", "module_sha256": "nginx-module.so", "rules_sha256": "no-crs-baseline.conf",
-    "observed_sha256": "sequence-observation.json", "config_sha256": "nginx.conf", "native_access_sha256": "native-access.jsonl",
-    "events_sha256": "phase1-events.jsonl", "worker_maps_sha256": "worker-maps.log",
+    "binary_sha256": NGINX_BINARY_LEAF, "module_sha256": NGINX_MODULE_LEAF, "rules_sha256": BASELINE_CONFIG_LEAF,
+    "observed_sha256": SEQUENCE_OBSERVATION_LEAF, "config_sha256": NGINX_CONFIG_LEAF, "native_access_sha256": NATIVE_ACCESS_LEAF,
+    "events_sha256": PHASE1_EVENTS_LEAF, "worker_maps_sha256": WORKER_MAPS_LEAF,
     "native_writes_sha256": "native-write-observations.jsonl", "native_finish_sha256": "native-finish-observations.jsonl",
-    "native_budget_sha256": "native-budget-observations.jsonl", "request_wire_sha256": "request-wire.bin", "response_wire_sha256": "response-wire.bin",
-    "native_begin_sha256": "native-begin-observations.jsonl",
+    "native_budget_sha256": NATIVE_BUDGET_OBSERVATIONS_LEAF, "request_wire_sha256": REQUEST_WIRE_LEAF, "response_wire_sha256": "response-wire.bin",
+    "native_begin_sha256": NATIVE_BEGIN_OBSERVATIONS_LEAF,
     "upstream_request_wire_sha256": "upstream-request-wire.bin", "upstream_response_wire_sha256": "upstream-response-wire.bin",
 }
 
@@ -318,7 +391,7 @@ SEQUENCE_HASHES = {
 def read_hash_map(reader, prefix, mapping, allowed):
     require(isinstance(mapping, dict) and set(mapping) <= allowed, "closed raw artifact hash mapping required")
     require(all(isinstance(value, str) and SHA256.fullmatch(value) for value in mapping.values()), "exact raw artifact seals required")
-    return {leaf: reader.read(prefix + leaf, expected, ARTIFACT_LIMIT if leaf in {"nginx-binary", "nginx-module.so"} else RAW_LIMIT)
+    return {leaf: reader.read(prefix + leaf, expected, ARTIFACT_LIMIT if leaf in {NGINX_BINARY_LEAF, NGINX_MODULE_LEAF} else RAW_LIMIT)
             for leaf, expected in mapping.items()}
 
 
@@ -328,10 +401,18 @@ def receipt_seal(receipt, field):
     return value
 
 
-def read_invocation(reader, descriptor, case_id, operation, sources):
+def _invocation_receipt_leaf(case_id):
+    if case_id in SEQUENCE_CASES:
+        return "sequence-source.json"
+    if case_id in INPUT_CASES:
+        return "input-fault-source.json"
+    return SOURCE_RESULT_LEAF
+
+
+def _read_original_invocation(reader, descriptor, case_id, operation, sources):
     path = descriptor.get("receipt_path")
     parts = relative_parts(path)
-    expected_leaf = "sequence-source.json" if case_id in SEQUENCE_CASES else "input-fault-source.json" if case_id in INPUT_CASES else "source-result.json"
+    expected_leaf = _invocation_receipt_leaf(case_id)
     require(parts[-1] == expected_leaf, "original producer receipt leaf required")
     require(case_id in EVENT_CASES or parts == [expected_leaf], "main invocation must use the fixed original receipt leaf")
     original = reader.read(path, descriptor.get("receipt_sha256"))
@@ -354,32 +435,81 @@ def read_invocation(reader, descriptor, case_id, operation, sources):
         require(row.get("run_id") == run_id, "source/receipt run identity mismatch")
     prefix = "/".join(parts[:-1])
     prefix = prefix + "/" if prefix else ""
+
+    return receipt, prefix, original
+
+
+def _read_sequence_invocation(reader, prefix, receipt, case_id, raw):
+    for field, leaf in SEQUENCE_HASHES.items():
+        if field in receipt and receipt[field] is not None:
+            raw[leaf] = reader.read(prefix + leaf, receipt[field], ARTIFACT_LIMIT if field in {"binary_sha256", "module_sha256"} else RAW_LIMIT)
+    require({NGINX_BINARY_LEAF, NGINX_MODULE_LEAF, BASELINE_CONFIG_LEAF, SEQUENCE_OBSERVATION_LEAF, NGINX_CONFIG_LEAF, NATIVE_ACCESS_LEAF} <= set(raw), "sequence receipt omits required raw seals")
+    if case_id in FAULT_SOURCES:
+        leaf = {NGINX_TRANSACTION_FAULT_SOURCE: "native-transaction-fault.so", NGINX_FINISH_FAULT_SOURCE: "native-finish-fault.so", NGINX_WRITE_FAULT_SOURCE: "native-write-fault.so", NGINX_ENGINE_BUDGET_FAULT_SOURCE: "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
+        raw[leaf] = reader.read(prefix + leaf, receipt_seal(receipt, "fault_library_sha256"), ARTIFACT_LIMIT)
+    # Original sequence producer retains these actual captures but has no
+    # individual receipt seal for them. They are reopened and manifest-sealed
+    # here rather than inventing fields in its original receipt.
+    for leaf in (CONFIGTEST_STDOUT_LEAF, CONFIGTEST_STDERR_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF, NGINX_ERROR_LEAF, PHASE1_EVENTS_LEAF):
+        if leaf not in raw:
+            raw[leaf] = reader.read(prefix + leaf)
+
+
+def _validate_worker_self_maps(reader, prefix, raw, ledger):
+    header, separator, maps = raw[ledger].partition(b"\n")
+    require(separator and len(header) <= 1024, "bounded worker self-map framing required")
+    identity = json_object(header)
+    fields = {"version", "pid", "ppid", "uid", "gid", "starttime", "bytes"}
+    require(set(identity) == fields and all(type(value) is int for value in identity.values()),
+            "exact numeric worker self-map identity required")
+    roles = json_object(raw[INPUT_FAULT_OBSERVATION_LEAF]).get("roles", {})
+    exact(identity, {"version": 1, "pid": roles.get("worker_pid"), "ppid": roles.get("master_pid"),
+                     "uid": 65534, "gid": 65534, "bytes": len(maps)}, "actual worker self-map identity")
+    require(identity["starttime"] > 0 and maps.endswith(b"\n") and maps == raw.get(WORKER_MAPS_LEAF),
+            "complete original worker maps must match sealed self-map ledger")
+    paths = {line.split(None, 5)[5] for line in maps.decode("utf-8").splitlines()
+             if len(line.split(None, 5)) == 6}
+    require({str(reader.root / prefix / leaf) for leaf in (_WORKER_SELF_MAPS_HELPER_NAME, NGINX_MODULE_LEAF)} <= paths,
+            "actual worker maps omit fixed helper or module snapshot")
+
+
+def _read_input_invocation(reader, prefix, receipt, sources, raw):
+    artifacts, captures = receipt.get("artifacts_sha256"), receipt.get("raw_artifacts_sha256")
+    require(isinstance(artifacts, dict) and isinstance(captures, dict), "closed input artifact maps required")
+    helper_key, ledger = "worker_self_map_library_sha256", "worker-self-maps.raw"
+    helper_present = helper_key in artifacts
+    require(helper_present == (ledger in captures), "worker helper and sealed ledger must be paired")
+    expected_helper = sources.get(helper_key)
+    require(expected_helper is None or helper_present, "explicit worker helper must be declared")
+    if helper_present:
+        require(isinstance(expected_helper, str) and SHA256.fullmatch(expected_helper)
+                and artifacts[helper_key] == expected_helper, "explicit actual worker helper digest required")
+        raw[_WORKER_SELF_MAPS_HELPER_NAME] = reader.read(prefix + _WORKER_SELF_MAPS_HELPER_NAME, expected_helper, ARTIFACT_LIMIT)
+        raw[ledger] = reader.read(prefix + ledger, captures[ledger], 64 * 1024)
+    raw.update(read_hash_map(reader, prefix, {key: value for key, value in artifacts.items()
+                                            if key != helper_key}, COMMON_RAW))
+    raw.update(read_hash_map(reader, prefix, {key: value for key, value in captures.items()
+                                            if key != ledger}, COMMON_RAW))
+    raw[INPUT_FAULT_OBSERVATION_LEAF] = reader.read(prefix + INPUT_FAULT_OBSERVATION_LEAF, receipt_seal(receipt, "observed_sha256"))
+    raw[NGINX_CONFIG_LEAF] = reader.read(prefix + NGINX_CONFIG_LEAF, receipt_seal(receipt, "config_sha256"))
+
+    if helper_present:
+        _validate_worker_self_maps(reader, prefix, raw, ledger)
+
+
+def read_invocation(reader, descriptor, case_id, operation, sources):
+    receipt, prefix, original = _read_original_invocation(reader, descriptor, case_id, operation, sources)
     raw = {}
     if case_id in SEQUENCE_CASES:
-        for field, leaf in SEQUENCE_HASHES.items():
-            if field in receipt and receipt[field] is not None:
-                raw[leaf] = reader.read(prefix + leaf, receipt[field], ARTIFACT_LIMIT if field in {"binary_sha256", "module_sha256"} else RAW_LIMIT)
-        require({"nginx-binary", "nginx-module.so", "no-crs-baseline.conf", "sequence-observation.json", "nginx.conf", "native-access.jsonl"} <= set(raw), "sequence receipt omits required raw seals")
-        if case_id in FAULT_SOURCES:
-            leaf = {"nginx_transaction_fault.c": "native-transaction-fault.so", "nginx_finish_fault.c": "native-finish-fault.so", "nginx_write_fault.c": "native-write-fault.so", "nginx_engine_budget_fault.c": "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
-            raw[leaf] = reader.read(prefix + leaf, receipt_seal(receipt, "fault_library_sha256"), ARTIFACT_LIMIT)
-        # Original sequence producer retains these actual captures but has no
-        # individual receipt seal for them. They are reopened and manifest-sealed
-        # here rather than inventing fields in its original receipt.
-        for leaf in ("configtest.stdout", "configtest.stderr", "startup.stdout", "startup.stderr", "nginx-error.log", "phase1-events.jsonl"):
-            if leaf not in raw:
-                raw[leaf] = reader.read(prefix + leaf)
+        _read_sequence_invocation(reader, prefix, receipt, case_id, raw)
     elif case_id in INPUT_CASES:
-        raw.update(read_hash_map(reader, prefix, receipt.get("artifacts_sha256"), COMMON_RAW))
-        raw.update(read_hash_map(reader, prefix, receipt.get("raw_artifacts_sha256"), COMMON_RAW))
-        raw["input-fault-observation.json"] = reader.read(prefix + "input-fault-observation.json", receipt_seal(receipt, "observed_sha256"))
-        raw["nginx.conf"] = reader.read(prefix + "nginx.conf", receipt_seal(receipt, "config_sha256"))
+        _read_input_invocation(reader, prefix, receipt, sources, raw)
     else:
         raw.update(read_hash_map(reader, prefix, receipt.get("raw_sha256"), COMMON_RAW))
-        for field, leaf in (("binary_sha256", "nginx-binary"), ("module_sha256", "nginx-module.so")):
+        for field, leaf in (("binary_sha256", NGINX_BINARY_LEAF), ("module_sha256", NGINX_MODULE_LEAF)):
             if field in receipt:
                 raw[leaf] = reader.read(prefix + leaf, receipt[field], ARTIFACT_LIMIT)
-    for field, leaf in (("binary_sha256", "nginx-binary"), ("module_sha256", "nginx-module.so")):
+    for field, leaf in (("binary_sha256", NGINX_BINARY_LEAF), ("module_sha256", NGINX_MODULE_LEAF)):
         require(leaf in raw and digest(raw[leaf]) == sources[field], "actual build snapshot mismatch: " + leaf)
     return receipt, raw, original
 
@@ -402,7 +532,7 @@ def observed_roles(roles, cleanup, run_id):
 
 
 def projection_and_config(receipt, raw, case_id, run_id, sources):
-    config = raw["nginx.conf"]
+    config = raw[NGINX_CONFIG_LEAF]
     require(re.findall(rb'\bload_module\s+"([^"\r\n]+)"\s*;', config)
             and re.findall(rb'\bload_module\s+"([^"\r\n]+)"\s*;', config)[0].endswith(b"/nginx-module.so"), "actual snapshotted module configuration required")
     require(re.findall(rb'\buser\s+([^;]+);', config) == [b"nobody nogroup"]
@@ -448,15 +578,15 @@ def producer_fields(receipt, case_id, source_bytes):
 
 def build_artifacts(receipt, raw, case_id, sources, source_bytes):
     if case_id in INPUT_CASES | SEQUENCE_CASES | RAW_CASES:
-        require_leaves(raw, {"no-crs-baseline.conf"})
+        require_leaves(raw, {BASELINE_CONFIG_LEAF})
         rules = source_bytes["framework:tests/rules/no-crs-baseline.conf"]
         if case_id in {"engine_timeout_before_commit", "engine_timeout_after_commit"}:
             rules += b"\n# Technical soft-budget probe has no rule-deny premise.\nSecRuleRemoveById 1100301\n"
-        require(raw["no-crs-baseline.conf"] == rules, "effective snapshotted rules differ from authenticated source")
+        require(raw[BASELINE_CONFIG_LEAF] == rules, "effective snapshotted rules differ from authenticated source")
     if case_id in INPUT_CASES | set(FAULT_SOURCES):
         leaf = "native-input-fault.so" if case_id in INPUT_CASES else {
-            "nginx_transaction_fault.c": "native-transaction-fault.so", "nginx_finish_fault.c": "native-finish-fault.so",
-            "nginx_write_fault.c": "native-write-fault.so", "nginx_engine_budget_fault.c": "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
+            NGINX_TRANSACTION_FAULT_SOURCE: "native-transaction-fault.so", NGINX_FINISH_FAULT_SOURCE: "native-finish-fault.so",
+            NGINX_WRITE_FAULT_SOURCE: "native-write-fault.so", NGINX_ENGINE_BUDGET_FAULT_SOURCE: "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
         expected = sources.get("fault_library_sha256", {}).get(case_id)
         require(isinstance(expected, str) and SHA256.fullmatch(expected) and leaf in raw and digest(raw[leaf]) == expected,
                 "explicit actual compiled fault artifact authority required")
@@ -523,25 +653,25 @@ def actual_events(raw, leaf):
 
 
 def validate_raw_h1(helper, receipt, raw, case_id, run_id):
-    require_leaves(raw, {"fault-request.bin", "fault-response.bin", "control-request.bin", "control-response.bin", "access.jsonl",
-                         "nginx-error.log", "native-events.jsonl", "roles.json", "cleanup.json", "stdout.log", "stderr.log", "startup.stdout", "startup.stderr"})
+    require_leaves(raw, {FAULT_REQUEST_LEAF, FAULT_RESPONSE_LEAF, CONTROL_REQUEST_LEAF, CONTROL_RESPONSE_LEAF, ACCESS_LEAF,
+                         NGINX_ERROR_LEAF, NATIVE_EVENTS_LEAF, ROLES_LEAF, CLEANUP_LEAF, STDOUT_LOG_LEAF, STDERR_LOG_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF})
     exact(receipt, {"schema_version": 1, "connector": "nginx", "integration_mode": MODE, "configtest_exit_code": 0,
                     "host_observation_valid": True, "failure": None}, "actual raw H1 receipt")
-    roles, cleanup = json_object(raw["roles.json"]), json_object(raw["cleanup.json"])
+    roles, cleanup = json_object(raw[ROLES_LEAF]), json_object(raw[CLEANUP_LEAF])
     observed_roles(roles, cleanup, run_id)
     control_run = run_id[:119] + "-control"
-    require(raw["fault-request.bin"] == helper.request_bytes(case_id, run_id)
-            and raw["control-request.bin"] == helper.request_bytes(case_id, control_run, control=True), "actual closed wire request mismatch")
-    accesses = json_lines(raw["access.jsonl"])
+    require(raw[FAULT_REQUEST_LEAF] == helper.request_bytes(case_id, run_id)
+            and raw[CONTROL_REQUEST_LEAF] == helper.request_bytes(case_id, control_run, control=True), "actual closed wire request mismatch")
+    accesses = json_lines(raw[ACCESS_LEAF])
     fault = [row for row in accesses if row.get("uri") == helper.request_path(case_id, run_id)]
     control = [row for row in accesses if row.get("uri") == helper.request_path(case_id, control_run)]
     require(len(fault) == len(control) == 1, "one actual fault and positive control access required")
-    errors = helper.validate_host_rejection(case_id, run_id, raw["fault-response.bin"], fault[0], raw["nginx-error.log"])
+    errors = helper.validate_host_rejection(case_id, run_id, raw[FAULT_RESPONSE_LEAF], fault[0], raw[NGINX_ERROR_LEAF])
     require(not errors, "; ".join(errors))
-    require(helper.response_status(raw["control-response.bin"]) == 200 and control[0].get("status") == 200, "positive H1 control must remain successful")
+    require(helper.response_status(raw[CONTROL_RESPONSE_LEAF]) == 200 and control[0].get("status") == 200, "positive H1 control must remain successful")
     for name, status in (("fault", 400), ("control", 200)):
         exact(receipt.get("requests", {}).get(name), {"client_exit_code": 0, "http_status": status}, "actual raw client " + name)
-    events = actual_events(raw, "native-events.jsonl")
+    events = actual_events(raw, NATIVE_EVENTS_LEAF)
     require(not any(event.get("uri") == helper.request_path(case_id, run_id) for event in events), "preconnector rejected request must not admit native events")
     control_transactions = sorted({event["transaction_id"] for event in events
                                    if event.get("uri") == helper.request_path(case_id, control_run)})
@@ -554,42 +684,46 @@ def validate_raw_h1(helper, receipt, raw, case_id, run_id):
 
 
 def validate_input(helper, receipt, raw, case_id, run_id):
-    require_leaves(raw, {"native-access.jsonl", "native-input-fault.jsonl", "phase1-events.jsonl", "worker-maps.log", "nginx-error.log",
-                         "configtest.stdout", "configtest.stderr", "client.stdout", "client.stderr", "startup.stdout", "startup.stderr"})
+    require_leaves(raw, {NATIVE_ACCESS_LEAF, NATIVE_INPUT_FAULT_LEAF, PHASE1_EVENTS_LEAF, WORKER_MAPS_LEAF, NGINX_ERROR_LEAF,
+                         CONFIGTEST_STDOUT_LEAF, CONFIGTEST_STDERR_LEAF, CLIENT_STDOUT_LEAF, CLIENT_STDERR_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF})
     exact(receipt, {"configtest_exit_code": 0}, "actual input configtest")
-    observed = json_object(raw["input-fault-observation.json"])
+    observed = json_object(raw[INPUT_FAULT_OBSERVATION_LEAF])
     errors = helper.observation_errors(observed, case_id, run_id)
     require(not errors, "; ".join(errors))
-    require(json_lines(raw["native-access.jsonl"]) == [observed["native_access"]]
-            and json_lines(raw["native-input-fault.jsonl"]) == [observed["native_fault"]], "actual fault/access ledger projection mismatch")
-    events = actual_events(raw, "phase1-events.jsonl")
-    protocol = [event for event in events if event.get("phase") in (1, "1", "request_headers") and event.get("event") == "protocol_error"]
-    require(protocol == observed["native_events"], "actual native protocol event projection mismatch")
-    require(len(events) == 2 and events[0] == protocol[0] and events[1].get("event") == "transaction_cleanup",
-            "terminal P1 mapper failure permits only its protocol error then cleanup source event")
+    require(json_lines(raw[NATIVE_ACCESS_LEAF]) == [observed["native_access"]]
+            and json_lines(raw[NATIVE_INPUT_FAULT_LEAF]) == [observed["native_fault"]], "actual fault/access ledger projection mismatch")
+    events = actual_events(raw, PHASE1_EVENTS_LEAF)
+    identity = {"phase": "request_headers", "event": "connector_error",
+                "message_id": "MSCONN_EVENT_CONNECTOR_ERROR", "http_status": 500}
+    errors = [event for event in events if all(
+        type(event.get(key)) is type(value) and event.get(key) == value
+        for key, value in identity.items())]
+    require(errors == observed["native_events"], "actual native connector error projection mismatch")
+    require(len(events) == 2 and events[0] == errors[0] and events[1].get("event") == "transaction_cleanup",
+            "terminal P1 mapper failure permits only its connector error then cleanup source event")
     exact(events[0], {"transaction_id": observed["transaction_id"], "method": "", "uri": ""},
           "actual pre-mapping terminal source identity")
-    require(re.findall(rb'\bmodsecurity_transaction_id\s+"([^"\r\n]+)"\s*;', raw["nginx.conf"]) == [observed["transaction_id"].encode()], "actual configured mapper transaction differs from native ledger")
-    require(observed["native_diagnostic"].encode() in raw["nginx-error.log"] and raw["client.stdout"] == b"400"
-            and raw["client.stderr"] == b"", "actual diagnostic/client bytes mismatch")
-    cleanup_events(events, [observed["transaction_id"]], error_class="protocol_error",
+    require(re.findall(rb'\bmodsecurity_transaction_id\s+"([^"\r\n]+)"\s*;', raw[NGINX_CONFIG_LEAF]) == [observed["transaction_id"].encode()], "actual configured mapper transaction differs from native ledger")
+    require(observed["native_diagnostic"].encode() in raw[NGINX_ERROR_LEAF] and raw[CLIENT_STDOUT_LEAF] == b"500"
+            and raw[CLIENT_STDERR_LEAF] == b"", "actual diagnostic/client bytes mismatch")
+    cleanup_events(events, [observed["transaction_id"]], error_class="connector_error",
                    uris={observed["transaction_id"]: observed["native_access"]["uri"]})
     observed_roles(observed["roles"], observed["cleanup"], run_id)
-    return {"events": events, "transaction_ids": [observed["transaction_id"]], "actual_status": 400, "observation": observed}
+    return {"events": events, "transaction_ids": [observed["transaction_id"]], "actual_status": 500, "observation": observed}
 
 
 def validate_configtest(receipt, raw, case_id):
     exit_field = "observed_exit_code" if case_id in SEQUENCE_CASES else "configtest_exit_code"
     exact(receipt, {exit_field: 0}, "actual configtest outcome")
-    leaf = "stderr.log" if case_id in RAW_CASES else "configtest.stderr"
-    require_leaves(raw, {leaf, "stdout.log" if case_id in RAW_CASES else "configtest.stdout", "startup.stdout", "startup.stderr"})
-    modules = re.findall(rb'\bload_module\s+"([^"\r\n]+)"\s*;', raw["nginx.conf"])
+    leaf = STDERR_LOG_LEAF if case_id in RAW_CASES else CONFIGTEST_STDERR_LEAF
+    require_leaves(raw, {leaf, STDOUT_LOG_LEAF if case_id in RAW_CASES else CONFIGTEST_STDOUT_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF})
+    modules = re.findall(rb'\bload_module\s+"([^"\r\n]+)"\s*;', raw[NGINX_CONFIG_LEAF])
     require(len(modules) == 1, "one actual module load required")
     configuration_path = modules[0].rsplit(b"/", 1)[0] + b"/nginx.conf"
     require(configuration_path in raw[leaf] and b"syntax is ok" in raw[leaf] and b"test is successful" in raw[leaf], "actual successful configtest diagnostics must bind configuration")
-    if "worker-maps.log" in raw:
-        require(modules[0] in raw["worker-maps.log"]
-                and modules[0].rsplit(b"/", 1)[0] + b"/nginx-binary" in raw["worker-maps.log"], "actual worker mappings do not bind snapshots")
+    if WORKER_MAPS_LEAF in raw:
+        require(modules[0] in raw[WORKER_MAPS_LEAF]
+                and modules[0].rsplit(b"/", 1)[0] + b"/nginx-binary" in raw[WORKER_MAPS_LEAF], "actual worker mappings do not bind snapshots")
 
 
 def native_error(events, name, message_id, phase, transaction, path):
@@ -605,8 +739,8 @@ def sequence_fault_ledgers(observed, raw):
             require_leaves(raw, {leaf})
             require(json_lines(raw[leaf]) == observed[field], "actual sequence fault ledger projection mismatch")
     if "native_budget" in observed:
-        require_leaves(raw, {"native-budget-observations.jsonl"})
-        ledger = json_lines(raw["native-budget-observations.jsonl"])
+        require_leaves(raw, {NATIVE_BUDGET_OBSERVATIONS_LEAF})
+        ledger = json_lines(raw[NATIVE_BUDGET_OBSERVATIONS_LEAF])
         require([item for item in ledger if item.get("native_operation") != "msconnector_transaction_contract_cleanup"] == observed["native_budget"]
                 and [item for item in ledger if item.get("native_operation") == "msconnector_transaction_contract_cleanup"] == observed["native_cleanup"], "actual timing/cleanup ledger projection mismatch")
 
@@ -614,9 +748,9 @@ def sequence_fault_ledgers(observed, raw):
 def sequence_wire(observed, raw):
     for field, leaf in (("wire", "response-wire.bin"),):
         if field in observed:
-            require_leaves(raw, {leaf, "request-wire.bin"})
+            require_leaves(raw, {leaf, REQUEST_WIRE_LEAF})
             require(raw[leaf] == bytes.fromhex(observed[field]["response_hex"])
-                    and raw["request-wire.bin"] == bytes.fromhex(observed[field]["request_hex"]), "actual downstream wire projection mismatch")
+                    and raw[REQUEST_WIRE_LEAF] == bytes.fromhex(observed[field]["request_hex"]), "actual downstream wire projection mismatch")
     if "upstream_wire" in observed:
         require(raw["upstream-request-wire.bin"] == bytes.fromhex(observed["upstream_wire"]["request_hex"])
                 and raw["upstream-response-wire.bin"] == bytes.fromhex(observed["upstream_wire"]["response_hex"]), "actual upstream wire projection mismatch")
@@ -651,8 +785,8 @@ def sequence_cleanup(case_id, observed, accesses, events, raw):
         native_error(events, "connector_error", "MSCONN_EVENT_CONNECTOR_ERROR", "request_headers", transactions[0], observed["requests"][0]["path"])
         exact(next(event for event in events if event.get("event") == "connector_error"), {"http_status": 500}, "actual allocation error status")
         cleanup_events(events, transactions, native_completed=0, error_class="connector_error", uris=uris)
-        require_leaves(raw, {"native-begin-observations.jsonl"})
-        ledger = json_lines(raw["native-begin-observations.jsonl"])
+        require_leaves(raw, {NATIVE_BEGIN_OBSERVATIONS_LEAF})
+        ledger = json_lines(raw[NATIVE_BEGIN_OBSERVATIONS_LEAF])
         require(ledger == observed.get("native_begin") and len(ledger) == 1, "actual scoped native allocation ledger required")
         require(set(ledger[0]) == {"native_operation", "observed_return", "worker_pid", "worker_uid", "master_pid", "transaction_id", "injected"},
                 "closed native allocation ledger fields required")
@@ -670,14 +804,14 @@ def sequence_cleanup(case_id, observed, accesses, events, raw):
 
 
 def validate_sequence(helper, receipt, raw, case_id, run_id):
-    require_leaves(raw, {"worker-maps.log"})
-    observed = json_object(raw["sequence-observation.json"])
+    require_leaves(raw, {WORKER_MAPS_LEAF})
+    observed = json_object(raw[SEQUENCE_OBSERVATION_LEAF])
     errors = helper.observation_errors(observed, case_id, run_id)
     require(not errors, "; ".join(errors))
     observed_roles(observed["roles"], observed["cleanup"], run_id)
-    accesses = json_lines(raw["native-access.jsonl"])
+    accesses = json_lines(raw[NATIVE_ACCESS_LEAF])
     require(accesses == observed["native_access"], "actual sequence access projection mismatch")
-    events = actual_events(raw, "phase1-events.jsonl")
+    events = actual_events(raw, PHASE1_EVENTS_LEAF)
     if "native_events" in observed:
         require(events == observed["native_events"], "actual sequence native event projection mismatch")
     sequence_fault_ledgers(observed, raw)
@@ -739,7 +873,7 @@ def validate_phase4_layer(helper, receipt, raw, case_id, run_id):
     require(not errors, "; ".join(errors))
     observed_roles(receipt.get("roles"), receipt.get("cleanup"), run_id)
     require(raw["response.headers"].startswith(b"HTTP/1.1 "), "actual downstream HTTP1.1 required")
-    events = actual_events(raw, "phase4-events.jsonl")
+    events = actual_events(raw, PHASE4_EVENTS_LEAF)
     transactions = sorted({event["transaction_id"] for event in receipt["native_events"]})
     cleanup_events(events, transactions, error_class="body_limit" if case_id == "phase4_body_reject" else "none",
                    uris={event["transaction_id"]: event["uri"] for event in receipt["native_events"]})
@@ -747,9 +881,9 @@ def validate_phase4_layer(helper, receipt, raw, case_id, run_id):
 
 
 def validate_event_layer(reader, envelope, helper, case_id, run_id, sources, source_bytes, names, receipts, raws, originals):
-    require(envelope.get("parent_receipt_path") == "source-result.json"
+    require(envelope.get("parent_receipt_path") == SOURCE_RESULT_LEAF
                 and isinstance(envelope.get("parent_receipt_sha256"), str) and SHA256.fullmatch(envelope["parent_receipt_sha256"]), "sealed original E parent receipt required")
-    receipt = json_object(reader.read("source-result.json", envelope["parent_receipt_sha256"]))
+    receipt = json_object(reader.read(SOURCE_RESULT_LEAF, envelope["parent_receipt_sha256"]))
     exact(receipt, {"case_id": case_id, "run_id": run_id, "parent_sha": sources["parent_sha"], "framework_sha": sources["framework_sha"], "mrts_sha": sources["mrts_sha"]}, "actual E enclosing source")
     exact(receipt, {"driver_sha256": digest(source_bytes["parent:ci/runtime/lifecycle/run-nginx-event-boundary-cases.py"]),
                         "closed_inputs_sha256": digest(source_bytes["framework:tests/runners/nginx_event_boundary_operations.py"])}, "actual E enclosing producer")
@@ -762,7 +896,7 @@ def validate_event_layer(reader, envelope, helper, case_id, run_id, sources, sou
     require(not errors, "; ".join(errors))
     events, transactions = [], []
     for name in names:
-        child_events = actual_events(raws[name], "phase4-events.jsonl")
+        child_events = actual_events(raws[name], PHASE4_EVENTS_LEAF)
         child_transactions = sorted({event["transaction_id"] for event in receipts[name]["native_events"]})
         cleanup_events(child_events, child_transactions,
                        uris={event["transaction_id"]: event["uri"] for event in receipts[name]["native_events"]})

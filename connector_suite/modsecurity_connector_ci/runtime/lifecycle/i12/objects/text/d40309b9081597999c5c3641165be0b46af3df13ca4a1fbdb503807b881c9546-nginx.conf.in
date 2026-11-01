@@ -1,0 +1,26 @@
+load_module "@MODULE@";
+user nobody nogroup;
+worker_processes 1;
+daemon off;
+pid "@OUTPUT@/nginx.pid";
+error_log "@OUTPUT@/nginx-error.log" info;
+env MSCONNECTOR_LIFECYCLE_FD;
+env MSCONNECTOR_LIFECYCLE_RUN;
+env MSCONNECTOR_LIFECYCLE_PROFILE;
+env MSCONNECTOR_LIFECYCLE_CASE;
+env MSCONNECTOR_NGX_HOST_FD;
+env MSCONNECTOR_OWNED_SELF_MAP_FD;
+env MSCONNECTOR_OWNED_SELF_MAP_UID;
+events {}
+http {
+  log_format raw_case escape=json '{"method":"$request_method","uri":"$request_uri","status":$status,"connection":"$connection","connection_requests":$connection_requests}';
+  access_log "@OUTPUT@/access.jsonl" raw_case;
+  modsecurity on;
+  modsecurity_phase4_mode safe;
+  modsecurity_rules_file "@OUTPUT@/no-crs-baseline.conf";
+  modsecurity_phase4_log "@OUTPUT@/native-events.jsonl";
+  server {
+    listen 127.0.0.1:@PORT@;
+    location / { proxy_http_version 1.1; proxy_buffering off; proxy_pass http://127.0.0.1:@BACKEND_PORT@; }
+  }
+}

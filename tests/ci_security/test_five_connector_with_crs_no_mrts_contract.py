@@ -756,7 +756,7 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn(
-            'connector_smoke_run haproxy "$CONNECTOR_ROOT/connectors/haproxy/harness/run_haproxy_smoke.sh"',
+            'connector_smoke_run haproxy "$TEST_ROOT/connector_suite/adapters/haproxy/harness/run_haproxy_smoke.sh"',
             entrypoint,
         )
         self.assertNotIn("run_haproxy_htx_runtime.sh", entrypoint)

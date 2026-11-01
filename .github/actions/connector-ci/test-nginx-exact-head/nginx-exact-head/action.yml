@@ -1,0 +1,318 @@
+name: Connector NGINX exact-head hosted tests
+description: Run preserved exact-head NGINX setup and cases within the caller job.
+inputs:
+  framework-revision:
+    description: Exact Framework source revision selected by the Parent caller.
+    required: true
+runs:
+  using: composite
+  steps:
+      - name: Initialize exact-head test environment
+        shell: bash
+        env:
+          EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          NGINX_FUNCTIONAL_WORKER_USER: msconnector-nginx-functional
+          NGINX_FUNCTIONAL_WORKER_GROUP: msconnector-nginx-functional
+          MODSECURITY_REPO_URL: https://github.com/owasp-modsecurity/ModSecurity.git
+          ALLOW_RUNTIME_BUILDS: "1"
+          ALLOW_RUNTIME_DOWNLOADS: "1"
+          RUNTIME_COMPONENT_TARGET: nginx
+          BUILD_NGINX_FROM_SOURCE: "1"
+          NGINX_SOURCE_MODE: github-release
+          NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx
+          NGINX_RELEASE_TAG: release-1.31.6
+          NGINX_SOURCE_GIT_REF: release-1.31.6
+          NGINX_RELEASE_ASSET_NAME: nginx-1.31.6.tar.gz
+          NGINX_SHA256: 974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1
+          NGINX_REQUIRE_PINNED_PROVENANCE: "1"
+          SMOKE_PREPARE_TIMEOUT_SECONDS: "3600"
+        run: |
+          set -euo pipefail
+          {
+            printf '%s=%s\n' \
+              EXPECTED_PARENT_SHA "$EXPECTED_PARENT_SHA" \
+              NGINX_FUNCTIONAL_WORKER_USER "$NGINX_FUNCTIONAL_WORKER_USER" \
+              NGINX_FUNCTIONAL_WORKER_GROUP "$NGINX_FUNCTIONAL_WORKER_GROUP" \
+              MODSECURITY_REPO_URL "$MODSECURITY_REPO_URL" \
+              ALLOW_RUNTIME_BUILDS "$ALLOW_RUNTIME_BUILDS" \
+              ALLOW_RUNTIME_DOWNLOADS "$ALLOW_RUNTIME_DOWNLOADS" \
+              RUNTIME_COMPONENT_TARGET "$RUNTIME_COMPONENT_TARGET" \
+              BUILD_NGINX_FROM_SOURCE "$BUILD_NGINX_FROM_SOURCE" \
+              NGINX_SOURCE_MODE "$NGINX_SOURCE_MODE" \
+              NGINX_SOURCE_REPO_URL "$NGINX_SOURCE_REPO_URL" \
+              NGINX_RELEASE_TAG "$NGINX_RELEASE_TAG" \
+              NGINX_SOURCE_GIT_REF "$NGINX_SOURCE_GIT_REF" \
+              NGINX_RELEASE_ASSET_NAME "$NGINX_RELEASE_ASSET_NAME" \
+              NGINX_SHA256 "$NGINX_SHA256" \
+              NGINX_REQUIRE_PINNED_PROVENANCE "$NGINX_REQUIRE_PINNED_PROVENANCE" \
+              SMOKE_PREPARE_TIMEOUT_SECONDS "$SMOKE_PREPARE_TIMEOUT_SECONDS"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Bind exact pinned Framework source and test context
+        uses: $/.github/actions/connector-context
+        with:
+          framework-revision: ${{ inputs.framework-revision }}
+      - id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        shell: bash
+        run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+      - name: Verify exact PR head
+        shell: bash
+        run: |
+          set -eu
+          actual="$(git rev-parse --verify 'HEAD^{commit}')"
+          printf '%s\n' "$EXPECTED_PARENT_SHA" | /usr/bin/grep -Eq '^[0-9a-f]{40}$' || {
+            echo "exact-head gate: expected value is not a complete commit SHA" >&2
+            exit 1
+          }
+          test "$actual" = "$EXPECTED_PARENT_SHA" || {
+            echo "exact-head gate: expected $EXPECTED_PARENT_SHA, observed $actual" >&2
+            exit 1
+          }
+      - name: Preflight root and isolated NGINX worker
+        shell: bash
+        run: |
+          set -eu
+          test "$(/usr/bin/id -u)" -ne 0
+          /usr/bin/sudo -n /usr/bin/id -u | /usr/bin/grep -qx 0
+          /usr/bin/sudo -n /usr/bin/id -g | /usr/bin/grep -qx 0
+          /usr/bin/getent group "$NGINX_FUNCTIONAL_WORKER_GROUP" >/dev/null 2>&1 || \
+            /usr/bin/sudo -n /usr/sbin/groupadd --system "$NGINX_FUNCTIONAL_WORKER_GROUP"
+          /usr/bin/getent passwd "$NGINX_FUNCTIONAL_WORKER_USER" >/dev/null 2>&1 || \
+            /usr/bin/sudo -n /usr/sbin/useradd --system --no-create-home --no-user-group \
+              --gid "$NGINX_FUNCTIONAL_WORKER_GROUP" --shell /usr/sbin/nologin \
+              "$NGINX_FUNCTIONAL_WORKER_USER"
+          worker_shell="$(/usr/bin/getent passwd "$NGINX_FUNCTIONAL_WORKER_USER" | /usr/bin/cut -d: -f7)"
+          worker_group_gid="$(/usr/bin/getent group "$NGINX_FUNCTIONAL_WORKER_GROUP" | /usr/bin/cut -d: -f3)"
+          test "$worker_shell" = /usr/sbin/nologin
+          worker_uid="$(/usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/id -u)"
+          worker_gid="$(/usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/id -g)"
+          test "$worker_uid" -ne 0
+          test "$worker_gid" -ne 0
+          test "$worker_gid" = "$worker_group_gid"
+          /usr/bin/uname -a
+      - name: Initialize isolated exact-head paths
+        shell: bash
+        run: |
+          set -eu
+          # Do not widen a shared RUNNER_TEMP ancestor merely to let the
+          # unprivileged NGINX worker reach its deliberately separate tree.
+          if [ ! -d /tmp ] || [ -L /tmp ]; then
+            echo "exact-head gate: /tmp is unavailable or a symlink" >&2
+            exit 1
+          fi
+          [ "$(/usr/bin/stat -c '%u:%a' /tmp)" = "0:1777" ] || {
+            echo "exact-head gate: /tmp is not the expected root-owned sticky directory" >&2
+            exit 1
+          }
+          RUNNER_UID=$(/usr/bin/id -u)
+          RUNNER_GID=$(/usr/bin/id -g)
+          NATIVE_FIXTURE_ROOT=$(/usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-native-fixture.XXXXXX)
+          case "$NATIVE_FIXTURE_ROOT" in
+            /tmp/ModSecurity-conector-nginx-native-fixture.*) ;;
+            *)
+              echo "exact-head gate: native fixture root is outside its designated /tmp namespace" >&2
+              exit 1
+              ;;
+          esac
+          if [ ! -d "$NATIVE_FIXTURE_ROOT" ] || [ -L "$NATIVE_FIXTURE_ROOT" ]; then
+            echo "exact-head gate: native fixture root is unavailable or a symlink" >&2
+            exit 1
+          fi
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$NATIVE_FIXTURE_ROOT")" = "$RUNNER_UID:$RUNNER_GID:700" ] || {
+            echo "exact-head gate: native fixture root has an unexpected identity or mode" >&2
+            exit 1
+          }
+          FUNCTIONAL_JOB_ROOT=$(/usr/bin/sudo -n /usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)
+          if [ ! -d "$FUNCTIONAL_JOB_ROOT" ] || [ -L "$FUNCTIONAL_JOB_ROOT" ]; then
+            echo "exact-head gate: functional job root is unavailable or a symlink" >&2
+            exit 1
+          fi
+          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_JOB_ROOT")" = "0:700" ] || {
+            echo "exact-head gate: functional job root is not a fresh private root directory" >&2
+            exit 1
+          }
+          /usr/bin/sudo -n /bin/chmod 711 "$FUNCTIONAL_JOB_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_JOB_ROOT")" = "0:711" ] || {
+            echo "exact-head gate: functional job root did not become root-owned non-enumerable" >&2
+            exit 1
+          }
+          RUN_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-exact-head"
+          FUNCTIONAL_PARENT_ROOT="$FUNCTIONAL_JOB_ROOT/ModSecurity-conector-nginx-functional-parent"
+          /usr/bin/sudo -n /bin/mkdir "$RUN_ROOT"
+          /usr/bin/sudo -n /bin/chown "$RUNNER_UID:$RUNNER_GID" "$RUN_ROOT"
+          /usr/bin/sudo -n /bin/chmod 700 "$RUN_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%a' "$RUN_ROOT")" = "$RUNNER_UID:700" ] || {
+            echo "exact-head gate: private run root has an unexpected identity or mode" >&2
+            exit 1
+          }
+          # The inventory runner admits an existing invocation-owned temp root.
+          # RUN_ROOT was just created privately; do not create through shared paths.
+          /bin/mkdir -m 700 "$RUN_ROOT/tmp"
+          [ ! -L "$RUN_ROOT/tmp" ]
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$RUN_ROOT/tmp")" = "$RUNNER_UID:$RUNNER_GID:700" ] || {
+            echo "exact-head gate: private temp root has an unexpected identity or mode" >&2
+            exit 1
+          }
+          if [ -e "$FUNCTIONAL_PARENT_ROOT" ] || [ -L "$FUNCTIONAL_PARENT_ROOT" ]; then
+            echo "exact-head gate: functional parent is unexpectedly occupied" >&2
+            exit 1
+          fi
+          /usr/bin/sudo -n /bin/mkdir "$FUNCTIONAL_PARENT_ROOT"
+          /usr/bin/sudo -n /bin/chmod 711 "$FUNCTIONAL_PARENT_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%a' "$FUNCTIONAL_PARENT_ROOT")" = "0:711" ] || {
+            echo "exact-head gate: functional parent has an unexpected identity or mode" >&2
+            exit 1
+          }
+          /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- \
+            /usr/bin/test -x "$FUNCTIONAL_JOB_ROOT"
+          /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- \
+            /usr/bin/test -x "$FUNCTIONAL_PARENT_ROOT"
+          if /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- \
+            /usr/bin/test -x "$RUN_ROOT"; then
+            echo "exact-head gate: worker can traverse the private provisioning root" >&2
+            exit 1
+          fi
+          {
+            echo "NATIVE_FIXTURE_ROOT=$NATIVE_FIXTURE_ROOT"
+            echo "RUN_ROOT=$RUN_ROOT"
+            echo "VERIFIED_RUN_ROOT=$RUN_ROOT"
+            echo "NGINX_FUNCTIONAL_A_PARENT_ROOT=$FUNCTIONAL_PARENT_ROOT"
+            echo "BUILD_ROOT=$RUN_ROOT/build"
+            echo "TMP_ROOT=$RUN_ROOT/tmp"
+            echo "LOG_ROOT=$RUN_ROOT/logs"
+            echo "CONNECTOR_COMPONENT_CACHE=$RUN_ROOT/component-cache"
+            echo "RUNTIME_REPORT_OUTPUT_ROOT=$RUN_ROOT/runtime-component-reports"
+            echo "SOURCE_ROOT=$RUN_ROOT/src"
+            echo "MODSECURITY_SOURCE_DIR=$RUN_ROOT/src/ModSecurity_V3"
+            echo "MODSECURITY_V3_SOURCE_DIR=$RUN_ROOT/src/ModSecurity_V3"
+            echo "NGINX_FUNCTIONAL_WORKER_USER=$NGINX_FUNCTIONAL_WORKER_USER"
+            echo "NGINX_FUNCTIONAL_WORKER_GROUP=$NGINX_FUNCTIONAL_WORKER_GROUP"
+          } >> "$GITHUB_ENV"
+      - name: Provision pinned NGINX and connector runtime
+        id: provision-runtime
+        shell: bash
+        run: |
+          set -eu
+          make setup-dev
+          # Keep the exact producer snapshot across the later env -i boundary.
+          # A fresh wrapper invocation otherwise prepares the runtime again.
+          RUNTIME_COMPONENT_ENV_SNAPSHOT=$(/bin/sh \
+            modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/reserve-runtime-env-snapshot.sh "$RUNTIME_REPORT_OUTPUT_ROOT")
+          export RUNTIME_COMPONENT_ENV_SNAPSHOT
+          env \
+            -u MRTS_NATIVE_NGINX_BIN \
+            -u MRTS_NATIVE_NGINX_MODULE_DIR \
+            -u MRTS_NATIVE_NGINX_MODULE_FILE \
+            -u MRTS_NATIVE_NGINX_MODSECURITY_LIB_DIR \
+            -u NGINX_MRTS_MODSECURITY_LIB_DIR \
+            -u NGINX_BINARY \
+            -u NGINX_MODULE \
+            -u NGINX_PREFIX \
+            -u NGINX_BUILD_DIR \
+            make fetch-deps
+          test -s "$RUNTIME_COMPONENT_ENV_SNAPSHOT"
+          [[ "$RUNTIME_COMPONENT_ENV_SNAPSHOT" =~ ^/[a-zA-Z0-9_./-]+$ ]]
+          test "${RUNTIME_COMPONENT_ENV_SNAPSHOT%/*}" = "$RUNTIME_REPORT_OUTPUT_ROOT"
+          [[ "${RUNTIME_COMPONENT_ENV_SNAPSHOT##*/}" =~ ^runtime-env-snapshot\.[a-zA-Z0-9]{6}\.sh$ ]]
+          printf '%s\n' "runtime_component_env_snapshot=$RUNTIME_COMPONENT_ENV_SNAPSHOT" >> "$GITHUB_OUTPUT"
+      - name: Print bounded NGINX provisioning failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -eu
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C \
+            /usr/bin/python3 -I \
+            modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/provisioning/components/nginx_exact_head_diagnostics.py \
+            --run-root "$RUN_ROOT"
+      - name: Run isolated modsecurity_use_error_log on/off cells
+        env:
+          SMOKE_RUN_ID: nginx-exact-head-${{ github.run_id }}-${{ github.run_attempt }}
+          RUNTIME_COMPONENT_ENV_SNAPSHOT: ${{ steps.provision-runtime.outputs.runtime_component_env_snapshot }}
+        shell: bash
+        run: |
+          set -eu
+          FUNCTIONAL_EVIDENCE_ROOT="$RUN_ROOT/nginx-functional-a-evidence"
+          if [ -e "$FUNCTIONAL_EVIDENCE_ROOT" ] || [ -L "$FUNCTIONAL_EVIDENCE_ROOT" ]; then
+            echo "exact-head gate: Functional-A evidence root is unexpectedly occupied" >&2
+            exit 1
+          fi
+          /bin/mkdir -m 700 "$FUNCTIONAL_EVIDENCE_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$FUNCTIONAL_EVIDENCE_ROOT")" = \
+            "$(/usr/bin/id -u):$(/usr/bin/id -g):700" ] || {
+            echo "exact-head gate: Functional-A evidence root has an unexpected identity or mode" >&2
+            exit 1
+          }
+          test "$TMP_ROOT" = "$RUN_ROOT/tmp"
+          test ! -L "$TMP_ROOT"
+          [ "$(/usr/bin/stat -c '%u:%g:%a' "$TMP_ROOT")" = \
+            "$(/usr/bin/id -u):$(/usr/bin/id -g):700" ] || {
+            echo "exact-head gate: private temp root changed before inventory admission" >&2
+            exit 1
+          }
+          /usr/bin/env -i \
+            PATH=/usr/bin:/bin HOME=/nonexistent LC_ALL=C \
+            EXPECTED_PARENT_SHA="$EXPECTED_PARENT_SHA" \
+            NGINX_FUNCTIONAL_WORKER_USER="$NGINX_FUNCTIONAL_WORKER_USER" \
+            NGINX_FUNCTIONAL_WORKER_GROUP="$NGINX_FUNCTIONAL_WORKER_GROUP" \
+            NGINX_FUNCTIONAL_A_PARENT_ROOT="$NGINX_FUNCTIONAL_A_PARENT_ROOT" \
+            NGINX_FUNCTIONAL_A_EVIDENCE_ROOT="$FUNCTIONAL_EVIDENCE_ROOT" \
+            NATIVE_FIXTURE_ROOT="$NATIVE_FIXTURE_ROOT" \
+            RUN_ROOT="$RUN_ROOT" \
+            VERIFIED_RUN_ROOT="$VERIFIED_RUN_ROOT" \
+            BUILD_ROOT="$BUILD_ROOT" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" \
+            CONNECTOR_COMPONENT_CACHE="$CONNECTOR_COMPONENT_CACHE" \
+            RUNTIME_REPORT_OUTPUT_ROOT="$RUNTIME_REPORT_OUTPUT_ROOT" \
+            RUNTIME_COMPONENT_ENV_SNAPSHOT="$RUNTIME_COMPONENT_ENV_SNAPSHOT" \
+            SKIP_RUNTIME_COMPONENT_PREPARE=1 \
+            SOURCE_ROOT="$SOURCE_ROOT" MODSECURITY_SOURCE_DIR="$MODSECURITY_SOURCE_DIR" \
+            MODSECURITY_V3_SOURCE_DIR="$MODSECURITY_V3_SOURCE_DIR" \
+            ALLOW_RUNTIME_BUILDS="$ALLOW_RUNTIME_BUILDS" \
+            ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" \
+            RUNTIME_COMPONENT_TARGET="$RUNTIME_COMPONENT_TARGET" \
+            BUILD_NGINX_FROM_SOURCE="$BUILD_NGINX_FROM_SOURCE" \
+            NGINX_SOURCE_MODE="$NGINX_SOURCE_MODE" NGINX_SOURCE_REPO_URL="$NGINX_SOURCE_REPO_URL" \
+            NGINX_RELEASE_TAG="$NGINX_RELEASE_TAG" NGINX_SOURCE_GIT_REF="$NGINX_SOURCE_GIT_REF" \
+            NGINX_RELEASE_ASSET_NAME="$NGINX_RELEASE_ASSET_NAME" NGINX_SHA256="$NGINX_SHA256" \
+            NGINX_REQUIRE_PINNED_PROVENANCE="$NGINX_REQUIRE_PINNED_PROVENANCE" \
+            SMOKE_PREPARE_TIMEOUT_SECONDS="$SMOKE_PREPARE_TIMEOUT_SECONDS" \
+            MODSECURITY_REPO_URL="$MODSECURITY_REPO_URL" \
+            FRAMEWORK_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            TEST_ROOT="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            FRAMEWORK_REVISION="$FRAMEWORK_REVISION" \
+            CONNECTOR_ROOT="$GITHUB_WORKSPACE" \
+            CONNECTOR_REVISION="$EXPECTED_PARENT_SHA" \
+            GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            CONNECTOR_TEST_PROFILE=h1 \
+            CONNECTOR_TEST_OUTPUT_ROOT="$RUN_ROOT/tmp" \
+            PYTHONPATH="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework:$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite" \
+            PYTHONSAFEPATH=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
+            SMOKE_RUN_ID="$SMOKE_RUN_ID" \
+            NGINX_HOSTED_FUNCTIONAL_A=1 \
+            /bin/sh "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/provisioning/cache/with-runtime-components.sh" \
+            /bin/sh -eu -s <<'RUNTIME_FIXTURE'
+          PYTHONPATH="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework:$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite" \
+            /usr/bin/python3 -P -m modsecurity_test_framework.connector \
+            --connector-root "$GITHUB_WORKSPACE" --connector-revision "$EXPECTED_PARENT_SHA" \
+            --test-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework" \
+            --profile h1 --output-root "$RUN_ROOT/tmp" --group nginx-hosted
+          RUNTIME_FIXTURE
+      - name: Upload bounded NGINX Functional-A evidence
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nginx-functional-a-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.RUN_ROOT }}/nginx-functional-a-evidence/result.json
+          if-no-files-found: error
+          retention-days: 10
+          overwrite: false

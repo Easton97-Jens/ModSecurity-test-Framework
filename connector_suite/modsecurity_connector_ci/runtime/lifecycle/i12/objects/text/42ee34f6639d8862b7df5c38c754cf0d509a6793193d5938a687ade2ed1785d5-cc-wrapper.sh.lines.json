@@ -1,0 +1,4 @@
+[
+  "#!/bin/sh\n",
+  "exec rtk proxy /usr/bin/gcc \"$@\"\n"
+]

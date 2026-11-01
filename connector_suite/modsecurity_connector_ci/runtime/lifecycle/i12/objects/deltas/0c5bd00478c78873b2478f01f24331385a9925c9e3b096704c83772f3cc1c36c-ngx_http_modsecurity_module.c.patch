@@ -1,0 +1,45 @@
+--- a/payload
++++ b/payload
+@@ -25,0 +26 @@
++#include "nginx-host-observation.h"
+@@ -847,0 +849 @@
++    ngxi12_host_note(ctx, "cleanup_enter", 0U, 0U, -1);
+@@ -863,0 +866,2 @@
++        ngxi12_host_note(ctx, "cleanup_native_common_complete", 0U, 0U, -1);
++        (void)ngxi12_host_retire(ctx);
+@@ -889 +893,3 @@
+-
++    uint64_t ngxi12_allocation_call;
++
++    ngxi12_allocation_call = ngxi12_host_begin();
+@@ -893,0 +900 @@
++        (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
+@@ -897,0 +905 @@
++        (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
+@@ -908 +916,2 @@
+-            return NULL;
++            (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
++        return NULL;
+@@ -929 +938,2 @@
+-            return NULL;
++            (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
++        return NULL;
+@@ -933 +943,2 @@
+-            return NULL;
++            (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
++        return NULL;
+@@ -942 +953,2 @@
+-            return NULL;
++            (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
++        return NULL;
+@@ -965,0 +978 @@
++        (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
+@@ -987,0 +1001 @@
++        (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
+@@ -1002,0 +1017 @@
++        (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
+@@ -1014,0 +1030 @@
++        (void)ngxi12_host_end(ngxi12_allocation_call, ctx, ctx != NULL ? &ctx->contract : NULL, ctx != NULL ? ctx->modsec_transaction : NULL, 0);
+@@ -1018,0 +1035,2 @@
++    (void)ngxi12_host_end(ngxi12_allocation_call, ctx, &ctx->contract, ctx->modsec_transaction, 1);
++    ngxi12_host_note(ctx, "context_join", 0U, 0U, -1);

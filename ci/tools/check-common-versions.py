@@ -9,6 +9,7 @@ import binascii
 import dataclasses
 import datetime as dt
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -1569,14 +1570,41 @@ def active_consumer_pin_literals(
             for value in sorted(value_names, key=len, reverse=True)
         )
     )
-    findings = [
+    authority_paths, authority_findings = _connector_integration_authority(root)
+    findings = authority_findings + [
         finding
         for path in _active_consumer_files(root)
+        if path.relative_to(root).as_posix() not in authority_paths
         for finding in _consumer_pin_findings(
             path, root, common_sh, value_pattern, value_names
         )
     ]
     return sorted(set(findings))
+
+
+def _connector_integration_authority(root: Path) -> tuple[frozenset[str], list[str]]:
+    """Authenticate the separate immutable Connector authority before classification.
+
+    This is not a generated-view or directory exemption. The maintained adjacent
+    validator binds the raw lock and every exact source to the reviewed snapshot;
+    unknown files still undergo the ordinary canonical-consumer scan.
+    """
+    lock_path = "ci/tooling/connector-actions.lock.json"
+    if not os.path.lexists(root / lock_path):
+        return frozenset(), []
+    helper_path = SCRIPT_DIR.parent / "checks/security/connector_action_pins.py"
+    try:
+        spec = importlib.util.spec_from_file_location("_common_versions_connector_authority", helper_path)
+        if spec is None or spec.loader is None:
+            raise ValueError("cannot load the maintained Connector authority validator")
+        helper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        lock = helper.load_lock(root)
+        findings = [finding for relative in sorted(lock["sources"])
+                    for finding in helper.validate_source(root, relative)]
+        return frozenset({helper.LOCK, *lock["sources"]}), findings
+    except (OSError, ValueError, TypeError) as error:
+        return frozenset(), [f"{lock_path}: connector integration contract: {error}"]
 
 
 def entry(entries: dict[str, VariableEntry], name: str) -> VariableEntry | None:

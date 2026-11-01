@@ -1,0 +1,8 @@
+--- a/payload
++++ b/payload
+@@ -284,0 +285 @@
++		i12Observe(transaction.metadata.TransactionID, "uds_frame_write_error", map[string]interface{}{"opcode": opcode, "payload_bytes": len(payload), "error": true})
+@@ -286,0 +288 @@
++	i12Observe(transaction.metadata.TransactionID, "uds_frame_write_return", map[string]interface{}{"opcode": opcode, "payload_bytes": len(payload), "error": false})
+@@ -297,0 +300 @@
++	i12Observe(transaction.metadata.TransactionID, "uds_result_parsed", map[string]interface{}{"opcode": opcode, "error": false})

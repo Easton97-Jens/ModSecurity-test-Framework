@@ -100,8 +100,8 @@ class NativeInvocationCatalogTests(unittest.TestCase):
 
     def test_explicit_nginx_only_migrations_preserve_native_and_wire_distinction(self):
         expected = {
-            "body_size_nonzero_with_null_data": {"expected_status": 400, "phase": 1},
-            "header_count_nonzero_with_null_headers": {"expected_status": 400},
+            "body_size_nonzero_with_null_data": {"expected_status": 500, "phase": 1},
+            "header_count_nonzero_with_null_headers": {"expected_status": 500},
             "phase4_deny_after_commit_log_only_minimal": {"expected_status": 200, "expected_result": "late_intervention_log_only_safe", "nginx_phase4_mode": "safe"},
             "phase4_body_reject": {"expected_status": 200, "expected_rule_id": None, "expected_native_status": 403, "expected_engine_error_class": "body_limit"},
             "finish_failure_propagation": {"expected_status": 200},

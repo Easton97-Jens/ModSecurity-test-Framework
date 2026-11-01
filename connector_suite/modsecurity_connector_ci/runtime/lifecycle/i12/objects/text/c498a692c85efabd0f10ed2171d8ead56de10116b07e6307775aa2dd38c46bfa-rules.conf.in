@@ -1,0 +1,10 @@
+SecRuleEngine On
+SecRequestBodyAccess On
+SecRequestBodyLimit 4096
+SecResponseBodyAccess On
+SecResponseBodyMimeType text/plain
+SecResponseBodyLimit 4096
+SecDebugLog "@OUTPUT@/native-sdk-debug.log"
+SecDebugLogLevel 9
+SecRule REQUEST_BODY "@contains NGXI12_REQ" "id:941002,phase:2,pass,log,msg:'NGXI12_REQUEST_BODY_PRIMARY'"
+SecRule RESPONSE_BODY "@contains NGXI12_RSP" "id:941004,phase:4,pass,log,msg:'NGXI12_RESPONSE_BODY_PRIMARY'"

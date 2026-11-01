@@ -1,0 +1,989 @@
+{
+  "fully_imported_common": [
+    {
+      "case": "tests/cases/phases/phase1/action_deny_phase1.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/phases/phase2/action_deny_phase2.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/phases/phase2/collection_args_combined_size_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/phases/phase2/collection_args_get_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/phases/phase2/collection_args_names_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/phases/phase2/request_body_args_post_names_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/phases/phase2/request_body_raw_text_block.yaml",
+      "reason": "Observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/body/json/json_request_body_block.yaml",
+      "reason": "Raw JSON request-body match is portable; parsed JSON collection extraction remains mapped."
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_basic_block.yaml",
+      "reason": "Simple multipart text field is portable; parser edge cases remain mapped."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_streq_block.yaml",
+      "reason": "V2-derived operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_contains_block.yaml",
+      "reason": "V2-derived operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/transformations/v2_transformation_lowercase_block.yaml",
+      "reason": "V2-derived transformation case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/transformations/v2_transformation_trim_block.yaml",
+      "reason": "V2-derived transformation case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_files_value_block.yaml",
+      "reason": "V3-derived multipart FILES case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_files_names_block.yaml",
+      "reason": "V3-derived multipart FILES_NAMES case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_files_combined_size.yaml",
+      "reason": "V3-derived multipart FILES_COMBINED_SIZE case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_filename_block.yaml",
+      "reason": "V3-derived MULTIPART_FILENAME case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/body/xml/xml_request_body_block.yaml",
+      "reason": "V3-derived XML request-body case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/transformations/v3_operator_rx_block.yaml",
+      "reason": "V3-derived operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/transformations/v3_transformation_trim_block.yaml",
+      "reason": "V3-derived transformation case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/phases/phase2/v3_secaction_block.yaml",
+      "reason": "V3-derived SecAction case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/phases/phase1/action_status_401_phase1_block.yaml",
+      "reason": "Source-derived HTTP 401 status action observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_begins_with_block.yaml",
+      "reason": "V2-derived beginsWith operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_ends_with_block.yaml",
+      "reason": "V2-derived endsWith operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_pm_block.yaml",
+      "reason": "V2-derived pm operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_contains_word_block.yaml",
+      "reason": "V2-derived containsWord operator case observed PASS on Apache and NGINX in the shared smoke harness."
+    },
+    {
+      "case": "tests/cases/request/uri/v2_transformation_url_decode_block.yaml",
+      "reason": "V2-derived urlDecode transformation case observed PASS on Apache and NGINX using the source-confirmed Test+Case -> Test Case values."
+    },
+    {
+      "case": "tests/cases/request/headers/v2_transformation_html_entity_decode_block.yaml",
+      "reason": "V2-derived htmlEntityDecode transformation case observed PASS on Apache and NGINX using the source-confirmed &lt;&gt; -> <> fragment."
+    },
+    {
+      "case": "tests/cases/transformations/v3_operator_pm_digit_block.yaml",
+      "reason": "V3-derived pm operator case observed PASS on Apache and NGINX using @pm 1 2 3 with param1=123."
+    },
+    {
+      "case": "tests/cases/request/cookies/v3_request_cookies_block.yaml",
+      "reason": "V3-derived REQUEST_COOKIES case observed PASS on Apache and NGINX."
+    },
+    {
+      "case": "tests/cases/request/cookies/v3_request_cookies_names_block.yaml",
+      "reason": "V3-derived REQUEST_COOKIES_NAMES case observed PASS on Apache and NGINX."
+    },
+    {
+      "case": "tests/cases/request/headers/v3_request_headers_names_block.yaml",
+      "reason": "V3-derived REQUEST_HEADERS_NAMES case observed PASS on Apache and NGINX using a stable custom header name."
+    },
+    {
+      "case": "tests/cases/phases/phase2/v3_args_names_get_block.yaml",
+      "reason": "V3-derived ARGS_NAMES GET case observed PASS on Apache and NGINX."
+    },
+    {
+      "case": "tests/cases/audit-log/v3_auditlog_serial_fields_block.yaml",
+      "reason": "V3-derived serial audit log field case observed PASS on Apache and NGINX."
+    },
+    {
+      "case": "tests/cases/phases/phase1/action_allow_phase1_pass.yaml",
+      "reason": "Observed PASS on Apache and latest local NGINX source-built smoke after the NGINX harness permission fix."
+    },
+    {
+      "case": "tests/cases/negative-pass-through/v2_transformation_url_decode_pass_no_match.yaml",
+      "reason": "No-match pass-through observed PASS on Apache and latest local NGINX source-built smoke after the NGINX harness permission fix."
+    },
+    {
+      "case": "tests/cases/negative-pass-through/v3_args_names_get_pass_no_match.yaml",
+      "reason": "ARGS_NAMES no-match pass-through observed PASS on Apache and latest local NGINX source-built smoke after the NGINX harness permission fix."
+    },
+    {
+      "case": "tests/cases/negative-pass-through/v3_request_cookies_names_pass_no_match.yaml",
+      "reason": "REQUEST_COOKIES_NAMES no-match pass-through observed PASS on Apache and latest local NGINX source-built smoke after the NGINX harness permission fix."
+    },
+    {
+      "case": "tests/cases/negative-pass-through/v3_request_cookies_pass_no_match.yaml",
+      "reason": "REQUEST_COOKIES no-match pass-through observed PASS on Apache and latest local NGINX source-built smoke after the NGINX harness permission fix."
+    },
+    {
+      "case": "tests/cases/negative-pass-through/v3_request_headers_names_pass_no_match.yaml",
+      "reason": "REQUEST_HEADERS_NAMES no-match pass-through observed PASS on Apache and latest local NGINX source-built smoke after the NGINX harness permission fix."
+    },
+    {
+      "case": "tests/cases/response/body/response_body_pass.yaml",
+      "reason": "Current local Apache and NGINX smokes observed HTTP 200 pass-through after the NGINX harness permission fix. This is pass-through evidence only; RESPONSE_BODY blocking/support remains non-verified and non-promoted."
+    }
+  ],
+  "connector_specific": [
+    {
+      "case": "tests/cases/connector-specific/nginx/nginx_redirect_phase1_302.yaml",
+      "reason": "NGINX redirect behavior is not yet proven against Apache."
+    },
+    {
+      "case": "tests/cases/connector-specific/nginx/nginx_tx_scoring_absolute_block.yaml",
+      "reason": "NGINX TX scoring import is not yet proven against Apache."
+    },
+    {
+      "case": "tests/cases/connector-specific/nginx/nginx_tx_scoring_iterative_block.yaml",
+      "reason": "NGINX TX scoring import is not yet proven against Apache."
+    },
+    {
+      "case": "tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml",
+      "reason": "NGINX-specific phase-4 log-only probe observed PASS in the latest local NGINX source-built smoke after the harness permission fix; this is connector-specific runtime evidence and not RESPONSE_BODY promotion."
+    },
+    {
+      "case": "tests/cases/connector-specific/nginx/nginx_phase4_minimal_log_only.yaml",
+      "reason": "NGINX-specific phase-4 minimal log-only probe observed PASS in the latest local NGINX source-built smoke after the harness permission fix; this is connector-specific runtime evidence and not RESPONSE_BODY promotion."
+    },
+    {
+      "case": "tests/cases/connector-specific/nginx/nginx_phase4_safe_log_only.yaml",
+      "reason": "NGINX-specific phase-4 safe log-only probe observed PASS in the latest local NGINX source-built smoke after the harness permission fix; this is connector-specific runtime evidence and not RESPONSE_BODY promotion."
+    }
+  ],
+  "runtime_blocked": [],
+  "mapped_only": [
+    {
+      "source": "ModSecurity-apache/tests/regression/rule/10-xml.t",
+      "reason": "XML parser cases require explicit fixture/schema support before active import."
+    },
+    {
+      "source": "ModSecurity-apache/tests/regression/misc/00-multipart-parser.t",
+      "reason": "Multipart parser error and file collection branches exceed the current minimal multipart smoke."
+    },
+    {
+      "source": "ModSecurity-nginx/tests/nginx-tests-cvt.pl",
+      "reason": "Converter tooling is build-runtime support, not a portable rule case."
+    },
+    {
+      "source": "ModSecurity_V2/tests/tfn/urlDecode.t",
+      "reason": "Full-byte, NUL, and invalid-encoding urlDecode branches are mapped only; active smoke imports only source-confirmed text-safe Test+Case -> Test Case."
+    },
+    {
+      "source": "ModSecurity_V2/tests/tfn/htmlEntityDecode.t",
+      "reason": "NUL, nbsp, non-ASCII, and invalid entity branches are mapped only; active smoke imports only the text-safe &lt;&gt; -> <> fragment."
+    },
+    {
+      "source": "ModSecurity_V2/tests/op/pm.t",
+      "reason": "Long phrase-list and no-match branches are mapped only; active smoke imports the source-confirmed param abc/input abcdefghi match."
+    },
+    {
+      "source": "ModSecurity_V2/tests/op/containsWord.t",
+      "reason": "Negative word-boundary branches are mapped only; active smoke imports the source-confirmed param abc/input abc def ghi match."
+    },
+    {
+      "source": "ModSecurity-nginx PR #377 tests/modsecurity-phase4-invalid-config.t",
+      "reason": "Invalid config tests require config-test expected-failure assertions rather than HTTP smokes."
+    },
+    {
+      "source": "ModSecurity-nginx PR #377 tests/modsecurity-phase4-regression.t",
+      "reason": "Large-response phase-4 regression needs dedicated large fixture/log-leak coverage before active import."
+    },
+    {
+      "source": "ModSecurity-nginx PR #377 tests/modsecurity-response-body.t",
+      "reason": "Response-body blocking remains non-promoted/mapped-only and is not promoted without stable real HTTP blocking semantics."
+    }
+  ],
+  "blocked": [
+    {
+      "source": "ModSecurity-nginx/tests/modsecurity-request-body-h2.t",
+      "reason": "HTTP/2 is outside the current HTTP/1.1 smoke harness."
+    },
+    {
+      "source": "ModSecurity-nginx/tests/modsecurity-h2.t",
+      "reason": "HTTP/2 is outside the current HTTP/1.1 smoke harness."
+    }
+  ],
+  "v2_imported": [
+    {
+      "case": "tests/cases/transformations/v2_operator_streq_block.yaml",
+      "reason": "Derived from V2 streq operator semantics and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_contains_block.yaml",
+      "reason": "Derived from V2 contains operator semantics and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v2_transformation_lowercase_block.yaml",
+      "reason": "Derived from V2 lowercase transformation semantics and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v2_transformation_trim_block.yaml",
+      "reason": "Derived from V2 trim transformation semantics and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_begins_with_block.yaml",
+      "reason": "V2-derived beginsWith operator case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_ends_with_block.yaml",
+      "reason": "V2-derived endsWith operator case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_pm_block.yaml",
+      "reason": "V2-derived pm operator case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v2_operator_contains_word_block.yaml",
+      "reason": "V2-derived containsWord operator case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/request/uri/v2_transformation_url_decode_block.yaml",
+      "reason": "V2-derived urlDecode transformation case observed PASS on Apache and NGINX using the source-confirmed Test+Case -> Test Case values."
+    },
+    {
+      "case": "tests/cases/request/headers/v2_transformation_html_entity_decode_block.yaml",
+      "reason": "V2-derived htmlEntityDecode transformation case observed PASS on Apache and NGINX using the source-confirmed &lt;&gt; -> <> fragment."
+    }
+  ],
+  "v3_imported": [
+    {
+      "case": "tests/cases/body/multipart/multipart_files_value_block.yaml",
+      "reason": "Derived from V3 variable-FILES regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_files_names_block.yaml",
+      "reason": "Derived from V3 variable-FILES_NAMES regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_files_combined_size.yaml",
+      "reason": "Derived from V3 variable-FILES_COMBINED_SIZE regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_filename_block.yaml",
+      "reason": "Derived from V3 variable-MULTIPART_FILENAME regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/body/xml/xml_request_body_block.yaml",
+      "reason": "Derived from V3 variable-XML regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v3_operator_rx_block.yaml",
+      "reason": "Derived from V3 operator-rx regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v3_transformation_trim_block.yaml",
+      "reason": "Derived from V3 transformations regression coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/phases/phase2/v3_secaction_block.yaml",
+      "reason": "Derived from V3 secruleengine SecAction coverage and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/transformations/v3_operator_pm_digit_block.yaml",
+      "reason": "V3-derived pm operator case and observed through the shared connector smoke path using @pm 1 2 3 with param1=123."
+    },
+    {
+      "case": "tests/cases/request/cookies/v3_request_cookies_block.yaml",
+      "reason": "V3-derived REQUEST_COOKIES case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/request/cookies/v3_request_cookies_names_block.yaml",
+      "reason": "V3-derived REQUEST_COOKIES_NAMES case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/request/headers/v3_request_headers_names_block.yaml",
+      "reason": "V3-derived REQUEST_HEADERS_NAMES case and observed through the shared connector smoke path using a stable custom header name."
+    },
+    {
+      "case": "tests/cases/phases/phase2/v3_args_names_get_block.yaml",
+      "reason": "V3-derived ARGS_NAMES GET case and observed through the shared connector smoke path."
+    },
+    {
+      "case": "tests/cases/audit-log/v3_auditlog_serial_fields_block.yaml",
+      "reason": "V3-derived serial audit log field case and observed through the shared connector smoke path."
+    }
+  ],
+  "former_xfail": [
+    {
+      "case": "tests/cases/response/body/response_body_basic_block.yaml",
+      "source": "ModSecurity-nginx/tests/modsecurity-response-body.t; ModSecurity-apache/tests/regression/config/10-response-directives.t; ModSecurity_V3/test/test-cases/regression/variable-RESPONSE_BODY.json",
+      "reason": "Dedicated three-repeat Phase 9 probe stayed non-promoted/mapped-only: Apache and NGINX both returned HTTP 200 instead of stable HTTP 403. PR #377 source is applied to adapter-owned NGINX files, but RESPONSE_BODY is not promoted without stable real HTTP behavior.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml",
+      "source": "ModSecurity_V3/test/test-cases/regression/issue-2196.json",
+      "reason": "Local Apache and NGINX runs observed empty audit logs, but GitHub Actions reported a non-empty audit log; it is not counted as stable common PASS until both environments agree.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/connector-specific/nginx/nginx_phase4_strict_connection_abort.yaml",
+      "source": "ModSecurity-nginx PR #377 tests/modsecurity-phase4-modes.t",
+      "reason": "Strict mode may abort the connection after headers are sent; current smoke schema asserts stable HTTP status and keeps this as NGINX-only historical evidence.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/request/headers/v3_request_headers_names_duplicate_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "connector-gap coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/future-gap/v3_args_names_duplicate_query_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "connector-gap coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/transformations/v2_transformation_trim_tab_future_compatibility.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "future-compatibility coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "mapped-only-candidate coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/request/uri/v2_transformation_remove_nulls_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "future-compatibility coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "connector-gap coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/json/request_body_json_invalid_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/response_headers_multi_value_runtime_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "runtime-gap coverage candidate; pending runtime verification and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/negative-pass-through/edge_missing_header_pass_through.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/request/uri/edge_plus_vs_space_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/json/json_empty_body_future_compatibility.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/negative-pass-through/operator_beginswith_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/negative-pass-through/operator_contains_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/negative-pass-through/operator_endswith_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/negative-pass-through/operator_rx_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/negative-pass-through/operator_streq_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/negative-pass-through/phase2_header_only_pass_through.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/transformations/tfn_compress_whitespace_runtime_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/negative-pass-through/tfn_lowercase_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/transformations/tfn_none_exact_block_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/negative-pass-through/tfn_trim_pass_no_match_phase2.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/request/uri/tfn_urldecodeuni_future_target_phase1.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/audit_log_empty_sections_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/audit_log_matched_var_encoded_value.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/audit_log_message_presence_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/audit_log_multiline_message_normalization.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/audit_log_rule_id_presence_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/duplicate_cookie_name_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/parser_json_partial_body_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/tfn_chain_lowercase_trim_pass_through.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/tfn_chain_urldecode_compress_whitespace_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/multipart/files_empty_part_future_compatibility.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/json/json_duplicate_keys_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/json/json_nested_object_future_compatibility.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/multipart/multipart_invalid_boundary_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml",
+      "source": "source-derived compatibility expansion",
+      "reason": "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/phase3_response_headers_duplicate_value_runtime_difference.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/phase3_response_headers_encoded_value_future_target.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/phase3_response_headers_missing_pass_through.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/phase3_response_headers_mixed_case_connector_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/phase3_response_headers_multi_value_connector_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_auditlog_outbound_message_connector_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_auditlog_outbound_rule_id_runtime_difference.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_response_body_chunk_assumption_connector_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_response_body_compressed_assumption_experimental.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_response_body_empty_future_target.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_response_body_html_text_normalization_probe.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_response_body_unicode_runtime_difference.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/phase3_response_headers_content_type_charset_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/phase3_response_headers_location_encoded_runtime_diff.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/phase3_response_headers_server_presence_pending.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/headers/phase3_response_headers_set_cookie_multi_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_auditlog_outbound_escaped_value_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_auditlog_outbound_matched_var_future.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_auditlog_outbound_multiline_section_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_response_body_buffering_order_future_target.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_response_body_html_entity_decode_gap.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/response/body/phase4_response_body_pass_no_match_experimental.yaml",
+      "source": "source-derived phase3/phase4 compatibility expansion",
+      "reason": "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    },
+    {
+      "case": "tests/cases/audit-log/pr70-phases/pr70_phase4_response_body_audit_xfail.yaml",
+      "source": "ModSecurity-apache PR #70 phase-4 audit probe",
+      "reason": "YAML-only former XFAIL RESPONSE_BODY audit probe promoted to normal runtime evidence while RESPONSE_BODY remains non-promoted.",
+      "former_status": "xfail",
+      "current_status": "imported",
+      "promoted_from_xfail_date": "2026-06-07"
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import sys
@@ -50,6 +51,62 @@ MARKDOWN_LOCAL_PATH_RE = re.compile(r"/root(?:/|$)|/var/tmp(?:/|$)")
 TEXT_SUFFIXES = {".md", ".py", ".sh", ".yml", ".yaml", ".json", ".mk", ".txt"}
 
 
+# Closed data/negative-fixture provenance from Connector commit
+# ec18f9e92286379a2410e917f76e6a5502675804, before physical relocation.
+# Original paths: ci/runtime/lifecycle/i12/objects/text/<same filename> and
+# connectors/haproxy/harness/fixtures/i12-oracles-20261015.json. These are
+# immutable data, never an exemption for executable source or an entire tree.
+HISTORICAL_DATA_SHA256 = {
+    "connector_suite/modsecurity_connector_ci/runtime/lifecycle/i12/objects/text/"
+    "76d5319b726a8fdba12b01ccc946aac80e8442f72ad4e262ff314f3f1db838b8-private-runtime-v5.py.lines.json":
+        "ffa031d78871fb37bdb205b38512601cb3576720b99ae802365b92e83e1092d2",
+    "connector_suite/adapters/haproxy/harness/fixtures/i12-oracles-20261015.json":
+        "642a72ba19398f3b18866169261e0d18ecf778acb95fafcfda77f242c9c77f69",
+}
+# Original tests/test_repository_path_references.py and
+# tests/test_nginx_native_operation_collection.py at the same commit.
+# SHA256 covers each complete UTF-8 source line including its newline. Only
+# LOCAL_PATH matches on exactly one copy of that line are permitted. All other
+# lines and every obsolete-flat-CI-path check remain active.
+NEGATIVE_FIXTURE_LINE_SHA256 = {
+    "connector_suite/modsecurity_connector_tests/test_repository_path_references.py":
+        ("9b899b2ccc2c836af62ed8edc53278c10b783681468cdad4418939f4e19705f2", 1),
+    "connector_suite/modsecurity_connector_tests/test_nginx_native_operation_collection.py":
+        ("811dd25b945c6a0604ed3022cfdd2091708db8913d2494e81ddd36690efa8289", 1),
+}
+
+
+def local_path_policy(path: Path, raw: bytes, text: str) -> tuple[bool, list[str]]:
+    """Recognize only reviewed immutable bytes and exact negative-input lines."""
+
+    value = relative(path)
+    errors: list[str] = []
+    historical_digest = HISTORICAL_DATA_SHA256.get(value)
+    if historical_digest is not None:
+        if hashlib.sha256(raw).hexdigest() == historical_digest:
+            return False, errors
+        errors.append(f"{value}: immutable historical data SHA256 differs")
+
+    lines = text.splitlines(keepends=True)
+    admitted_lines: set[int] = set()
+    fixture = NEGATIVE_FIXTURE_LINE_SHA256.get(value)
+    if fixture is not None:
+        expected_digest, expected_count = fixture
+        matching = {
+            index for index, line in enumerate(lines)
+            if hashlib.sha256(line.encode("utf-8")).hexdigest() == expected_digest
+        }
+        if len(matching) == expected_count:
+            admitted_lines = matching
+        else:
+            errors.append(f"{value}: reviewed negative-fixture line count differs")
+    unexpected = any(
+        LOCAL_PATH_RE.search(line) for index, line in enumerate(lines)
+        if index not in admitted_lines
+    )
+    return unexpected, errors
+
+
 def relative(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
 
@@ -94,13 +151,19 @@ def scan_path_references(path: Path) -> tuple[bool, list[str]]:
     """Return content findings for one eligible path without stopping the scan."""
 
     try:
-        text = path.read_text(encoding="utf-8")
+        raw = path.read_bytes()
+        text = raw.decode("utf-8")
     except UnicodeDecodeError:
+        value = relative(path)
+        if value in HISTORICAL_DATA_SHA256:
+            return False, [f"{value}: immutable historical data SHA256 differs"]
+        if value in NEGATIVE_FIXTURE_LINE_SHA256:
+            return False, [f"{value}: reviewed negative-fixture line count differs"]
         return False, []
 
     value = relative(path)
-    errors: list[str] = []
-    if LOCAL_PATH_RE.search(text):
+    unexpected_local_path, errors = local_path_policy(path, raw, text)
+    if unexpected_local_path:
         errors.append(f"{value}: contains a local developer path")
     if path.suffix == ".md" and MARKDOWN_LOCAL_PATH_RE.search(text):
         errors.append(f"{value}: contains a local developer path")
@@ -111,8 +174,19 @@ def scan_path_references(path: Path) -> tuple[bool, list[str]]:
     return True, errors
 
 
-def main() -> int:
+def fixture_policy_path_errors() -> list[str]:
+    """Reject stale policy entries and aliases before admitting any fixture bytes."""
+
     errors: list[str] = []
+    for value in (*HISTORICAL_DATA_SHA256, *NEGATIVE_FIXTURE_LINE_SHA256):
+        path = ROOT / value
+        if path.is_symlink() or not path.is_file():
+            errors.append(f"{value}: reviewed fixture must remain a regular non-symlink file")
+    return errors
+
+
+def main() -> int:
+    errors = fixture_policy_path_errors()
     files_scanned = 0
     for path in repository_files():
         if not path.is_file() or not should_scan(path):

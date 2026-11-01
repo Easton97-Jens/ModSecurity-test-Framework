@@ -21,6 +21,7 @@ Namen.
 | [`NO_CRS_RUN_ID`](#no_crs_run_id) | No-CRS | kanonische Läufe | `local` | dateisystemsicheres Token | Kennung eines Evidence-Laufs |
 | [`CONNECTOR`](#connector-capabilities_file-evidence_stage-und-no_crs_artifact_profile) | No-CRS | Connector-Ziele | keiner | Connector-Schlüssel | Auswahl des Capability-Manifests |
 | [`PYTHON`](#werkzeuge-statuswerte-und-sensible-daten) | Werkzeuge | Nein | `.venv/bin/python` oder `python3` | Pfad zu ausführbarem Programm | Interpreter für Make |
+| [`PYTHONSAFEPATH`](#werkzeuge-statuswerte-und-sensible-daten) | Werkzeuge | Nein | nicht gesetzt | `1` aktiviert sichere Modulsuche | Schließt implizite Arbeits-/Skriptpfade aus; MRTS nutzt einen isolierten Kindprozess mit seinem exakten vertrauenswürdigen Skriptverzeichnis |
 | [`PROTOCOL_URL`](#protocol_url) | Protokoll | `protocol-client` | keiner | `http(s)://`-URL | explizites Client-Ziel |
 | `<fresh-source-root>` | Fünf-Connector-CRS-Fixture | `verify-fixture` und `validate` | keines | absolutes Verzeichnis | Frische CRS-Source-Wurzel mit `coreruleset/` |
 | `<private-root>` | Fünf-Connector-Evidenz | `validate` und `aggregate` | keines | privates absolutes Verzeichnis | Extern erzeugte Evidenz und Validator-Ausgaben |
@@ -448,6 +449,18 @@ benötigen weiterhin eine Herkunftsprüfung.
 | `HOME`, `PWD`, `TMPDIR` | Host-Shell-Pfade | Host-Shell | aus der Shell übernommen; für Reproduzierbarkeit explizite Framework-Wurzel verwenden. |
 | `TARGET` | Make-Target-Name | von `make` oder Aufrufer | `TARGET=linux-glibc`; erlaubte Werte hängen vom aufgerufenen Upstream-Build ab. |
 | `USER_TOKEN` | sensibles Authentifizierungsdatum | kein Repository-Standard | `<secret-from-secure-store>`; nie committen, loggen oder als sichtbares Prozessargument übergeben. |
+
+### Connector-Schnittstelle für Quell-Checkouts
+
+| Variable | Bedeutung und erforderlicher Wert |
+|---|---|
+| `CONNECTOR_REVISION` | Exakter Git-HEAD des explizit ausgewählten Produktcheckouts; Aufrufer dürfen keine andere Revision übergeben. |
+| `CONNECTOR_TEST_OUTPUT_ROOT` | Vorhandenes vertrauenswürdiges Ausgabeverzeichnis außerhalb beider Quellcheckouts; Vorfahren mit Symlinks ablehnen. |
+| `EXTERNAL_OUTPUT` | Vom Aufrufer gewählter Alias dieses externen Ausgabeverzeichnisses in Dokumentationsbeispielen; kein impliziter Standard. |
+| `FRAMEWORK_PYTHON` | Expliziter kompatibler Python-Interpreter für den ausgewählten Framework-Quellcheckout. |
+| `ON_DEMAND_TESTS` | Nur für einen explizit ausgewählten Spezialistenaufruf auf `1` setzen; dies autorisiert nicht jeden archivierten Fall. |
+| `PYTHONPATH` | Für Connector-Quellcheckout-Tests nur ausgewählte Framework-Root und ihr Verzeichnis `connector_suite/`; Produkt- und fremde Verzeichnisse ausschließen. |
+| `PYTHONSAFEPATH` | Auf `1` setzen und Python mit `-P` aufrufen, um das implizite unsichere Arbeits-/Skriptverzeichnis von der Modulsuche auszuschließen. |
 
 ### Feste NGINX-Release-Provenance
 

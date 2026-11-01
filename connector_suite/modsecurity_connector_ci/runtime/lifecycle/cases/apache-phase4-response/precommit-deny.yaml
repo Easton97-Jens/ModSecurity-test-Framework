@@ -1,0 +1,27 @@
+name: apache_phase4_response_precommit_deny
+title: Apache Phase-4 pre-commit deny regression
+category: apache-phase4-response
+portable: false
+connector: apache
+status: pending
+phase: 4
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyLimit 1048576
+  SecResponseBodyLimitAction Reject
+  SecResponseBodyMimeType text/plain
+  SecAuditEngine On
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecRule RESPONSE_BODY "@contains no-crs-response-body-marker" "id:2190401,phase:4,deny,status:403,log,t:none,msg:'Apache Phase-4 pre-commit response deny regression'"
+request:
+  method: GET
+  path: /apache-phase4/precommit-deny
+response:
+  body: first-byte-prefixno-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 403
+  transport: http_status
+  intervention: deny
+  rule_id: 2190401

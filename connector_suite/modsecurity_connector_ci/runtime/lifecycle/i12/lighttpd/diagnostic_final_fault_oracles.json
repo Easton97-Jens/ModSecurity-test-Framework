@@ -1,0 +1,13 @@
+{
+  "schema": "lighttpd-diagnostic-caller-and-stdio-controls-v1",
+  "native_sdk_failure_claimed": false,
+  "cases": [
+    {"case_id": "header_count_nonzero_with_null_headers", "pointer_fault": "headers_null", "expected_status": 500, "expected_native_allocations": 0, "reason": "The caller supplies nonzero header count with NULL headers to actual stock transaction_begin; public argument validation must reject it before SDK allocation."},
+    {"case_id": "NEED-invalid-metadata", "pointer_fault": "method_null", "expected_status": 500, "expected_native_allocations": 0, "reason": "The diagnostic caller explicitly substitutes a NULL method in otherwise actual mapped metadata; public argument validation must reject it before SDK allocation."},
+    {"case_id": "NEED-physical-event-sink-write", "sink_fault": "write", "expected_status": 500, "expected_native_allocations": 1, "reason": "A P1 denial requires a physical Common event. Explicit stdio write-boundary failure returns EOF and Runtime propagates technical IO failure, never BODY_LIMIT."},
+    {"case_id": "NEED-physical-event-sink-short-write", "sink_fault": "short_write", "expected_status": 500, "expected_native_allocations": 1, "reason": "Actually accept half of the event bytes through fwrite, then explicitly return EOF at the Runtime boundary. Physical partial JSONL is retained; no complete event is invented."},
+    {"case_id": "NEED-physical-event-sink-flush", "sink_fault": "flush", "expected_status": 500, "expected_native_allocations": 1, "reason": "Call actual fflush first and separately inject EOF. Runtime must propagate technical IO failure; retained JSONL and native intervention remain distinct."},
+    {"case_id": "NEED-physical-event-sink-close", "sink_fault": "close", "expected_status": 200, "expected_native_allocations": 1, "expected_host_exit": 0, "reason": "During graceful actual host shutdown call real fclose, then inject EOF. Runtime destroy currently ignores fclose return; this control records that limitation rather than inventing a client error or successful error propagation."},
+    {"case_id": "NEED-physical-event-sink-open", "sink_fault": "open", "expected_startup_failure": true, "expected_host_exit": 255, "reason": "Actual private event-file open succeeds; explicitly substitute failure at Runtime startup and close that FD. The plugin rejects host startup. No HTTP transaction, native ID, finish or neighboring request is claimed."}
+  ]
+}

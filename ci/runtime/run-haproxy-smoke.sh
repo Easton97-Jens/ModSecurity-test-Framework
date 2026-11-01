@@ -31,4 +31,4 @@ prepare_crs_variant() {
 prepare_mrts_runtime_variant
 prepare_crs_variant
 
-connector_smoke_run haproxy "$CONNECTOR_ROOT/connectors/haproxy/harness/run_haproxy_smoke.sh"
+connector_smoke_run haproxy "$TEST_ROOT/connector_suite/adapters/haproxy/harness/run_haproxy_smoke.sh"

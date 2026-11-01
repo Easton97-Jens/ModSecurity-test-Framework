@@ -1,0 +1,41 @@
+ngx_addon_name=ngx_http_p3_header_injector_fixture_module
+
+if test -n "$ngx_module_link"; then
+    ngx_module_type=HTTP_FILTER
+    ngx_module_name=ngx_http_p3_header_injector_fixture_module
+    ngx_module_srcs="$ngx_addon_dir/ngx_http_p3_header_injector_fixture_module.c"
+    ngx_module_order="$ngx_module_name"
+    . auto/module
+else
+    HTTP_FILTER_MODULES="$HTTP_FILTER_MODULES ngx_http_p3_header_injector_fixture_module"
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS \
+        $ngx_addon_dir/ngx_http_p3_header_injector_fixture_module.c"
+fi
+
+# NGINX initializes static filters in registration order and prepends each
+# handler. Keep the injector outermost, the real connector in the middle, and
+# the observer directly downstream. A broken ordering is a build error, not a
+# silently weakened native fault test.
+if [ "$ngx_module_link" != DYNAMIC ]; then
+    modules=
+    found=
+    for module in $HTTP_FILTER_MODULES; do
+        case "$module" in
+            ngx_http_p3_header_observer_fixture_module|ngx_http_p3_header_injector_fixture_module)
+                continue
+                ;;
+            ngx_http_modsecurity_module)
+                modules="$modules ngx_http_p3_header_observer_fixture_module $module ngx_http_p3_header_injector_fixture_module"
+                found=1
+                ;;
+            *)
+                modules="$modules $module"
+                ;;
+        esac
+    done
+    if [ -z "$found" ]; then
+        echo "$0: error: nginx P3 header fixture requires static ngx_http_modsecurity_module ordering" >&2
+        exit 1
+    fi
+    HTTP_FILTER_MODULES="$modules"
+fi

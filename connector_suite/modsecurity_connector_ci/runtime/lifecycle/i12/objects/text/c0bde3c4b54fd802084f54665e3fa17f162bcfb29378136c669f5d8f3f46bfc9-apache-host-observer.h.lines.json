@@ -1,0 +1,14 @@
+[
+  "#ifndef I12_APACHE_HOST_OBSERVER_H\n",
+  "#define I12_APACHE_HOST_OBSERVER_H\n",
+  "#include <stdint.h>\n",
+  "#include \"mod_security3.h\"\n",
+  "/* Test-only observer ABI; native owner finalizes these declarations. */\n",
+  "uint64_t msconnector_lifecycle_host_begin(void);\n",
+  "int msconnector_lifecycle_host_end(uint64_t, const void *, const msconnector_transaction_contract *, const Transaction *, int);\n",
+  "uint64_t msconnector_lifecycle_host_scope_call(const void *);\n",
+  "int msconnector_lifecycle_host_retire(const void *);\n",
+  "void apache_lifecycle_observe(const char *, msc_t *, request_rec *, const apr_bucket *);\n",
+  "void apache_lifecycle_retire(msc_t *, request_rec *);\n",
+  "#endif\n"
+]

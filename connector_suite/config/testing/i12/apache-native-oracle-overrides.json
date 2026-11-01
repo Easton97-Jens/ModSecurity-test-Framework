@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "overrides": {
+    "duplicate_header_names_core_merge": {
+      "case_id": "I12::apache-native::duplicate_header_names",
+      "profile": "apache-native",
+      "classification": "confirmed_oracle_defect",
+      "framework_revision": "99a7985c1be92a2297b1b59208f64df6768f2cbf",
+      "case_relative_path": "tests/cases/no-crs-baseline/duplicate_header_names.yaml",
+      "original_case_sha256": "502f7fc36219912d89f492493e50fe32d9cf191e6802d7163ea3c22143ad5731",
+      "apache_version": "2.4.66",
+      "apr_version": "1.7.6",
+      "sdk_version": "3.0.14",
+      "apache_binary_sha256": "32226a96ed9257837341b7909edae8da368922565f4662b1f76624e7c74e4a3d",
+      "sdk_library_sha256": "32257230b8f378987ba1204049dcc1e23927fd44c8778e09d41805ad705c3407",
+      "core_merge_proof_sha256": "97c4622d37fc25c00b833d0fb92f5f7edccec39dd83e7b04c9026ca2606ba38e",
+      "original_expectation": {"header_count": 2, "values": ["one", "two"]},
+      "corrected_expectation": {"header_count": 1, "ordered_value": "one, two"},
+      "unchanged_expectations": {"http_status": 200, "rule_id": 1100504, "audit_required": true},
+      "sources": [
+        "https://github.com/apache/httpd/blob/2.4.66/server/protocol.c",
+        "https://github.com/apache/apr/blob/1.7.6/tables/apr_tables.c",
+        "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+        "https://github.com/owasp-modsecurity/ModSecurity/blob/v3.0.14/src/transaction.cc"
+      ],
+      "reason": "Apache core compresses headers_in with APR_OVERLAP_TABLES_MERGE before the active native connector consumes it. The native view has one case-insensitive entry with values joined in wire order. Raw duplicate occurrence boundaries cannot be recovered from that view; a singleton comma value is indistinguishable. This override is not a product change or a lifecycle PASS."
+    }
+  }
+}

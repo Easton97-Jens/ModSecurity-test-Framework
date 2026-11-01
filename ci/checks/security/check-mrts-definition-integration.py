@@ -103,11 +103,15 @@ def input_definitions(directory: Path) -> list[Path]:
 
 def case_environment(base: Path, corpus: str, definitions: Path) -> dict[str, str]:
     env = os.environ.copy()
+    for name in ("CONNECTOR_ROOT", "CONNECTOR_REVISION", "REPO_ROOT"):
+        env.pop(name, None)
     env.update({
-        "FRAMEWORK_ROOT": str(ROOT), "CONNECTOR_ROOT": str(ROOT),
+        "FRAMEWORK_ROOT": str(ROOT), "TEST_ROOT": str(ROOT),
         "CI_ROOT": str(ROOT / "ci"), "MRTS_ROOT": str(MRTS),
         "VERIFIED_RUN_ROOT": str(base), "VERIFIED_BUILD_ROOT": str(base / "build"),
         "BUILD_ROOT": str(base / "build"), "MRTS_BUILD_ROOT": str(base / "build" / "mrts"),
+        "SOURCE_ROOT": str(base / "src"), "TMP_ROOT": str(base / "tmp"),
+        "LOG_ROOT": str(base / "logs"),
         "MRTS_CORPUS": corpus, "MRTS_DEFINITIONS": str(definitions),
         "MRTS_RULES_OUT": str(base / "build" / "mrts" / corpus / "rules"),
         "MRTS_FTW_OUT": str(base / "build" / "mrts" / corpus / "ftw"),
@@ -136,7 +140,7 @@ def compare_corpus(work: Path, corpus: str, definitions: Path) -> dict:
         directory.mkdir(mode=0o700, parents=True)
     env = case_environment(case / "guarded", corpus, definitions)
     baseline = execute(
-        [sys.executable, "--", str(GENERATOR), "-r", *map(str, paths),
+        [sys.executable, "-B", "-E", "-s", "--", str(GENERATOR), "-r", *map(str, paths),
          "-e", str(direct / "rules"), "-t", str(direct / "ftw")],
         env, case / "direct.log",
     )

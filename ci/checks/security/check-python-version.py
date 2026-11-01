@@ -465,6 +465,13 @@ def job_errors(
 
 
 def workflow_errors(root: Path, path: Path, *, indirect_make_python: bool) -> list[str]:
+    import runpy
+
+    integration = runpy.run_path(
+        str(Path(__file__).with_name("connector_action_pins.py"))
+    )
+    if path.name in integration["WORKFLOWS"]:
+        return integration["validate_source"](root, str(path.relative_to(root)))
     try:
         text = path.read_text(encoding="utf-8")
     except OSError, UnicodeError:

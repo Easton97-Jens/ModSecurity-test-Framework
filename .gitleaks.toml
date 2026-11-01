@@ -9,3 +9,20 @@ regexTarget = "secret"
 regexes = [
   '''^bcd2ba49218906704ab6c1aa796996da409d3eb1$''',
 ]
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Public immutable Traefik profile fingerprint (Parent ec18f9e, current_capture.py:16)"
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^connector_suite/adapters/traefik/harness/i12/current_capture\.py$''']
+regexes = ['''^27ecb4b122a9d873800177c2704a18c56293da6e2029af6854578cc4b793a9f2$''']
+
+[[rules.allowlists]]
+description = "Public immutable NGINX selected-requirement fingerprint (Parent ec18f9e, contract_catalog.py:48)"
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^connector_suite/modsecurity_connector_ci/runtime/lifecycle/i12/nginx/contract_catalog\.py$''']
+regexes = ['''^1c73904995b2438ec69a23517e9ff0ef08559e55c83cd846e938256b96f5a8a0$''']
