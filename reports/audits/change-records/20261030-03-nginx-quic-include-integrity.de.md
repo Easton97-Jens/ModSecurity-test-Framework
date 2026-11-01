@@ -11,6 +11,39 @@
 | Framework-Basisrevision | `f5a0940c56edbb94d55d309636ce3d6f501e31a2` |
 | Issue oder Pull Request | Bei lokaler Vorbereitung noch kein Framework-PR zugewiesen |
 
+### Nachtrag nach dem Testumzug — 2026-11-01
+
+Der Nutzer hat die Arbeit fortgesetzt und neue Tests freigegeben. Draft #144
+übernimmt Framework-Master `d503ddbea1a3b6df7766edc247b0a9886ff10668` durch
+einen normalen Branch-Merge, nicht durch einen PR-Merge. Er bleibt unabhängig
+von Draft #143; Parent-Pin/-Source und MRTS bleiben unverändert. Ursprüngliche
+Aussagen ohne neue Tests unten gelten nur für die Vorbereitung vom30.Oktober.
+
+Vier neue einzeln ausgewählte On-demand-Methoden in
+`tests/security_regression/test_common_shell_sonar_contracts.py` prüfen echte
+Shellfunktionen mit reinen Header-Verzeichnis-Fixtures: exakte konfigurierte
+QUIC-Include-Reihenfolge, Annahme konfigurierter Bäume ohne QUIC, Ablehnung
+unkonfigurierter Bäume und Vorrang expliziter installierter Header. Keine
+geprüfte Funktion wird gemockt. Standardselektoren, Inventarbindungen und
+generierte Migrationszuordnung bleiben unverändert; das Standardinventar
+bleibt bei100 expandierten Fällen.
+
+Alle vier exakten `CommonShellSonarContractsTest.test_nginx_*`-Selektoren
+bestanden mit Framework-Python über RTK und externen Temporär-/Cache-Wurzeln.
+Die primäre Reihenfolgeregression scheiterte am unveränderten `d503ddbe`-Helfer
+erwartungsgemäß (ein Assertion-Fehler, Exit1: `src/event/quic` fehlt);
+dieselbe Regression besteht mit diesem Fix. Die Run-Wurzel lautet
+`quic-helper-regressions-20261101.qfNWdw`. Diese Tests belegen Flagauswahl,
+keine tatsächliche Kompilierung und keinen H3-Verkehr. Die echten Compiler-
+Ergebnisse vom30.Oktober bleiben historische, getrennte Nachweise und wurden
+in diesem Nachtrag nicht erneut ausgeführt.
+
+`make check-documentation check-canonical-common-pins` bestand (Links,
+340 Sprachpaare, Pfadreferenzen, Change Record und Pins); Shellsyntax und
+Whitespace bestanden. Der erste Dokumentationslauf lehnte eine zusätzliche
+Überschrift zweiter Ebene ab; als Unterabschnitt erfüllt sie den Vorlagenvertrag
+wieder. Unabhängiger finaler Test-/EN-DE-Review ohne Blocker.
+
 ## Motivation und Problemstellung
 
 Der Include-Producer für konfigurierte NGINX-Quellen ließ `src/event/quic` aus.
@@ -33,7 +66,8 @@ oder Berechtigungsregeln.
 - Die vorhandene Konfiguration ohne V3 kompiliert weiterhin.
 - Quellvoraussetzungen, Vorrang installierter Header, Rückgabestatus und
   erforderliche Compiler-Warnungen bleiben unverändert.
-- Keine Tests, Fixtures, Assertions, Selektoren oder Runtime-Kampagne ergänzen.
+- Nach abgeschlossenem Umzug nur autorisierte fokussierte Selbsttests ergänzen;
+  keine Standardselektoren oder Runtime-Kampagne hinzufügen.
 - Gepaarte Dokumentation und unabhängige Framework-Auslieferung bleiben korrekt.
 
 ## Untersuchte Alternativen
@@ -53,10 +87,12 @@ Verzeichnisse erhalten. Keine Existenzpflicht für QUIC-Header/-Verzeichnis.
 ## Geänderte Dateien und Tests
 
 `ci/lib/common.sh`; `docs/development.md` / `.de.md`; dieses Record-Paar.
-Keine Testquelle, Fixture, kein Fall und keine Assertion ergänzt oder geändert.
+Am30.Oktober keine Testquelle, Fixture, keinen Fall und keine Assertion geändert.
 Zwei vorhandene Shell-Status-/Helfervertragstests wurden wiederverwendet; sie
 mocken den Include-Selektor und beweisen selbst keine QUIC-Include-Korrektheit.
-Die tatsächliche konsumierende C17-Kompilierung liefert diesen Nachweis.
+Die tatsächliche konsumierende C17-Kompilierung lieferte diesen Nachweis.
+Der Nachtrag vom1.November ergänzt die vier Methoden und ihre Fixture-Factory
+in der oben genannten Selbsttestdatei.
 
 ## Befehle und Ergebnisse
 
@@ -96,7 +132,7 @@ wird nicht integriert.
 
 ## Nicht ausgeführte Prüfungen
 
-Keine neuen Tests, archivierten Suites, Host-Smokes, vollständige Protokoll-/
+Keine archivierten Suites, Host-Smokes, vollständige Protokoll-/
 TLS-Matrix oder neue Qualifikationskampagne. Sie liegen außerhalb des aktuellen
 Integritätsumfangs. Hosted-Checks und Sonar benötigen den künftigen exakten
 PR-Head; Ergebnisse früherer Heads werden nicht wiederverwendet. Vollständiges
@@ -108,8 +144,8 @@ relevante Syntax-, Vertrags- und Dokumentationschecks wurden ausgeführt.
 Die lokale Compiler-Prüfung nutzte aufbewahrte NGINX-1.31.6-Konfigurationen,
 nicht alle unterstützten Versionen oder die ursprünglich angefragten gepinnten
 TLS-/Runtime-Profile. Verhalten installierter Header und Voraussetzungen älterer
-Bäume bleiben durch Quellvergleich erhalten, nicht durch eine neu erfundene
-Header-Fixture-Matrix. Dieser Framework-Fix ist noch nicht im von Parent
+Bäume besitzen nun auch fokussierte Verzeichnis-/Flagregressionen, keinen
+versionsübergreifenden Kompilierungsnachweis. Dieser Fix ist noch nicht im von Parent
 gepinnten Framework-Stand integriert.
 
 ## Finaler Diff- und Review-Status

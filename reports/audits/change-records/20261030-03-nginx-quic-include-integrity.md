@@ -11,6 +11,37 @@
 | Framework base revision | `f5a0940c56edbb94d55d309636ce3d6f501e31a2` |
 | Issue or pull request | No Framework PR assigned at local preparation |
 
+### Test-migration follow-up — 2026-11-01
+
+The user resumed work and permitted new tests. Draft #144 incorporates
+Framework master `d503ddbea1a3b6df7766edc247b0a9886ff10668` through an ordinary
+branch merge, not a PR merge. It remains independent of Draft #143; Parent
+pin/source and MRTS remain unchanged. Original no-new-tests statements below
+refer to the October30 preparation only.
+
+Four new individually selected on-demand methods in
+`tests/security_regression/test_common_shell_sonar_contracts.py` exercise real
+shell functions with header-only directory fixtures: exact configured-QUIC
+include ordering, configured non-QUIC acceptance, unconfigured-tree rejection
+and explicit installed-header precedence. No function under test is mocked.
+No standard selector, inventory binding or generated migration map changes;
+the standard inventory remains100 expanded cases.
+
+All four exact `CommonShellSonarContractsTest.test_nginx_*` selectors passed
+with Framework Python through RTK and external temporary/cache roots. The
+primary ordered-include regression against the unchanged `d503ddbe` helper
+failed as expected (one assertion failure, exit1: missing `src/event/quic`);
+the same regression passes with this fix. The run root is
+`quic-helper-regressions-20261101.qfNWdw`. These tests establish flag selection,
+not actual compilation or H3 traffic. The October30 real-tree compiler results
+remain historical, separate evidence and were not rerun in this follow-up.
+
+`make check-documentation check-canonical-common-pins` passed (links,
+340 bilingual pairs, path references, Change Record and pins); shell syntax
+and whitespace passed. A first documentation run rejected an extra level-two
+record heading; making it a subsection restored the template contract.
+Independent final test/EN-DE review found no blocker.
+
 ## Motivation and problem statement
 
 The configured-source NGINX include producer omitted `src/event/quic`.
@@ -31,7 +62,8 @@ selection, provisioning, canonical pin, compiler or permission policy changes.
 - The existing non-V3 configuration still compiles.
 - Source prerequisites, installed-header priority, return statuses and required
   compiler warnings remain unchanged.
-- No tests, fixtures, assertions, selectors or runtime campaign are added.
+- Add only the authorized focused self-tests after the completed migration;
+  no default selector or runtime campaign is added.
 - Paired documentation and the independent Framework delivery remain truthful.
 
 ## Alternatives considered
@@ -50,10 +82,11 @@ No QUIC header/directory existence requirement is introduced.
 ## Changed files and tests
 
 `ci/lib/common.sh`; paired `docs/development.md` / `.de.md`; this paired record.
-No test source, fixture, case or assertion was added or modified. Two existing
+No test source, fixture, case or assertion was changed on October30. Two existing
 shell status/helper contract tests were reused; they mock the include selector
 and do not themselves prove QUIC include correctness. The actual consuming
-C17 compilation supplies that evidence.
+C17 compilation supplied that evidence. The November1 follow-up adds the four
+methods and their fixture factory in the self-test file named above.
 
 ## Commands and results
 
@@ -90,7 +123,7 @@ gitlink or MRTS change; separate existing Framework work is not integrated.
 
 ## Checks not run
 
-No new tests, archived suites, host smokes, full protocol/TLS matrix or new
+No archived suites, host smokes, full protocol/TLS matrix or new
 qualification campaign. They are outside the user's integrity-only scope.
 Hosted checks and Sonar require the future exact PR head; no previous head's
 results are reused. Full local `lint` was not invoked because it includes
@@ -100,8 +133,8 @@ unrelated suites; relevant syntax, contracts and documentation checks ran.
 
 The local compiler check used retained NGINX 1.31.6 configurations, not all
 supported versions or the originally requested pinned TLS/runtime profiles.
-Installed-header behavior and older-tree prerequisites are preserved by source
-comparison, not a newly invented header-fixture matrix. This Framework fix is
+Installed-header behavior and older-tree prerequisites now also have focused
+directory/flag regression checks, not cross-version compile proof. This fix is
 not yet integrated into Parent's pinned Framework revision.
 
 ## Final diff and review status
