@@ -1,12 +1,21 @@
 """Prove that composed workflow checks follow actual immutable source bindings."""
-from pathlib import Path
+import contextlib
+import io
 import os
+import runpy
+import sys
 import tempfile
 import unittest
+from importlib.resources import files
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from modsecurity_test_framework.workflow_sources import (
-    WorkflowSourceError, composite_validation_workflow, expand_workflow_source, read_connector_workflow,
+    WorkflowSourceError,
+    composite_validation_workflow,
+    expand_workflow_source,
+    read_connector_workflow,
 )
 
 
@@ -315,6 +324,95 @@ jobs:
         path.symlink_to(saved)
         with self.subTest(source="symlink"), self.assertRaises(WorkflowSourceError):
             self.expand_protected(caller)
+
+
+
+class CompositeShellcheckAdmissionTests(unittest.TestCase):
+    VALID_VARIANTS = ("absolute", "path-name", "space-containing-literal", "command-shaped-literal")
+    INVALID_VARIANTS = ("missing", "not-executable", "directory", "command-string")
+    CHANGED_VARIANTS = ("removed-after-admission", "nonexecutable-after-admission")
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"))
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.framework = self.root / "framework"
+        self.output = self.root / "output"
+        self.output.mkdir(mode=0o700)
+        action = self.framework / ".github/actions/example/action.yml"
+        action.parent.mkdir(parents=True)
+        action.write_text("name: Example\ndescription: Fixture\nruns:\n  using: composite\n  steps:\n    - shell: bash\n      run: echo literal\n")
+        (self.framework / ".github/actionlint.yaml").write_text("{}\n")
+        script = files("modsecurity_test_framework").parent / "ci/checks/security/check-connector-composite-actions.py"
+        self.tool = runpy.run_path(str(script))
+
+    def executable(self, name):
+        path = self.root / name
+        path.write_text("#!/bin/sh\nexit 0\n")
+        path.chmod(0o700)
+        return path
+
+    def arguments(self, value):
+        return ["check-composites", "--framework-root", str(self.framework),
+                "--output-root", str(self.output), "--actionlint", "selected-actionlint",
+                "--shellcheck", value]
+
+    def test_shellcheck_accepts_one_literal_executable(self):
+        for variant in self.VALID_VARIANTS:
+            with self.subTest(variant=variant):
+                name = {"absolute": "shellcheck-absolute", "path-name": "shellcheck-name",
+                        "space-containing-literal": "literal shellcheck",
+                        "command-shaped-literal": "shellcheck --literal"}[variant]
+                executable = self.executable(name)
+                value = name if variant == "path-name" else str(executable)
+                with (patch.dict(os.environ, {"PATH": str(self.root) + os.pathsep + os.environ.get("PATH", "")}),
+                      patch.object(sys, "argv", self.arguments(value)),
+                      patch.object(self.tool["subprocess"], "run", return_value=SimpleNamespace(returncode=0)) as process,
+                      contextlib.redirect_stdout(io.StringIO())):
+                    self.assertEqual(self.tool["main"](), 0)
+                command = process.call_args.args[0]
+                self.assertEqual(command[0], "selected-actionlint")
+                self.assertIn("-shellcheck=" + str(executable.resolve(strict=True)), command)
+                self.assertEqual(process.call_count, 1)
+
+    def test_shellcheck_invalid_value_rejected_before_allocation_or_process(self):
+        for variant in self.INVALID_VARIANTS:
+            with self.subTest(variant=variant):
+                selected = self.root / ("invalid-" + variant)
+                if variant == "not-executable":
+                    selected.write_text("not executable")
+                    selected.chmod(0o600)
+                elif variant == "directory":
+                    selected.mkdir(mode=0o700)
+                elif variant == "command-string":
+                    selected = self.executable("actual-shellcheck")
+                value = str(selected) + (" --extra-argument" if variant == "command-string" else "")
+                with (patch.object(sys, "argv", self.arguments(value)),
+                      patch.object(self.tool["tempfile"], "mkdtemp", side_effect=AssertionError("allocation before admission")) as allocation,
+                      patch.object(self.tool["subprocess"], "run", side_effect=AssertionError("process before admission")) as process,
+                      self.assertRaises((ValueError, OSError))):
+                    self.tool["main"]()
+                allocation.assert_not_called()
+                process.assert_not_called()
+                self.assertEqual(list(self.output.iterdir()), [])
+
+    def test_shellcheck_rechecked_before_actionlint_process(self):
+        for variant in self.CHANGED_VARIANTS:
+            with self.subTest(variant=variant):
+                selected = self.executable("changed-shellcheck-" + variant)
+                read_source = self.tool["read_composite_action_source"]
+                def change_after_admission(*args, _variant=variant, _selected=selected, _read_source=read_source, **kwargs):
+                    if _variant == "removed-after-admission":
+                        _selected.unlink()
+                    else:
+                        _selected.chmod(0o600)
+                    return _read_source(*args, **kwargs)
+                with (patch.object(sys, "argv", self.arguments(str(selected))),
+                      patch.dict(self.tool["main"].__globals__, {"read_composite_action_source": change_after_admission}),
+                      patch.object(self.tool["subprocess"], "run", side_effect=AssertionError("process after tool removal")) as process,
+                      self.assertRaises((ValueError, OSError))):
+                    self.tool["main"]()
+                process.assert_not_called()
 
 
 def load_tests(loader, standard_tests, pattern):

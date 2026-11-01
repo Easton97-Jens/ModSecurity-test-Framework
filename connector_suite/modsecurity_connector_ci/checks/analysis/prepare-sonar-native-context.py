@@ -26,6 +26,7 @@ import tarfile
 import time
 import urllib.error
 import urllib.request
+import unicodedata
 from urllib.parse import urlsplit
 
 
@@ -210,7 +211,17 @@ def contracts() -> dict[str, dict[str, str]]:
     return result
 
 
+def validate_native_parser_path(value: str) -> None:
+    """Admit literal paths shared by configure, Make, and shell parsers."""
+    if not all(character.isalnum() or unicodedata.category(character).startswith("M")
+               or character in "/._-+@" for character in value):
+        raise ValueError("native context path must use Make-safe pathname characters")
+    if value.startswith("//"):
+        raise ValueError("native context path must use a single root separator")
+
+
 def fresh_root(value: str) -> Path:
+    validate_native_parser_path(value)
     path = Path(value)
     if (not path.is_absolute() or ".." in path.parts or any(c in value for c in "\r\n,\0")
             or not is_safe_runtime_root(path) or path.is_relative_to(ROOT)

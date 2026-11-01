@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 from collections.abc import Iterator
 
-from modsecurity_test_framework.connector_context import load_tool
+from modsecurity_test_framework.connector_context import load_tool, source_path
 from modsecurity_connector_ci.lib.runtime_path_utils import (
     canonical_project_roots, ensure_safe_runtime_directory, is_safe_runtime_root,
 )
@@ -729,7 +729,7 @@ def main(argv: list[str]) -> int:
         "--with-compat",
         "--with-ld-opt=-Wl,--wrap=ngx_pnalloc",
         f"--add-module={connector_root / 'connectors' / 'nginx'}",
-        f"--add-module={connector_root / 'tests' / 'nginx_body_buffer_fixture'}",
+        f"--add-module={source_path('tests/nginx_body_buffer_fixture', root=connector_root)}",
     ]
     run(configure, cwd=nginx_source, environment=environment, log=logs_root / "configure.log")
     jobs = str(min(2, max(1, os.cpu_count() or 1)))
@@ -890,7 +890,7 @@ def main(argv: list[str]) -> int:
         "record_type": "nginx_native_body_buffer_fixture",
         "head": head,
         "nginx": {
-            "version": "1.31.4",
+            "version": EXPECTED_NGINX_ROOT.removeprefix("nginx-"),
             "archive_sha256": archive_digest,
             "binary_sha256": sha256_file(nginx),
             "connector_linkage": "static_test_binary",
@@ -901,10 +901,10 @@ def main(argv: list[str]) -> int:
                 connector_root / "connectors" / "nginx" / "src" / "ngx_http_modsecurity_body_filter.c"
             ),
             "fixture_source_sha256": sha256_file(
-                connector_root
-                / "tests"
-                / "nginx_body_buffer_fixture"
-                / "ngx_http_body_buffer_fixture_module.c"
+                source_path(
+                    "tests/nginx_body_buffer_fixture/ngx_http_body_buffer_fixture_module.c",
+                    root=connector_root,
+                )
             ),
         },
         "modsecurity": {

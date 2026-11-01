@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "dc5980db497faa5ba6885f71552a8555c7bcd96f1ec759a0c4c786e76aec308e",
+  "inventory_sha256": "04233fe7c0f6d5f885f8a6666e6d08352efbb7c9430e54bf566f7671fe780184",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1277,7 +1277,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/private_event_file_smoke.c",
       "source": "tests/private_event_file_smoke.c",
-      "source_sha256": "2ab2a3c555072a3bd8147ff3ec23239b433d7aa1d2e8f86edc412590555cb6fd"
+      "source_sha256": "5f378e65d61fca731ccac779d4be9daa35eb3dc687a6979c30fc73a1629e2262"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/request_body_telemetry_test.c",
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7874,
+  "on_demand_definition_count": 7896,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -3147,10 +3147,26 @@
         "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_indexed_core_overflow_rejects_before_child",
         "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_indexed_input_size_limit_rejects_before_child",
         "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_indexed_source_expansion_is_bounded_before_source_reads",
-        "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_legacy_index_expansion_is_noop"
+        "modsecurity_connector_tests.test_active_test_inventory.IndexedSourceInventoryTests.test_legacy_index_expansion_is_noop",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_alternate_inventory_predeclared_authorities_preserve_identity",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_outside_inventory_rejects_before_any_content_open",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_inventory_symlink_roots_ancestors_and_leaf_are_rejected",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_inventory_untrusted_permission_modes_are_rejected",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_inventory_file_owner_is_required_before_json_parse",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_inventory_regular_file_and_byte_bounds_are_admitted_before_parse",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_inventory_descriptor_failure_paths_close_owned_descriptors",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_inventory_authorities_cannot_be_inside_product_or_framework",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_alternate_inventory_inside_real_checkout_rejects_before_open",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_inventory_double_slash_checkout_alias_rejects_before_open",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_inventory_double_slash_external_alias_preserves_identity",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_output_double_slash_checkout_alias_rejects_before_filesystem_effect",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_output_double_slash_external_alias_preserves_admission",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_relative_fixture_path_keeps_existing_cli_semantics",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_root_owned_canonical_inventory_retains_unprivileged_reader_policy",
+        "modsecurity_connector_tests.test_active_test_inventory.InventoryInputAuthorityTests.test_canonical_inventory_remains_environment_independent"
       ],
       "source": "tests/test_active_test_inventory.py",
-      "source_sha256": "7b08957d3e30986d9561fb2167eafcc7e15d1a6aed9a41bcdcdee409eb3372c9"
+      "source_sha256": "5c59b3f9c65556718e948115e91985f72510f2b9f43c3317865cc202c812287d"
     },
     {
       "contains_selected_definitions": [],
@@ -7399,6 +7415,7 @@
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_output_root_creates_private_leaf_and_preserves_existing_safe_mode",
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_fixture_configuration_keeps_the_test_module_separate",
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_native_module_emits_each_required_real_buffer_state",
+        "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_runner_configure_and_evidence_bind_selected_framework_sources",
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_runner_rebuilds_exact_head_modules_and_checks_forwarding",
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_allocation_fault_is_static_fixture_only",
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxBodyBufferFixtureContractTest.test_positive_event_accounting_is_retained_with_the_rule_binding",
@@ -7429,7 +7446,7 @@
         "modsecurity_connector_tests.test_nginx_body_buffer_fixture.NginxArchiveSnapshotSecurityTest.test_archive_snapshot_requires_no_anonymous_filesystem_support"
       ],
       "source": "tests/test_nginx_body_buffer_fixture.py",
-      "source_sha256": "c01a87235a345a963ca82e09f6069bb34cc7bd39bc2b6582e63e3069b27906d7"
+      "source_sha256": "57d7cd8c361eb59664dc9e3c0602b923040d1ca3ffda497143ec68c52d3e704a"
     },
     {
       "contains_selected_definitions": [],
@@ -10560,6 +10577,8 @@
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_download_redirect_cannot_downgrade_https",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_download_failure_preserves_preexisting_destination",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_archive_cannot_escape_its_expected_source_tree",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_output_parser_grammar_rejects_before_policy_or_filesystem_effects",
+        "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_output_parser_grammar_preserves_literal_supported_names",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_output_roots_reject_source_reuse_and_symlink_redirection",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_output_root_rejects_shared_ancestor_without_mutation",
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_required_generated_artifacts_must_be_regular_and_nonempty",
@@ -10568,7 +10587,7 @@
         "modsecurity_connector_tests.test_sonar_native_context.SonarNativeContextTests.test_nginx_generated_includes_do_not_backtrack_across_near_matches"
       ],
       "source": "tests/test_sonar_native_context.py",
-      "source_sha256": "561a8f91166712255af899459e1a03b88c69c1ab6b0245f0254472dfd5dee94f"
+      "source_sha256": "431cece1650cba6672a9997ab42db2d1142d120b632ced452c104d83976abcfb"
     },
     {
       "contains_selected_definitions": [],
@@ -12365,7 +12384,7 @@
         "modsecurity_test_framework.selftests.connector_adapter.test_inventory_sources.ConnectorInventorySourcesTests.test_go_overlay_compiles_private_test_without_writing_product_checkout"
       ],
       "source": "framework/tests/connector_adapter/test_inventory_sources.py",
-      "source_sha256": "3d73b81aa97148203a66b8b733efeb5cb9fa64633cf5dbee4e8ce6b860c13d65"
+      "source_sha256": "54887f1cdd3c117bc74ef139abbeadda196374408fe22ff1c81aac477047e318"
     },
     {
       "contains_selected_definitions": [],
@@ -12385,10 +12404,13 @@
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_callee_changes_are_observed",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_callee_contract_changes_are_rejected",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_lighttpd_dispatch_default_is_the_only_permitted_interface_difference",
-        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_missing_or_symlinked_source_has_no_fallback"
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_missing_or_symlinked_source_has_no_fallback",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.CompositeShellcheckAdmissionTests.test_shellcheck_accepts_one_literal_executable",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.CompositeShellcheckAdmissionTests.test_shellcheck_invalid_value_rejected_before_allocation_or_process",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.CompositeShellcheckAdmissionTests.test_shellcheck_rechecked_before_actionlint_process"
       ],
       "source": "framework/tests/connector_adapter/test_workflow_sources.py",
-      "source_sha256": "91ac430d7b786e5c531c691a6a6450cbd39b98c9138800c6907ac862265eb803"
+      "source_sha256": "3e69ea1f8135c24ad1a0fcc4ffb5ddc2c25a8d1cdf3f96a18fb26485f5af67e3"
     },
     {
       "contains_selected_definitions": [],

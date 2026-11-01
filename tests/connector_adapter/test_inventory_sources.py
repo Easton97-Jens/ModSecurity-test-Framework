@@ -38,7 +38,7 @@ class ConnectorInventorySourcesTests(unittest.TestCase):
         self.mapping = {self.logical: self.migrated}
         self.map_file = self.framework / "connector_suite/source-map.json"
         self.write_map()
-        self.inventory_path = self.product / "inventory.json"
+        self.inventory_path = self.output / "inventory.json"
         self.data = {"schema_version": 1, "executions": [{
             "id": "fixture.private", "groups": ["fixture"],
             "sources": [{"path": self.logical, "sha256": hashlib.sha256(self.source.read_bytes()).hexdigest()}],

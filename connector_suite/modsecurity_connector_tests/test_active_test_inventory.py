@@ -1,6 +1,6 @@
 """Exercise admission and expansion before any selected child starts."""
 from modsecurity_test_framework.connector_context import connector_root, source_path
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout, chdir
 import copy
 import hashlib
 import io
@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import stat
 import socket
 import subprocess
 import sys
@@ -586,6 +587,290 @@ class IndexedSourceInventoryTests(unittest.TestCase):
         original = copy.deepcopy(self.data)
         active._expand_indexed_sources(self.data, self.data["executions"])
         self.assertEqual(self.data, original)
+
+
+class InventoryInputAuthorityTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(dir=os.environ["RUNNER_TEMP"])
+        self.addCleanup(temporary.cleanup)
+        self.workspace = Path(temporary.name)
+        self.authority = self.workspace / "authority"
+        self.authority.mkdir(mode=0o700)
+        self.root = self.authority / "repository"
+        self.root.mkdir(mode=0o700)
+        self.framework = self.workspace / "framework"
+        self.framework.mkdir(mode=0o700)
+        source = self.root / "tests/authority_fixture.py"
+        source.parent.mkdir(mode=0o700)
+        source.write_text("import unittest\nclass Fixture(unittest.TestCase):\n"
+                          "    def test_pass(self):\n        self.assertTrue(True)\n")
+        self.data = {"schema_version": 1, "executions": [{
+            "id": "fixture.authority", "groups": ["authority"],
+            "sources": [{"path": "tests/authority_fixture.py",
+                         "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}],
+            "selector": {"kind": "python", "target": "tests.authority_fixture.Fixture.test_pass"},
+            "cases": [{"id": "fixture.authority.case", "requirement": "Retain an approved fixture identity.",
+                       "profiles": ["fixture"]}],
+        }]}
+        self.path = self.root / "inventory.json"
+        self.path.write_text(json.dumps(self.data))
+        self.path.chmod(0o600)
+
+    def check(self, path, environment, extra=()):
+        output, error = io.StringIO(), io.StringIO()
+        with (patch.dict(os.environ, environment, clear=True),
+              redirect_stdout(output), redirect_stderr(error)):
+            status = active.main(["--check", "--inventory", str(path), *extra], root=self.root)
+        return status, output.getvalue(), error.getvalue()
+
+    def test_alternate_inventory_predeclared_authorities_preserve_identity(self):
+        for name in ("RUNNER_TEMP", "TMP_ROOT", "CONNECTOR_TEST_OUTPUT_ROOT"):
+            with self.subTest(authority=name):
+                status, output, error = self.check(self.path, {name: str(self.authority)})
+                self.assertEqual(status, 0, error)
+                self.assertEqual(json.loads(output)["selected_case_ids"], ["fixture.authority.case"])
+
+    def test_outside_inventory_rejects_before_any_content_open(self):
+        outside = self.workspace / "outside.json"
+        outside.write_text(json.dumps(self.data))
+        for variant in ("outside-declared-root", "no-declaration", "tmpdir-only", "cli-output-root-only"):
+            with self.subTest(variant=variant):
+                environment = {"RUNNER_TEMP": str(self.authority)} if variant == "outside-declared-root" else {}
+                if variant == "tmpdir-only":
+                    environment["TMPDIR"] = str(self.workspace)
+                extra = ("--output-root", str(self.workspace)) if variant == "cli-output-root-only" else ()
+                with patch.object(active.os, "open", wraps=os.open) as opened:
+                    status, output, error = self.check(outside, environment, extra)
+                self.assertEqual(status, 2)
+                self.assertEqual(output, "")
+                self.assertNotIn("fixture.authority", error)
+                self.assertIn("predeclared external", error)
+                opened.assert_not_called()
+
+    def test_inventory_symlink_roots_ancestors_and_leaf_are_rejected(self):
+        for variant in ("authority-root", "intermediate", "leaf"):
+            with self.subTest(variant=variant):
+                alias = self.workspace / ("alias-" + variant)
+                environment = {"RUNNER_TEMP": str(self.authority)}
+                if variant == "authority-root":
+                    alias.symlink_to(self.authority, target_is_directory=True)
+                    environment["RUNNER_TEMP"] = str(alias)
+                    selected = alias / "repository/inventory.json"
+                elif variant == "intermediate":
+                    alias = self.authority / "alias-repository"
+                    alias.symlink_to(self.root, target_is_directory=True)
+                    selected = alias / "inventory.json"
+                else:
+                    alias = self.authority / "alias-inventory.json"
+                    alias.symlink_to(self.path)
+                    selected = alias
+                before = len(list(Path("/proc/self/fd").iterdir()))
+                status, output, _error = self.check(selected, environment)
+                self.assertEqual(status, 2)
+                self.assertEqual(output, "")
+                self.assertEqual(len(list(Path("/proc/self/fd").iterdir())), before)
+
+    def test_inventory_untrusted_permission_modes_are_rejected(self):
+        for variant in ("shared-authority", "shared-descendant", "writable-leaf"):
+            with self.subTest(variant=variant):
+                path = {"shared-authority": self.authority,
+                        "shared-descendant": self.root, "writable-leaf": self.path}[variant]
+                mode = path.stat().st_mode & 0o777
+                try:
+                    path.chmod(0o777 if path.is_dir() else 0o666)
+                    status, output, _error = self.check(self.path, {"RUNNER_TEMP": str(self.authority)})
+                    self.assertEqual(status, 2)
+                    self.assertEqual(output, "")
+                finally:
+                    path.chmod(mode)
+
+    def test_inventory_file_owner_is_required_before_json_parse(self):
+        original = os.fstat
+        def wrong_owner(descriptor):
+            observed = original(descriptor)
+            if stat.S_ISREG(observed.st_mode):
+                fields = list(observed)
+                fields[4] = os.geteuid() + 1
+                return os.stat_result(fields)
+            return observed
+        with patch.object(active.os, "fstat", side_effect=wrong_owner):
+            status, output, _error = self.check(self.path, {"RUNNER_TEMP": str(self.authority)})
+        self.assertEqual(status, 2)
+        self.assertEqual(output, "")
+
+    def test_inventory_regular_file_and_byte_bounds_are_admitted_before_parse(self):
+        for variant in ("directory", "fifo", "oversize", "growth-during-read"):
+            with self.subTest(variant=variant):
+                selected = self.authority / (variant + ".json")
+                if variant == "directory":
+                    selected.mkdir(mode=0o700)
+                elif variant == "fifo":
+                    os.mkfifo(selected, 0o600)
+                elif variant == "oversize":
+                    selected.write_bytes(b"x" * (active.MAX_INPUT_BYTES + 1))
+                else:
+                    selected.write_text(json.dumps(self.data))
+                original = os.fstat
+                def grow(descriptor, *, selected=selected, variant=variant, original=original):
+                    observed = original(descriptor)
+                    if variant == "growth-during-read" and stat.S_ISREG(observed.st_mode):
+                        selected.write_bytes(b"x" * (active.MAX_INPUT_BYTES + 1))
+                    return observed
+                with patch.object(active.os, "fstat", side_effect=grow):
+                    status, output, _error = self.check(selected, {"RUNNER_TEMP": str(self.authority)})
+                self.assertEqual(status, 2)
+                self.assertEqual(output, "")
+
+    def test_inventory_descriptor_failure_paths_close_owned_descriptors(self):
+        for variant in ("fdopen-constructor", "read-error", "directory-open"):
+            with self.subTest(variant=variant):
+                original_open, original_fdopen = os.open, os.fdopen
+                class ReadFailure:
+                    def __init__(self, stream):
+                        self.stream = stream
+                    def __enter__(self):
+                        return self
+                    def __exit__(self, *args):
+                        self.stream.close()
+                    def read(self, size):
+                        raise OSError("private read failure")
+                def selected_fdopen(*args, variant=variant, original_fdopen=original_fdopen, **kwargs):
+                    if variant == "fdopen-constructor":
+                        raise OSError("private constructor failure")
+                    return ReadFailure(original_fdopen(*args, **kwargs))
+                def selected_open(path, flags, *args, variant=variant, original_open=original_open, **kwargs):
+                    if variant == "directory-open" and str(path) == "repository":
+                        raise OSError("private directory failure")
+                    return original_open(path, flags, *args, **kwargs)
+                before = len(list(Path("/proc/self/fd").iterdir()))
+                with (patch.object(active.os, "fdopen", side_effect=selected_fdopen),
+                      patch.object(active.os, "open", side_effect=selected_open)):
+                    status, output, _error = self.check(self.path, {"RUNNER_TEMP": str(self.authority)})
+                self.assertEqual(status, 2)
+                self.assertEqual(output, "")
+                self.assertEqual(len(list(Path("/proc/self/fd").iterdir())), before)
+
+    def test_inventory_authorities_cannot_be_inside_product_or_framework(self):
+        for variant in ("product", "framework"):
+            with self.subTest(variant=variant):
+                authority = (self.root if variant == "product" else self.framework) / "declared"
+                authority.mkdir(mode=0o700)
+                selected = authority / "inventory.json"
+                selected.write_text(json.dumps(self.data))
+                with (patch.object(active, "_real_checkout", return_value=True),
+                      patch.object(active, "test_root", return_value=self.framework),
+                      patch.object(active, "source_path", return_value=self.root / active.INVENTORY_PATH),
+                      patch.object(active.os, "open", wraps=os.open) as opened):
+                    status, output, error = self.check(selected, {"RUNNER_TEMP": str(authority)})
+                self.assertEqual(status, 2)
+                self.assertEqual(output, "")
+                self.assertIn("predeclared external", error)
+                opened.assert_not_called()
+
+    def test_alternate_inventory_inside_real_checkout_rejects_before_open(self):
+        for variant in ("product", "framework", "product-alias", "framework-alias"):
+            with self.subTest(variant=variant):
+                checkout = self.root if variant.startswith("product") else self.framework
+                selected = checkout / ("alternate-" + variant + ".json")
+                selected.write_text(json.dumps(self.data))
+                if variant.endswith("-alias"):
+                    selected = Path("/" + str(selected))
+                with (patch.object(active, "_real_checkout", return_value=True),
+                      patch.object(active, "test_root", return_value=self.framework),
+                      patch.object(active, "source_path", return_value=self.root / active.INVENTORY_PATH),
+                      patch.object(active.os, "open", wraps=os.open) as opened):
+                    status, output, error = self.check(selected, {"RUNNER_TEMP": str(self.workspace)})
+                self.assertEqual(status, 2)
+                self.assertEqual(output, "")
+                self.assertIn("outside Product and Framework checkouts", error)
+                self.assertNotIn("fixture.authority", error)
+                opened.assert_not_called()
+
+    def test_inventory_double_slash_checkout_alias_rejects_before_open(self):
+        for variant in ("product", "framework"):
+            with self.subTest(checkout=variant):
+                checkout = self.root if variant == "product" else self.framework
+                authority = checkout / "double-slash-inventory"
+                authority.mkdir(mode=0o700)
+                selected = authority / "inventory.json"
+                selected.write_text(json.dumps(self.data))
+                alias = Path("/" + str(authority))
+                with (patch.object(active, "_real_checkout", return_value=True),
+                      patch.object(active, "test_root", return_value=self.framework),
+                      patch.object(active, "source_path", return_value=self.root / active.INVENTORY_PATH),
+                      patch.object(active.os, "open", wraps=os.open) as opened):
+                    status, output, error = self.check(alias / selected.name, {"RUNNER_TEMP": str(alias)})
+                self.assertEqual(status, 2)
+                self.assertEqual(output, "")
+                self.assertIn("predeclared external", error)
+                opened.assert_not_called()
+
+    def test_inventory_double_slash_external_alias_preserves_identity(self):
+        for variant in ("authority", "inventory", "both"):
+            with self.subTest(alias=variant):
+                authority = Path("/" + str(self.authority)) if variant != "inventory" else self.authority
+                selected = Path("/" + str(self.path)) if variant != "authority" else self.path
+                status, output, error = self.check(selected, {"RUNNER_TEMP": str(authority)})
+                self.assertEqual(status, 0, error)
+                self.assertEqual(json.loads(output)["selected_case_ids"], ["fixture.authority.case"])
+
+    def test_output_double_slash_checkout_alias_rejects_before_filesystem_effect(self):
+        for variant in ("product", "framework"):
+            with self.subTest(checkout=variant):
+                checkout = self.root if variant == "product" else self.framework
+                selected = checkout / "double-slash-output"
+                selected.mkdir(mode=0o700)
+                alias = Path("/" + str(selected))
+                with (patch.object(active, "_real_checkout", return_value=True),
+                      patch.object(active, "test_root", return_value=self.framework),
+                      patch.object(active, "_validate_output_ancestry", wraps=active._validate_output_ancestry) as ancestry,
+                      patch.object(active.tempfile, "mkdtemp", wraps=tempfile.mkdtemp) as allocated,
+                      patch.object(active.os, "open", wraps=os.open) as opened,
+                      self.assertRaises(active.InventoryError)):
+                    active._output_directory(self.root, alias)
+                ancestry.assert_not_called()
+                allocated.assert_not_called()
+                opened.assert_not_called()
+                self.assertEqual(list(selected.iterdir()), [])
+
+    def test_output_double_slash_external_alias_preserves_admission(self):
+        for variant in ("ordinary", "double-slash"):
+            with self.subTest(alias=variant):
+                selected = self.authority if variant == "ordinary" else Path("/" + str(self.authority))
+                admitted = active.validate_output_root(self.root, selected)
+                self.assertEqual(admitted, self.authority)
+
+    def test_relative_fixture_path_keeps_existing_cli_semantics(self):
+        with chdir(self.authority):
+            status, output, error = self.check(Path("repository/inventory.json"),
+                                               {"RUNNER_TEMP": str(self.authority)})
+        self.assertEqual(status, 0, error)
+        self.assertEqual(json.loads(output)["selected_case_ids"], ["fixture.authority.case"])
+
+    def test_root_owned_canonical_inventory_retains_unprivileged_reader_policy(self):
+        canonical = self.root / active.INVENTORY_PATH
+        canonical.parent.mkdir(parents=True, mode=0o700)
+        canonical.write_text(json.dumps(self.data))
+        original = os.fstat
+        def root_owned_policy(descriptor):
+            observed = original(descriptor)
+            fields = list(observed)
+            fields[4] = 0
+            fields[0] = (observed.st_mode & ~0o777) | (0o755 if stat.S_ISDIR(observed.st_mode) else 0o644)
+            return os.stat_result(fields)
+        with (patch.object(active.os, "geteuid", return_value=1001),
+              patch.object(active.os, "fstat", side_effect=root_owned_policy)):
+            status, output, error = self.check(canonical, {})
+        self.assertEqual(status, 0, error)
+        self.assertEqual(json.loads(output)["selected_case_ids"], ["fixture.authority.case"])
+
+    def test_canonical_inventory_remains_environment_independent(self):
+        canonical = self.root / active.INVENTORY_PATH
+        canonical.parent.mkdir(parents=True, mode=0o700)
+        canonical.write_text(json.dumps(self.data))
+        status, output, error = self.check(canonical, {})
+        self.assertEqual(status, 0, error)
+        self.assertEqual(json.loads(output)["selected_case_ids"], ["fixture.authority.case"])
 
 
 # Parent default discovery uses the one admitted active-case inventory.

@@ -1789,17 +1789,16 @@ def trusted_base_migration_violations(
         errors.append(
             "trusted-base migration requires the unique canonical setup-python step"
         )
-    if len(checkouts) == len(gitlinks) == len(contexts) == len(setups) == 1:
-        if not (
-            checkouts[0].index
-            < gitlinks[0].index
-            < contexts[0].index
-            < setups[0].index
-            < verifier.index
-        ):
-            errors.append(
-                "trusted-base migration bootstrap must precede its verifier in reviewed order"
-            )
+    if len(checkouts) == len(gitlinks) == len(contexts) == len(setups) == 1 and not (
+        checkouts[0].index
+        < gitlinks[0].index
+        < contexts[0].index
+        < setups[0].index
+        < verifier.index
+    ):
+        errors.append(
+            "trusted-base migration bootstrap must precede its verifier in reviewed order"
+        )
     return errors
 
 

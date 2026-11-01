@@ -539,9 +539,7 @@ def _probe_host_transaction(root, observation, event_path):
                 observation["transaction_id"] = transactions.pop()
                 observation["transaction_ids"] = [observation["transaction_id"]]
     except (OSError, ValueError):
-        observation["identity_error"] = (
-            "host transaction evidence could not be read safely"
-        )
+        observation["identity_error"] = "host transaction evidence could not be read safely"
         observation["status"] = "FAIL"
 
 

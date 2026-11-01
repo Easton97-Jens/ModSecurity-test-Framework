@@ -323,9 +323,9 @@ def main(argv: list[str]) -> int:
         f"--prefix={build_root / 'prefix'}",
         "--with-compat",
         "--with-ld-opt=-Wl,--wrap=msc_process_response_headers",
-        f"--add-module={connector_root / 'tests' / 'nginx_p3_header_observer_fixture'}",
+        f"--add-module={source_path('tests/nginx_p3_header_observer_fixture', root=connector_root)}",
         f"--add-module={connector_root / 'connectors' / 'nginx'}",
-        f"--add-module={connector_root / 'tests' / 'nginx_p3_header_injector_fixture'}",
+        f"--add-module={source_path('tests/nginx_p3_header_injector_fixture', root=connector_root)}",
     ]
     SHARED.run(
         configure, cwd=nginx_source, environment=environment, log=logs_root / "configure.log"
@@ -370,7 +370,7 @@ def main(argv: list[str]) -> int:
         "record_type": "nginx_native_p3_header_fixture",
         "head": head,
         "nginx": {
-            "version": "1.31.4",
+            "version": SHARED.EXPECTED_NGINX_ROOT.removeprefix("nginx-"),
             "archive_sha256": archive_digest,
             "binary_sha256": SHARED.sha256_file(nginx),
             "connector_linkage": "static_test_binary",
@@ -387,16 +387,16 @@ def main(argv: list[str]) -> int:
             "reinvocation": "zero_result_reinvokes_real_connector_filter",
             "payload_sha256": hashlib.sha256(PAYLOAD).hexdigest(),
             "injector_source_sha256": SHARED.sha256_file(
-                connector_root
-                / "tests"
-                / "nginx_p3_header_injector_fixture"
-                / "ngx_http_p3_header_injector_fixture_module.c"
+                source_path(
+                    "tests/nginx_p3_header_injector_fixture/ngx_http_p3_header_injector_fixture_module.c",
+                    root=connector_root,
+                )
             ),
             "observer_source_sha256": SHARED.sha256_file(
-                connector_root
-                / "tests"
-                / "nginx_p3_header_observer_fixture"
-                / "ngx_http_p3_header_observer_fixture_module.c"
+                source_path(
+                    "tests/nginx_p3_header_observer_fixture/ngx_http_p3_header_observer_fixture_module.c",
+                    root=connector_root,
+                )
             ),
         },
         "cases": observations,

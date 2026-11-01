@@ -203,6 +203,12 @@ static int open_test_directory_at(int parent_fd, const char *name)
 /* Validate the supplied base before the first filesystem mutation. Held
  * descriptors prevent symlink traversal; only root-owned sticky ancestors
  * may be shared writable. The final base remains privately owned. */
+static int reject_test_directory(int directory)
+{
+    (void)close(directory);
+    return -1;
+}
+
 static int open_private_test_base(const char *base)
 {
     char copy[TEST_PATH_SIZE];
@@ -221,23 +227,21 @@ static int open_private_test_base(const char *base)
     for (const char *part = strtok_r(copy, "/", &state); part != NULL;
          part = strtok_r(NULL, "/", &state)) {
         int next;
-        if (strcmp(part, ".") == 0 || strcmp(part, "..") == 0) { goto rejected; }
+        if (strcmp(part, ".") == 0 || strcmp(part, "..") == 0) { return reject_test_directory(directory); }
         next = open_test_directory_at(directory, part);
-        if (next < 0) { goto rejected; }
+        if (next < 0) { return reject_test_directory(directory); }
         (void)close(directory);
         directory = next;
         if (fstat(directory, &details) != 0 ||
             (details.st_uid != 0 && details.st_uid != geteuid()) ||
             ((details.st_mode & 0022) != 0 &&
              !(details.st_uid == 0 && (details.st_mode & S_ISVTX) != 0))) {
-            goto rejected;
+            return reject_test_directory(directory);
         }
     }
     if (fstat(directory, &details) == 0 && details.st_uid == geteuid() &&
         (details.st_mode & 0777) == 0700) { return directory; }
-rejected:
-    (void)close(directory);
-    return -1;
+    return reject_test_directory(directory);
 }
 
 static int create_unsafe_directory(int root_fd)
@@ -466,7 +470,9 @@ static int initialize_test_paths(const char *base,
     private_event_file_test_paths *paths)
 {
     (void)memset(paths, 0, sizeof(*paths));
-    paths->base_fd = paths->root_fd = paths->private_fd = -1;
+    paths->base_fd = -1;
+    paths->root_fd = -1;
+    paths->private_fd = -1;
     if (base == NULL || base[0] == '\0' ||
         strlen(base) + sizeof("/event-sink-XXXXXX") > sizeof(paths->root)) {
         (void)fprintf(stderr,
@@ -539,28 +545,35 @@ static int remove_test_entry(int directory, const char *name, int flags)
     return unlinkat(directory, name, flags) == 0 || errno == ENOENT;
 }
 
+static int cleanup_test_root_contents(private_event_file_test_paths *paths)
+{
+    int result = 1;
+    int owned = open_test_directory_at(paths->root_fd, "root-owned");
+    if (owned >= 0) {
+        if (!remove_test_entry(owned, "root-owned.jsonl", 0)) { result = 0; }
+        if (!remove_test_entry(owned, "events.jsonl", 0)) { result = 0; }
+        if (!close_test_descriptor(&owned)) { result = 0; }
+    } else if (errno != ENOENT) { result = 0; }
+    if (paths->private_fd >= 0) {
+        if (!remove_test_entry(paths->private_fd, "event-link.jsonl", 0)) { result = 0; }
+        if (!remove_test_entry(paths->private_fd, "event.fifo", 0)) { result = 0; }
+        if (!remove_test_entry(paths->private_fd, "events.jsonl", 0)) { result = 0; }
+    }
+    return result;
+}
+
 static int cleanup_test_paths(private_event_file_test_paths *paths)
 {
     int result = 1;
     struct stat opened;
     struct stat named;
     if (paths->root_fd >= 0) {
-        int owned = open_test_directory_at(paths->root_fd, "root-owned");
-        if (owned >= 0) {
-            if (!remove_test_entry(owned, "root-owned.jsonl", 0)) { result = 0; }
-            if (!remove_test_entry(owned, "events.jsonl", 0)) { result = 0; }
-            if (!close_test_descriptor(&owned)) { result = 0; }
-        } else if (errno != ENOENT) { result = 0; }
-        if (paths->private_fd >= 0) {
-            if (!remove_test_entry(paths->private_fd, "event-link.jsonl", 0)) { result = 0; }
-            if (!remove_test_entry(paths->private_fd, "event.fifo", 0)) { result = 0; }
-            if (!remove_test_entry(paths->private_fd, "events.jsonl", 0)) { result = 0; }
-        }
+        if (!cleanup_test_root_contents(paths)) { result = 0; }
         if (!remove_test_entry(paths->root_fd, "root-owned", AT_REMOVEDIR)) { result = 0; }
         if (!remove_test_entry(paths->root_fd, "private-link", 0)) { result = 0; }
         if (!remove_test_entry(paths->root_fd, "unsafe", AT_REMOVEDIR)) { result = 0; }
         if (!remove_test_entry(paths->root_fd, "private", AT_REMOVEDIR)) { result = 0; }
-        if (fstat(paths->root_fd, &opened) != 0 ||
+        if (paths->base_fd < 0 || fstat(paths->root_fd, &opened) != 0 ||
             fstatat(paths->base_fd, paths->root_name, &named, AT_SYMLINK_NOFOLLOW) != 0 ||
             !S_ISDIR(named.st_mode) || opened.st_dev != named.st_dev ||
             opened.st_ino != named.st_ino ||

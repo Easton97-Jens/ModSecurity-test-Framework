@@ -418,15 +418,119 @@ def _validate_execution(execution: Any) -> None:
             raise InventoryError("expected subtests must match a bounded Python expansion")
 
 
-def _read_inventory(path: Path) -> tuple[dict[str, Any], str]:
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    with os.fdopen(descriptor, "rb") as source:
-        observed = os.fstat(source.fileno())
-        if not stat.S_ISREG(observed.st_mode) or observed.st_size > MAX_INPUT_BYTES:
-            raise InventoryError("inventory must be a bounded regular non-symlink file")
-        data = source.read(MAX_INPUT_BYTES + 1)
+def _lexical_absolute_path(path: Path) -> Path:
+    """Use the same single-root anchor as the POSIX descriptor walk, without resolving links."""
+    absolute = path.absolute()
+    return Path("/", *absolute.parts[1:])
+
+
+def _canonical_inventory_path(root: Path) -> Path:
+    return _lexical_absolute_path(source_path(INVENTORY_PATH, root=root) if _real_checkout(root)
+                                  else root / INVENTORY_PATH)
+
+
+def _inventory_external_authority(authority: Path, root: Path) -> bool:
+    authority, root = _lexical_absolute_path(authority), _lexical_absolute_path(root)
+    if authority == root or root in authority.parents:
+        return False
+    if _real_checkout(root):
+        framework = _lexical_absolute_path(test_root())
+        if authority == framework or framework in authority.parents:
+            return False
+    return True
+
+
+def _inventory_authorities(path: Path, root: Path) -> tuple[Path, ...]:
+    canonical = _canonical_inventory_path(root)
+    if path == canonical:
+        return (canonical.parent,)
+    if _real_checkout(root) and not _inventory_external_authority(path, root):
+        raise InventoryError("alternate inventory requires a predeclared external input outside Product and Framework checkouts")
+    candidates = []
+    for name in ("RUNNER_TEMP", "TMP_ROOT", "CONNECTOR_TEST_OUTPUT_ROOT"):
+        value = os.environ.get(name)
+        if not value:
+            continue
+        authority = Path(value)
+        if (not authority.is_absolute() or ".." in authority.parts
+                or not _inventory_external_authority(authority, root)):
+            continue
+        authority = _lexical_absolute_path(authority)
+        if authority in path.parents and authority not in candidates:
+            candidates.append(authority)
+    if not candidates:
+        raise InventoryError("alternate inventory requires a predeclared external RUNNER_TEMP/TMP_ROOT/CONNECTOR_TEST_OUTPUT_ROOT")
+    return tuple(candidates)
+
+
+def _open_inventory_directory(path: Path, owners: frozenset[int]) -> int:
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for component in path.parts[1:]:
+            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+            observed = os.fstat(descriptor)
+            sticky = (observed.st_uid == 0 and observed.st_mode & stat.S_ISVTX
+                     )
+            if (observed.st_uid not in {0, os.geteuid()}
+                    or observed.st_mode & 0o022 and not sticky):
+                raise InventoryError("inventory directory authority is invalid")
+        observed = os.fstat(descriptor)
+        if observed.st_uid not in owners or observed.st_mode & 0o022:
+            raise InventoryError("inventory directory authority is invalid")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _read_inventory_authorized(path: Path, authority: Path, *, canonical: bool) -> bytes:
+    owners = frozenset({0, os.geteuid()} if canonical else {os.geteuid()})
+    directory = _open_inventory_directory(authority, owners)
+    try:
+        relative = path.relative_to(authority)
+        for component in relative.parts[:-1]:
+            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                            dir_fd=directory)
+            os.close(directory)
+            directory = child
+            observed = os.fstat(directory)
+            if observed.st_uid not in owners or observed.st_mode & 0o022:
+                raise InventoryError("inventory directory authority is invalid")
+        descriptor = os.open(relative.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=directory)
+        try:
+            observed = os.fstat(descriptor)
+            if (not stat.S_ISREG(observed.st_mode) or observed.st_uid not in owners
+                    or observed.st_mode & 0o022 or observed.st_size > MAX_INPUT_BYTES):
+                raise InventoryError("inventory must be an owned bounded regular non-writable file")
+            with os.fdopen(descriptor, "rb", closefd=False) as source:
+                data = source.read(MAX_INPUT_BYTES + 1)
+        finally:
+            os.close(descriptor)
+    finally:
+        os.close(directory)
     if len(data) > MAX_INPUT_BYTES:
         raise InventoryError("inventory exceeds the size limit")
+    return data
+
+
+def _read_inventory(path: Path, *, root: Path) -> tuple[dict[str, Any], str]:
+    if ".." in path.parts:
+        raise InventoryError("inventory input must not traverse parent directories")
+    path = _lexical_absolute_path(path)
+    authorities = _inventory_authorities(path, root)
+    data = None
+    for authority in authorities:
+        try:
+            data = _read_inventory_authorized(path, authority, canonical=path == _canonical_inventory_path(root))
+            break
+        except (OSError, InventoryError):
+            continue
+    if data is None:
+        raise InventoryError("inventory input authority or bounded regular non-symlink file is invalid")
     try:
         value = json.loads(data.decode("utf-8"), object_pairs_hook=_unique_object)
     except (UnicodeError, json.JSONDecodeError) as exc:
@@ -607,7 +711,7 @@ def load_inventory(root: Path, inventory_path: Path | None = None) -> Inventory:
     root = root.resolve(strict=True)
     path = inventory_path or (source_path(INVENTORY_PATH, root=root)
                               if _real_checkout(root) else root / INVENTORY_PATH)
-    value, digest = _read_inventory(path)
+    value, digest = _read_inventory(path, root=root)
     version, core, exceptions = _inventory_sections(value)
     executions = core + exceptions
     _expand_indexed_sources(value, executions)
@@ -654,7 +758,7 @@ def _recheck_bindings(inventory: Inventory) -> None:
         mapping = _source_map_bytes(inventory.root)
         if (mapping is None or hashlib.sha256(mapping).hexdigest() != inventory.source_map_sha256):
             raise InventoryError("connector source map changed after admission")
-    if inventory.path is None or _read_inventory(inventory.path)[1] != inventory.digest:
+    if inventory.path is None or _read_inventory(inventory.path, root=inventory.root)[1] != inventory.digest:
         raise InventoryError("active inventory changed after admission")
     checked: dict[tuple[str, str], bytes] = {}
     for execution in inventory.executions:
@@ -911,13 +1015,16 @@ def validate_output_root(root: Path, output_root: Path) -> Path:
     """Validate an existing invocation-owned external parent before allocating."""
     if not output_root.is_absolute() or ".." in output_root.parts:
         raise InventoryError("test output root must be an existing absolute external directory")
-    _validate_output_ancestry(output_root)
-    if output_root == root or root in output_root.parents or output_root.stat().st_uid != os.geteuid():
+    root, output_root = _lexical_absolute_path(root), _lexical_absolute_path(output_root)
+    if output_root == root or root in output_root.parents:
         raise InventoryError("test output root must be external and invocation-owned")
     if _real_checkout(root):
-        framework = test_root()
+        framework = _lexical_absolute_path(test_root())
         if output_root == framework or framework in output_root.parents:
             raise InventoryError("test output root must also be external to the Framework checkout")
+    _validate_output_ancestry(output_root)
+    if output_root.stat().st_uid != os.geteuid():
+        raise InventoryError("test output root must be external and invocation-owned")
     return output_root
 
 

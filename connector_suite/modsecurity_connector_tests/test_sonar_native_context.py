@@ -252,6 +252,58 @@ class SonarNativeContextTests(unittest.TestCase):
                 NATIVE.unpack(archive, sources, "host-1.2.3")
             self.assertFalse((root / "outside").exists())
 
+    def test_output_parser_grammar_rejects_before_policy_or_filesystem_effects(self) -> None:
+        variants = (
+            ("space", " "), ("tab", "\t"), ("newline", "\n"), ("return", "\r"),
+            ("vertical-tab", "\v"), ("form-feed", "\f"), ("nul", "\0"),
+            ("control-start", "\x01"), ("control-end", "\x1f"), ("delete", "\x7f"),
+            ("c1-control", "\x85"), ("line-separator", "\u2028"),
+            ("comma", ","), ("colon", ":"), ("semicolon", ";"),
+            ("open-parenthesis", "("), ("close-parenthesis", ")"), ("dollar", "$"),
+            ("backtick", "`"), ("single-quote", "'"), ("double-quote", '"'),
+            ("backslash", "\\"), ("hash", "#"), ("ampersand", "&"), ("pipe", "|"),
+            ("less-than", "<"), ("greater-than", ">"), ("asterisk", "*"), ("question", "?"),
+            ("open-bracket", "["), ("close-bracket", "]"),
+            ("open-brace", "{"), ("close-brace", "}"), ("equals", "="),
+            ("double-root-separator", None),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            for label, character in variants:
+                raw = ("/" + str(parent / "context") if character is None
+                       else str(parent / ("context" + character + "suffix")))
+                with self.subTest(variant=label):
+                    with (mock.patch.object(NATIVE, "is_safe_runtime_root") as policy,
+                          mock.patch.object(NATIVE, "ensure_safe_runtime_directory") as created,
+                          mock.patch.object(NATIVE.Path, "mkdir") as mkdir,
+                          mock.patch.object(NATIVE, "run") as invoked,
+                          mock.patch.object(NATIVE.subprocess, "run") as child,
+                          self.assertRaises(ValueError)):
+                        NATIVE.fresh_root(raw)
+                    policy.assert_not_called()
+                    created.assert_not_called()
+                    mkdir.assert_not_called()
+                    invoked.assert_not_called()
+                    child.assert_not_called()
+                    self.assertEqual(list(parent.iterdir()), [])
+
+    def test_output_parser_grammar_preserves_literal_supported_names(self) -> None:
+        variants = (
+            ("ascii", "context_1.4-85"), ("plus-at", "context+build@host"),
+            ("umlaut", "Grüße"), ("combining", "e\u0301"),
+            ("han", "路径"), ("unicode-digits", "١٢"),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            for label, leaf in variants:
+                raw = str(parent / leaf)
+                with self.subTest(variant=label), mock.patch.object(NATIVE, "run") as invoked:
+                    output = NATIVE.fresh_root(raw)
+                    self.assertEqual(str(output), raw)
+                    self.assertTrue(output.is_dir())
+                    self.assertEqual(output.stat().st_mode & 0o777, 0o700)
+                    invoked.assert_not_called()
+
     def test_output_roots_reject_source_reuse_and_symlink_redirection(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             parent = Path(temporary)

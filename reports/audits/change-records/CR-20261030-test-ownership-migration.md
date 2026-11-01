@@ -12,6 +12,108 @@
 
 ## Motivation and problem statement
 
+### N29 follow-up and publication status (2026-11-01)
+
+This section supersedes earlier current-status statements. The N28 quantities,
+old pair receipts and scanner inventories below remain historical snapshots;
+they do not describe the final N29 catalog or qualify its unpublished sources.
+Framework PR #142 and Connector PR #434 remain Draft. Publication of the new
+Framework follow-up, its exact Parent pin and their fresh head-bound checks are
+pending. No merge eligibility is claimed.
+
+The final schema-5 catalog contains **100 standard cases / 80 executions**,
+**2535 on-demand cases / 1129 executions**,
+**522 Framework bindings / 235 Product paths**,
+and **2635 total cases / 1209 executions**.
+Its raw JSON occupies **1139659 bytes**; expanded UTF-8 source paths
+occupy **1097778 bytes**. Both retain the unchanged
+**2097152-byte (2 MiB)** bound. The final inventory SHA-256 is
+`04233fe7c0f6d5f885f8a6666e6d08352efbb7c9430e54bf566f7671fe780184`. All 757 ordered source-pool entries are used. The extension contains 142 explicit
+methods: 133 pure controls, with 157 process-bearing rows across 13 allowlisted
+modules retained. The 22 new methods / 92 cases are pure additions; default
+selection remains 100 cases. All six generator operations passed again for this
+final catalog.
+
+#### Input and executable authority
+
+The canonical inventory selected by the Framework remains independent of
+`RUNNER_TEMP`, `TMP_ROOT` and `CONNECTOR_TEST_OUTPUT_ROOT`. An alternate inventory
+is an admission-only fixture: it must be below the union of these independently
+supplied application roots and outside the actual Product and Framework
+checkouts. `TMPDIR` and freely selected CLI `--output-root` do not grant input
+read authority. Standalone alternates without a declared application root now
+fail closed. Synthetic isolated fixture roots retain their existing interface;
+the mapped real-checkout fixture places its alternate in its already declared
+output root. POSIX `//` paths are normalized to the held-descriptor walk's `/`
+anchor before containment checks or output effects. Alternate input admission
+walks owned trusted directories through held nofollow descriptors and reads an
+owned bounded regular non-shared-writable leaf before strict JSON parsing.
+Canonical source ownership may also be root-owned; an unprivileged reader is not
+required to own that checkout. No file creation or test execution is added to
+inventory admission. Same-UID deliberate namespace mutation and replacement of
+the trusted application environment remain outside this boundary.
+
+Lighttpd native-context preparation admits its exact output-root string before
+runtime policy, directory creation or subprocess invocation. Supported names use
+Unicode alphanumeric or combining characters and `/._-+@`; whitespace, control
+characters, parser punctuation and a leading `//` reject early. Supported literal component names and Unicode sequences remain intact; existing
+pathlib lexical path handling remains in place. The check covers paths subsequently interpreted by
+configure, generated config.status and Make during dependency-file setup; one
+subprocess argv element alone is not the downstream parser proof. Existing
+source pins, ownership/freshness checks and return-code requirements remain.
+No configure/build runtime was executed for these new path regressions.
+
+`--shellcheck` selects one existing executable pathname, fully resolved before
+passing it to actionlint. Existing paths containing spaces or command-shaped
+literal text remain one literal executable. Unresolved command strings reject
+before actionlint; the admitted file is checked again immediately before use.
+This trusts the selected tool file and its parent policy; it does not provide
+atomic descriptor-based tool execution or protect against deliberate same-UID
+replacement. All 3 new methods / 10 cases passed actual guarded traces with zero selected effects, source writes or skips; the full 18-method module also passed.
+
+The eight quality corrections preserve the old assertions and selection
+semantics. Four existing quality modules passed 84 methods with zero skips,
+across scoped runs of 13.783, 5.624, 1.847 and 0.918 seconds; strict C17 fixture
+probes also passed. Two NGINX fixture runners correct six moved-fixture
+references: 3 configure references and 3 hashing references. Their 2 version
+metadata fields now derive from the existing validated pin `nginx-1.31.6`,
+replacing stale `1.31.4` metadata without a dependency upgrade or host campaign. The new method passed both cases under the actual guard in 1.444 seconds; the entire 33-method module / 31 observed subtests passed in 1.591 seconds. All 32 old method ASTs remain exact. Actual content reads cover the 3 C fixtures and 3 configure files; the new trace binds 17 Framework source files and 0 Product files. These are source/path proofs, without a new native host run.
+
+#### Evidence and remaining delivery work
+
+The public runner passed the first **18 new methods / 80 cases** in **81.195
+seconds**, with strict zero skips and missing-CLI-opt-in denial preserved. All
+six generator operations passed for that slice. These receipts precede the
+additional ShellCheck and NGINX selections; the later separate batch is recorded
+below, without relabelling them as one combined run. The existing **46 inventory methods**, **7 mapped-source methods** and
+**36 maintenance methods** passed. All **21 old Lighttpd context methods** also
+passed under the actual guard; the full class run included the 2 new methods,
+23 methods and 56 observed subtests, with zero skips, selected effects or source
+writes. The final 4 methods / 12 cases passed the public runner in 22.378 seconds with zero skips; one aggregate missing-opt-in control returned the expected exit status 2 in 5.367 seconds even with `ON_DEMAND_TESTS=1`. The earlier 18-method batch also had one aggregate control, returning the expected exit status 2 in 5.679 seconds. Final full admission passed in 5.794 seconds. Exact comparison of inventory `b12742fc5cf0e5addfec53b95ba18548789617957cb217f16629e2980618d5d6` against `04233fe7c0f6d5f885f8a6666e6d08352efbb7c9430e54bf566f7671fe780184` found zero differences in all selected decoded fields and bound source SHA-256 values for the first 18 methods / 80 cases. Their 81.195-second receipt therefore retains its source scope. The two actual batches cover all 22 new pure methods / 92 cases; no single combined run is claimed.
+
+Fresh real recorded-pair acceptance passed Connector
+`c2b6d0440c3f1b7742645d7f4409e4450920cae1` with Framework
+`78461314f5b1df294de02e1cb7c8a3fa00910bbb` in **119.129 seconds**. Separate explicit
+DEV acceptance selected `cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49` in **120.986
+seconds**. All **90 updater methods / 216 subtests** passed. These receipts bind
+the published pair, not the new uncommitted Framework follow-up. Actual UID 1001
+execution for this resumed pair is **NOT_EXECUTED**: the namespace probe was
+denied. Byte identity of the historical sealed bridge preserves its earlier
+proof's scope; it does not create a new UID runtime PASS.
+
+All **79** individually proven, user-authorized false positives have documented
+code evidence and disposition readback. The Framework's fresh remaining-issue
+count is not inferred by subtracting dispositions from an older scanner count.
+Fresh complete server readback for published Framework `78461314f5b1df294de02e1cb7c8a3fa00910bbb` has 11 OPEN findings: 8 CODE_SMELL and 3 security findings at the executable/inventory/native-context boundaries. Its gate remains ERROR, security rating C, with 6 conditions and 0 TO_REVIEW hotspots. This server result does not analyze the uncommitted N29 corrections. Parent Sonar analyzed exact published head
+`c2b6d0440c3f1b7742645d7f4409e4450920cae1`: gate **OK**, all **5** conditions passed,
+**0** unresolved issues and **0 TO_REVIEW** hotspots. Other current-head CI was
+still pending at that readback. The eight quality corrections and three source
+boundary repairs require a new Framework head and fresh scanner results;
+uncertain findings remain open. No scanner rule, exclusion, warning, test,
+Quality Gate or merge protection is weakened. A future Parent pin starts another
+exact-head check cycle. Publication of the new Framework SHA and the dependent Parent gitlink/full workflow pins remains pending; no future commit SHA is asserted. The actual canonical native suite passed 330 CI-security tests in 165.842 seconds; the exact 38-file Ruff lint/format selection passed in 0.236 seconds and all 19 Sonar-contract methods passed in 5.0 seconds. These local contract results do not replace new-head hosted analysis or pair acceptance.
+
+
 All Connector tests and test infrastructure must move into the independent
 Framework. Connector retains productive code/build/delivery and small pinned
 integration calls. Separate worktrees preserve the original working checkouts.
@@ -258,7 +360,7 @@ consolidation replaced 326 blocks and removed 1067 net loader lines, with 29
 new shared-loader lines recorded separately. These are loader metrics, not a
 claim about total repository code reduction.
 
-The registered canonical schema-5 inventory contains **100 standard cases /
+At the N28 checkpoint, the registered schema-5 inventory contained **100 standard cases /
 80 executions**, **2443 on-demand cases / 1107 executions**, **515 fixed Framework
 test-source bindings** and **235 product-source snapshots**. The catalog declares
 **1187 execution definitions / 2543 cases**; these are selection quantities,
@@ -268,7 +370,7 @@ identities remain and all 750 ordered source-pool entries are used. The original
 1993 case dictionaries and standard IDs remain unchanged. Admission still checks
 the expanded UTF-8 source-path bound before materialization.
 
-The extension now contains **120 explicit on-demand methods**, including 37 new
+At the N28 checkpoint, the extension contained **120 explicit on-demand methods**, including 37 new
 methods / 79 cases in N28: 5 argument-admission methods / 15 cases, 2 native
 fixture methods / 6 cases, 12 Go-capture methods / 31 cases and 18 archive-snapshot
 methods / 27 cases. Every new method has its own registered selection and
@@ -277,7 +379,7 @@ before imports: 35 pure methods had zero effects; the 2 native methods use the
 explicit process boundary. There are 111 pure extension controls and 157
 process-bearing rows across 13 explicitly allowlisted modules. Standard selection
 remains capped at 100. The actual public runner passed all 37 new methods / 79 cases in 166.939 seconds;
-2 mandatory missing-CLI-opt-in controls also passed with `ON_DEMAND_TESTS=1`.
+The mandatory aggregate missing-CLI-opt-in control returned the expected exit status 2 with `ON_DEMAND_TESTS=1`.
 Public admission passed in 6.06 seconds. Final source bindings and all six generator operations passed after the later
 import repairs; fresh final admission passed in 5.327 seconds. Paired commit/push
 and hosted exact-head CI/Sonar verification remain pending.
@@ -699,7 +801,7 @@ next pins, repeated committed-pair acceptance, hosted current-head checks remain
 private candidate cleanup now has the separate passing observations above. Ruff passed locally;
 Pyright requires its hosted gate. A migration merge result is not claimed.
 
-**N28 source changes and current evidence limits**
+**Historical N28 source changes and evidence limits**
 
 N28 extracts bounded helpers for migration-map generation, inventory admission,
 maintenance, native capture, observations and result projection while preserving
@@ -759,8 +861,9 @@ The separate result-runner group had six reproduced preexisting failures before
 the fixture repair and three clean-Framework-prerequisite skips on the dirty
 tree. Those skips are not PASS, and no whole-group or full on-demand campaign
 PASS is claimed. Separately, the public runner passed the 37 new methods /
-79 cases in 166.939 seconds, the 2 missing-CLI-opt-in controls passed even with
-`ON_DEMAND_TESTS=1`, and the 2 existing NGINX eager-import selections passed in
+79 cases in 166.939 seconds, the aggregate missing-CLI-opt-in control returned
+the expected exit status 2 even with `ON_DEMAND_TESTS=1`, and the 2 existing
+NGINX eager-import selections passed in
 15.578 seconds. Admission passed in 6.06 seconds. These receipts bind inventory
 `34f3e84ab90e69de85f0b9e042bebc965fde0f34af496f471c74bcde37583ea5`, before
 two later unrelated Product-import repairs. Exact reconstruction against final

@@ -19,6 +19,118 @@ Die einseitige Abhängigkeit bleibt Connector → Framework. Das Framework erhä
 kein Connector-Submodul. Das MRTS-Werkzeug bleibt gepinnt und schreibgeschützt;
 Framework-Paket-/Importkorrekturen haben eine getrennte Followup-Zuständigkeit.
 
+## N29-Folgeänderungen und Veröffentlichungsstand (2026-11-01)
+
+Dieser Abschnitt ersetzt frühere Aussagen zum aktuellen Stand. Die folgenden
+N28-Zahlen, alten Paarbelege und Scannerinventare bleiben historische Snapshots;
+sie beschreiben weder den finalen N29-Katalog noch nehmen sie dessen
+unveröffentlichte Quellen ab. Framework-PR #142 und Connector-PR #434 bleiben
+Draft. Veröffentlichung des neuen Framework-Folgestands, sein exakter Parent-Pin
+und frische headgebundene Prüfungen stehen aus. Mergefähigkeit wird nicht
+behauptet.
+
+Der finale Schema-5-Katalog umfasst **100 Standardfälle / 80 Ausführungen**,
+**2535 On-demand-Fälle / 1129 Ausführungen**,
+**522 Framework-Bindungen / 235 Produktpfade**
+und **2635 Fälle / 1209 Ausführungen insgesamt**.
+Sein JSON belegt **1139659 Bytes**; expandierte UTF-8-Quellpfade belegen
+**1097778 Bytes**. Beide behalten die unveränderte Grenze von
+**2097152 Bytes (2 MiB)**. Der finale Inventar-SHA-256 lautet
+`04233fe7c0f6d5f885f8a6666e6d08352efbb7c9430e54bf566f7671fe780184`. Alle 757 geordneten Quellpool-Einträge werden genutzt. Die Erweiterung enthält
+142 explizite Methoden: 133 reine Kontrollen; 157 prozessausführende Zeilen in
+13 zugelassenen Modulen bleiben erhalten. Die 22 neuen Methoden / 92 Fälle sind
+reine Ergänzungen; die Standardauswahl bleibt bei 100 Fällen. Alle sechs
+Generatoroperationen bestanden erneut für diesen finalen Katalog.
+
+### Eingabe- und Werkzeugautorität
+
+Das vom Framework gewählte kanonische Inventar bleibt unabhängig von
+`RUNNER_TEMP`, `TMP_ROOT` und `CONNECTOR_TEST_OUTPUT_ROOT`. Ein alternatives
+Inventar ist ein reines Zulassungsfixture: Es muss unter der Vereinigung dieser
+unabhängig übergebenen Anwendungswurzeln und außerhalb der tatsächlichen Produkt-
+und Framework-Checkouts liegen. `TMPDIR` und frei gewähltes CLI-`--output-root`
+vergeben keine Leseberechtigung für Eingaben. Einzelne Alternativinventare ohne
+deklarierte Anwendungswurzel scheitern nun geschlossen. Synthetische isolierte
+Fixturewurzeln behalten ihre Schnittstelle; das gemappte Fixture mit echtem
+Checkoutmodell legt seine Alternative unter der bereits deklarierten
+Ausgabewurzel ab. POSIX-`//`-Pfade werden vor Bereichsprüfungen oder Ausgabeeffekten
+auf den `/`-Anker des gehaltenen Deskriptor-Walks vereinheitlicht. Die Zulassung
+alternativer Eingaben durchläuft eigene vertrauenswürdige Verzeichnisse über
+gehaltene Nofollow-Deskriptoren und liest vor strengem JSON-Parsing einen eigenen,
+begrenzten regulären Leaf ohne gemeinsame Schreibrechte. Kanonische Quellen
+dürfen auch root gehören; ein unprivilegierter Leser muss diesen Checkout nicht
+besitzen. Die Inventarzulassung erzeugt keine Dateien und führt keine Tests aus.
+Absichtliche Namensraummutation mit derselben UID und Austausch der
+vertrauenswürdigen Anwendungsumgebung bleiben außerhalb dieser Grenze.
+
+Die native Lighttpd-Kontextvorbereitung lässt den exakten Ausgabewurzel-String
+vor Laufzeitpolicy, Verzeichniserzeugung oder Subprozessaufruf zu. Unterstützte
+Namen verwenden Unicode-Buchstaben/Ziffern oder kombinierende Zeichen sowie
+`/._-+@`; Whitespace, Steuerzeichen, Parser-Sonderzeichen und führendes `//`
+werden früh abgelehnt. Unterstützte literale Komponentennamen und Unicode-Sequenzen bleiben erhalten;
+die bestehende lexikalische Pfadbehandlung von pathlib bleibt bestehen.
+Die Prüfung umfasst Pfade, die später configure, erzeugtes config.status und
+Make beim Anlegen von Abhängigkeitsdateien interpretieren; ein einzelnes
+Subprozess-Argument beweist die nachgelagerte Parsergrenze nicht. Bestehende
+Quellpins, Ownership-/Freshness-Prüfungen und Rückgabestatusanforderungen bleiben
+erhalten. Für diese neuen Pfadregressionen wurde kein configure/build ausgeführt.
+
+`--shellcheck` wählt einen einzelnen vorhandenen ausführbaren Pfad, der vor der
+Übergabe an actionlint vollständig aufgelöst wird. Vorhandene Pfade mit Leerzeichen
+oder befehlsähnlichem literalem Text bleiben ein literales ausführbares Werkzeug.
+Nicht auflösbare Befehlsstrings werden vor actionlint abgelehnt; die zugelassene
+Datei wird unmittelbar vor Nutzung erneut geprüft. Dies vertraut der gewählten
+Werkzeugdatei und ihrer Elternpolicy; es bietet keine atomare deskriptorbasierte
+Werkzeugausführung und keinen Schutz gegen absichtlichen Austausch mit derselben
+UID. Alle 3 neuen Methoden / 10 Fälle bestanden tatsächliche Guard-Traces ohne ausgewählte Effekte, Quellschreibzugriffe oder Skips; auch das vollständige Modul mit 18 Methoden bestand.
+
+Die acht Qualitätskorrekturen erhalten alte Assertions und Auswahlsemantik.
+Vier bestehende Qualitätsmodule bestanden 84 Methoden ohne Skips über begrenzte
+Läufe von 13.783, 5.624, 1.847 und 0.918 Sekunden; auch strenge C17-Fixtureprobes
+bestanden. Zwei NGINX-Fixturerunner korrigieren sechs Referenzen auf verschobene
+Fixtures: 3 configure-Referenzen und 3 Hashing-Referenzen. Ihre 2 Versionsfelder
+werden nun vom bereits validierten Pin `nginx-1.31.6` abgeleitet und ersetzen
+veraltete Metadaten `1.31.4` ohne Abhängigkeitsupgrade oder Hostkampagne. Die neue Methode bestand beide Fälle unter dem tatsächlichen Guard in 1.444 Sekunden; das gesamte Modul mit 33 Methoden / 31 beobachteten Subtests bestand in 1.591 Sekunden. Alle 32 alten Methoden-ASTs bleiben exakt. Tatsächliche Inhaltslesezugriffe erfassen die 3 C-Fixtures und 3 configure-Dateien; der neue Trace bindet 17 Framework-Quelldateien und 0 Produktdateien. Dies sind Quell-/Pfadbelege ohne neuen nativen Hostlauf.
+
+### Nachweise und verbleibende Lieferung
+
+Der öffentliche Runner bestand die ersten **18 neuen Methoden / 80 Fälle** in
+**81.195 Sekunden**, mit streng null Skips und erhaltener Ablehnung ohne
+CLI-Opt-in. Alle sechs Generatoroperationen bestanden für diesen Teilstand.
+Diese Belege liegen vor den zusätzlichen ShellCheck- und NGINX-Auswahlen; der
+spätere getrennte Batch steht unten, ohne sie als einen kombinierten Lauf
+umzubenennen. Bestehende **46
+Inventarmethoden**, **7 Methoden für gemappte Quellen** und **36 Wartungsmethoden**
+bestanden. Auch alle **21 alten Lighttpd-Kontextmethoden** bestanden unter dem
+tatsächlichen Guard; der gesamte Klassenlauf enthielt die 2 neuen Methoden,
+23 Methoden und 56 beobachtete Subtests bei null Skips, ausgewählten Effekten
+oder Quellschreibzugriffen. Die finalen 4 Methoden / 12 Fälle bestanden den öffentlichen Runner in 22.378 Sekunden ohne Skips; eine aggregierte Kontrolle ohne Opt-in lieferte den erwarteten Exitstatus 2 in 5.367 Sekunden selbst mit `ON_DEMAND_TESTS=1`. Auch der frühere Batch mit 18 Methoden hatte eine aggregierte Kontrolle, die den erwarteten Exitstatus 2 in 5.679 Sekunden lieferte. Die finale vollständige Zulassung bestand in 5.794 Sekunden. Der exakte Vergleich von Inventar `b12742fc5cf0e5addfec53b95ba18548789617957cb217f16629e2980618d5d6` gegen `04233fe7c0f6d5f885f8a6666e6d08352efbb7c9430e54bf566f7671fe780184` fand null Unterschiede in allen ausgewählten dekodierten Feldern und gebundenen Quell-SHA-256-Werten der ersten 18 Methoden / 80 Fälle. Ihr Beleg über 81.195 Sekunden behält deshalb seinen Quellumfang. Die zwei tatsächlichen Batches erfassen alle 22 neuen reinen Methoden / 92 Fälle; ein einzelner kombinierter Lauf wird nicht behauptet.
+
+Die frische reale Recorded-Paarabnahme bestand Connector
+`c2b6d0440c3f1b7742645d7f4409e4450920cae1` mit Framework
+`78461314f5b1df294de02e1cb7c8a3fa00910bbb` in **119.129 Sekunden**. Die getrennte
+explizite DEV-Abnahme wählte `cb129a45ccfd033fa5aafd08ca0dc7d9ec731e49` in
+**120.986 Sekunden**. Alle **90 Updatermethoden / 216 Subtests** bestanden.
+Diese Belege binden das veröffentlichte Paar, nicht den neuen uncommitteten
+Framework-Folgestand. Tatsächliche UID-1001-Ausführung für dieses fortgesetzte
+Paar ist **NOT_EXECUTED**: Die Namespace-Probe wurde abgelehnt. Byteidentität
+der historischen versiegelten Bridge erhält den Umfang ihres früheren Nachweises;
+sie erzeugt keinen neuen UID-Runtime-PASS.
+
+Alle **79** einzeln belegten und vom Nutzer freigegebenen False Positives besitzen
+dokumentierte Codebelege und Statusrücklesung. Die frische Zahl verbleibender
+Framework-Issues wird nicht durch Subtraktion von Einstufungen aus einem älteren
+Scannerstand abgeleitet. Die frische vollständige Serverrücklesung für das veröffentlichte Framework `78461314f5b1df294de02e1cb7c8a3fa00910bbb` enthält 11 OPEN-Findings: 8 CODE_SMELL und 3 Sicherheitsfindings an Werkzeug-/Inventar-/Native-Kontextgrenzen. Sein Gate bleibt ERROR, Security-Rating C, mit 6 Bedingungen und 0 TO_REVIEW-Hotspots. Dieser Serverstand analysiert die uncommitteten N29-Korrekturen nicht. Parent-Sonar
+analysierte den exakten veröffentlichten Head
+`c2b6d0440c3f1b7742645d7f4409e4450920cae1`: Gate **OK**, alle **5** Bedingungen
+bestanden, **0** ungelöste Issues und **0 TO_REVIEW**-Hotspots. Weitere CI für
+diesen Head war bei dieser Rücklesung noch ausstehend. Die acht
+Qualitätskorrekturen und drei Quellgrenzenreparaturen benötigen einen neuen
+Framework-Head und frische Scannerergebnisse; ungeklärte Findings bleiben offen.
+Keine Scannerregel, Exclusion, Warnung, Testanforderung, kein Quality Gate und
+kein Mergeschutz wird abgeschwächt. Ein künftiger Parent-Pin startet einen
+weiteren Prüfzyklus für den exakten Head. Veröffentlichung des neuen Framework-SHA und des abhängigen Parent-Gitlinks/der vollständigen Workflow-Pins stehen aus; kein künftiger Commit-SHA wird behauptet. Die tatsächliche kanonische native Suite bestand 330 CI-Security-Tests in 165.842 Sekunden; die exakte Ruff-Lint-/Format-Auswahl mit 38 Dateien bestand in 0.236 Sekunden und alle 19 Sonar-Vertragsmethoden bestanden in 5.0 Sekunden. Diese lokalen Vertragsbelege ersetzen weder gehostete Analyse noch Paarabnahme für den neuen Head.
+
 ## Quellen- und Auswahlverträge
 
 `TEST_ROOT` wählt den Framework-Checkout. `CONNECTOR_ROOT` wählt den
@@ -39,7 +151,7 @@ ausgewählte Fälle, Ausführungen und beobachtete Läufe sind unterschiedliche
 Größen. Eine Wiederholung ist ein weiterer Versuch, kein zusätzlicher
 eindeutiger Fall. Der Umzug aktiviert keine archivierte Kampagne.
 
-Das registrierte kanonische Schema-5-Inventar enthält **100 Standardfälle /
+Zum N28-Sicherungsstand enthielt das registrierte Schema-5-Inventar **100 Standardfälle /
 80 Ausführungen**, **2443 On-demand-Fälle / 1107 Ausführungen**, **515 feste
 Framework-Testquellbindungen** und **235 Produktquellsnapshots**. Der Katalog
 deklariert **1187 Ausführungsdefinitionen / 2543 Fälle**; dies sind Auswahlmengen,
@@ -50,7 +162,7 @@ alle 750 geordneten Quellpooleinträge werden genutzt. Die ursprünglichen 1993
 Falldictionaries und Standard-IDs bleiben unverändert. Die Zulassung prüft die
 Grenze expandierter UTF-8-Quellpfade weiterhin vor der Materialisierung.
 
-Die Erweiterung enthält nun **120 explizite On-demand-Methoden**, einschließlich
+Zum N28-Sicherungsstand enthielt die Erweiterung **120 explizite On-demand-Methoden**, einschließlich
 37 neuer Methoden / 79 Fälle in N28: 5 Methoden zur Argumentzulassung / 15 Fälle,
 2 native Fixturemethoden / 6 Fälle, 12 Go-Capture-Methoden / 31 Fälle und
 18 Archivsnapshot-Methoden / 27 Fälle. Jede neue Methode besitzt eine eigene
@@ -60,8 +172,8 @@ null Effekte; die 2 nativen Methoden nutzen die explizite Prozessgrenze.
 Es gibt 111 reine Erweiterungskontrollen und 157 Zeilen mit Prozessausführung
 über 13 explizit erlaubte Module. Die Standardauswahl bleibt auf 100 begrenzt.
 Der tatsächliche öffentliche Runner bestand alle 37 neuen Methoden / 79 Fälle
-in 166.939 Sekunden; 2 verpflichtende Kontrollen ohne CLI-Opt-in bestanden auch
-mit `ON_DEMAND_TESTS=1`. Die öffentliche Zulassung bestand in 6.06 Sekunden.
+in 166.939 Sekunden; die verpflichtende aggregierte Kontrolle ohne CLI-Opt-in
+lieferte den erwarteten Exitstatus 2 auch mit `ON_DEMAND_TESTS=1`. Die öffentliche Zulassung bestand in 6.06 Sekunden.
 Finale Quellbindungen und alle sechs Generatoroperationen bestanden nach den
 späteren Importreparaturen; die frische finale Zulassung bestand in 5.327 Sekunden.
 Commit/Push des Paars und gehostete CI-/Sonar-Prüfung für exakt diesen Stand
@@ -664,7 +776,7 @@ Blocker und nicht ausgeführte Prüfungen. Statische Checks, native
 Primitivtests oder Produktbuilds belegen keinen gehosteten H1-Lifecycle und keine
 Promotion des aktuellen HEAD.
 
-## N28-Quelländerungen und aktuelle Nachweisgrenzen
+## Historische N28-Quelländerungen und Nachweisgrenzen
 
 N28 extrahiert begrenzte Helfer für Migrationsmap-Erzeugung, Inventarzulassung,
 Wartung, native Erfassung, Beobachtungen und Ergebnisprojektion; bestehende
@@ -733,8 +845,9 @@ sechs reproduzierte bestehende Fehler und drei Skips wegen der Voraussetzung
 eines sauberen Frameworks im geänderten Worktree. Diese Skips sind kein PASS;
 ein PASS der gesamten Gruppe oder einer vollständigen On-demand-Kampagne wird
 nicht behauptet. Separat bestand der öffentliche Runner die 37 neuen Methoden /
-79 Fälle in 166.939 Sekunden. Die 2 Kontrollen ohne CLI-Opt-in bestanden sogar
-mit `ON_DEMAND_TESTS=1`; die 2 bestehenden NGINX-Auswahlen mit sofortigem Import
+79 Fälle in 166.939 Sekunden. Die aggregierte Kontrolle ohne CLI-Opt-in lieferte
+den erwarteten Exitstatus 2 sogar mit `ON_DEMAND_TESTS=1`; die 2 bestehenden
+NGINX-Auswahlen mit sofortigem Import
 bestanden in 15.578 Sekunden. Die Zulassung bestand in 6.06 Sekunden. Diese
 Belege binden Inventar
 `34f3e84ab90e69de85f0b9e042bebc965fde0f34af496f471c74bcde37583ea5` vor zwei

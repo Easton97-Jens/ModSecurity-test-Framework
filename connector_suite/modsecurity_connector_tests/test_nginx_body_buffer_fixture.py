@@ -37,6 +37,69 @@ RUNNER_MODULE = load_runner()
 P3_RUNNER_MODULE = load_source(source_path("tests/run_nginx_p3_header_fixture.py", root=ROOT))
 
 
+def _fixture_dictionary_field(dictionary, name):
+    return next(value for key, value in zip(dictionary.keys, dictionary.values)
+                if isinstance(key, ast.Constant) and key.value == name)
+
+
+def _fixture_main_expressions(path):
+    main = next(node for node in ast.parse(path.read_text()).body
+                if isinstance(node, ast.FunctionDef) and node.name == "main")
+    expressions = {}
+    for node in main.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "configure":
+                    expressions["configure"] = node.value
+        elif (isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+              and node.target.id == "evidence"):
+            expressions["evidence"] = node.value
+    return expressions
+
+
+def _fixture_expression(expression, path, module):
+    # Evaluate only the selected checked-in runner's parsed main expression.
+    namespace = dict(vars(module), connector_root=ROOT, build_root=Path("/external-build"))
+    return eval(compile(ast.Expression(expression), str(path), "eval"), namespace)
+
+
+def _assert_fixture_configure(test, label, expression, path, module, fixtures):
+    command = _fixture_expression(expression, path, module)
+    configured = [value.removeprefix("--add-module=") for value in command
+                  if value.startswith("--add-module=")]
+    expected = [str(source_path("tests/" + name, root=ROOT)) for name in fixtures]
+    product = str(ROOT / "connectors/nginx")
+    order = [product, *expected] if label == "body" else [expected[0], product, expected[1]]
+    test.assertEqual(configured, order)
+    for fixture in expected:
+        test.assertIn("ngx_addon_name=", (Path(fixture) / "config").read_text())
+        test.assertTrue(Path(fixture).is_relative_to(test_root()))
+
+
+def _fixture_hash_key(label, name):
+    if label == "body":
+        return "fixture_source_sha256"
+    return "observer_source_sha256" if "observer" in name else "injector_source_sha256"
+
+
+def _assert_fixture_evidence(test, label, evidence, path, module, fixtures):
+    nginx = _fixture_dictionary_field(evidence, "nginx")
+    version = _fixture_expression(_fixture_dictionary_field(nginx, "version"), path, module)
+    test.assertEqual(version, RUNNER_MODULE.EXPECTED_NGINX_ROOT.removeprefix("nginx-"))
+    metadata = nginx if label == "body" else _fixture_dictionary_field(evidence, "fixture")
+    for name in fixtures:
+        key = _fixture_hash_key(label, name)
+        expression = _fixture_dictionary_field(metadata, key)
+        source = source_path("tests/" + name + "/ngx_http_" + name.removeprefix("nginx_") + "_module.c", root=ROOT)
+        test.assertEqual(_fixture_expression(expression, path, module), hashlib.sha256(source.read_bytes()).hexdigest())
+
+
+def _assert_fixture_runner_bindings(test, label, path, module, fixtures):
+    expressions = _fixture_main_expressions(path)
+    _assert_fixture_configure(test, label, expressions["configure"], path, module, fixtures)
+    _assert_fixture_evidence(test, label, expressions["evidence"], path, module, fixtures)
+
+
 class NginxBodyBufferFixtureContractTest(unittest.TestCase):
     @staticmethod
     def _positive_events() -> list[dict[str, object]]:
@@ -146,6 +209,15 @@ class NginxBodyBufferFixtureContractTest(unittest.TestCase):
         self.assertIn("body_buffer_fixture_short_file", source)
         self.assertIn("body_buffer_fixture_mixed_file", source)
         self.assertIn("file_length = (off_t) FIXTURE_BODY_LENGTH", source)
+
+    def test_runner_configure_and_evidence_bind_selected_framework_sources(self) -> None:
+        for label, path, module, fixtures in (
+            ("body", RUNNER, RUNNER_MODULE, ("nginx_body_buffer_fixture",)),
+            ("headers", source_path("tests/run_nginx_p3_header_fixture.py", root=ROOT),
+             P3_RUNNER_MODULE, ("nginx_p3_header_observer_fixture", "nginx_p3_header_injector_fixture")),
+        ):
+            with self.subTest(runner=label):
+                _assert_fixture_runner_bindings(self, label, path, module, fixtures)
 
     def test_runner_rebuilds_exact_head_modules_and_checks_forwarding(self) -> None:
         source = RUNNER.read_text(encoding="utf-8")

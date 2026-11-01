@@ -507,15 +507,19 @@ def _request_bound_without_host_transaction(window, identity, args, actual_statu
     )
 
 
+def _has_transaction_capture(capture_log, window, actual_status):
+    return (
+        capture_log
+        and (Path(capture_log).exists() or window is not None)
+        and (actual_status not in (None, 0) or window is not None)
+    )
+
+
 def _case_info_capture_transaction(
     args, case, info, identity, actual_status, window, capture_log
 ):
     request_bound = False
-    if not (
-        capture_log
-        and (Path(capture_log).exists() or window is not None)
-        and (actual_status not in (None, 0) or window is not None)
-    ):
+    if not _has_transaction_capture(capture_log, window, actual_status):
         return False
     try:
         captured = captured_request_transaction(
