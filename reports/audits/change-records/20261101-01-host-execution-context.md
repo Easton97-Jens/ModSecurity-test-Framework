@@ -33,6 +33,8 @@ Extend the existing Framework CLI with context-only mode and explicit worker, ro
 
 ## Changed files and tests
 
+Delivery review also requires zero new SonarQube Cloud issues and security hotspots at the final head. An earlier passing Quality Gate still reported seven new maintainability findings (four complex functions, a nested conditional and two nested context managers). The delivery follow-up separates worker resolution, path operations, child-report transport and requirement checks into bounded helpers and combines context managers while preserving identity, denial, timeout and cleanup behavior. It does not suppress findings or change analysis rules. Final server counts are verified through the current PR analysis.
+
 `connector_suite/modsecurity_connector_ci/runtime/common/execution_context.py`, `hostruntime_preflight.py`, `connector_suite/modsecurity_connector_tests/test_execution_context_preflight.py`, NGINX smoke/lifecycle entry points and Envoy start/runtime harnesses. Tests cover child identity, writes, UDS, real worker transition when available, missing capabilities/mappings, symlinks, denial, existing sockets, timeout/reaping, an inherited daemon context launched through setpriv, and CLI evidence semantics. Source binding: `connector_suite/config/testing/active-cases.json` retains the same selectors/cases (100 active defaults), refreshes three changed harness digests through `update-inventory-bindings.py --apply`, and binds the two preflight modules to five affected executions. The daemon launcher fixture now retains evidence below its selected test root instead of a dated task directory. Documentation: `docs/host-execution-context.md` and its German companion, plus this paired record.
 
 ## Commands and results

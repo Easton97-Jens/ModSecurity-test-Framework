@@ -68,28 +68,35 @@ def mapped(identity, lines):
         return False
 
 
+def _worker_entry(user):
+    try:
+        return pwd.getpwuid(int(user)) if str(user).isdigit() else pwd.getpwnam(user)
+    except KeyError:
+        if not str(user).isdigit():
+            raise ValueError("worker_user_unresolved") from None
+        return None
+
+
+def _worker_gid(group, entry):
+    if group is None:
+        if entry is None:
+            raise ValueError("worker_group_required")
+        return entry.pw_gid
+    try:
+        return int(group) if str(group).isdigit() else grp.getgrnam(group).gr_gid
+    except KeyError:
+        raise ValueError("worker_group_unresolved") from None
+
+
 def resolve_worker(user, group):
     """Match initgroups semantics when an NSS username exists."""
-    entry = None
     if user is None:
         if group is not None:
             raise ValueError("worker_user_required")
         return os.geteuid(), os.getegid(), sorted(os.getgroups()), False
-    try:
-        entry = pwd.getpwuid(int(user)) if str(user).isdigit() else pwd.getpwnam(user)
-    except KeyError:
-        if not str(user).isdigit():
-            raise ValueError("worker_user_unresolved") from None
+    entry = _worker_entry(user)
     uid = entry.pw_uid if entry else int(user)
-    if group is None:
-        if entry is None:
-            raise ValueError("worker_group_required")
-        gid = entry.pw_gid
-    else:
-        try:
-            gid = int(group) if str(group).isdigit() else grp.getgrnam(group).gr_gid
-        except KeyError:
-            raise ValueError("worker_group_unresolved") from None
+    gid = _worker_gid(group, entry)
     groups = sorted(set(os.getgrouplist(entry.pw_name, gid))) if entry else [gid]
     if not 0 <= uid < 2**32 - 1 or not 0 <= gid < 2**32 - 1 or len(groups) > MAX_ITEMS:
         raise ValueError("worker_identity_invalid")
@@ -117,52 +124,73 @@ def _open_path(value, flags):
         raise
 
 
+def _path_flags(kind):
+    if kind == "write":
+        return os.O_PATH | os.O_DIRECTORY
+    if kind == "deny":
+        return os.O_PATH
+    return os.O_RDONLY | os.O_NONBLOCK
+
+
+def _deny_probe(descriptor, details):
+    if stat.S_ISDIR(details.st_mode):
+        # This runs only after the child's credentials were verified.
+        # Test traversal of the pinned inode, not directory listing.
+        if not os.access(".", os.X_OK, dir_fd=descriptor, effective_ids=True):
+            raise PermissionError(errno.EACCES, "directory traversal denied")
+    elif stat.S_ISREG(details.st_mode):
+        readable = os.open(f"/proc/self/fd/{descriptor}", os.O_RDONLY | os.O_NONBLOCK)
+        os.close(readable)
+    else:
+        raise ValueError("worker_path_type_untrusted")
+
+
+def _write_probe(descriptor, details, name, created):
+    if not stat.S_ISDIR(details.st_mode):
+        raise ValueError("worker_write_requires_directory")
+    fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                 0o600, dir_fd=descriptor)
+    created["file"] = True
+    try:
+        os.write(fd, b"probe\n")
+    finally:
+        os.close(fd)
+
+
+def _read_probe(descriptor, details):
+    if stat.S_ISREG(details.st_mode):
+        os.read(descriptor, 1)
+    elif stat.S_ISDIR(details.st_mode):
+        os.listdir(descriptor)
+    else:
+        raise ValueError("worker_path_type_untrusted")
+
+
 def _path_probe(kind, value):
     descriptor = -1
     name = ".execution-probe-" + os.urandom(12).hex()
-    created = False
+    label = "worker-" + kind + ":" + Path(value).name
+    created = {"file": False}
     try:
-        descriptor = _open_path(value, os.O_PATH | os.O_DIRECTORY if kind == "write"
-                                else os.O_PATH if kind == "deny" else os.O_RDONLY | os.O_NONBLOCK)
+        descriptor = _open_path(value, _path_flags(kind))
         details = os.fstat(descriptor)
         if kind == "deny":
-            if stat.S_ISDIR(details.st_mode):
-                # This runs only after the child's credentials were verified.
-                # Test traversal of the pinned inode, not directory listing.
-                if not os.access(".", os.X_OK, dir_fd=descriptor, effective_ids=True):
-                    raise PermissionError(errno.EACCES, "directory traversal denied")
-            elif stat.S_ISREG(details.st_mode):
-                readable = os.open(f"/proc/self/fd/{descriptor}", os.O_RDONLY | os.O_NONBLOCK)
-                os.close(readable)
-            else:
-                raise ValueError("worker_path_type_untrusted")
+            _deny_probe(descriptor, details)
         elif kind == "write":
-            if not stat.S_ISDIR(details.st_mode):
-                raise ValueError("worker_write_requires_directory")
-            fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                         0o600, dir_fd=descriptor)
-            created = True
-            try:
-                os.write(fd, b"probe\n")
-            finally:
-                os.close(fd)
-        elif stat.S_ISREG(details.st_mode):
-            os.read(descriptor, 1)
-        elif stat.S_ISDIR(details.st_mode):
-            os.listdir(descriptor)
+            _write_probe(descriptor, details, name, created)
         else:
-            raise ValueError("worker_path_type_untrusted")
+            _read_probe(descriptor, details)
     except PermissionError:
-        return check("worker-" + kind + ":" + Path(value).name, "worker_denial_verified" if kind == "deny"
+        return check(label, "worker_denial_verified" if kind == "deny"
                      else "worker_" + kind + "_denied", kind == "deny")
     except (OSError, ValueError):
-        return check("worker-" + kind + ":" + Path(value).name, "worker_path_unavailable_or_untrusted", False)
+        return check(label, "worker_path_unavailable_or_untrusted", False)
     finally:
-        if created:
+        if created["file"]:
             os.unlink(name, dir_fd=descriptor)
         if descriptor >= 0:
             os.close(descriptor)
-    return check("worker-" + kind + ":" + Path(value).name, "worker_deny_unenforced" if kind == "deny"
+    return check(label, "worker_deny_unenforced" if kind == "deny"
                  else "worker_" + kind + "_verified", kind != "deny")
 
 
@@ -238,6 +266,58 @@ def _child_probes(args, root, worker):
     return {"identity": identity, "checks": checks}
 
 
+def _write_child_report(writer, args, root, worker):
+    try:
+        result = _child_probes(args, root, worker)
+    except (OSError, ValueError):
+        result = {"checks": [check("worker-transition", "worker_transition_unavailable", False)]}
+    payload = json.dumps(result).encode()
+    if len(payload) <= MAX_REPORT_BYTES:
+        view = memoryview(payload)
+        while view:
+            view = view[os.write(writer, view):]
+    os.close(writer)
+    os._exit(0)
+
+
+def _wait_report_exit(child, deadline, state, payload):
+    while time.monotonic() < deadline:
+        observed, status = os.waitpid(child, os.WNOHANG)
+        if observed:
+            state["reaped"] = True
+            if status == 0 and payload:
+                return json.loads(payload)
+            break
+        time.sleep(0.005)
+    return None
+
+
+def _receive_child_report(reader, child, deadline, state):
+    payload = bytearray()
+    while time.monotonic() < deadline:
+        ready, _, _ = select.select([reader], [], [], max(0, deadline - time.monotonic()))
+        if not ready:
+            break
+        chunk = os.read(reader, 4096)
+        if not chunk:
+            result = _wait_report_exit(child, deadline, state, payload)
+            if result is not None:
+                return result
+            break
+        payload.extend(chunk)
+        if len(payload) > MAX_REPORT_BYTES:
+            break
+    return {"checks": [check("worker-probes", "worker_probe_timeout_or_invalid", False)]}
+
+
+def _kill_and_reap(child):
+    try:
+        os.kill(child, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    os.waitpid(child, 0)
+
+
 def _fork_probe(args, root, worker):
     reader, writer = os.pipe()
     try:
@@ -248,66 +328,20 @@ def _fork_probe(args, root, worker):
         raise
     if child == 0:
         os.close(reader)
-        try:
-            result = _child_probes(args, root, worker)
-        except (OSError, ValueError):
-            result = {"checks": [check("worker-transition", "worker_transition_unavailable", False)]}
-        payload = json.dumps(result).encode()
-        if len(payload) <= MAX_REPORT_BYTES:
-            view = memoryview(payload)
-            while view:
-                view = view[os.write(writer, view):]
-        os.close(writer)
-        os._exit(0)
+        _write_child_report(writer, args, root, worker)
     os.close(writer)
     deadline = time.monotonic() + args.timeout
-    payload = bytearray()
-    reaped = False
+    state = {"reaped": False}
     try:
-        while time.monotonic() < deadline:
-            ready, _, _ = select.select([reader], [], [], max(0, deadline - time.monotonic()))
-            if not ready:
-                break
-            chunk = os.read(reader, 4096)
-            if not chunk:
-                while time.monotonic() < deadline:
-                    observed, status = os.waitpid(child, os.WNOHANG)
-                    if observed:
-                        reaped = True
-                        if status == 0 and payload:
-                            return json.loads(payload)
-                        break
-                    time.sleep(0.005)
-                break
-            payload.extend(chunk)
-            if len(payload) > MAX_REPORT_BYTES:
-                break
-        return {"checks": [check("worker-probes", "worker_probe_timeout_or_invalid", False)]}
+        return _receive_child_report(reader, child, deadline, state)
     finally:
         os.close(reader)
-        if not reaped:
-            try:
-                os.kill(child, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            os.waitpid(child, 0)
+        if not state["reaped"]:
+            _kill_and_reap(child)
 
 
-def execution_context(args, runtime_root):
+def _requirement_checks(args, metadata, worker):
     checks = []
-    try:
-        root = verified_runtime_artifact_root(runtime_root)
-        if getattr(args, "uds_root", None) is not None:
-            args.uds_root = verified_runtime_artifact_root(args.uds_root)
-        metadata = snapshot()
-        worker = resolve_worker(args.worker_user, args.worker_group)
-    except (OSError, ValueError) as exc:
-        reason = str(exc) if isinstance(exc, ValueError) else "execution_context_unavailable"
-        return {}, [check("execution-context", reason, False)]
-    metadata["requested_worker"] = {"uid": worker[0], "gid": worker[1], "groups": worker[2]}
-    requirements = sum(len(getattr(args, "worker_" + kind)) for kind in ("read", "write", "deny")) + len(args.port)
-    if requirements > 48:
-        return metadata, [check("execution-context", "execution_context_requirement_limit", False)]
     if args.require_root_master:
         checks.append(check("root-master", "root_master_verified" if os.geteuid() == 0
                             else "root_master_required", os.geteuid() == 0))
@@ -319,19 +353,45 @@ def execution_context(args, runtime_root):
         caps_ok = bool(caps & (1 << 6)) and bool(caps & (1 << 7))
         checks.append(check("worker-capabilities", "worker_transition_capabilities_present" if caps_ok
                             else "worker_transition_capabilities_missing", caps_ok))
+    return checks, caps
+
+
+def _chown_probe(root, worker):
+    try:
+        with tempfile.TemporaryDirectory(prefix=".ec-", dir=root) as probe, tempfile.TemporaryFile(dir=probe) as stream:
+            os.fchown(stream.fileno(), worker[0], worker[1])
+            details = os.fstat(stream.fileno())
+            passed = (details.st_uid, details.st_gid) == worker[:2]
+        return check("chown", "chown_verified" if passed else "chown_unavailable", passed)
+    except OSError:
+        return check("chown", "chown_unavailable", False)
+
+
+def _context_inputs(args, runtime_root):
+    root = verified_runtime_artifact_root(runtime_root)
+    if getattr(args, "uds_root", None) is not None:
+        args.uds_root = verified_runtime_artifact_root(args.uds_root)
+    metadata = snapshot()
+    worker = resolve_worker(args.worker_user, args.worker_group)
+    return root, metadata, worker
+
+
+def execution_context(args, runtime_root):
+    try:
+        root, metadata, worker = _context_inputs(args, runtime_root)
+    except (OSError, ValueError) as exc:
+        reason = str(exc) if isinstance(exc, ValueError) else "execution_context_unavailable"
+        return {}, [check("execution-context", reason, False)]
+    metadata["requested_worker"] = {"uid": worker[0], "gid": worker[1], "groups": worker[2]}
+    requirements = sum(len(getattr(args, "worker_" + kind)) for kind in ("read", "write", "deny")) + len(args.port)
+    if requirements > 48:
+        return metadata, [check("execution-context", "execution_context_requirement_limit", False)]
+    checks, caps = _requirement_checks(args, metadata, worker)
     if args.require_chown:
         if not caps & 1:
             checks.append(check("chown-capability", "chown_capability_missing", False))
             return metadata, checks
-        try:
-            with tempfile.TemporaryDirectory(prefix=".ec-", dir=root) as probe:
-                with tempfile.TemporaryFile(dir=probe) as stream:
-                    os.fchown(stream.fileno(), worker[0], worker[1])
-                    details = os.fstat(stream.fileno())
-                    passed = (details.st_uid, details.st_gid) == worker[:2]
-            checks.append(check("chown", "chown_verified" if passed else "chown_unavailable", passed))
-        except OSError:
-            checks.append(check("chown", "chown_unavailable", False))
+        checks.append(_chown_probe(root, worker))
     if any(item["status"] == "BLOCKED" for item in checks):
         return metadata, checks
     try:

@@ -93,9 +93,11 @@ def preflight_sequence_context(output, projection=None):
     if projection is not None:
         arguments += ["--worker-read", str(projection / "index.html"),
                       "--worker-deny", str(output)]
-    with (output / ("preflight-" + stage + ".log")).open("x", encoding="utf-8") as stream:
-        with redirect_stdout(stream):
-            code = hostruntime_preflight(arguments)
+    with (
+        (output / ("preflight-" + stage + ".log")).open("x", encoding="utf-8") as stream,
+        redirect_stdout(stream),
+    ):
+        code = hostruntime_preflight(arguments)
     if code != 0:
         raise ExecutionContextBlocked("native identity/access prerequisite; see "
                                       + str(output / ("preflight-" + stage) / "status.json"))
