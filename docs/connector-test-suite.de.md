@@ -19,6 +19,72 @@ Die einseitige Abhängigkeit bleibt Connector → Framework. Das Framework erhä
 kein Connector-Submodul. Das MRTS-Werkzeug bleibt gepinnt und schreibgeschützt;
 Framework-Paket-/Importkorrekturen haben eine getrennte Followup-Zuständigkeit.
 
+## N35-Vollständige Konsolidierung der Artefaktnamen
+
+Die N34-Analyse beseitigte ihre 8 vorangegangenen Findings, zeigte aber 1 weiteres
+wiederholtes `sequence-observation.json`-Literal an einem geänderten Erstvorkommen.
+Der Reader teilt jetzt alle übrigen 25 wiederholten Artefakt-/Quellbasisnamen,
+insgesamt 36 Namen. Jede neue Konstante behält ihren ursprünglichen Stringwert;
+das Inlining nur dieser Ergänzungen und Entfernen ihrer Deklarationen
+rekonstruiert den gesamten vorherigen Modul-AST exakt. Kein nicht ausgenommener
+String mit mindestens 5 Zeichen bleibt 3-mal wiederholt; reine Bezeichner behalten
+die dokumentierte Regelausnahme. Auswahl, Assertions, Ausführungsreihenfolge und
+Bytevalidierung bleiben erhalten. Headgenaue CI-/Sonar-Prüfung und finale Pin-Abnahme
+bleiben erforderlich. Die folgenden Sicherungsstände behalten ihre historische Evidenz.
+
+
+## N34-Literalkonsolidierung nach gehosteter Analyse
+
+Die erste Analyse von Framework-PR #145 bestand ihr Quality Gate, meldete aber
+8 offene Literalduplikate auf den umgebauten Zeilen. Die Korrektur ergänzt
+8 wertgleiche Konstanten für Artefaktnamen; ihre bisherigen Häufigkeiten
+(8, 5, 6, 3, 3, 3, 3, 3) werden jeweils 1. Zusammen mit den N32-Konstanten gibt
+es 11 gemeinsame Artefaktnamen. Das Inlining nur dieser 8 Ergänzungen rekonstruiert
+den gesamten vorherigen Modul-AST exakt. Testerwartungen, Reader-Kontrollfluss,
+rohe Artefaktnamen, Allowlists, Grenzen und Fehlerbytes bleiben äquivalent.
+Kein Finding wird unterdrückt oder akzeptiert; eine neue headgenaue Analyse und
+finale Integrationsprüfungen bleiben erforderlich. Die folgenden N32-Ergebnisse
+beschreiben jenen früheren Sicherungsstand.
+
+
+## N32-Folgekorrektur des nativen Receipt-Readers
+
+Der Framework-Masterstand `7b33a0b73084e1864c268892f0bc15ba712fa9a5`
+bestand seine Workflows und das Quality Gate. Sein Previous-Version-Zeitraum
+beginnt am 2026-05-15 und enthält 120 ältere Code Smells; diese Zahl ist keine
+Null-Neufund-Metrik. Der Vergleich mit dem Premerge-Stand
+`f5a0940c56edbb94d55d309636ce3d6f501e31a2` identifizierte 3 durch diese Migration
+erhöhte Literalzahlen (6→7, 7→8, 3→4) und den erweiterten
+`read_invocation`-Dispatcher. Dieser Folgestand korrigiert diese 4 betroffenen Findings.
+
+In `tests/runners/nginx_native_operation_bundle.py` ersetzen 3 wertgleiche
+Konstanten die duplizierten Artefaktnamen; 5 gezielte Helper trennen Receipt-
+Identität, Sequenz-Lesezugriffe, Input-Lesezugriffe und Worker-Selfmap-Validierung.
+Unabhängiges Konstanten-/Helper-Inlining rekonstruiert den gesamten ursprünglichen
+Dispatcher-AST exakt; alle 41 anderen Funktionen/Klassen und bisherigen
+Modul-Globals bleiben äquivalent. Grenzen, Ownership, versiegelte Bytes, exakte
+numerische Typen, Lese-/Validierungsreihenfolge und abschließende Quell-/Build-
+Prüfungen bleiben erhalten.
+
+Eingefrorene Vorher-/Nachher-Läufe zeichneten 198711 identische geordnete Ereignisse
+über 70 Methoden / 291 Subtests auf, einschließlich derselben 2 veralteten Fehler
+der kanonischen Bindungsprüfung. Diese Erwartungen verlangten noch HTTP 400 und
+`protocol_error` für kontrollierte interne NULL-Pointerfehler. Der belegte
+Produktvertrag verlangt HTTP 500 und `connector_error`; fehlerhaftes Client-HTTP 400
+hat getrennte Abdeckung. Nur diese 2 exakten Erwartungen wurden korrigiert;
+alle 11 Methoden und 53 Assertion-/Subtest-Aufrufe des Moduls bleiben erhalten.
+Ein anschließender kanonischer Lauf mit direkten Importen unter dem Offline-Guard
+bestand alle 70 Methoden / 291 Subtests mit 0 Failures, Errors oder Skips in
+24.515 Sekunden. Dies ist Fixture-/Vertragsevidenz, kein Host-Runtime- oder
+tatsächlicher UID1001-Nachweis.
+
+Quellbindungen und generierte Inventar-/Archiv-/Map-Ansichten werden über ihre
+Generatoren aktualisiert. Die Auswahl bleibt bei 100 Standardfällen /
+80 Ausführungen und 2551 optionalen Fällen / 1133 Ausführungen. Headgenaue
+gehostete Sonar-Prüfung, Integration und finale Connector-Pin-Abnahme bleiben
+erforderlich. Alle folgenden Sicherungsstände sind historisch und behalten
+ihre aufgezeichneten Revisionen und Evidenzgrenzen.
+
 ## N30-Sicherungsstand zur Owner-Berechtigung kanonischer Inventare
 
 Dies dokumentiert Implementierung und lokale Prüfung zum N30-Sicherungsstand; alle folgenden N29-Abschnitte sind historisch.

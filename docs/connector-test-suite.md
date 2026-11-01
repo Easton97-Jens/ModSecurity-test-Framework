@@ -19,6 +19,68 @@ The one-way dependency remains Connector → Framework. The Framework has no
 Connector submodule. The MRTS tool remains pinned and read-only; Framework
 package/import corrections have separate followup ownership.
 
+## N35 complete artifact-name consolidation
+
+The N34 analysis removed its 8 preceding findings but exposed 1 further
+repeated `sequence-observation.json` literal on another changed first occurrence.
+The reader now shares all remaining 25 repeated artifact/source basenames,
+36 names in total. Each new constant has its original string value; inlining
+only these additions and removing their declarations reconstructs the entire
+preceding module AST exactly. No non-exempt string of at least 5 characters
+remains repeated 3 times; identifier-only strings retain the rule's documented
+exception. Selection, assertions, execution order and byte validation are
+unchanged. Fresh current-head CI/Sonar and final pin acceptance remain required.
+The following checkpoints retain their historical evidence.
+
+
+## N34 literal consolidation after hosted analysis
+
+The first analysis of Framework PR #145 passed its Quality Gate but reported
+8 open literal-duplication findings on the refactored lines. The correction adds
+8 same-value artifact-name constants; their previous occurrence counts
+(8, 5, 6, 3, 3, 3, 3, 3) each become 1. Together with the N32 constants there
+are 11 shared artifact names. Inlining only these 8 additions reconstructs the
+entire preceding module AST exactly. Test expectations, reader control flow,
+raw artifact names, allowlists, limits and error bytes remain equivalent.
+No finding is suppressed or accepted; fresh current-head analysis and final
+integration checks remain required. The N32 results below describe that earlier
+checkpoint.
+
+
+## N32 native receipt reader follow-up
+
+The Framework master checkpoint `7b33a0b73084e1864c268892f0bc15ba712fa9a5`
+passed its workflows and Quality Gate. Its previous-version period begins on
+2026-05-15 and includes 120 older Code Smells; that count is not a zero-new metric.
+Comparison with premerge `f5a0940c56edbb94d55d309636ce3d6f501e31a2` identified
+3 literal counts increased by this migration (6→7, 7→8, 3→4) and the expanded
+`read_invocation` dispatcher. This follow-up corrects those 4 affected findings.
+
+In `tests/runners/nginx_native_operation_bundle.py`, 3 same-value constants
+replace those duplicated artifact names, and 5 focused helpers separate receipt
+identity, sequence reads, input reads and worker self-map validation. Independent
+constant/helper inlining reconstructs the entire original dispatcher AST exactly;
+all 41 other functions/classes and original module globals remain equivalent.
+Limits, ownership, sealed bytes, exact numeric types, read/validation order and
+final source/build checks remain enforced.
+
+Frozen before/after executions recorded 198711 identical ordered events across
+70 methods / 291 subtests, including the same 2 stale canonical-binding failures.
+Those expectations still asserted HTTP 400 and `protocol_error` for controlled
+internal NULL-pointer faults. The established Product contract requires HTTP 500
+and `connector_error`; malformed-client HTTP 400 has separate coverage.
+Only those 2 exact expectations were corrected; all 11 methods and 53
+assertion/subtest calls in that module remain. A subsequent canonical direct-import
+run under the offline guard passed all 70 methods / 291 subtests with 0 failures,
+errors or skips in 24.515 seconds. This is fixture/contract evidence, not host
+runtime or actual UID1001 qualification.
+
+Source bindings and generated inventory/archive/map views are refreshed through
+their generators. Selection remains 100 standard cases / 80 executions and
+2551 optional cases / 1133 executions. Exact new-head hosted Sonar, integration
+and final Connector pin acceptance remain required. All following checkpoints
+are historical and retain their recorded revisions and evidence limits.
+
 ## N30 canonical-inventory owner capability checkpoint
 
 This records implementation and local verification at the N30 checkpoint; all following N29 sections are historical.

@@ -28,7 +28,9 @@ class NativeCanonicalBindingTests(unittest.TestCase):
         original = deepcopy(self.fixture.record)
         record = self.normalize()
         self.assertEqual(record["status"], "PASS", record["reason"])
-        self.assertEqual((record["phase"], record["actual_status"], record["expected_status"]), (1, 400, 400))
+        # A controlled NULL-pointer failure is an internal connector error.
+        # Malformed client HTTP retains its separate 400 coverage.
+        self.assertEqual((record["phase"], record["actual_status"], record["expected_status"]), (1, 500, 500))
         self.assertEqual(record["driver_exit_code"], 0)
         self.assertTrue(record["live_executed"])
         self.assertEqual(record["native_operation_receipt"], original["native_operation_receipt"])
@@ -103,7 +105,7 @@ class NativeCanonicalBindingTests(unittest.TestCase):
         mapping = record["native_evidence_mapping"]
         self.assertEqual(mapping["semantics"]["phase"], 1)
         self.assertEqual(mapping["semantics"]["phase_scope"], "native_event")
-        self.assertEqual(mapping["causes"][0]["event"], "protocol_error")
+        self.assertEqual(mapping["causes"][0]["event"], "connector_error")
         self.assertTrue(mapping["event_origins"])
         self.assertEqual(mapping["event_origins"][0]["artifact"], "phase1-events.jsonl")
         self.assertEqual(contract.native_operation_record_errors(record, self.authority, self.cases[self.fixture.case]), [])
