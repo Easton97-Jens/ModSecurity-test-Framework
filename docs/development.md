@@ -44,6 +44,17 @@ acquisition, including APR-util's direct/no-redirect boundary, are unchanged.
 Use `make test-httpd-source-recovery` for the focused offline regression suite.
 It validates source-acquisition behavior, not a connector's runtime readiness.
 
+### Configured NGINX headers for C checks
+
+The shared `nginx_include_flags_or_blocked` helper supports installed headers
+and configured NGINX source trees. The configured-source include list covers
+`src/event/quic` as well as the HTTP v2/v3 directories, so a real QUIC-enabled
+`objs/ngx_auto_config.h` can include `ngx_event_quic.h`. Installed-header
+priority, configured-source prerequisites and missing-header failures remain
+unchanged; the QUIC directory is not an additional mandatory prerequisite for
+older or non-QUIC source trees. C compilation through these flags proves only
+compilation, not TLS linkage, H2/H3 traffic or connector-runtime qualification.
+
 ## Repository layout
 
 | Path | Responsibility |
