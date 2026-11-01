@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "0200845ddabe4038e5f729ae91c092a5b2c6474f34439df0f9f53cf9d15bab69",
+  "inventory_sha256": "ea9c0b07d76ed9a1e1bb1b647c750e0044fd8544e88dbf5741d07266a1f16ab7",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7940,
+  "on_demand_definition_count": 7946,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -2347,6 +2347,20 @@
       ],
       "source": "connectors/traefik/native_middleware/engine_uds_test.go",
       "source_sha256": "2facf7ebfcfdb053aecc85f56743edec9e2403757343d337d5ae88f1efe488e1"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/adapters/traefik/native_middleware/informational_response_test.go",
+      "on_demand_definitions": [
+        "TestInformationalResponseFinalDecision",
+        "TestInformationalResponseDoesNotDrainRequest",
+        "TestInformationalResponseImplicitFinal",
+        "TestInformationalResponseStreamsBeforeEOS",
+        "TestInformationalResponseSwitchingProtocolsRemainsTerminal",
+        "TestInformationalResponseRejectsInvalidHeaders"
+      ],
+      "source": "connectors/traefik/native_middleware/informational_response_test.go",
+      "source_sha256": "5f49356f42fe73662351ac992f0b577cd3195a6458a4c8abc8ace0175f0b09ca"
     },
     {
       "contains_selected_definitions": [],

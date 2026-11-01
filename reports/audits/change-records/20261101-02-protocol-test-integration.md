@@ -121,3 +121,33 @@ review found no blocker and no environment/secret dumping. Scoped diff/whitespac
 and independent EN-DE review passed. Current-head CI/Sonar and exact-head merge remain
 required. No secrets/raw sensitive payloads/full environments or actual PR merge
 are claimed in this preparation record.
+
+### Current-master reconciliation before merge
+
+Initial published head `0fdf1e6f` passed16 hosted checks with three intended
+skips; its exact Sonar analysis had gate OK, all five returned conditions OK
+and zero OPEN/CONFIRMED PR issues. Before merge, independent #146 advanced
+master to `c3f3aa4747315bdbfc7f6443edb47cef54a4e804`. The exact-head merge
+preflight stopped on conflicts; no PR was merged. A normal master merge retains
+all sources and regenerates only four conflicting catalog outputs using the
+new master tools. It retains100 standard cases/80 executions, inherits2586
+optional cases/1140 executions,526 fixed Framework bindings and all1993
+historical baseline IDs. The four new post-migration sources remain explicit.
+
+The inherited German informational-response guide's language switch is ordered
+English/German to satisfy the existing Parent bilingual contract. No foreign
+Product fix, selector, assertion, rule or gate is changed. Native generation/
+checks and public admission pass; the same12 Python methods,43 protocol methods
+and four helper methods pass again. Explicit-root documentation passes with348
+EN/DE pair checks. Initial repeat commands used incomplete module namespaces
+and failed import; corrected fully qualified commands pass.
+
+Fresh admitted Traefik overlay/race execution selects exactly the16 preserved
+parity tests:18 passing test/subtest terminals,0 failures/skips, empty stderr.
+The new31 informational-response leaves compile but are NOT RUN; they require
+the independently owned Product fix absent from selected Parent `b43faa78`.
+This is not a complete post-#146 Traefik-suite pass. Previous full pre-#146 Go
+results remain historical. Evidence: external run
+`pr348-test-migration-20261101.GnuEMR/go/post-master146/validation.md`.
+Fresh hosted CI/Sonar for the reconciled successor, authorized exact-head
+Framework merge, master verification and dependent Parent pin remain required.

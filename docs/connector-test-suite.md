@@ -35,6 +35,15 @@ not real H2/H3 host qualification. Framework-master integration and exact Parent
 pin/lock/workflow updates require fresh delivery evidence; no merge is claimed
 at this preparation checkpoint.
 
+Before integration, independently published master #146 is normally merged;
+four generated catalog conflicts are regenerated without losing either source
+set. Standard selection stays100/80; optional selection inherits2586/1140.
+Its31 new informational-response leaves require their separate Product fix and
+are not covered by the fresh16-test parity-only Traefik race run. Earlier full
+Traefik results describe the pre-#146 suite. The inherited German guide's
+language switch follows the Parent bilingual contract. New-head CI/Sonar and
+the actual merge/master/pin remain separate required delivery evidence.
+
 ## N35 complete artifact-name consolidation
 
 The N34 analysis removed its 8 preceding findings but exposed 1 further

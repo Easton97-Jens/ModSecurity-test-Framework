@@ -124,3 +124,35 @@ Security-Review ohne Blocker und ohne Umgebungs-/Secret-Dump. Begrenzte Diff-/
 Whitespace-Prüfungen und unabhängiger EN-DE-Review bestanden. Aktuelle CI/Sonar
 und Exact-Head-Merge bleiben nötig. Keine Secrets/rohen sensiblen Payloads/vollständigen Umgebungen
 oder tatsächlicher PR-Merge in diesem Vorbereitungsrecord behauptet.
+
+### Abgleich mit aktuellem Master vor dem Merge
+
+Der erste veröffentlichte Head `0fdf1e6f` bestand16 Hosted-Checks bei drei
+vorgesehenen Skips; seine exakte Sonar-Analyse hatte Gate OK, alle fünf gelieferten
+Bedingungen OK und keine OPEN/CONFIRMED-PR-Issues. Vor dem Merge setzte die
+unabhängige #146 Master auf `c3f3aa4747315bdbfc7f6443edb47cef54a4e804`.
+Der Exact-Head-Preflight stoppte bei Konflikten; kein PR wurde gemergt.
+Ein normaler Master-Merge erhält alle Quellen und regeneriert nur vier
+konfliktbehaftete Katalogausgaben mit den neuen Master-Tools.100 Standardfälle/
+80 Ausführungen bleiben erhalten;2586 optionale Fälle/1140 Ausführungen,
+526 feste Framework-Bindungen und alle1993 historischen Basis-IDs werden
+bewahrt. Vier neue Post-Migrationsquellen bleiben explizit.
+
+Die Sprachumschaltung im geerbten deutschen Informational-Response-Leitfaden
+steht gemäß bestehendem Parent-Zweisprachigkeitsvertrag in English/Deutsch-
+Reihenfolge. Kein fremder Produktfix, Selektor, Assertion, Regel oder Gate wird
+verändert. Native Generierung/Prüfungen und öffentliche Annahme bestehen;
+dieselben12 Python-Methoden,43 Protokollmethoden und vier Helfermethoden
+bestehen erneut. Explizite Dokumentationsprüfungen bestehen mit348 EN/DE-
+Paarprüfungen. Erste Wiederholungsbefehle nutzten unvollständige Modulnamensräume
+und scheiterten am Import; korrigierte vollqualifizierte Befehle bestehen.
+
+Frische zugelassene Traefik-Overlay-/Race-Ausführung wählt exakt16 erhaltene
+Paritätstests:18 erfolgreiche Test-/Subtest-Abschlüsse,0 Fehler/Skips, leeres
+stderr. Die neuen31 Informational-Response-Leaves kompilieren, werden aber
+NICHT AUSGEFÜHRT; sie benötigen den unabhängig zuständigen Produktfix, der im
+ausgewählten Parent `b43faa78` fehlt. Kein vollständiger Traefik-Suite-Pass nach
+#146. Frühere volle Go-Ergebnisse vor #146 bleiben historisch. Evidenz: externer
+Lauf `pr348-test-migration-20261101.GnuEMR/go/post-master146/validation.md`.
+Frische Hosted-CI/Sonar des abgeglichenen Nachfolgers, autorisierter Exact-Head-
+Framework-Merge, Master-Prüfung und abhängiger Parent-Pin bleiben erforderlich.

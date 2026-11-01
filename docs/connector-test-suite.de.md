@@ -36,6 +36,16 @@ Qualifikation. Framework-Master-Integration und exakte Parent-Pin-/Lock-/Workflo
 Updates benötigen frische Auslieferungsevidenz; an diesem Vorbereitungscheckpoint
 wird kein Merge behauptet.
 
+Vor der Integration wird der unabhängig veröffentlichte Master #146 normal
+gemergt; vier generierte Katalogkonflikte werden ohne Verlust beider Quellmengen
+neu erzeugt. Standardauswahl bleibt100/80; optional wird2586/1140 übernommen.
+Seine31 neuen Informational-Response-Leaves benötigen ihren separaten Produktfix
+und sind nicht durch den frischen Traefik-Race-Lauf mit16 Paritätstests abgedeckt.
+Frühere volle Traefik-Ergebnisse beschreiben die Suite vor #146. Der Sprachlink
+des geerbten deutschen Leitfadens folgt dem Parent-Zweisprachigkeitsvertrag.
+Neue CI/Sonar sowie tatsächlicher Merge/Master/Pin bleiben getrennt erforderliche
+Auslieferungsevidenz.
+
 ## N35-Vollständige Konsolidierung der Artefaktnamen
 
 Die N34-Analyse beseitigte ihre 8 vorangegangenen Findings, zeigte aber 1 weiteres

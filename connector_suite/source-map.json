@@ -1300,7 +1300,11 @@
     "tests/transaction_phase_contract_test.c": "connector_suite/modsecurity_connector_tests/transaction_phase_contract_test.c",
     "tests/transaction_phase_runtime_companion_test.c": "connector_suite/modsecurity_connector_tests/transaction_phase_runtime_companion_test.c",
     "tests/transaction_phase_test_support.h": "connector_suite/modsecurity_connector_tests/transaction_phase_test_support.h",
-    "tests/version_updater_test_support.py": "connector_suite/modsecurity_connector_tests/version_updater_test_support.py"
+    "tests/version_updater_test_support.py": "connector_suite/modsecurity_connector_tests/version_updater_test_support.py",
+    "connectors/traefik/native_middleware/informational_response_test.go": "connector_suite/adapters/traefik/native_middleware/informational_response_test.go",
+    "connectors/traefik/scripts/runtime-native-informational.sh": "connector_suite/adapters/traefik/scripts/runtime-native-informational.sh",
+    "connectors/traefik/scripts/runtime_native_informational.py": "connector_suite/adapters/traefik/scripts/runtime_native_informational.py",
+    "connectors/traefik/scripts/native-informational-rules.conf": "connector_suite/adapters/traefik/scripts/native-informational-rules.conf"
   },
   "schema_version": 1
 }
