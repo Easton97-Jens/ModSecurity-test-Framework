@@ -1,0 +1,23 @@
+--- a/payload
++++ b/payload
+@@ -19 +19 @@
+-rules='''SecRuleEngine On
++rules=r'''SecRuleEngine On
+@@ -21 +21 @@
+-SecRequestBodyLimit 16
++SecRequestBodyLimit 1024
+@@ -23 +23 @@
+-SecRequestBodyLimitAction ProcessPartial
++SecRequestBodyLimitAction Reject
+@@ -36,3 +36,2 @@
+-SecRule REQUEST_BODY "@streq haproxy-lifecycl" "id:1999461,phase:2,pass,log,msg:'I12_PARTIAL_PREFIX_EXACT16'"
+-SecRule REQUEST_BODY "@streq 5d226c942dcb40aec18f97f81a19695dcaaa023d" "id:1999462,phase:2,pass,log,t:sha1,t:hexEncode,msg:'I12_PARTIAL_PREFIX_NATIVE_SHA1'"
+-SecRule REQUEST_BODY "@streq neighbor" "id:1999463,phase:2,pass,log,msg:'I12_LIMIT_HEALTH_NEIGHBOR_BODY'"
++SecRule REQUEST_BODY "@rx \Ahaproxy-lifecycle-main\x0a\z" "id:1999422,phase:2,pass,log,msg:'I12_REQUEST_BODY_EXACT_MAIN'"
++SecRule REQUEST_BODY "@rx \Ahaproxy-lifecycle-neighbor\x0a\z" "id:1999423,phase:2,pass,log,msg:'I12_REQUEST_BODY_EXACT_NEIGHBOR'"
+@@ -69 +68 @@
+-    env=dict(os.environ,MSCONNECTOR_LIFECYCLE_FD=str(fd),MSCONNECTOR_LIFECYCLE_RUN='20261014-hap-native-limit-2',MSCONNECTOR_LIFECYCLE_PROFILE='haproxy-native-htx',MSCONNECTOR_LIFECYCLE_CASE='NEED-request-process-partial')
++    env=dict(os.environ,MSCONNECTOR_LIFECYCLE_FD=str(fd),MSCONNECTOR_LIFECYCLE_RUN='20261014-hap-predicate-direct-1',MSCONNECTOR_LIFECYCLE_PROFILE='haproxy-native-htx',MSCONNECTOR_LIFECYCLE_CASE='NEED-request-single-chunk')
+@@ -83 +82 @@
+-    receipt={'commands':receipts,'snapshots':snapshots,'source_instrumentation_is_test_only':True,'selected_id':'I12::haproxy-native-htx::NEED-request-process-partial','full_lifecycle_pass':None,'effective_rules_sha256':hashlib.sha256((TASK/'rules.conf').read_bytes()).hexdigest(),'effective_config_sha256':hashlib.sha256((TASK/'haproxy.cfg').read_bytes()).hexdigest() if (TASK/'haproxy.cfg').exists() else None}
++    receipt={'commands':receipts,'snapshots':snapshots,'source_instrumentation_is_test_only':True,'selected_id':'I12::haproxy-native-htx::NEED-request-single-chunk','full_lifecycle_pass':None,'effective_rules_sha256':hashlib.sha256((TASK/'rules.conf').read_bytes()).hexdigest(),'effective_config_sha256':hashlib.sha256((TASK/'haproxy.cfg').read_bytes()).hexdigest() if (TASK/'haproxy.cfg').exists() else None}

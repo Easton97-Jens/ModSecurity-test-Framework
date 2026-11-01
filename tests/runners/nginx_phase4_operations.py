@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 
-import nginx_phase4_contracts as contracts
+from modsecurity_test_framework.runners import nginx_phase4_contracts as contracts
 
 MAX_RAW_BYTES = 1024 * 1024
 MAX_EVENT_BYTES = 8192

@@ -1,0 +1,140 @@
+name: reusable-five-connectors-profile / aggregate
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up toolchain
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+    - name: Initialize aggregate roots
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        parent_commit=$(git rev-parse HEAD)
+        framework_commit=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+        test "$parent_commit" = "$GITHUB_SHA"
+        evidence_root="$RUNNER_TEMP/ModSecurity-conector-verified/$FIVE_CONNECTOR_PROFILE/$parent_commit/$framework_commit/aggregate/evidence"
+        umask 077
+        mkdir -p "$evidence_root"
+        {
+          echo "FIVE_CONNECTOR_PARENT_COMMIT=$parent_commit"
+          echo "FIVE_CONNECTOR_FRAMEWORK_COMMIT=$framework_commit"
+          echo "EVIDENCE_ROOT=$evidence_root"
+        } >> "$GITHUB_ENV"
+
+    - name: Download five connector evidence
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        pattern: five-no-crs-*-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/five-connector-profile-artifacts/${{ github.run_id }}-${{ github.run_attempt }}
+        merge-multiple: false
+
+    - name: Restore and validate exact profile evidence
+      id: validate-profile-evidence
+      if: always()
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        status=0
+        connector_list="$RUNNER_TEMP/five-connector-profile-connectors"
+        expected_artifacts="$RUNNER_TEMP/five-connector-profile-expected-artifacts"
+        artifact_root="$RUNNER_TEMP/five-connector-profile-artifacts/$NO_CRS_RUN_ID"
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/five-connector-no-crs-profile.py \
+          --profile "$FIVE_CONNECTOR_PROFILE" --emit-connectors > "$connector_list"
+        : > "$expected_artifacts"
+        while IFS= read -r connector; do
+          printf 'five-no-crs-%s-%s\n' "$connector" "$NO_CRS_RUN_ID" >> "$expected_artifacts"
+        done < "$connector_list"
+        artifact_count=0
+        if [ ! -d "$artifact_root" ]; then
+          echo "::error::No five-profile artifacts were downloaded"
+          status=1
+        else
+          for artifact_dir in "$artifact_root"/*; do
+            if [ ! -d "$artifact_dir" ] || [ -L "$artifact_dir" ]; then
+              echo "::error::Downloaded artifact path is not a regular directory: $artifact_dir"
+              status=1
+              continue
+            fi
+            artifact_name=${artifact_dir##*/}
+            artifact_count=$((artifact_count + 1))
+            if ! grep -Fqx "$artifact_name" "$expected_artifacts"; then
+              echo "::error::Unexpected five-profile artifact: $artifact_name"
+              status=1
+            fi
+          done
+          if [ "$artifact_count" -ne 5 ]; then
+            echo "::error::Expected exactly five five-profile artifacts; got $artifact_count"
+            status=1
+          fi
+        fi
+        while IFS= read -r connector; do
+          artifact_dir="$artifact_root/five-no-crs-$connector-$NO_CRS_RUN_ID"
+          destination="$EVIDENCE_ROOT/$connector/$NO_CRS_RUN_ID"
+          mkdir -p "$destination"
+          if [ ! -d "$artifact_dir" ]; then
+            echo "::error::Missing five-profile artifact for $connector"
+            status=1
+            continue
+          fi
+          cp -a "$artifact_dir/." "$destination/"
+          if ! python3 -P modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py validate \
+            --evidence-root "$destination" \
+            --connector "$connector" \
+            --capabilities "connectors/$connector/capabilities.json" \
+            --check all; then
+            echo "::error::Canonical evidence for $connector is invalid; retained for diagnosis"
+            status=1
+          fi
+        done < "$connector_list"
+        exit "$status"
+
+    - name: Build exact five-connector result aggregate
+      if: always()
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        canonical_validation_status=failed
+        if [ "${{ steps.validate-profile-evidence.outcome }}" = "success" ]; then
+          canonical_validation_status=passed
+        fi
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/aggregate-five-connector-no-crs.py \
+          --profile "$FIVE_CONNECTOR_PROFILE" \
+          --canonical-validation-status "$canonical_validation_status" \
+          --evidence-root "$EVIDENCE_ROOT" \
+          --run-id "$NO_CRS_RUN_ID" \
+          --connector-commit "$FIVE_CONNECTOR_PARENT_COMMIT" \
+          --framework-commit "$FIVE_CONNECTOR_FRAMEWORK_COMMIT" \
+          --output-json "$EVIDENCE_ROOT/five-connectors-no-crs-summary.json" \
+          --output-md "$EVIDENCE_ROOT/five-connectors-no-crs-summary.md" \
+          --output-md-de "$EVIDENCE_ROOT/five-connectors-no-crs-summary.de.md"
+
+    - name: Upload result-only aggregate
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: five-connectors-no-crs-summary-${{ github.run_id }}-${{ github.run_attempt }}
+        retention-days: 10
+        if-no-files-found: error
+        path: |
+          ${{ env.EVIDENCE_ROOT }}/five-connectors-no-crs-summary.json
+          ${{ env.EVIDENCE_ROOT }}/five-connectors-no-crs-summary.md
+          ${{ env.EVIDENCE_ROOT }}/five-connectors-no-crs-summary.de.md

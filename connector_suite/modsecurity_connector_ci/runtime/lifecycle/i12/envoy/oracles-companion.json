@@ -1,0 +1,2598 @@
+{
+  "route": "envoy-ext-authz-response-companion",
+  "source_commit": "f27eb59b53beff6f65384fc2e5037881a3052c01",
+  "status": "source_review_complete_host_qualification_remaining",
+  "baseline_sha256": "e5bc09638b139351aa9816df79faffcb8923117f1bd74ca59fdd7b21021ac469",
+  "semantics_policy": "Explicit new task fixture bindings derive expected predicates only from sealed rules/config/bytes and source. Observed HTTP/native outputs are not oracle inputs. Null fields remain unknown; SOURCE_SEMANTICS_CONFIRMED is not lifecycle PASS.",
+  "summary": {
+    "SOURCE_SEMANTICS_CONFIRMED": 10,
+    "FIXTURE_PENDING": 22,
+    "OPEN": 2
+  },
+  "source_semantics_confirmed_existing": 1,
+  "source_semantics_confirmed_new": 9,
+  "records": [
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-allow",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::addResponseHeader",
+          "line": 1032,
+          "claim": "SDK response Content-Type parsing splits the charset suffix before native MIME membership testing; absence of charset is not an EOS or byte-limit decision."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": "allow",
+        "visible_status": 200,
+        "phase": 4,
+        "rule_id": null,
+        "request_bytes": 95,
+        "response_bytes": 96,
+        "request_eos_count": 1,
+        "response_eos_count": 1,
+        "native_logging_finalize_calls": 1,
+        "native_cleanup_calls": 1,
+        "successful_companion_claim_count": 1,
+        "selected_backend_count": 1,
+        "separate_neighbor_count": 1,
+        "grpc_status": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-allow",
+        "scenario_label": "ext-authz-response-companion-streaming",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-streaming",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/shape.json",
+            "sha256": "bd7bd4b0fb75eea337e9a9a57f2c5132cc3e055593588a70b475e9429ad4402a",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/native.rules",
+            "sha256": "d937177903461d6afb17f327228620ad0789a1284ba6e1f8b5ef2dd6b83f1a99",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/backend.py",
+            "sha256": "3c9fe5c7152a4d37a432206f241614737a8919c174bc3418e9789f017fc63256",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/client.py",
+            "sha256": "b7f33e2ca841d13e25485410c45fb2d20524b137b84b77f3737342ce0a49727f",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/driver.py",
+            "sha256": "09adc0aa5a476f3d68877fcdb60c13e336b145b262f853ec40eb10b4dafea6f2",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming-admission.json",
+            "sha256": "8f099a9fd44a02ad3c589b2d5970d4ca705e7cf6de028fd7b429719d37164952",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming-ledger.json",
+            "sha256": "a0587de12084de76ea04ca9d012c7a973b7aa9be42b7b4ccd534dff2e89cac42",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "Bind an all-pass, complete, below-limit response through the retained companion transaction.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-response-empty",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "No selected fixture sends a truly empty response with explicit header EOS or zero-body EOS; bind the concrete framing and native access/rules first.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-response-single-chunk",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Existing response_parts3 fixtures do not establish an exactly-one-body-callback fixture; TCP coalescing cannot resolve this oracle.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-response-file",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Current backend bodies are generated from shape hex and sent as bytes; no file-backed response source, file lifetime or EOS fixture is selected.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-response-streaming",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::addResponseHeader",
+          "line": 1032,
+          "claim": "SDK response Content-Type parsing splits the charset suffix before native MIME membership testing; absence of charset is not an EOS or byte-limit decision."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": "allow",
+        "visible_status": 200,
+        "phase": 4,
+        "rule_id": null,
+        "request_bytes": 95,
+        "response_bytes": 96,
+        "request_eos_count": 1,
+        "response_eos_count": 1,
+        "native_logging_finalize_calls": 1,
+        "native_cleanup_calls": 1,
+        "successful_companion_claim_count": 1,
+        "selected_backend_count": 1,
+        "separate_neighbor_count": 1,
+        "grpc_status": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-response-streaming",
+        "scenario_label": "ext-authz-response-companion-streaming",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-streaming",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/shape.json",
+            "sha256": "bd7bd4b0fb75eea337e9a9a57f2c5132cc3e055593588a70b475e9429ad4402a",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/native.rules",
+            "sha256": "d937177903461d6afb17f327228620ad0789a1284ba6e1f8b5ef2dd6b83f1a99",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/backend.py",
+            "sha256": "3c9fe5c7152a4d37a432206f241614737a8919c174bc3418e9789f017fc63256",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/client.py",
+            "sha256": "b7f33e2ca841d13e25485410c45fb2d20524b137b84b77f3737342ce0a49727f",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/driver.py",
+            "sha256": "09adc0aa5a476f3d68877fcdb60c13e336b145b262f853ec40eb10b4dafea6f2",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming-admission.json",
+            "sha256": "8f099a9fd44a02ad3c589b2d5970d4ca705e7cf6de028fd7b429719d37164952",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming-ledger.json",
+            "sha256": "a0587de12084de76ea04ca9d012c7a973b7aa9be42b7b4ccd534dff2e89cac42",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "Bind a STREAMED response configuration and backend with3paced sends; actual callback count remains to be measured independently.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "Backend send count3 is a fixture input, not proof of exactly3Envoy/native callbacks; measure chunk spans/EOS and bytes.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-response-charset-missing",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::addResponseHeader",
+          "line": 1032,
+          "claim": "SDK response Content-Type parsing splits the charset suffix before native MIME membership testing; absence of charset is not an EOS or byte-limit decision."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Current inspected text/plain response fixtures explicitly include charset=utf-8; MIME-out without charset is a different native inspection contract.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-response-csv",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::addResponseHeader",
+          "line": 1032,
+          "claim": "SDK response Content-Type parsing splits the charset suffix before native MIME membership testing; absence of charset is not an EOS or byte-limit decision."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "No selected CSV MIME/body/rules fixture exists; text/plain rules and application/octet-stream samples do not determine a CSV expected action.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-response-above-former-connector-limit",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.responseBody",
+          "line": 931,
+          "claim": "Accounting overflow and chunk-counter exhaustion are rejected before body accounting or engine dispatch; this is not a connector WAF byte limit."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::appendResponseBody",
+          "line": 1177,
+          "claim": "SDK native response-body limit owns Reject versus ProcessPartial; ProcessPartial copies the remaining native prefix and returnsfalse without equating that return to a technical failure."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Identify the historical connector threshold and select a body beyond it while separately fixing native body limits/actions;2049-byte native ProcessPartial is not proof of full inspection beyond an unspecified former limit.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-response-marker-at-payload-end",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::appendResponseBody",
+          "line": 1177,
+          "claim": "SDK native response-body limit owns Reject versus ProcessPartial; ProcessPartial copies the remaining native prefix and returnsfalse without equating that return to a technical failure."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Existing response-marker is a prefix, not a suffix; select exact end-marker bytes and native limit/MIME rules before assigning P4 intervention/status.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-invalid-native-return",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "No selected genuine SDK return-failure injection exists; native policy Reject/ProcessPartial and protocol failures must not be relabeled technical native API failure.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-missing-eos",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.runResponseLoop",
+          "line": 256,
+          "claim": "Peer EOF before response EOS becomes UnexpectedEOF; cancellation is a transport termination, not an invented successful response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-missing-eos",
+        "scenario_label": "ext-authz-response-companion-incomplete-response",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-incomplete-response",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/shape.json",
+            "sha256": "2939ed092eba02437cf94da826103627d8758a68280d8686193d9a84d4baaf14",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/native.rules",
+            "sha256": "fdba5d083f943de01a8e97dfd4ae8f533c881c5c6c172c3fe700eebcab05e87e",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/backend.py",
+            "sha256": "62a1e2f63340410643938c66439b89d3db6543858a9e115f7ea01fe1eaa85e61",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/client.py",
+            "sha256": "c869139850557094e4e74f8f6c2accf67df9c347e39f0691d5f627572c946844",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/driver.py",
+            "sha256": "f33f555573bf66106868f3060cf20eb54771ad4399031a20d9dc3267f3771707",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response-admission.json",
+            "sha256": "a405544071180011b1d2ef9919f47a728d7923ca3cd12714778b28dac021b5e4",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response-ledger.json",
+            "sha256": "76072732f6e5f9646684e0226c61360075bf958ff5153161dc90ad78f76b32d8",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "Backend intentionally sends only the first chunk of its96-byte response and omits terminal0chunk; client retains the incomplete raw HTTP body. This selects incomplete upstream framing after commitment.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Truncated upstream HTTP framing is an explicit candidate, but no selected fixture directly suppresses exactly the companion gRPC EOS callback; approve the actual host callback/finalization predicate before resolving this separate missing-EOS oracle.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-invalid-metadata",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.Process",
+          "line": 157,
+          "claim": "Unmarked response callbacks without a valid lease or with a failed Claim receive fail-closed503; a successful claim retains one response transaction."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Select the exact invalid response metadata field/encoding and commit point; missing lease correlation is a separate named obligation.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-invalid-header",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.processResponse",
+          "line": 293,
+          "claim": "Duplicate headers and body/trailers out of order are rejected; one stream state does not permit replaying completed response phases."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "No sealed fixture injects an exact malformed response header/duplicate encoding into a real host callback; select header and pre/post-commit failure contract.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-size-overflow",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "OPEN",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.responseBody",
+          "line": 931,
+          "claim": "Accounting overflow and chunk-counter exhaustion are rejected before body accounting or engine dispatch; this is not a connector WAF byte limit."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Host-sized byte samples cannot reach MaxInt64 accounting overflow. A bounded state-injection seam and real-host binding are required; never allocate a huge payload or infer an overflow pass from normal chunks.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-physical-event-sink-open",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "common/runtime/msconnector_runtime.c",
+          "sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
+          "symbol": "write_event_jsonl",
+          "line": 1892,
+          "claim": "Common reports write/flush IO failure; a physical open/write/short-write/flush/close fault still needs its own precise injection fixture."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.dispatchEvents",
+          "line": 156,
+          "claim": "The first observer failure faults the coordinator and drains subsequent queued events without replaying a failed sink."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.setFault",
+          "line": 181,
+          "claim": "Only the first permanent coordinator fault is retained; fault propagation starts cleanup without substituting a later cause."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Bind an actual open failure at the physical Common/adapter sink, with precise first error and cleanup. Other sink operations and empty non-disruptive logs cannot resolve this operation-specific fault.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-physical-event-sink-write",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "common/runtime/msconnector_runtime.c",
+          "sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
+          "symbol": "write_event_jsonl",
+          "line": 1892,
+          "claim": "Common reports write/flush IO failure; a physical open/write/short-write/flush/close fault still needs its own precise injection fixture."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.dispatchEvents",
+          "line": 156,
+          "claim": "The first observer failure faults the coordinator and drains subsequent queued events without replaying a failed sink."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.setFault",
+          "line": 181,
+          "claim": "Only the first permanent coordinator fault is retained; fault propagation starts cleanup without substituting a later cause."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Bind an actual write failure at the physical Common/adapter sink, with precise first error and cleanup. Other sink operations and empty non-disruptive logs cannot resolve this operation-specific fault.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-physical-event-sink-short-write",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "common/runtime/msconnector_runtime.c",
+          "sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
+          "symbol": "write_event_jsonl",
+          "line": 1892,
+          "claim": "Common reports write/flush IO failure; a physical open/write/short-write/flush/close fault still needs its own precise injection fixture."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.dispatchEvents",
+          "line": 156,
+          "claim": "The first observer failure faults the coordinator and drains subsequent queued events without replaying a failed sink."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.setFault",
+          "line": 181,
+          "claim": "Only the first permanent coordinator fault is retained; fault propagation starts cleanup without substituting a later cause."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Bind an actual short-write failure at the physical Common/adapter sink, with precise first error and cleanup. Other sink operations and empty non-disruptive logs cannot resolve this operation-specific fault.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-physical-event-sink-flush",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "common/runtime/msconnector_runtime.c",
+          "sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
+          "symbol": "write_event_jsonl",
+          "line": 1892,
+          "claim": "Common reports write/flush IO failure; a physical open/write/short-write/flush/close fault still needs its own precise injection fixture."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.dispatchEvents",
+          "line": 156,
+          "claim": "The first observer failure faults the coordinator and drains subsequent queued events without replaying a failed sink."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.setFault",
+          "line": 181,
+          "claim": "Only the first permanent coordinator fault is retained; fault propagation starts cleanup without substituting a later cause."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Bind an actual flush failure at the physical Common/adapter sink, with precise first error and cleanup. Other sink operations and empty non-disruptive logs cannot resolve this operation-specific fault.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-physical-event-sink-close",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "common/runtime/msconnector_runtime.c",
+          "sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
+          "symbol": "write_event_jsonl",
+          "line": 1892,
+          "claim": "Common reports write/flush IO failure; a physical open/write/short-write/flush/close fault still needs its own precise injection fixture."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.dispatchEvents",
+          "line": 156,
+          "claim": "The first observer failure faults the coordinator and drains subsequent queued events without replaying a failed sink."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.setFault",
+          "line": 181,
+          "claim": "Only the first permanent coordinator fault is retained; fault propagation starts cleanup without substituting a later cause."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Bind an actual close failure at the physical Common/adapter sink, with precise first error and cleanup. Other sink operations and empty non-disruptive logs cannot resolve this operation-specific fault.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-timeout",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Limits.withDefaults",
+          "line": 68,
+          "claim": "Default idle TTL is5seconds and absolute TTL30seconds; these are lease lifetimes, not native body inspection limits."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.runResponseLoop",
+          "line": 256,
+          "claim": "Peer EOF before response EOS becomes UnexpectedEOF; cancellation is a transport termination, not an invented successful response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.setFault",
+          "line": 181,
+          "claim": "Only the first permanent coordinator fault is retained; fault propagation starts cleanup without substituting a later cause."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Specify whether engine deadline, ext_proc message timeout, lease TTL or idle TTL is under test. The explicit lease-expiry fixture alone does not resolve generic timeout timing/first cause.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-cancel",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.runResponseLoop",
+          "line": 256,
+          "claim": "Peer EOF before response EOS becomes UnexpectedEOF; cancellation is a transport termination, not an invented successful response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": null,
+        "visible_status": 200,
+        "rule_id": null,
+        "phase": null,
+        "deliberate_cancel_after_entity_byte": true,
+        "full_response_eos_required_for_success": true,
+        "neighbor_visible_status": 200,
+        "response_bytes": null,
+        "grpc_status": null,
+        "native_finish_error": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-cancel",
+        "scenario_label": "ext-authz-response-companion-cancel",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-cancel",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-cancel/shape.json",
+            "sha256": "7f721261ac10c3fafa28b43a9751d6ac81d177176b49c9e0e9889cfea54e2546",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-cancel/native.rules",
+            "sha256": "3a4341393b07b598e213eba8f31ef0b35bcde8e42c880476ed14d6304075f8a0",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-cancel/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-cancel/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-cancel/backend.py",
+            "sha256": "6eaf6ac0895334291dbafba7f829f6367f1a0fa4a0be00dfeae7e1ea657d7e4d",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-cancel/client.py",
+            "sha256": "f58e269e1cdd4dfcd179a2259681b37495eb0b935ed961308363928e1886a81a",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-cancel/driver.py",
+            "sha256": "f33f555573bf66106868f3060cf20eb54771ad4399031a20d9dc3267f3771707",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-cancel-admission.json",
+            "sha256": "79057107ded1790b2f930a0468003e200aa95603d25f351e4b0be752ff865f37",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-cancel-ledger.json",
+            "sha256": "11605945d95b25c6b794c941a3ffa87728525a2f354a60df8b57745862d9045f",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "The target client deliberately closes after its first entity byte while a separate neighbor is active; this selects client cancellation after response commitment, not a valid rule intervention.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "Fixture-controlled client exit0 is not transport or lifecycle success; retain incomplete framing/TLS EOF, actual gRPC cancellation/reset and first native finish error separately.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-client-response-bytes",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::addResponseHeader",
+          "line": 1032,
+          "claim": "SDK response Content-Type parsing splits the charset suffix before native MIME membership testing; absence of charset is not an EOS or byte-limit decision."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": "allow",
+        "visible_status": 200,
+        "phase": 4,
+        "rule_id": null,
+        "request_bytes": 95,
+        "response_bytes": 96,
+        "request_eos_count": 1,
+        "response_eos_count": 1,
+        "native_logging_finalize_calls": 1,
+        "native_cleanup_calls": 1,
+        "successful_companion_claim_count": 1,
+        "selected_backend_count": 1,
+        "separate_neighbor_count": 1,
+        "grpc_status": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-client-response-bytes",
+        "scenario_label": "ext-authz-response-companion-streaming",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-streaming",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/shape.json",
+            "sha256": "bd7bd4b0fb75eea337e9a9a57f2c5132cc3e055593588a70b475e9429ad4402a",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/native.rules",
+            "sha256": "d937177903461d6afb17f327228620ad0789a1284ba6e1f8b5ef2dd6b83f1a99",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/backend.py",
+            "sha256": "3c9fe5c7152a4d37a432206f241614737a8919c174bc3418e9789f017fc63256",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/client.py",
+            "sha256": "b7f33e2ca841d13e25485410c45fb2d20524b137b84b77f3737342ce0a49727f",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/driver.py",
+            "sha256": "09adc0aa5a476f3d68877fcdb60c13e336b145b262f853ec40eb10b4dafea6f2",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming-admission.json",
+            "sha256": "8f099a9fd44a02ad3c589b2d5970d4ca705e7cf6de028fd7b429719d37164952",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming-ledger.json",
+            "sha256": "a0587de12084de76ea04ca9d012c7a973b7aa9be42b7b4ccd534dff2e89cac42",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "Bind exact96-byte response entity and framing under all-pass rules, independently of the client observed receipt.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-client-exit-signal",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.runResponseLoop",
+          "line": 256,
+          "claim": "Peer EOF before response EOS becomes UnexpectedEOF; cancellation is a transport termination, not an invented successful response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.Process",
+          "line": 157,
+          "claim": "Unmarked response callbacks without a valid lease or with a failed Claim receive fail-closed503; a successful claim retains one response transaction."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "A complete HTTP body can coexist with TCP reset; select the exact permitted TLS/TCP close and client exit/signal contract independently of observed exit0.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-incomplete-framing",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.runResponseLoop",
+          "line": 256,
+          "claim": "Peer EOF before response EOS becomes UnexpectedEOF; cancellation is a transport termination, not an invented successful response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": null,
+        "visible_status": 200,
+        "rule_id": null,
+        "phase": null,
+        "client_http_framing_complete": false,
+        "backend_response_eos_written": false,
+        "full_response_eos_required_for_success": true,
+        "grpc_status": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-incomplete-framing",
+        "scenario_label": "ext-authz-response-companion-incomplete-response",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-incomplete-response",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/shape.json",
+            "sha256": "2939ed092eba02437cf94da826103627d8758a68280d8686193d9a84d4baaf14",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/native.rules",
+            "sha256": "fdba5d083f943de01a8e97dfd4ae8f533c881c5c6c172c3fe700eebcab05e87e",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/backend.py",
+            "sha256": "62a1e2f63340410643938c66439b89d3db6543858a9e115f7ea01fe1eaa85e61",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/client.py",
+            "sha256": "c869139850557094e4e74f8f6c2accf67df9c347e39f0691d5f627572c946844",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response/driver.py",
+            "sha256": "f33f555573bf66106868f3060cf20eb54771ad4399031a20d9dc3267f3771707",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response-admission.json",
+            "sha256": "a405544071180011b1d2ef9919f47a728d7923ca3cd12714778b28dac021b5e4",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-postcommit/host-fixtures/ext-authz-response-companion-incomplete-response-ledger.json",
+            "sha256": "76072732f6e5f9646684e0226c61360075bf958ff5153161dc90ad78f76b32d8",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "Backend intentionally sends only the first chunk of its96-byte response and omits terminal0chunk; client retains the incomplete raw HTTP body. This selects incomplete upstream framing after commitment.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-abort-reset-observation",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.runResponseLoop",
+          "line": 256,
+          "claim": "Peer EOF before response EOS becomes UnexpectedEOF; cancellation is a transport termination, not an invented successful response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.Process",
+          "line": 157,
+          "claim": "Unmarked response callbacks without a valid lease or with a failed Claim receive fail-closed503; a successful claim retains one response transaction."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Select an exact reset/abort action and independently expected transport code. Deliberate client close or local gRPC reset cannot supply missing remote gRPC status.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-backend-count-exclusion",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::addResponseHeader",
+          "line": 1032,
+          "claim": "SDK response Content-Type parsing splits the charset suffix before native MIME membership testing; absence of charset is not an EOS or byte-limit decision."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": "allow",
+        "visible_status": 200,
+        "phase": 4,
+        "rule_id": null,
+        "request_bytes": 95,
+        "response_bytes": 96,
+        "request_eos_count": 1,
+        "response_eos_count": 1,
+        "native_logging_finalize_calls": 1,
+        "native_cleanup_calls": 1,
+        "successful_companion_claim_count": 1,
+        "selected_backend_count": 1,
+        "separate_neighbor_count": 1,
+        "grpc_status": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-backend-count-exclusion",
+        "scenario_label": "ext-authz-response-companion-streaming",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-streaming",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/shape.json",
+            "sha256": "bd7bd4b0fb75eea337e9a9a57f2c5132cc3e055593588a70b475e9429ad4402a",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/native.rules",
+            "sha256": "d937177903461d6afb17f327228620ad0789a1284ba6e1f8b5ef2dd6b83f1a99",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/backend.py",
+            "sha256": "3c9fe5c7152a4d37a432206f241614737a8919c174bc3418e9789f017fc63256",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/client.py",
+            "sha256": "b7f33e2ca841d13e25485410c45fb2d20524b137b84b77f3737342ce0a49727f",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming/driver.py",
+            "sha256": "09adc0aa5a476f3d68877fcdb60c13e336b145b262f853ec40eb10b4dafea6f2",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming-admission.json",
+            "sha256": "8f099a9fd44a02ad3c589b2d5970d4ca705e7cf6de028fd7b429719d37164952",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v2/host-fixtures/ext-authz-response-companion-streaming-ledger.json",
+            "sha256": "a0587de12084de76ea04ca9d012c7a973b7aa9be42b7b4ccd534dff2e89cac42",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "Bind selected target POST separately from one neighbor POST and TCP readiness probes; expected selected1 excludes neighbor1, never implies zero response-side backend requests.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "Composite backend lacks early request-line capture; completed receipts/body artifacts provide a lower bound and cannot exclude unseen incomplete upstream requests.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-neighbor-connection-stream",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::addResponseHeader",
+          "line": 1032,
+          "claim": "SDK response Content-Type parsing splits the charset suffix before native MIME membership testing; absence of charset is not an EOS or byte-limit decision."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": "allow",
+        "visible_status": 200,
+        "selected_backend_count": 1,
+        "separate_neighbor_count": 1,
+        "neighbor_visible_status": 200,
+        "neighbor_response_bytes": 7,
+        "independent_native_allocations_expected": 2,
+        "observed_overlap": null,
+        "grpc_status": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-neighbor-connection-stream",
+        "scenario_label": "ext-authz-response-companion-concurrent",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-concurrent",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v3/host-fixtures/ext-authz-response-companion-concurrent/shape.json",
+            "sha256": "c6cc85d307bc3de2ab5cd00ca528576a7faa0cf05c7699be464eeea07b2d0567",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v3/host-fixtures/ext-authz-response-companion-concurrent/native.rules",
+            "sha256": "fb89eb721771867eadbdfaa1aedd2bc383d572347cf854fca07cbad14eef8058",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v3/host-fixtures/ext-authz-response-companion-concurrent/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v3/host-fixtures/ext-authz-response-companion-concurrent/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v3/host-fixtures/ext-authz-response-companion-concurrent/backend.py",
+            "sha256": "93badb29b9a07c61a2d3175e542cc76d3e1416c5cedabab2184bc76194d07ceb",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v3/host-fixtures/ext-authz-response-companion-concurrent/client.py",
+            "sha256": "17e6a605cf7e06891d12eb4ea117db251978e8b216a7e9b922a2048423c3d348",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v3/host-fixtures/ext-authz-response-companion-concurrent/driver.py",
+            "sha256": "21eb0510ac5adf2748ba77c9ddb8411ac3f23bec7f9997fcadc04c9c50b918f3",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v3/host-fixtures/ext-authz-response-companion-concurrent-admission.json",
+            "sha256": "840da6fc0ce6dbbb1d451ae755740e9f8bc829db4db561daefe89e1467dfe638",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-v3/host-fixtures/ext-authz-response-companion-concurrent-ledger.json",
+            "sha256": "8f84e23e194c816e87ede5c7f5fd2d5d485525aa56c2671a26657088533a284f",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "The driver launches independently waited target and neighbor clients concurrently; each client opens its own socket; coordinator creates independent server-owned transaction/lease/session state.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "Prove actual client-time overlap and independent allocation scopes/transport streams; source-intended concurrency is not observed overlap.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-lease-claim",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::addResponseHeader",
+          "line": 1032,
+          "claim": "SDK response Content-Type parsing splits the charset suffix before native MIME membership testing; absence of charset is not an EOS or byte-limit decision."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": "allow",
+        "visible_status": 200,
+        "phase": 4,
+        "rule_id": null,
+        "request_eos_count": 1,
+        "response_eos_count": 1,
+        "native_logging_finalize_calls": 1,
+        "native_cleanup_calls": 1,
+        "runtime_destroy_calls": 1,
+        "successful_companion_claim_count": 1,
+        "physical_evidence_not_projection": true,
+        "request_bytes": 13,
+        "response_bytes": 25,
+        "selected_backend_count": 1,
+        "separate_neighbor_count": 1
+      },
+      "fixture_binding": {
+        "origin": "existing_exact_selected_obligation_fixture",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-lease-claim",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/companion-v2/fixtures/shape.json",
+            "sha256": "e8113475def914947c8d720cc069d2f5c2c261935d5270e0813d635d437432cf",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/companion-v2/fixtures/native.rules",
+            "sha256": "b23c5d07aa8bcd39d6f7f208234c62e3866b1132331987264c2325b2a562c789",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/companion-v2/fixtures/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/companion-v2/fixtures/envoy.yaml",
+            "sha256": "cc78f9be754480a54340275ff9fb0963b511e4bb63b08593fbefac28a31d45b3",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/ledger/root-approved-envoy-companion-01.json",
+            "sha256": "61fa58bc0af158e60a7143e9e54e5ebaf7c2ebc421e984b9872d5932d5bd9f85",
+            "role": "existing_original_id_binding_receipt"
+          }
+        ],
+        "contract_rationale": "Exact shape case_id equals original NEED-lease-claim;13-byte complete request under33-byte hostbuffer and25-byte text/plain response under1024-byte native limit; only harmless pass/log rules. Existing effective oracle retained after independent source/config review.",
+        "effective_inputs": {
+          "request_bytes": 13,
+          "response_bytes": 25,
+          "host_max_request_bytes": 33,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "Existing lifecycle qualification remains in the baseline ledger; this source-review record does not issue a new PASS or refresh its host run.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-missing-correlation",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "leaseFromMetadata",
+          "line": 588,
+          "claim": "A nonempty bounded lease string and metadata version1 in the protected ext_authz namespace are required; missing metadata cannot claim a response transaction."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.Process",
+          "line": 157,
+          "claim": "Unmarked response callbacks without a valid lease or with a failed Claim receive fail-closed503; a successful claim retains one response transaction."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.expired",
+          "line": 796,
+          "claim": "A lease expires at absolute TTL or idle TTL; Claim also checks expiration directly, independently of the sweeper tick."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Limits.withDefaults",
+          "line": 68,
+          "claim": "Default idle TTL is5seconds and absolute TTL30seconds; these are lease lifetimes, not native body inspection limits."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": null,
+        "visible_status": 503,
+        "rule_id": null,
+        "phase": null,
+        "successful_companion_claim_count": 0,
+        "response_phase_evaluations": 0,
+        "valid_rule_intervention": false,
+        "failure_class": "missing_correlation",
+        "selected_backend_request_lower_bound": 1,
+        "neighbor_visible_status": 503,
+        "grpc_status": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-missing-correlation",
+        "scenario_label": "ext-authz-response-companion-missing-lease",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-missing-lease",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-missing-lease/shape.json",
+            "sha256": "fde2660ec428ce6c5b863160ba15b884e97c860e906122ee1ba97a54f31ad4a4",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-missing-lease/native.rules",
+            "sha256": "dcf7581ba2c58a42e734ff2bbd265c0a1d811035bd3e393222c18a0ae5b06dce",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-missing-lease/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-missing-lease/envoy.yaml",
+            "sha256": "ddfbae39d34f997ce7fe56e5ced7d951343980680ad4858d43efa6f129b03f93",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-missing-lease/backend.py",
+            "sha256": "6eaf6ac0895334291dbafba7f829f6367f1a0fa4a0be00dfeae7e1ea657d7e4d",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-missing-lease/client.py",
+            "sha256": "f58e269e1cdd4dfcd179a2259681b37495eb0b935ed961308363928e1886a81a",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-missing-lease/driver.py",
+            "sha256": "f33f555573bf66106868f3060cf20eb54771ad4399031a20d9dc3267f3771707",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-missing-lease-admission.json",
+            "sha256": "a100d929cc1294d431d9fa7f21ed461d2f28157fd6d7a0bc0a8df139546474b0",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-missing-lease-ledger.json",
+            "sha256": "5c7b9ea0fbcf95a1cf1a2c249807080ac2cf4fc168832e2567d2a6d857b8ac01",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "Remove protected metadata forwarding before companion claim.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "Missing metadata is global in this fixture and intentionally affects the neighbor; it cannot establish an unaffected healthy neighbor contract.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-lease-expiry",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "leaseFromMetadata",
+          "line": 588,
+          "claim": "A nonempty bounded lease string and metadata version1 in the protected ext_authz namespace are required; missing metadata cannot claim a response transaction."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.Process",
+          "line": 157,
+          "claim": "Unmarked response callbacks without a valid lease or with a failed Claim receive fail-closed503; a successful claim retains one response transaction."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.expired",
+          "line": 796,
+          "claim": "A lease expires at absolute TTL or idle TTL; Claim also checks expiration directly, independently of the sweeper tick."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Limits.withDefaults",
+          "line": 68,
+          "claim": "Default idle TTL is5seconds and absolute TTL30seconds; these are lease lifetimes, not native body inspection limits."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine.go",
+          "sha256": "0ac40893d8a4156eb865987b8b59a6189924dfc7073a040742e5047158f6f6d3",
+          "symbol": "commonRuntimeTransaction.Close",
+          "line": 435,
+          "claim": "Close preserves the native EOS gate for ordinary incomplete streams and records finish phase-sequence errors; cleanup is not proof of response EOS."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": null,
+        "visible_status": 503,
+        "rule_id": null,
+        "phase": null,
+        "successful_companion_claim_count": 0,
+        "response_phase_evaluations": 0,
+        "valid_rule_intervention": false,
+        "failure_class": "expired_lease",
+        "selected_backend_request_lower_bound": 1,
+        "neighbor_visible_status": 200,
+        "grpc_status": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-lease-expiry",
+        "scenario_label": "ext-authz-response-companion-expired-lease",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-expired-lease",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-expired-lease/shape.json",
+            "sha256": "ba481b29ac3e38749c1aa048c2e87968d7cc6188b29b5120c0b2e3d2d1cdb638",
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-expired-lease/native.rules",
+            "sha256": "127949c8c5e4fc5fac25987685a05aa87b8291d2aab61f73a319b1e87a07ed61",
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-expired-lease/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-expired-lease/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-expired-lease/backend.py",
+            "sha256": "6eaf6ac0895334291dbafba7f829f6367f1a0fa4a0be00dfeae7e1ea657d7e4d",
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-expired-lease/client.py",
+            "sha256": "f58e269e1cdd4dfcd179a2259681b37495eb0b935ed961308363928e1886a81a",
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-expired-lease/driver.py",
+            "sha256": "f33f555573bf66106868f3060cf20eb54771ad4399031a20d9dc3267f3771707",
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-expired-lease-admission.json",
+            "sha256": "3d88d1014fd05aee75919fde30de025bd8e64066105bf51ff5ab3fe31f61c840",
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/host-faults-v2/host-fixtures/ext-authz-response-companion-expired-lease-ledger.json",
+            "sha256": "79dcb72f74fedcf0dbb80f5e20aee4ee9962e9b187d27afdbb1be036b577845c",
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "Delay target response headers6seconds after request admission; default idle lease lifetime5seconds expires before the later Claim, independently of sweeper cadence.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "Verify lease creation/header-arrival monotonic ordering and physical expiry/cleanup; do not call lease timeout an engine timeout.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-companion-stop-restart",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Restart",
+          "line": 249,
+          "claim": "Restart replaces the key, removes all retained entries and finishes each with restart; old lease tokens cannot be reused after key replacement."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "No sealed stop/restart/resume fixture checks old lease rejection, cleanup and a newly healthy transaction on the same actual host.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-reentry",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.processResponse",
+          "line": 293,
+          "claim": "Duplicate headers and body/trailers out of order are rejected; one stream state does not permit replaying completed response phases."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "No exact host callback replay/reentry fixture is selected; unit guards against duplicate claim/header/body do not qualify host reentry.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-grpc-host-client-result",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "FIXTURE_PENDING",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.runResponseLoop",
+          "line": 256,
+          "claim": "Peer EOF before response EOS becomes UnexpectedEOF; cancellation is a transport termination, not an invented successful response EOS."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.Process",
+          "line": 157,
+          "claim": "Unmarked response callbacks without a valid lease or with a failed Claim receive fail-closed503; a successful claim retains one response transaction."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "Bind an exact gRPC terminal/trailer oracle independently of HTTP result. Current normal host fixtures have no independently guaranteed observed remote status; keep it unknown.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    },
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::HIST-ENVOY-COMPANION-REENTRY",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "OPEN",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.processResponse",
+          "line": 293,
+          "claim": "Duplicate headers and body/trailers out of order are rejected; one stream state does not permit replaying completed response phases."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        }
+      ],
+      "effective_oracle": null,
+      "fixture_binding": null,
+      "remaining_requirements": [
+        "The original historical reproduction contains no canonical source_case_id or fixture path. Preserve the unresolved historical case; do not rename concurrent-stream success or lease failure to reentry.",
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    }
+  ]
+}

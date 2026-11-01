@@ -1,6 +1,6 @@
 """Decision JSONL normalizer that rejects body-payload leakage."""
 from __future__ import annotations
-from tests.normalizers.security_event_normalizer import BODY_PAYLOAD_FIELDS, find_body_payload_fields, normalize_jsonl, parse_jsonl
+from modsecurity_test_framework.normalizers.security_event_normalizer import BODY_PAYLOAD_FIELDS, find_body_payload_fields, normalize_jsonl, parse_jsonl
 
 def normalize(text: str) -> tuple[str, list[str]]:
     return normalize_jsonl(text)

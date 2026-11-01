@@ -1,0 +1,6 @@
+{
+  "leg_id": "haproxy-spop-htx-response-companion",
+  "case_id": "NEED-response-single-chunk",
+  "run_scoped_case_id": "I12::haproxy-spop-htx-response-companion::NEED-response-single-chunk",
+  "run": "20261014-hap-spop-companion-01"
+}

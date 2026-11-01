@@ -1,0 +1,88 @@
+name: test-connectors-with-crs-no-mrts / aggregate-with-crs-no-mrts
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+  caller-inputs:
+    description: Caller inputs context, passed explicitly
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up repository Python
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+    - name: Verify exact PR head and base
+      id: verify-revisions
+      env:
+        EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || fromJSON(inputs.caller-inputs).parent_sha }}
+        EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || fromJSON(inputs.caller-inputs).base_sha }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        test -n "$EXPECTED_PARENT_SHA"; test -n "$EXPECTED_BASE_SHA"
+        test "${#EXPECTED_PARENT_SHA}" -eq 40; test "${#EXPECTED_BASE_SHA}" -eq 40
+        test "$(git rev-parse HEAD)" = "$EXPECTED_PARENT_SHA"
+        test "$(git rev-parse "${EXPECTED_BASE_SHA}^{commit}")" = "$EXPECTED_BASE_SHA"
+        python3 -I ci/tools/read-framework-revisions.py \
+          --parent-sha "$EXPECTED_PARENT_SHA" --format github-output >> "$GITHUB_OUTPUT"
+
+    - name: Download exactly five canonical profile cells
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        pattern: with-crs-no-mrts-*-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/with-crs-no-mrts-cells
+        merge-multiple: false
+
+    - name: Aggregate exact five canonical profile cells
+      env:
+        EXPECTED_PARENT_SHA: ${{ github.event.pull_request.head.sha || fromJSON(inputs.caller-inputs).parent_sha }}
+        EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha || fromJSON(inputs.caller-inputs).base_sha }}
+        FRAMEWORK_SHA: ${{ steps.verify-revisions.outputs.framework_sha }}
+        MRTS_SHA: ${{ steps.verify-revisions.outputs.mrts_sha }}
+        PROFILE_RUN_ID_VALUE: with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}
+        CELL_ROOT: ${{ runner.temp }}/with-crs-no-mrts-cells
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        test -n "$EXPECTED_PARENT_SHA"; test -n "$EXPECTED_BASE_SHA"
+        export CONNECTOR_ROOT="$PWD" REPO_ROOT="$PWD"
+        FRAMEWORK_ROOT="$PWD/modules/ModSecurity-test-Framework"
+        test "${#FRAMEWORK_SHA}" -eq 40
+        framework_commit=$(git -C "$FRAMEWORK_ROOT" rev-parse HEAD)
+        test "$framework_commit" = "$FRAMEWORK_SHA"
+        . "$FRAMEWORK_ROOT/ci/lib/common.sh"
+        crs_commit="$CRS_APPROVED_COMMIT"
+        crs_rule_sha256="$CRS_RULE_FILE_SHA256"
+        test "${#crs_commit}" -eq 40; test "${#crs_rule_sha256}" -eq 64
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/aggregate-five-connector-with-crs-no-mrts.py \
+          --artifact-root "$CELL_ROOT" --parent-sha "$EXPECTED_PARENT_SHA" \
+          --base-sha "$EXPECTED_BASE_SHA" --profile-run-id "$PROFILE_RUN_ID_VALUE" \
+          --github-run-id "${{ github.run_id }}" --github-run-attempt "${{ github.run_attempt }}" \
+          --framework-sha "$FRAMEWORK_SHA" --mrts-sha "$MRTS_SHA" \
+          --crs-commit "$crs_commit" --crs-rule-sha256 "$crs_rule_sha256" \
+          --output-dir "$CELL_ROOT/aggregate"
+
+    - name: Upload canonical five-connector aggregate
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: with-crs-no-mrts-aggregate-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/with-crs-no-mrts-cells/aggregate
+        if-no-files-found: error
+        retention-days: 10
+        overwrite: false

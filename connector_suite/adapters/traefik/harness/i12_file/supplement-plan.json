@@ -1,0 +1,42 @@
+{
+  "schema": "traefik-file-http-supplement-plan-v1",
+  "execution_status": "not_run",
+  "qualification": "unqualified",
+  "semantic_binding": "Physical HTTP-file supplement only; file-backed HTTP bytes do not prove native SDK File-Body API",
+  "acceptance_contract": "connectors/traefik/harness/i12_file/acceptance.py",
+  "acceptance_contract_status": "predeclared expectations; independent review and immutable ledger binding required before host execution",
+  "production_changes": false,
+  "fixture_manifest": "connectors/traefik/harness/fixtures/i12-file-source/manifest.json",
+  "entrypoint": "connectors/traefik/harness/i12_file/run.py",
+  "native_file_api": false,
+  "routes": [
+    {"id": "I12::traefik-native-uds::NEED-request-file", "capture_variant": "traefik-native", "physical_reader": "client", "uri": "/no-crs/request-body", "controls": ["benign.txt", "request-marker.txt"], "oracle_status": "pending-independent-freeze"},
+    {"id": "I12::traefik-native-uds::NEED-response-file", "capture_variant": "traefik-native", "physical_reader": "backend", "uri": "/no-crs/allow", "controls": ["benign.txt", "response-marker.txt"], "phase4_modes": ["safe"], "strict_scope": "configuration/startup negative only; strict_post_commit_action=0; no target transaction", "oracle_status": "pending-independent-freeze"},
+    {"id": "I12::traefik-forwardauth-request::NEED-request-file", "capture_variant": "traefik-forwardauth", "physical_reader": "client", "uri": "/no-crs/request-body", "controls": ["benign.txt", "request-marker.txt", "request-outside-sample.txt"], "pinned_host_maxBodySize": 4096, "maxResponseBodySize": 32768, "authorization_transport": "default-MRC1", "outside_sample_control": "4199-byte file marker at4160 exceeds host request capacity; default-MRC1 ForwardAuth chain expects host401, absent authorization/native/backend, never assumed prefix truncation", "oracle_status": "pending-independent-freeze"},
+    {"id": "I12::traefik-forwardauth-response-companion::NEED-response-file", "capture_variant": "traefik-forwardauth", "physical_reader": "backend", "uri": "/no-crs/allow", "controls": ["benign.txt", "response-marker.txt"], "response_observer_correlation_required": true, "maxResponseBodySize": 32768, "oracle_status": "pending-independent-freeze"}
+  ],
+  "source_negative_controls": ["missing", "symlink", "nonregular", "mutation", "short-read"],
+  "required_evidence": [
+    "private reader process PID/wait status and complete physical file receipt including close",
+    "file inode identity, exact source bytes/hash and each physical read-to-HTTP-chunk hash mapping",
+    "effective rules/config/source/host/controller revisions sealed before run",
+    "actual native request/response chunk callbacks and EOS separate from TCP EOF",
+    "native decision first cause/rule/phase and once-only successful Finish/Free",
+    "actual commit callback separate from backend sendall and actual client delivery",
+    "raw client headers/status/body/framing/hash, physical TCP/UDS ends and independent backend arrival",
+    "forwardAuth actual sample bytes/hash/count and capacity rejection separate from engine denial",
+    "response companion handle/observer correlation and EOS/abort/commit/cleanup",
+    "independent healthy neighbors before/after, descriptor/process/socket cleanup",
+    "central consumer validation plus independent semantic review; no automatic ID promotion"
+  ],
+  "host_integration": [
+    "Use fresh disjoint sealed admissions cloned from reviewed native/auth infrastructure; do not mutate or rerun an existing admission in place.",
+    "Stage these adapter sources into the disposable fixture ledger and exact fixture files into fresh reader-owned mode0700 private root with mode0600 files; include all hashes in admission.",
+    "Preserve existing separate healthy-neighbor backend/router and capture variants; reserve one target backend port, extend exact observer transaction allowlist for literal file IDs.",
+    "Invoke stage once before target processes; invoke client for request-file and backend for response-file. Response target client may use the existing benign client; request target backend may use existing independent backend.",
+    "Do not use TCP probes against the single-target file backend for readiness. Its .backend-listening.json records only bind/listen; existing controller must additionally verify PID/aliveness and real host readiness on a separate neighbor route.",
+    "Retain the real authorization sample relay and native/observer capture. This adapter makes no native EOS/commit/Finish/Free claims itself.",
+    "On planned source failure retain source error receipt and wait status, require omitted HTTP terminator/connection cleanup, and verify native abort/once Finish/Free from actual capture.",
+    "Root must bind expected allow/deny/status/phase to exact independently checked rules and approve the physical-file interpretation before any original oracle resolution."
+  ]
+}

@@ -1,0 +1,23 @@
+--- a/payload
++++ b/payload
+@@ -8,0 +9 @@
++#include "native-lifecycle-observer.h"
+@@ -3406,0 +3408,4 @@
++        msconnector_runtime_transaction *observed_transaction = entry->transaction;
++        const msconnector_transaction_contract *observed_common = &entry->transaction->contract;
++        const msconnector_native_transaction *observed_native = entry->transaction->modsecurity.native_transaction;
++        const Transaction *observed_native_handle = observed_native == NULL ? NULL : observed_native->transaction;
+@@ -3412,0 +3418,2 @@
++        (void)msconnector_lifecycle_companion_retired(observed_transaction,
++            observed_common, observed_native_handle);
+@@ -3569,0 +3577,3 @@
++    (void)msconnector_lifecycle_companion_registered(&registry->entries[free_index],
++        transaction, &transaction->contract, transaction->modsecurity.native_transaction == NULL
++        ? NULL : ((msconnector_native_transaction *)transaction->modsecurity.native_transaction)->transaction);
+@@ -3778,0 +3789,6 @@
++    }
++    {
++        msconnector_runtime_transaction *transaction = session->entry->transaction;
++        (void)msconnector_lifecycle_companion_claimed(session, session->entry,
++            transaction, &transaction->contract, transaction->modsecurity.native_transaction == NULL
++            ? NULL : ((msconnector_native_transaction *)transaction->modsecurity.native_transaction)->transaction);

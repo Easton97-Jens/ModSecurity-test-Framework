@@ -1,0 +1,21 @@
+--- a/payload
++++ b/payload
+@@ -5,0 +6 @@
++import ssl
+@@ -12,0 +14,2 @@
++shape = json.loads(Path("/mnt/fixtures/shape.json").read_text())
++shapes = {"/"+shape["target"]:(shape["request_hex"],shape["response_hex"]), "/"+shape["neighbor"]:(shape["neighbor_request_hex"],shape["neighbor_response_hex"])}
+@@ -25,2 +28,4 @@
+-        nonce = self.path.removeprefix('/i12-eos-')
+-        response = ('i12-response-marker:' + nonce + '\n').encode('ascii')
++        if self.path not in shapes or body != bytes.fromhex(shapes[self.path][0]):
++            self.send_error(400); return
++        nonce = self.path[1:]
++        response = bytes.fromhex(shapes[self.path][1])
+@@ -44 +49 @@
+-                   'received_ns': received_ns, 'response_written_ns': time.monotonic_ns()}
++                   'received_ns': received_ns, 'response_written_ns': time.monotonic_ns(), 'wall_ns': time.time_ns()}
+@@ -51,0 +57,3 @@
++context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
++context.load_cert_chain('/task/runtime/loopback.crt','/task/runtime/loopback.key')
++server.socket = context.wrap_socket(server.socket, server_side=True)

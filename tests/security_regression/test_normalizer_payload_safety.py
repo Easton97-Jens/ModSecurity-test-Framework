@@ -48,7 +48,7 @@ class NormalizerPayloadSafetyTests(unittest.TestCase):
                     self.assertIn("body payload field is not allowed", result.stderr)
 
     def test_hash_chain_normalizer_rejects_body_fields_without_output(self) -> None:
-        from tests.normalizers import integrity_hash_chain_normalizer as hash_chain
+        from modsecurity_test_framework.normalizers import integrity_hash_chain_normalizer as hash_chain
 
         record = {
             "sequence": 1,

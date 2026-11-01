@@ -1,0 +1,30 @@
+{
+  "schema": "lighttpd-stock-native-body-capability-control-v1",
+  "route": "lighttpd-stock-native-control",
+  "case_id": "NEED-unsupported-body-hooks-not-promoted",
+  "request": {
+    "method": "POST",
+    "path": "/diagnostic/unsupported-body-hooks-not-promoted",
+    "headers": [["Content-Type", "application/octet-stream"]],
+    "body_hex": "646961676e6f737469632d626f6479"
+  },
+  "rules": "SecRuleEngine On\nSecRequestBodyAccess Off\nSecResponseBodyAccess Off\n",
+  "expected_oracle": {
+    "native_result": "diagnostic_pass_through_without_native_body_hooks",
+    "visible_status": 200,
+    "rule_id": null,
+    "phase": 1,
+    "event_fields": [],
+    "physical_evidence_not_projection": true,
+    "unresolved_expected_value_reason": null
+  },
+  "expected_checks": {
+    "backend_request_entity_matches_client_declaration": true,
+    "native_request_and_response_append_calls": 0,
+    "actual_empty_native_request_finalizations": 1,
+    "request_streaming_configuration_exit": 255,
+    "response_streaming_configuration_exit": 255,
+    "native_body_streaming_capability": false
+  },
+  "scope": "Positive diagnostic of native mode=none. Real host body pass-through and empty native request finalization do not establish native body inspection, native entity EOS, MIME gating, or a substitute for the sidecar."
+}

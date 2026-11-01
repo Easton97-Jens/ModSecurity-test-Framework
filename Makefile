@@ -91,8 +91,12 @@ TMP_ROOT ?= $(BUILD_ROOT)/tmp
 LOG_ROOT ?= $(BUILD_ROOT)/logs
 MRTS_BUILD_ROOT ?= $(BUILD_ROOT)/mrts
 FRAMEWORK_ROOT ?= $(CURDIR)
-CONNECTOR_ROOT ?= $(CURDIR)
-OUTPUT_ROOT ?= $(CONNECTOR_ROOT)
+TEST_ROOT := $(FRAMEWORK_ROOT)
+CONNECTOR_ROOT ?=
+OUTPUT_ROOT ?= $(FRAMEWORK_ROOT)
+export TEST_ROOT
+export PYTHONSAFEPATH := 1
+export PYTHONPATH := $(FRAMEWORK_ROOT):$(FRAMEWORK_ROOT)/connector_suite
 CI_ROOT ?= $(FRAMEWORK_ROOT)/ci
 CI_SHELL_FILES := $(shell find ci -type f -name '*.sh' -print | sort)
 CI_PYTHON_FILES := $(shell find ci -type f -name '*.py' -print | sort)

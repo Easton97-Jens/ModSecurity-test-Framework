@@ -1,0 +1,44 @@
+name: trusted NGINX root broker
+
+on:
+  workflow_call:
+    inputs:
+      caller_manifest_artifact:
+        description: Exact artifact name containing caller-manifest.json.
+        required: true
+        type: string
+      parent_head_sha:
+        description: Exact unprivileged caller commit recorded as evidence only.
+        required: true
+        type: string
+      framework_sha:
+        description: Framework gitlink required by the protected broker build.
+        required: true
+        type: string
+      protected_broker_sha:
+        description: Immutable merge SHA that names this reusable workflow.
+        required: true
+        type: string
+      matrix_variant:
+        description: Closed smoke variant.
+        required: true
+        type: string
+      run_id:
+        description: Fresh opaque broker run identifier.
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  immutable-historical-broker:
+    permissions:
+      contents: read
+    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@8ae707d72f1a8acb25d239e55e28a73cbc7522b1
+    with:
+      caller_manifest_artifact: ${{ inputs.caller_manifest_artifact }}
+      parent_head_sha: ${{ inputs.parent_head_sha }}
+      framework_sha: ${{ inputs.framework_sha }}
+      protected_broker_sha: ${{ inputs.protected_broker_sha }}
+      matrix_variant: ${{ inputs.matrix_variant }}
+      run_id: ${{ inputs.run_id }}

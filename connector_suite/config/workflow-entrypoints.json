@@ -1,0 +1,477 @@
+{
+  "entrypoints": [
+    {
+      "action": ".github/actions/connector-ci/test-apache/apache-autotools-bootstrap/action.yml",
+      "contexts": {},
+      "job": "apache-autotools-bootstrap",
+      "original_job_contract": {
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "timeout-minutes": 20
+      },
+      "original_workflow_sha256": "63653e60911cf1639ac53919e7de4e5aadd6382ce36689d77aa65cc2d652b63e",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "test-apache.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-apache/apache-structure/action.yml",
+      "contexts": {},
+      "job": "apache-structure",
+      "original_job_contract": {
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04"
+      },
+      "original_workflow_sha256": "63653e60911cf1639ac53919e7de4e5aadd6382ce36689d77aa65cc2d652b63e",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "test-apache.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-nginx/nginx-structure/action.yml",
+      "contexts": {},
+      "job": "nginx-structure",
+      "original_job_contract": {
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04"
+      },
+      "original_workflow_sha256": "193a10bcb6e65bed8297ad1bbd9e29c12c6bc8bdb50a3d07cbf554ca661f3fdf",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "test-nginx.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-haproxy/haproxy-structure/action.yml",
+      "contexts": {},
+      "job": "haproxy-structure",
+      "original_job_contract": {
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04"
+      },
+      "original_workflow_sha256": "beec84e8d762a1cc4a3a5e1b2c4df1f203feae051a9ca44f02edce030fa7566c",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "test-haproxy.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-envoy/envoy-contract/action.yml",
+      "contexts": {},
+      "job": "envoy-contract",
+      "original_job_contract": {
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "timeout-minutes": 45
+      },
+      "original_workflow_sha256": "fd96036b7b2301cef8aa60da7f2bff0b0b664786968c2e7051c0098af5005b64",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "test-envoy.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
+      "contexts": {},
+      "job": "traefik-contract",
+      "original_job_contract": {
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04"
+      },
+      "original_workflow_sha256": "c93aa7e45543e8e846739ddaafdd31ccf1e462cd82d05ed58701db97bedaafdc",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "test-traefik.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-lighttpd/lighttpd-contract/action.yml",
+      "contexts": {},
+      "job": "lighttpd-contract",
+      "original_job_contract": {
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04"
+      },
+      "original_workflow_sha256": "459b6b58338c272a0d489486dc4d94d767aa9fcc49758631f61660b7d5ed9169",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "test-lighttpd.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-common/common-structure/action.yml",
+      "contexts": {},
+      "job": "common-structure",
+      "original_job_contract": {
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04"
+      },
+      "original_workflow_sha256": "d0c81071a137fca37c565357513d62cacd5ba8f7ad419f7f5c191903e5606976",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "test-common.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-full-smoke-sequential/cleanup-artifacts/action.yml",
+      "contexts": {
+        "caller-matrix": "matrix"
+      },
+      "job": "cleanup-artifacts",
+      "original_job_contract": {
+        "if": "${{ inputs.on_demand && inputs.cleanup_artifacts }}",
+        "name": "Cleanup old smoke artifacts (${{ matrix.variant }})",
+        "permissions": {
+          "actions": "write"
+        },
+        "runs-on": "ubuntu-26.04",
+        "strategy": {
+          "fail-fast": false,
+          "matrix": {
+            "variant": [
+              "no-crs",
+              "with-crs"
+            ]
+          }
+        }
+      },
+      "original_workflow_sha256": "f472fee64694f9bbc140cb6db018c075ae865c2526b1867e7f96be6755a256a0",
+      "step_ids": [],
+      "workflow": "test-full-smoke-sequential.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-full-smoke-sequential/manual-heavy-runtime-validation/action.yml",
+      "contexts": {
+        "caller-matrix": "matrix"
+      },
+      "job": "manual-heavy-runtime-validation",
+      "original_job_contract": {
+        "env": {
+          "BUILD_HTTPD_FROM_SOURCE": "1",
+          "BUILD_NGINX_FROM_SOURCE": "1",
+          "BUILD_PCRE2_FROM_SOURCE": "1",
+          "EXPECTED_PARENT_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
+          "MODSECURITY_REPO_URL": "https://github.com/owasp-modsecurity/ModSecurity.git",
+          "NGINX_FUNCTIONAL_WORKER_GROUP": "msconnector-nginx-functional",
+          "NGINX_FUNCTIONAL_WORKER_USER": "msconnector-nginx-functional",
+          "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.6.tar.gz",
+          "NGINX_RELEASE_TAG": "release-1.31.6",
+          "NGINX_REQUIRE_PINNED_PROVENANCE": "1",
+          "NGINX_SHA256": "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
+          "NGINX_SOURCE_GIT_REF": "release-1.31.6",
+          "NGINX_SOURCE_MODE": "github-release",
+          "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
+          "SMOKE_LOCK_MODE": "wait",
+          "SMOKE_LOCK_TIMEOUT_SECONDS": "1800",
+          "SMOKE_PREPARE_TIMEOUT_SECONDS": "3600"
+        },
+        "if": "${{ always() && inputs.on_demand }}",
+        "needs": "cleanup-artifacts",
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "strategy": {
+          "fail-fast": false,
+          "matrix": {
+            "variant": [
+              "no-crs",
+              "with-crs"
+            ]
+          }
+        },
+        "timeout-minutes": 90
+      },
+      "original_workflow_sha256": "f472fee64694f9bbc140cb6db018c075ae865c2526b1867e7f96be6755a256a0",
+      "step_ids": [
+        "setup-python",
+        "paths"
+      ],
+      "workflow": "test-full-smoke-sequential.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml",
+      "contexts": {
+        "caller-inputs": "inputs",
+        "caller-matrix": "matrix"
+      },
+      "job": "connector-mode",
+      "original_job_contract": {
+        "env": {
+          "ALLOW_RUNTIME_BUILDS": "1",
+          "ALLOW_RUNTIME_DOWNLOADS": "1",
+          "CRS": "${{ matrix.crs }}",
+          "CRS_RUNTIME_RUN_ID": "crs-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.connector }}",
+          "EVIDENCE_ROOT": "",
+          "EXPECTED_BASE_SHA": "${{ github.event.pull_request.base.sha || inputs.base_sha }}",
+          "EXPECTED_PARENT_SHA": "${{ github.event.pull_request.head.sha || inputs.parent_sha }}",
+          "GOTOOLCHAIN": "local",
+          "MRTS": "${{ matrix.mrts }}",
+          "PROFILE_RUN_ID": "with-crs-no-mrts-${{ github.run_id }}-${{ github.run_attempt }}",
+          "PYTHONDONTWRITEBYTECODE": "1",
+          "RUNTIME_COMPONENT_TARGET": "${{ matrix.runtime_component_target }}"
+        },
+        "name": "Runtime with CRS / no MRTS / ${{ matrix.connector }}",
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "strategy": {
+          "fail-fast": false,
+          "matrix": {
+            "include": [
+              {
+                "connector": "apache",
+                "crs": "with-crs",
+                "mrts": "no-mrts",
+                "runtime_component_target": "apache"
+              },
+              {
+                "connector": "envoy",
+                "crs": "with-crs",
+                "mrts": "no-mrts",
+                "runtime_component_target": "shared"
+              },
+              {
+                "connector": "haproxy",
+                "crs": "with-crs",
+                "mrts": "no-mrts",
+                "runtime_component_target": "haproxy"
+              },
+              {
+                "connector": "lighttpd",
+                "crs": "with-crs",
+                "mrts": "no-mrts",
+                "runtime_component_target": "shared"
+              },
+              {
+                "connector": "traefik",
+                "crs": "with-crs",
+                "mrts": "no-mrts",
+                "runtime_component_target": "shared"
+              }
+            ]
+          }
+        },
+        "timeout-minutes": 120
+      },
+      "original_workflow_sha256": "0417ba1a3e64c2ad9fa91e6f5777b9e2f574a7551b2b68683ed22387ebbffe19",
+      "step_ids": [
+        "checkout",
+        "setup-python",
+        "verify-python",
+        "verify-revisions",
+        "install-framework-ci",
+        "verify-runtime-cell",
+        "initialize-runtime-roots",
+        "prepare-crs-source",
+        "prepare-haproxy-runtime-evidence",
+        "runtime",
+        "project-haproxy-runtime-evidence",
+        "verify-haproxy-runtime-evidence",
+        "validate-apache-runtime-evidence",
+        "produce-profile-cell",
+        "upload-apache-runtime-evidence",
+        "upload-apache-runtime-failure-receipt",
+        "prepare-non-haproxy-runtime-evidence",
+        "upload-non-haproxy-runtime-evidence",
+        "upload-non-haproxy-runtime-failure-receipt",
+        "upload-runtime-evidence"
+      ],
+      "workflow": "test-connectors-with-crs-no-mrts.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/aggregate-with-crs-no-mrts/action.yml",
+      "contexts": {
+        "caller-inputs": "inputs"
+      },
+      "job": "aggregate-with-crs-no-mrts",
+      "original_job_contract": {
+        "if": "always()",
+        "name": "Aggregate exact five with-CRS / no MRTS cells",
+        "needs": "connector-mode",
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "timeout-minutes": 30
+      },
+      "original_workflow_sha256": "0417ba1a3e64c2ad9fa91e6f5777b9e2f574a7551b2b68683ed22387ebbffe19",
+      "step_ids": [
+        "setup-python",
+        "verify-revisions"
+      ],
+      "workflow": "test-connectors-with-crs-no-mrts.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/open-connectors-smoke/open-connectors-smoke/action.yml",
+      "contexts": {},
+      "job": "open-connectors-smoke",
+      "original_job_contract": {
+        "env": {
+          "ALLOW_RUNTIME_DOWNLOADS": "1",
+          "TMPDIR": "/tmp"
+        },
+        "name": "Legacy Envoy, Traefik, and lighttpd diagnostics",
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "timeout-minutes": 90
+      },
+      "original_workflow_sha256": "3f41430e32ecc5c3e39cf9c07604351ac954fb1b05b7a7561efc6fc6b3e57b5c",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "open-connectors-smoke.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/ci-findings-regressions/nginx-b09-regression/action.yml",
+      "contexts": {},
+      "job": "nginx-b09-regression",
+      "original_job_contract": {
+        "env": {
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "timeout-minutes": 10
+      },
+      "original_workflow_sha256": "a3a32312917a4d12602982594b56019faeee67e971ea566ad558026946dec275",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "ci-findings-regressions.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/quick-framework-check/quick-check/action.yml",
+      "contexts": {},
+      "job": "quick-check",
+      "original_job_contract": {
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "timeout-minutes": 20
+      },
+      "original_workflow_sha256": "4b2b86d88c9f2f300d3357ae4d9ec092cfb26b58f9248c307a20f1b2b1c80636",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "quick-framework-check.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/reusable-five-connectors-profile/resolve-profile/action.yml",
+      "contexts": {
+        "caller-inputs": "inputs"
+      },
+      "job": "resolve-profile",
+      "original_job_contract": {
+        "name": "Resolve closed No-CRS profile",
+        "outputs": {
+          "matrix": "${{ steps.profile.outputs.matrix }}"
+        },
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "timeout-minutes": 10
+      },
+      "original_workflow_sha256": "e555afd7ce2e0ccedd8afb1a5ad70ca12a5ac5c10350c94d0e1511f6bd6b6f80",
+      "step_ids": [
+        "setup-python",
+        "profile"
+      ],
+      "workflow": "reusable-five-connectors-profile.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/reusable-five-connectors-profile/no-crs/action.yml",
+      "contexts": {
+        "caller-matrix": "matrix"
+      },
+      "job": "no-crs",
+      "original_job_contract": {
+        "env": {
+          "ALLOW_RUNTIME_BUILDS": "1",
+          "ALLOW_RUNTIME_DOWNLOADS": "1",
+          "CI_CONNECTOR_PROFILE": "${{ matrix.connector_profile }}",
+          "CI_EVIDENCE_SCOPE": "${{ matrix.evidence_scope }}",
+          "CI_INTEGRATION_MODE": "${{ matrix.integration_mode }}",
+          "CI_PHASE4_MODE": "${{ matrix.phase4_mode }}",
+          "CI_PROFILE": "${{ inputs.profile }}",
+          "CI_PROTOCOL": "${{ matrix.protocol }}",
+          "FIVE_CONNECTOR_PROFILE": "${{ inputs.profile }}",
+          "GOTOOLCHAIN": "local",
+          "NO_CRS_RUN_ID": "${{ github.run_id }}-${{ github.run_attempt }}",
+          "PYTHONDONTWRITEBYTECODE": "1"
+        },
+        "name": "No-CRS / ${{ matrix.connector }} / ${{ inputs.profile }} / ${{ matrix.protocol }} / ${{ matrix.phase4_mode }}",
+        "needs": [
+          "resolve-profile"
+        ],
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "strategy": {
+          "fail-fast": false,
+          "matrix": "${{ fromJSON(needs.resolve-profile.outputs.matrix) }}"
+        },
+        "timeout-minutes": 120
+      },
+      "original_workflow_sha256": "e555afd7ce2e0ccedd8afb1a5ad70ca12a5ac5c10350c94d0e1511f6bd6b6f80",
+      "step_ids": [
+        "setup-python"
+      ],
+      "workflow": "reusable-five-connectors-profile.yml"
+    },
+    {
+      "action": ".github/actions/connector-ci/reusable-five-connectors-profile/aggregate/action.yml",
+      "contexts": {},
+      "job": "aggregate",
+      "original_job_contract": {
+        "env": {
+          "FIVE_CONNECTOR_PROFILE": "${{ inputs.profile }}",
+          "NO_CRS_RUN_ID": "${{ github.run_id }}-${{ github.run_attempt }}"
+        },
+        "if": "always()",
+        "name": "No-CRS / five-connector result aggregate",
+        "needs": [
+          "no-crs"
+        ],
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-26.04",
+        "timeout-minutes": 15
+      },
+      "original_workflow_sha256": "e555afd7ce2e0ccedd8afb1a5ad70ca12a5ac5c10350c94d0e1511f6bd6b6f80",
+      "step_ids": [
+        "setup-python",
+        "validate-profile-evidence"
+      ],
+      "workflow": "reusable-five-connectors-profile.yml"
+    }
+  ],
+  "schema_version": 1
+}

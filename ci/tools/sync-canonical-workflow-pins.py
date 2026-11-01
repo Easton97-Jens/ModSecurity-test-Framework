@@ -613,9 +613,14 @@ def workflow_values(
 ) -> tuple[list[str], list[tuple[Path, bytes]]]:
     errors: list[str] = []
     outputs: list[tuple[Path, bytes]] = []
+    import runpy
+    integration = runpy.run_path(str(Path(__file__).resolve().parents[1] / "checks/security/connector_action_pins.py"))
     for path in sorted((root / ".github/workflows").glob("*.y*ml")):
         validate_managed_path(root, path)
         text = path.read_text(encoding="utf-8")
+        if path.name in integration["WORKFLOWS"]:
+            errors.extend(integration["validate_source"](root, str(path.relative_to(root)), text))
+            continue
         changed_lines: list[str] = []
         osv_fields_seen: set[str] = set()
         for line_number, line in enumerate(text.splitlines(keepends=True), 1):

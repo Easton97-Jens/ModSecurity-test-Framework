@@ -1,0 +1,5 @@
+# Exact retained, versioned historical evidence only. Do not add active source,
+# tests, ignored local-control-plane files, or whole directories here: active
+# Parent values must come from Framework common.sh.
+reports/testing/generated/cache/runtime-build-cache.generated.json | Generator-owned historical runtime cache evidence; refresh only from a verified run.
+reports/testing/generated/cache/runtime-component-cache.generated.json | Generator-owned historical runtime cache evidence; refresh only from a verified run.

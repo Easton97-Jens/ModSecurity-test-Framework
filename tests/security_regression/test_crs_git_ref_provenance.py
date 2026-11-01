@@ -327,11 +327,15 @@ class FetchCrsProvenanceTests(unittest.TestCase):
 
     @staticmethod
     def create_framework_fixture(root: Path) -> Path:
-        """Copy the entrypoint boundary so bootstrap derives fixture-local paths."""
+        """Copy a real Framework anchor and select its fixture-local boundary."""
 
         (root / "ci/lib").mkdir(parents=True)
         (root / "ci/provisioning").mkdir(parents=True)
         (root / "tests").mkdir()
+        shutil.copytree(
+            ROOT / "modsecurity_test_framework", root / "modsecurity_test_framework",
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
         (root / "Makefile").write_text("# test-only framework root\n", encoding="utf-8")
         shutil.copy2(ROOT / "ci/lib/path.sh", root / "ci/lib/path.sh")
         shutil.copy2(
@@ -442,12 +446,13 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             git_log.touch()
 
             environment = os.environ.copy()
+            for name in ("CONNECTOR_ROOT", "CONNECTOR_REVISION", "REPO_ROOT"):
+                environment.pop(name, None)
             environment.update(
                 {
                     "CI_ROOT": str(fixture_script.parents[1]),
                     "FRAMEWORK_ROOT": str(fixture_script.parents[2]),
-                    "CONNECTOR_ROOT": str(ROOT),
-                    "REPO_ROOT": str(ROOT),
+                    "TEST_ROOT": str(fixture_script.parents[2]),
                     "VERIFIED_RUN_ROOT": str(verified_root),
                     "SOURCE_ROOT": str(source_root),
                     "BUILD_ROOT": str(verified_root / "build"),

@@ -1,0 +1,22 @@
+[
+  "#define _POSIX_C_SOURCE 200809L\n",
+  "#include \"lighttpd-host-observer.h\"\n",
+  "#include <errno.h>\n",
+  "#include <stdlib.h>\n",
+  "#include <string.h>\n",
+  "static int unknown;\n",
+  "uint64_t msconnector_lifecycle_runtime_scope_call(const msconnector_runtime_transaction *transaction) {\n",
+  "    (void)transaction;return unknown?0:42;\n",
+  "}\n",
+  "int main(int argc,char **argv) {\n",
+  "    if (argc!=3 || setenv(\"MSCONNECTOR_LIGHTTPD_HOST_OBSERVER\",argv[1],1)!=0) return 2;\n",
+  "    unknown=strcmp(argv[2],\"unknown_scope\")==0;\n",
+  "    const msconnector_runtime_transaction *key=(const msconnector_runtime_transaction *)(uintptr_t)0x1234;\n",
+  "    errno=EDOM;\n",
+  "    lighttpd_observe_body(\"stock_request_content_length_eos\",key,23,23,0U,1);\n",
+  "    if (errno!=EDOM)return 3;\n",
+  "    if (strcmp(argv[2],\"duplicate_eos\")==0)lighttpd_observe_body(\"stock_request_content_length_eos\",key,23,23,0U,1);\n",
+  "    lighttpd_observe_body(\"patched_response_body_hook\",key,-1,0,24U,0);\n",
+  "    return errno==EDOM?0:4;\n",
+  "}\n"
+]

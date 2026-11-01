@@ -1,0 +1,12 @@
+--- a/payload
++++ b/payload
+@@ -0,0 +1 @@
++#include "lighttpd-host-observer.h"
+@@ -655,0 +657 @@
++        lighttpd_observe_empty_request_boundary(ctx->transaction, (int64_t)r->reqbody_length);
+@@ -761,0 +764,2 @@
++    lighttpd_observe_body("patched_request_body_hook", ctx->transaction,
++        (int64_t)r->reqbody_length, (int64_t)stream_offset, (size_t)length, eos);
+@@ -934,0 +939,2 @@
++    lighttpd_observe_body("patched_response_body_hook", ctx->transaction,
++        -1, (int64_t)stream_offset, length, eos);

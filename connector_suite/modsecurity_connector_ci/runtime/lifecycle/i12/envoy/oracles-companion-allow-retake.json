@@ -1,0 +1,225 @@
+{
+  "schema": "i12.envoy.oracle-supplement.v1",
+  "route": "envoy-ext-authz-response-companion",
+  "origin_review": {
+    "path": "/var/tmp/codex/ModSecurity-conector/worktrees/i12-envoy-410-20261015/ci/runtime/lifecycle/i12/envoy/oracles-companion.json",
+    "sha256": "fe98c20ebd63ad455a34e2a65dbced229d43cab63755d70e743a18abdaf9f1b3",
+    "bytes": 154870
+  },
+  "records": [
+    {
+      "run_scoped_case_id": "I12::envoy-ext-authz-response-companion::NEED-allow",
+      "route": "envoy-ext-authz-response-companion",
+      "category": "SOURCE_SEMANTICS_CONFIRMED",
+      "original_oracle": {
+        "native_result": null,
+        "visible_status": null,
+        "rule_id": null,
+        "phase": null,
+        "event_fields": [],
+        "physical_evidence_not_projection": true,
+        "unresolved_expected_value_reason": "Mandatory named scenario has no resolved effective-config/rules/oracle fixture yet; do not invent a status/phase/action. Requirement mapping specifies the contract to prove."
+      },
+      "source_refs": [
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "Coordinator.Claim",
+          "line": 508,
+          "claim": "The HMAC-verified lease must refer to a live, unexpired, allowed, unclaimed phaseLeased entry; claim binds a server-created session and enters response headers."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseHeaders",
+          "line": 324,
+          "claim": "P3 intervention is sent before commitment; allow is continued before MarkResponseCommitted; an actual post-Continue recording failure remains a technical failure."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/compositeenvoy/server.go",
+          "sha256": "fe1034d1ec1578137e305ec41d9ca51e1b0befb81366f0dda5fda5aeed5380f5",
+          "symbol": "ExtProcServer.responseBody",
+          "line": 360,
+          "claim": "Each response callback forwards its body bytes and explicit EndOfStream to the retained transaction; successful continuation precedes recording a late log-only action."
+        },
+        {
+          "path": "connectors/envoy/ext_proc/internal/composite/coordinator.go",
+          "sha256": "6fa18aa09d4e48c82abb527201b435f4ee061caf88d8c8281824ace0cad5addc",
+          "symbol": "entry.finish",
+          "line": 1072,
+          "claim": "closeOnce guards transaction Close, retained-entry deletion and capacity release; attempts are not equivalent to native logging/free counters."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::processResponseBody",
+          "line": 1116,
+          "claim": "The selected SDK evaluates P4 only with response access enabled and an inspected response MIME type; harmless pass/log rules do not create a disruptive intervention."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/sdk-3.0.14-transaction.cc",
+          "sha256": "328ffa3b4517f0242450293a916aba4f512b4defc3bd1fcc7465e0778adc725c",
+          "symbol": "Transaction::addResponseHeader",
+          "line": 1032,
+          "claim": "SDK response Content-Type parsing splits the charset suffix before native MIME membership testing; absence of charset is not an EOS or byte-limit decision."
+        },
+        {
+          "path": "/var/tmp/codex/ModSecurity-conector/runs/e2e/20261014T182400Z-pr410-oracle-lifecycle/envoy-authz-lifecycle/source-proof/external_processor.pb.go",
+          "sha256": "821259969ff7d99d66b18f40b6fe1301480c00f837b6f28db4380656393cd79b",
+          "symbol": "HttpBody",
+          "line": 762,
+          "claim": "Streaming mode may send multiple body messages; EndOfStream explicitly identifies the final body message and excludes later trailers."
+        }
+      ],
+      "effective_oracle": {
+        "native_result": "allow",
+        "visible_status": 200,
+        "phase": 4,
+        "rule_id": null,
+        "request_bytes": 95,
+        "response_bytes": 96,
+        "request_eos_count": 1,
+        "response_eos_count": 1,
+        "native_logging_finalize_calls": 1,
+        "native_cleanup_calls": 1,
+        "successful_companion_claim_count": 1,
+        "selected_backend_count": 1,
+        "separate_neighbor_count": 1,
+        "grpc_status": null,
+        "physical_evidence_not_projection": true
+      },
+      "fixture_binding": {
+        "origin": "new_task_fixture_binding",
+        "original_id": "I12::envoy-ext-authz-response-companion::NEED-allow",
+        "scenario_label": "ext-authz-response-companion-streaming",
+        "scenario_case_id": "I12-ENVOY-HOST::ext-authz-response-companion-streaming",
+        "selection_status": "explicit_source_oracle_binding_for_root_validation_not_a_run_qualification",
+        "files": [
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/actual-build-provenance-v1.json",
+            "sha256": "fd429f2d49a76c71233eb581992a24fc81ac47b1ca8662fd3892be046eee16b0",
+            "bytes": 23589,
+            "role": "actual-build-provenance-v1.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/backend.py",
+            "sha256": "62a1e2f63340410643938c66439b89d3db6543858a9e115f7ea01fe1eaa85e61",
+            "bytes": 5043,
+            "role": "backend.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/cc-wrapper.sh",
+            "sha256": "42ee34f6639d8862b7df5c38c754cf0d509a6793193d5938a687ade2ed1785d5",
+            "bytes": 43,
+            "role": "cc-wrapper.sh"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/client.py",
+            "sha256": "c869139850557094e4e74f8f6c2accf67df9c347e39f0691d5f627572c946844",
+            "bytes": 8090,
+            "role": "client.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/cxx-wrapper.sh",
+            "sha256": "dc77deb435da8c3204cc13982f2910a10d5aa53bdb17f6d8fd2d9d6bace2acb2",
+            "bytes": 43,
+            "role": "cxx-wrapper.sh"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/driver.py",
+            "sha256": "f33f555573bf66106868f3060cf20eb54771ad4399031a20d9dc3267f3771707",
+            "bytes": 16158,
+            "role": "driver.py"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/envoy.yaml",
+            "sha256": "6b9ea299c02489e3db3a50b3b5bc4b93d7f4e5f436e12863cc28bd704172caf4",
+            "bytes": 7561,
+            "role": "envoy.yaml"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/extproc-service.json",
+            "sha256": "1f7e5f3f1b90e347a440af8a59be715531d693a72689c1cacc4c1ec565375a48",
+            "bytes": 509,
+            "role": "extproc-service.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/loopback.crt",
+            "sha256": "b8b6635a86c5b7cb6ec7b934a472c45d637f77715556cdfaaeff852862e436f1",
+            "bytes": 1135,
+            "role": "loopback.crt"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/loopback.key",
+            "sha256": "e5d020e764c6ac82b156c9b492ef7961bb7e98042225f49474d2cce0700fb7ce",
+            "bytes": 1700,
+            "role": "loopback.key"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/native.conf",
+            "sha256": "af2262cdd63a00a19e1e28bd18c6c63c1a87a1cfd611dd0c7dfb872a092e55bb",
+            "bytes": 399,
+            "role": "native.conf"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/native.rules",
+            "sha256": "cb33244df58d32f21839bdc2ceebe95d74e7c4b1a13dbb9089e41fd7b6543211",
+            "bytes": 910,
+            "role": "native.rules"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/scoped-product-source-a9.json",
+            "sha256": "2cb2fbf7e065d08709b608fde56b8437b942fafc38d71b4d99fca43e220a7284",
+            "bytes": 274145,
+            "role": "scoped-product-source-a9.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/sdk-who.c",
+            "sha256": "834614c7a33d34ff5ffab6967675101f38daf4706545bdee4eb1a5964e827fd3",
+            "bytes": 322,
+            "role": "sdk-who.c"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming/shape.json",
+            "sha256": "72008b8e5fa66732992d161da1a3188d874db302e47568ee0fd8fce663cd719f",
+            "bytes": 1219,
+            "role": "shape.json"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming-admission.json",
+            "sha256": "73fdafcb332ae8cfd88cafdf1a9e59dfe249827b1259e1a59cbfd7f24c0f2958",
+            "bytes": 1625,
+            "role": "admission_spec"
+          },
+          {
+            "path": "/var/tmp/codex/ModSecurity-conector/runs/i12-envoy-410-20261015/companion-retake-fixture-v1/host-fixtures/ext-authz-response-companion-streaming-ledger.json",
+            "sha256": "af5581f2fce836e90dd2992976e7dbae05ae2c77b22e8775248bf4cac42445af",
+            "bytes": 1371,
+            "role": "sealed_fixture_ledger"
+          }
+        ],
+        "contract_rationale": "Fresh independently sealed capture records each backend request line before body processing; all source/original/effective oracles are preserved. The old receipt remains a lower bound.",
+        "original_selected_fixture_paths_were_empty": true,
+        "effective_inputs": {
+          "request_bytes": 95,
+          "response_bytes": 96,
+          "host_max_request_bytes": 4096,
+          "phase4_mode": "safe",
+          "request_sample_source": "actual fixture payload bytes and effective YAML, not inherited shape budget/status hint fields"
+        }
+      },
+      "remaining_requirements": [
+        "Run or independently bind a complete host packet carrying this exact original ID; a source oracle is not a lifecycle PASS.",
+        "Retain loaded images, physical event/cleanup evidence, client/backend framing and explicit gRPC terminal status; unknown status never means successful completion.",
+        "P4 Strict is not supported by the selected Envoy profile (strict_post_commit_action0); Safe observations do not qualify Strict."
+      ],
+      "lifecycle_qualified": false
+    }
+  ],
+  "lifecycle_qualification_performed": false,
+  "canonical_oracle_inventory_changed": false,
+  "summary": {
+    "new_lifecycle_pass": 0
+  },
+  "capture_reason": "Retake the missing exact backend-request count with an early physical request-line capture; keep expected HTTP200, request95/response96, lease claim1, selected backend1/neighbor1, EOS/Finish/Free/Cleanup and unknown remote grpc-status unchanged."
+}

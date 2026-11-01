@@ -1,0 +1,71 @@
+name: test-apache / apache-structure
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Setup python
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+    - name: Install selected Apache native lifecycle prerequisites
+      shell: bash -e {0}
+      run: |
+        set -eu
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
+    - name: Initialize runner temp paths
+      shell: bash -e {0}
+      run: |
+        set -eu
+        verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
+        {
+          echo "VERIFIED_RUN_ROOT=$verified_root"
+          echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+          echo "SOURCE_ROOT=$verified_root/src"
+          echo "BUILD_ROOT=$verified_root/build"
+          echo "TMP_ROOT=$verified_root/tmp"
+          echo "LOG_ROOT=$verified_root/logs"
+          echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+          echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+        } >> "$GITHUB_ENV"
+    - name: Check Apache scaffold
+      shell: bash -e {0}
+      run: |
+        set -eu
+        test -d modules/ModSecurity-test-Framework
+        test -f connectors/apache/README.md
+        test -f connectors/apache/TODO.md
+        test -f docs/connectors/apache.md
+        test -f modules/ModSecurity-test-Framework/connector_suite/adapters/apache/harness/README.md
+        test -f modules/ModSecurity-test-Framework/connector_suite/adapters/apache/harness/apache_smoke.conf
+        test -f modules/ModSecurity-test-Framework/connector_suite/adapters/apache/harness/run_apache_smoke.sh
+        test ! -d connectors/apache/tests
+        test -f modules/ModSecurity-test-Framework/docs/connector-integration.md
+        test -f modules/ModSecurity-test-Framework/connector_suite/config/testing/import-status.json
+        test -f docs/testing-and-evidence.md
+        grep -q 'Status:' connectors/apache/TODO.md
+    - name: Verify Apache collector and existing adoption mutations
+      shell: bash -e {0}
+      run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group apache
+    - name: Syntax and dry-run checks
+      shell: bash -e {0}
+      run: |
+        make setup-dev
+        sh -n modules/ModSecurity-test-Framework/connector_suite/adapters/apache/harness/run_apache_smoke.sh
+        make -n check-active-inventory
+        make quick-check

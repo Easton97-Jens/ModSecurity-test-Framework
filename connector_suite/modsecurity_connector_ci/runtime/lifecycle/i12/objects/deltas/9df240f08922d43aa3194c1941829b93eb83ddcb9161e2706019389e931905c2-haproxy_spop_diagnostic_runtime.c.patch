@@ -1,0 +1,19 @@
+--- a/payload
++++ b/payload
+@@ -0,0 +1,2 @@
++struct haproxy_modsecurity_transaction;
++extern void haproxy_lifecycle_spop_observe(struct haproxy_modsecurity_transaction *, const char *, unsigned int, int, int, int);
+@@ -4058,0 +4061,3 @@
++    haproxy_lifecycle_spop_observe(NULL, "spop_complete_request_sample_accepted",
++        (unsigned int)request->body_len, (int)request->http_metadata.advertised_body_len,
++        request->has_body_len_arg, request->has_body);
+@@ -4061,0 +4067,3 @@
++    haproxy_lifecycle_spop_observe(transaction, "spop_atomic_request_evaluated",
++        (unsigned int)request->body_len, (int)request->http_metadata.advertised_body_len,
++        request->has_body_len_arg, request->has_body);
+@@ -4953,0 +4962,2 @@
++        haproxy_lifecycle_spop_observe(context->transaction, "spop_owner_claim_received",
++            (unsigned int)command->operation, 0, 0, 0);
+@@ -4975,0 +4986,2 @@
++        haproxy_lifecycle_spop_observe(context->transaction, "spop_owner_response_eos_received",
++            (unsigned int)command->operation, command->body_started, command->headers_sent, 0);

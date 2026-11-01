@@ -1,0 +1,146 @@
+static_resources:
+  listeners:
+  - name: msconnector_listener
+    address:
+      socket_address:
+        address: 127.0.0.1
+        port_value: @LISTEN_PORT@
+    filter_chains:
+    - transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+          common_tls_context:
+            tls_certificates:
+            - certificate_chain:
+                filename: "@TLS_CERTIFICATE@"
+              private_key:
+                filename: "@TLS_PRIVATE_KEY@"
+      filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: msconnector_ingress
+          route_config:
+            name: msconnector_route
+            virtual_hosts:
+            - name: local_service
+              domains: ["*"]
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: upstream_service
+          http_filters:
+          - name: envoy.filters.http.ext_authz
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+              failure_mode_allow: false
+              allowed_headers:
+                patterns:
+                - exact: content-length
+                - exact: content-type
+                - exact: x-modsec-smoke
+                - exact: x-request-id
+              http_service:
+                server_uri:
+                  uri: http://127.0.0.1:@AUTHZ_PORT@
+                  cluster: ext_authz
+                  timeout: 1s
+                path_prefix: /auth
+                authorization_response:
+                  # The authorization service creates this opaque, one-time
+                  # capability server-side.  It goes only to the following
+                  # local ext_proc filter, which removes it before routing.
+                  allowed_upstream_headers:
+                    patterns:
+                    - exact: x-msconnector-response-handle
+              with_request_body:
+                max_request_bytes: 4096
+                allow_partial_message: false
+          - name: envoy.filters.http.ext_proc
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+              grpc_service:
+                envoy_grpc:
+                  cluster_name: msconnector_ext_authz_response_observer
+                timeout: 0.2s
+              # This observer receives only the request handle (never the
+              # request payload), then the response P3/P4 stream.
+              processing_mode:
+                request_header_mode: SEND
+                request_body_mode: NONE
+                request_trailer_mode: SKIP
+                response_header_mode: SEND
+                response_body_mode: STREAMED
+                response_trailer_mode: SEND
+              send_body_without_waiting_for_header_response: false
+              allow_mode_override: false
+              failure_mode_allow: false
+              message_timeout: 0.2s
+              max_message_timeout: 0.25s
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+  - name: upstream_service
+    connect_timeout: 0.5s
+    type: STRICT_DNS
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        common_tls_context:
+          validation_context:
+            trusted_ca:
+              filename: "@TLS_CERTIFICATE@"
+    load_assignment:
+      cluster_name: upstream_service
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 127.0.0.1
+                port_value: @UPSTREAM_PORT@
+  - name: ext_authz
+    connect_timeout: 0.5s
+    type: STRICT_DNS
+    load_assignment:
+      cluster_name: ext_authz
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 127.0.0.1
+                port_value: @AUTHZ_PORT@
+  - name: msconnector_ext_authz_response_observer
+    connect_timeout: 0.2s
+    type: STATIC
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        explicit_http_config:
+          http2_protocol_options: {}
+    load_assignment:
+      cluster_name: msconnector_ext_authz_response_observer
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: "@RESPONSE_OBSERVER_SOCKET@"
+admin:
+  access_log:
+  - name: envoy.access_loggers.file
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+      path: /dev/null
+      log_format:
+        text_format_source:
+          inline_string: ""
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: @ADMIN_PORT@

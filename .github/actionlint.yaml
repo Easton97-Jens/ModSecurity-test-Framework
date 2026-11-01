@@ -4,3 +4,5 @@
 self-hosted-runner:
   labels:
     - ubuntu-26.04
+    - protected-exact-head-candidate-build
+    - protected-exact-head-nginx

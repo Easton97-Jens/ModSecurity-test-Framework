@@ -1,0 +1,27 @@
+name: apache_phase4_response_empty_deny
+title: Apache Phase-4 empty-response EOS deny control
+category: apache-phase4-response
+portable: false
+connector: apache
+status: pending
+phase: 4
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyLimit 1048576
+  SecResponseBodyLimitAction Reject
+  SecResponseBodyMimeType text/html
+  SecAuditEngine On
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecRule RESPONSE_BODY "@rx ^$" "id:2190403,phase:4,deny,status:403,log,t:none,msg:'Apache Phase-4 empty-response deny control'"
+request:
+  method: GET
+  path: /apache-phase4/empty-deny
+response:
+  body: ""
+  content_type: text/html
+expect:
+  status: 403
+  transport: http_status
+  intervention: deny
+  rule_id: 2190403
