@@ -33,11 +33,11 @@ rtk bypass env PYTHONDONTWRITEBYTECODE=1 PYTHONSAFEPATH=1 \
   PYTHONPATH="$PWD:$PWD/connector_suite" "$PYTHON" -P \
   -m modsecurity_connector_ci.runtime.common.hostruntime_preflight \
   --execution-context-only --profile current-identity \
-  --runtime-root /var/tmp/codex/ModSecurity-conector/host-context \
-  --output-dir /var/tmp/codex/ModSecurity-conector/host-context/preflight
+  --runtime-root "$TMP_ROOT/host-context" \
+  --output-dir "$TMP_ROOT/host-context/preflight"
 ```
 
-Set `PYTHON` to the approved Framework interpreter before invoking the example. Use a fresh task-owned root and an output child, outside source checkouts, `/tmp` and home storage. For this Parent-coordinated task, the approved external root is `/var/tmp/codex/ModSecurity-conector`. Prepare fixture ownership and permissions through the authorized profile before passing worker path flags. A minimal current-identity PASS does not satisfy the more demanding NGINX profile.
+Set `PYTHON` to the approved Framework interpreter before invoking the example. Use a fresh task-owned root and an output child, outside source checkouts, `/tmp` and home storage. Use the external storage root configured by the invoking project; this guide does not prescribe a developer-specific directory. Prepare fixture ownership and permissions through the authorized profile before passing worker path flags. A minimal current-identity PASS does not satisfy the more demanding NGINX profile.
 
 The CLI emits `status.json` and `summary.md`. Its existing schema remains `schema_version=1`, `evidence_kind=preflight`, `runtime_status=NOT_RUN`, including when `status=PASS`. The execution-context metadata and per-check reason codes describe prerequisites only. The context-only mode skips binary/version/dependency checks; run the selected harness and its normal binary/configuration checks separately for runtime evidence. Current entry points integrate the context check into NGINX smoke/lifecycle and Envoy start/runtime paths.
 

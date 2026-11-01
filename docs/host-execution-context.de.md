@@ -33,11 +33,11 @@ rtk bypass env PYTHONDONTWRITEBYTECODE=1 PYTHONSAFEPATH=1 \
   PYTHONPATH="$PWD:$PWD/connector_suite" "$PYTHON" -P \
   -m modsecurity_connector_ci.runtime.common.hostruntime_preflight \
   --execution-context-only --profile current-identity \
-  --runtime-root /var/tmp/codex/ModSecurity-conector/host-context \
-  --output-dir /var/tmp/codex/ModSecurity-conector/host-context/preflight
+  --runtime-root "$TMP_ROOT/host-context" \
+  --output-dir "$TMP_ROOT/host-context/preflight"
 ```
 
-Vor dem Beispiel `PYTHON` auf den genehmigten Framework-Interpreter setzen. Einen frischen aufgabeneigenen Root und ein Ausgabe-Unterverzeichnis außerhalb von Quell-Checkouts, `/tmp` und Home-Speicher verwenden. Für diese vom Parent koordinierte Aufgabe ist `/var/tmp/codex/ModSecurity-conector` der genehmigte externe Root. Fixture-Eigentümer und -Rechte vor den Worker-Pfadflags gemäß autorisiertem Profil vorbereiten. Ein minimales PASS der aktuellen Identität erfüllt das anspruchsvollere NGINX-Profil nicht.
+Vor dem Beispiel `PYTHON` auf den genehmigten Framework-Interpreter setzen. Einen frischen aufgabeneigenen Root und ein Ausgabe-Unterverzeichnis außerhalb von Quell-Checkouts, `/tmp` und Home-Speicher verwenden. Den vom aufrufenden Projekt konfigurierten externen Speicherroot verwenden; diese Anleitung schreibt kein entwicklerspezifisches Verzeichnis vor. Fixture-Eigentümer und -Rechte vor den Worker-Pfadflags gemäß autorisiertem Profil vorbereiten. Ein minimales PASS der aktuellen Identität erfüllt das anspruchsvollere NGINX-Profil nicht.
 
 Die CLI erzeugt `status.json` und `summary.md`. Das bestehende Schema bleibt `schema_version=1`, `evidence_kind=preflight`, `runtime_status=NOT_RUN`, auch bei `status=PASS`. Kontextmetadaten und Reason-Codes der Einzelprüfungen beschreiben ausschließlich Voraussetzungen. Der Kontextmodus überspringt Binary-/Versions-/Abhängigkeitsprüfungen; für Runtime-Evidenz den gewählten Harness mit seinen regulären Binary-/Konfigurationsprüfungen separat ausführen. Aktuelle Einstiegspunkte integrieren die Kontextprüfung in NGINX-Smoke-/Lifecycle- und Envoy-Start-/Runtime-Pfade.
 
