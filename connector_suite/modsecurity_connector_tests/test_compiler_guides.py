@@ -181,12 +181,16 @@ def local_markdown_targets(document: Path) -> set[Path]:
 
 def target_exists(target: str) -> bool:
     makefile = (source_path('Makefile', root=ROOT)).read_text(encoding="utf-8")
-    if re.search(rf"^{re.escape(target)}(?:[\s:]|$)", makefile, flags=re.MULTILINE):
-        return True
+    makefiles = [makefile]
+    if '-f "$(TEST_ROOT)/connector_suite/connector.mk"' in makefile:
+        makefiles.append(
+            (test_root() / "connector_suite" / "connector.mk").read_text(encoding="utf-8")
+        )
     return any(
-        target in line.split()[1:]
-        for line in makefile.splitlines()
-        if line.startswith(".PHONY:")
+        target in line.split(":", maxsplit=1)[0].split()
+        for content in makefiles
+        for line in content.splitlines()
+        if re.match(r"^[^\s#:=][^:=]*:(?!=)", line)
     )
 
 
@@ -542,9 +546,9 @@ class CompilerGuideGenerationTest(unittest.TestCase):
 
     def test_repository_sections_link_readme_source_build_and_configuration_material(self) -> None:
         required_configuration = {
-            "apache": "../../../connectors/apache/harness/apache_smoke.conf",
+            "apache": "../../../modules/ModSecurity-test-Framework/connector_suite/adapters/apache/harness/apache_smoke.conf",
             "nginx": "../../../connectors/nginx/config",
-            "haproxy": "../../../connectors/haproxy/harness/run_haproxy_htx_runtime.sh",
+            "haproxy": "../../../modules/ModSecurity-test-Framework/connector_suite/adapters/haproxy/harness/run_haproxy_htx_runtime.sh",
             "envoy": "../../../connectors/envoy/config/",
             "traefik": "../../../connectors/traefik/config/traefik-native-middleware-static.yaml",
             "lighttpd": "../../../connectors/lighttpd/config/lighttpd-native.conf",

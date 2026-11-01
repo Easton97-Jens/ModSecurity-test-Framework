@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "ea9c0b07d76ed9a1e1bb1b647c750e0044fd8544e88dbf5741d07266a1f16ab7",
+  "inventory_sha256": "ecb43ebdbfc432c007cd9e8574f401d03d426dda54db4407be6f30f09541bb1d",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -3262,7 +3262,7 @@
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_phase3_negotiated_protocol_guards_cannot_be_bypassed"
       ],
       "source": "tests/test_apache_common_adoption.py",
-      "source_sha256": "c6b0a86d197fcfd1aea9817144ec0aae847fec1c0e1ade3b2c2836a425662fbc"
+      "source_sha256": "790b94219a2fc56051c56f14c2009eea8d812273181f8e2d129d1d251550585c"
     },
     {
       "contains_selected_definitions": [],
@@ -4687,7 +4687,7 @@
         "modsecurity_connector_tests.test_compiler_guides.CompilerGuideGenerationTest.test_guides_use_safe_defaults_and_state_required_boundaries"
       ],
       "source": "tests/test_compiler_guides.py",
-      "source_sha256": "05cfa49410d9bb7a79beb168f6c3c47a5c23400bbe8d09800775f90acfe4d000"
+      "source_sha256": "8503968e6418a57603b13edda7f286cab24397b90dc10a670d612eff0d1b4ff9"
     },
     {
       "contains_selected_definitions": [],

@@ -19,6 +19,31 @@ Die einseitige Abhängigkeit bleibt Connector → Framework. Das Framework erhä
 kein Connector-Submodul. Das MRTS-Werkzeug bleibt gepinnt und schreibgeschützt;
 Framework-Paket-/Importkorrekturen haben eine getrennte Followup-Zuständigkeit.
 
+## Folgekorrektur der Compiler- und Apache-Migrationsintegrität (2026-11-01)
+
+Nachdem #148 Framework-Master `91f5370c7eddcebdc7e49d2099c58054ec2d5d5d`
+erreichte, erwarteten bestehende Compilerleitfaden-Prüfungen noch Harness-Pfade
+vor der Migration und ausschließlich Root-Make-Regeln. Sie prüfen jetzt die
+migrierten Harness-Links und tatsächliche Framework-Regeln nur dann, wenn das
+ausgewählte Parent-Makefile ausdrücklich dorthin weiterleitet. Bestehende
+positive und negative Target-Kontrollen bleiben wirksam.
+
+Der Apache-Goldenwert für den vollständigen AST wird erst angepasst, nachdem
+die unabhängige Rekonstruktion der sechs Quellkontext-Migrationsersetzungen
+byteidentischen Prüfercode ergab. Prädikate, Meldungen, Reihenfolge und
+Kontrollfluss bleiben unverändert; vollständiger AST-Schutz und
+Mutationsempfindlichkeit bleiben erhalten. Alle 44 bestehenden Compiler-/Apache-
+Methoden bestehen mit ausdrücklich ausgewählter Parent-Eingabe; Testmethoden,
+Fälle oder Selektoren kommen nicht hinzu. Standardauswahl bleibt 100/80,
+optionale Auswahl 2586/1140.
+
+Die externe Parent-Compiler-Generator-Korrektur und dessen späterer Framework-Pin
+sind getrennte Auslieferungsarbeit. Gehostete CI/Sonar und Integration dieses
+Followups stehen noch aus; Parent #348 bleibt Draft/ungemergt. Dies belegt
+Migrationsintegrität, keine Live-TLS-/H2-/H3-Qualifikation. Siehe den zugehörigen
+[Change Record](../reports/audits/change-records/20261101-03-compiler-migration-integrity.de.md).
+Die folgenden Vorbereitungscheckpoints behalten ihren historischen Status.
+
 ## Protokollparitäts-Begleitintegration (2026-11-01)
 
 Die separate Framework-Integration für Parent-Draft #348 erhält13 migrierte

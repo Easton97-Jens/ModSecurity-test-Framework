@@ -85,10 +85,11 @@ class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
             else:
                 normalized.append(node)
         tree.body = normalized
-        # Reviewed full-chunk engine-owned policy and combined I09/I11 AST; positions are omitted and only the
-        # batching seam is expanded.
+        # Reviewed full-chunk policy and combined I09/I11 AST after the six
+        # source-context migration replacements; predicates/messages/order are
+        # byte-preserved from Parent c5993ed9. Only batching is expanded here.
         digest = hashlib.sha256(reviewed_ast_dump(tree).encode()).hexdigest()
-        self.assertEqual(digest, "2ea7f8e9c46f644deea24fe8879d7f9e30f2d820ce355302c0901779a762c49b")
+        self.assertEqual(digest, "bb412c592b9d09f7e65224a51f005c8c7f07e150cad22302e2ff7e8fcf8c7722")
 
     def test_reviewed_dump_retains_every_semantic_change(self) -> None:
         source = "checks.append((predicate == 1, 'first'))\nchecks.append((other, 'second'))"

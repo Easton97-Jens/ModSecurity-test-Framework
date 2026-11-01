@@ -108,7 +108,8 @@ Common-/libModSecurity-UDS-Dienst; sein Echtdienstverhalten bleibt ungeprüft.
 
 Keine volle historische/Standard-Suite-Kampagne, Live-Host-/TLS-/H2-/H3-
 Qualifikation, neue Modul-/Toolchain-Version oder MRTS-Ausführung. Lokales
-Go1.27.3 belegt nicht exakt gepinntes Produktions-Go1.26.9. Unveröffentlichte
+Go 1.27.3 entspricht der ausgewählten Toolchain; Modul-Minimum-Direktiven bleiben
+bei 1.26.9 und sind kein Toolchain-Pin. Unveröffentlichte
 Hosted-PR-/Master-Checks und Sonar stehen noch aus.
 
 ## Einschränkungen und Restrisiko
