@@ -8,6 +8,7 @@ This directory contains only Framework-specific policy deltas. Shared controls a
 | --- | --- |
 | Framework/Parent/MRTS ownership | `repository-boundaries.md` |
 | Framework tests and evidence semantics | `testing-and-evidence.md` |
+| Host-test launcher context, identity and private UDS preflight | `../../../../.codex/context/security-runtime-preflight.md` + `../../docs/host-execution-context.md` |
 | Framework security scope | `security-policy.md` |
 | Framework branch/PR/delivery delta | `delivery-policy.md` |
 | MRTS default read-only boundary | `mrts-boundary-policy.md` |

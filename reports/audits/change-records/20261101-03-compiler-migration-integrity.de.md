@@ -132,3 +132,30 @@ Zuweisungsgrenzen; dies ist statische Erkennung, keine Make-Ausführung.
 Frische gehostete Prüfung steht noch aus. Die Dokumentation enthält nur sichere
 Zusammenfassungen und geprüfte Hashes, keine Secrets, Roh-Bodies,
 Zugangsdaten oder vollständigen Umgebungsdumps.
+
+### Abstimmung mit aktuellem Master
+
+Unabhängiges #147 führte den Master von der anfänglichen Basis auf
+`5ef57603a4933f18c988f1f9f32b93f478182440`, während der zuerst veröffentlichte
+#150-Head `e1b4f8b24ab95749d685db3e6581e26da302dd57` geprüft wurde. Ein
+normaler Merge hat einen Inventarkonflikt. Beide neuen Master-Preflight-Bindungen,
+ihre fünf bestehenden Standardverbraucher und den Compilerquellhash aus #150
+erhalten, dann Inventar-/Archiv-/Migrationsansichten nativ regenerieren.
+Der gemeinsame Katalog hat 528 feste Framework-Bindungen / 235 Produktpfade,
+unveränderte 100/80 Standard- und 2586/1140 optionale Fälle/Ausführungen sowie
+1993 Baseline-IDs.
+
+Das unabhängige begrenzte Quellreview bestätigt durch #147 unveränderte
+Apache-Prüfer/-Tests, Compilertest, Make-Weiterleitung, Harness-Pfade, Kontext
+und Source-Map-Verträge. Keine semantische #150-Anpassung oder zusätzliche
+Hostkampagne ist erforderlich. Alle Nachweise des ersten Heads oben bleiben
+historisch; abgestimmte lokale Prüfungen und frische headgenaue Hosted-CI/Sonar
+sind vor Integration/Pinning erforderlich.
+
+Frische abgestimmte lokale Validierung bestanden: alle 44 bestehenden Methoden
+in 26.138s, Bindungs-/Archiv-/Map-Prüfungen, öffentliche Admission
+(Inventar-SHA-256 `147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8`),
+354 zweisprachige Prüfungen, 2159 Pfadreferenzprüfungen ohne alte Pfade,
+Links/Record-Vertrag und alle vier kanonischen Pin-Prüfungen. Jeder Befehl endete
+mit Exit 0. Dies ersetzt weder headgenaue Hosted-Prüfungen noch die tatsächliche
+Master-Verifikation.

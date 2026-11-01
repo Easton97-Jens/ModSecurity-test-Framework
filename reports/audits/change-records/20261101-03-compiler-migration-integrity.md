@@ -122,3 +122,27 @@ Make-parser probes preserve exact-target and assignment boundaries; this is
 static discovery, not Make execution. Fresh hosted verification remains pending.
 Documentation contains only safe summaries and
 reviewed hashes, not secrets, raw bodies, credentials or full environment dumps.
+
+### Current-master reconciliation
+
+Independent #147 advanced master from the initial base to
+`5ef57603a4933f18c988f1f9f32b93f478182440` while first published #150 head
+`e1b4f8b24ab95749d685db3e6581e26da302dd57` was being checked. A normal
+merge has one inventory conflict. Preserve both new master preflight bindings,
+their five existing default consumers and #150's compiler source hash, then
+regenerate inventory/archive/migration views with the native tools. The combined
+catalog has 528 fixed Framework bindings / 235 Product paths, unchanged
+100/80 standard and 2586/1140 optional cases/executions, and 1993 baseline IDs.
+
+Independent bounded source review confirms Apache checker/test, compiler test,
+Make forwarding, harness paths, context and source-map contracts were unchanged
+by #147. No semantic #150 adjustment or additional host campaign is required.
+All initial-head receipts above remain historical; reconciled local checks and
+fresh exact-head hosted CI/Sonar are required before integration/pinning.
+
+Fresh reconciled local validation passed: all 44 existing methods in 26.138s,
+bindings/archive/map checks, public admission (inventory SHA-256
+`147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8`),
+354 bilingual checks, 2159 path-reference scans with zero old paths,
+links/record contract and all four canonical pin checks. Each command exited 0.
+These replace neither the new-head hosted checks nor actual master verification.

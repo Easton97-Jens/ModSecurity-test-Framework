@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Run a bounded, read-only host-runtime preflight.
+"""Run a bounded host-runtime prerequisite preflight.
 
-The command deliberately never installs packages, changes the environment, or
-starts a service.  It emits one machine-readable result and one short summary
+The command never installs packages or changes host configuration. Explicit
+execution-context probes use temporary files and private sockets, then clean up.
+It emits one machine-readable result and one short summary
 for workflow artifact collection.  A result is PASS only when the required
 identity checks and every requested prerequisite have concrete evidence.
 """
@@ -317,6 +318,16 @@ def _argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", action="append", default=[])
     parser.add_argument("--fixture", action="append", default=[])
     parser.add_argument("--timeout", type=_bounded_timeout, default=DEFAULT_TIMEOUT)
+    parser.add_argument("--execution-context-only", action="store_true")
+    parser.add_argument("--worker-user")
+    parser.add_argument("--worker-group")
+    parser.add_argument("--require-root-master", action="store_true")
+    parser.add_argument("--require-chown", action="store_true")
+    parser.add_argument("--worker-read", action="append", default=[])
+    parser.add_argument("--worker-write", action="append", default=[])
+    parser.add_argument("--worker-deny", action="append", default=[])
+    parser.add_argument("--uds-path", type=Path)
+    parser.add_argument("--uds-root", type=Path)
     return parser
 
 
@@ -327,6 +338,14 @@ def _parse_args(argv: list[str] | None) -> tuple[argparse.ArgumentParser, argpar
         parser.error("one of --output-dir or --output is required")
     if args.output_dir is not None and args.output is not None:
         parser.error("--output-dir and --output are mutually exclusive")
+    execution_requested = (args.worker_user is not None or args.worker_group is not None
+                           or args.require_root_master or args.require_chown
+                           or args.worker_read or args.worker_write or args.worker_deny
+                           or args.uds_path is not None or args.uds_root is not None)
+    if execution_requested and not args.execution_context_only:
+        parser.error("execution requirement options require --execution-context-only")
+    if args.uds_root is not None and args.uds_path is None:
+        parser.error("--uds-root requires --uds-path")
     return parser, args
 
 
@@ -770,6 +789,23 @@ def main(argv: list[str] | None = None) -> int:
         return 77
 
     checks: list[dict[str, str]] = []
+    if args.execution_context_only:
+        from modsecurity_connector_ci.runtime.common.execution_context import execution_context
+
+        actual_arch = _append_identity_checks(args, checks)
+        context, context_checks = execution_context(args, runtime_root)
+        checks.extend(context_checks)
+        checks = _bounded_checks(checks)
+        blocked = next((item for item in checks if item["status"] == "BLOCKED"), None)
+        status, reason, remediation = _final_status(checks, "")
+        if blocked:
+            reason = blocked["reason_code"]
+        result = _result_payload(args, checks, actual_arch, {}, "", status, reason, remediation)
+        result["execution_context"] = context
+        _write_result(runtime_root, output_dir, output_file, result)
+        print(json.dumps(result, sort_keys=True))
+        return _exit_code(status)
+
     metadata, lock_reason, requirements = _append_lock_check(args, runtime_root, checks)
     _apply_lock_requirements(args, requirements)
     actual_arch = _append_identity_checks(args, checks)

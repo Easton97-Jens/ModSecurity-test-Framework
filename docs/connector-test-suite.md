@@ -41,6 +41,16 @@ not live TLS/H2/H3 qualification. See the paired
 [change record](../reports/audits/change-records/20261101-03-compiler-migration-integrity.md).
 The following preparation checkpoints retain their historical status.
 
+While the first #150 head was being checked, independent #147 advanced master
+to `5ef57603a4933f18c988f1f9f32b93f478182440`. A normal merge preserves its
+two additional preflight source bindings and their five default consumers,
+then regenerates the inventory/archive/map with #150's compiler binding.
+The combined inventory has 528 fixed Framework bindings / 235 Product paths;
+100/80 standard and 2586/1140 optional selection stay unchanged. Initial
+526-binding observations describe the earlier base, not this reconciliation.
+Fresh checks for the reconciled head are required; no additional host run is
+implied by inheriting the preflight code.
+
 ## Protocol-parity companion integration (2026-11-01)
 
 The separate Framework integration for Parent Draft #348 preserves13 migrated

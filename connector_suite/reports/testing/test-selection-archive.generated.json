@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "ecb43ebdbfc432c007cd9e8574f401d03d426dda54db4407be6f30f09541bb1d",
+  "inventory_sha256": "147ebacc795c634bd9d4b21cfbcd408e635dd55de8b757be2671d3b056ac1cb8",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7946,
+  "on_demand_definition_count": 7957,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -5023,6 +5023,24 @@
       ],
       "source": "tests/test_evidence_output_security.py",
       "source_sha256": "9160c23dbb72f85a30483d51353dee9474015540354e77b126c2da391efd7fca"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_execution_context_preflight.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_actual_child_identity_file_write_and_uds",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_mapping_failure_never_runs_child",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_independent_private_uds_root_and_containment",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_actual_worker_transition_traverse_only_and_private_denial",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_distinct_launcher_inherits_daemon_context_from_setpriv",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_missing_transition_capabilities_is_blocked",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_symlink_read_write_and_missing_deny_are_blocked",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_uds_length_and_existing_socket_are_blocked_without_removal",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_unresponsive_child_is_bounded_and_reaped",
+        "modsecurity_connector_tests.test_execution_context_preflight.ExecutionContextTests.test_cli_context_only_preserves_not_run_runtime_without_binary"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_execution_context_preflight.py",
+      "source_sha256": "22c6a17f1425922ddbc910211147f21f7d2945a72edab03afc5f720b30ca187b"
     },
     {
       "contains_selected_definitions": [],
@@ -8993,6 +9011,7 @@
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_domain_records_are_closed_and_keep_actual_descriptor_and_bytes",
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_phase_helpers_have_at_most_seven_explicit_parameters",
+        "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_blocked_context_precedes_projection_configtest_and_child",
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_success_receipts_are_raw_bound_without_canonical_promotion",
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_original_fault_descriptor_reaches_child_but_not_configtest",
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_receipt_context_keeps_mapping_override_semantics_and_original_raw_hash",
@@ -9011,7 +9030,7 @@
         "modsecurity_connector_tests.test_nginx_sequence_driver_phases.SequenceDriverPhasesTests.test_framing_capture_retains_original_wire_bytes_and_parser_fields"
       ],
       "source": "tests/test_nginx_sequence_driver_phases.py",
-      "source_sha256": "43a8dc85960ae87800fafa1abe14600f2edc5272730cb67c8c5ffdef68b63826"
+      "source_sha256": "09a11f0d9bf0d081d30e5e545203b6b1f470fa84a666d5bdf01e7315812a38a3"
     },
     {
       "contains_selected_definitions": [],

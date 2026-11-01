@@ -44,6 +44,16 @@ Migrationsintegrität, keine Live-TLS-/H2-/H3-Qualifikation. Siehe den zugehöri
 [Change Record](../reports/audits/change-records/20261101-03-compiler-migration-integrity.de.md).
 Die folgenden Vorbereitungscheckpoints behalten ihren historischen Status.
 
+Während der Prüfung des ersten #150-Heads führte unabhängiges #147 den Master
+auf `5ef57603a4933f18c988f1f9f32b93f478182440`. Ein normaler Merge erhält
+dessen zwei zusätzliche Preflight-Quellbindungen und ihre fünf Standardverbraucher
+und regeneriert Inventar/Archiv/Map mit der Compilerbindung aus #150.
+Das gemeinsame Inventar hat 528 feste Framework-Bindungen / 235 Produktpfade;
+100/80 Standard- und 2586/1140 optionale Auswahl bleiben unverändert. Anfängliche
+526-Bindungsnachweise beschreiben die frühere Basis, nicht diese Abstimmung.
+Frische Prüfungen des abgestimmten Heads sind erforderlich; die Übernahme der
+Preflight-Quellen impliziert keinen zusätzlichen Hostlauf.
+
 ## Protokollparitäts-Begleitintegration (2026-11-01)
 
 Die separate Framework-Integration für Parent-Draft #348 erhält13 migrierte
