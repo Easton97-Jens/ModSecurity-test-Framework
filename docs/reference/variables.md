@@ -433,6 +433,7 @@ inputs still require provenance review before use.
 | Variable | Meaning and required value |
 |---|---|
 | `CONNECTOR_REVISION` | Exact Git HEAD of the explicitly selected product checkout; callers must not supply a different revision. |
+| `TEST_ROOT` | Explicit Framework checkout used by the public Connector test entrypoint; must match the executing Framework package. |
 | `CONNECTOR_TEST_OUTPUT_ROOT` | Existing trusted output directory outside both source checkouts; reject symlinked ancestry. |
 | `EXTERNAL_OUTPUT` | Caller-selected alias for that external output directory in documentation examples; no implicit default. |
 | `FRAMEWORK_PYTHON` | Explicit compatible Python interpreter used for the selected Framework source checkout. |

@@ -455,6 +455,7 @@ benötigen weiterhin eine Herkunftsprüfung.
 | Variable | Bedeutung und erforderlicher Wert |
 |---|---|
 | `CONNECTOR_REVISION` | Exakter Git-HEAD des explizit ausgewählten Produktcheckouts; Aufrufer dürfen keine andere Revision übergeben. |
+| `TEST_ROOT` | Expliziter Framework-Checkout für den öffentlichen Connector-Testeinstieg; muss zum ausgeführten Framework-Paket gehören. |
 | `CONNECTOR_TEST_OUTPUT_ROOT` | Vorhandenes vertrauenswürdiges Ausgabeverzeichnis außerhalb beider Quellcheckouts; Vorfahren mit Symlinks ablehnen. |
 | `EXTERNAL_OUTPUT` | Vom Aufrufer gewählter Alias dieses externen Ausgabeverzeichnisses in Dokumentationsbeispielen; kein impliziter Standard. |
 | `FRAMEWORK_PYTHON` | Expliziter kompatibler Python-Interpreter für den ausgewählten Framework-Quellcheckout. |

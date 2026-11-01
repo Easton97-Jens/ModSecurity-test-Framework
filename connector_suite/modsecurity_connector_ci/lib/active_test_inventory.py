@@ -43,6 +43,7 @@ GO_MODULES = frozenset({
 })
 RUNTIME_CONNECTORS = ("apache", "haproxy", "envoy", "traefik", "lighttpd")
 NATIVE_ARGUMENTS = {
+    "connectors/traefik/scripts/runtime-native-informational.sh": frozenset({()}),
     "ci/checks/common/run-active-authorization-timeout.sh": frozenset(
         (scenario,) for scenario in ("incomplete-headers", "incomplete-body")),
     "ci/runtime/lifecycle/run-active-no-crs-case.sh": frozenset(
@@ -61,6 +62,28 @@ NATIVE_ARGUMENTS = {
     "ci/checks/common/check-common-memory-safety.sh": frozenset({()}),
     "ci/checks/security/run-active-runtime-path-policy.sh": frozenset(
         (scenario,) for scenario in ("python-allowed", "python-blocked", "shell-allowed", "shell-blocked")),
+}
+
+# Explicit specialist selectors remain outside the automatic 100-case suite.
+# This closed list does not admit arbitrary Go/native exceptions or relax source,
+# expansion, provenance, output-path, or runtime identity validation.
+INFORMATIONAL_SPECIALISTS = {
+    "specialist.sec-traefik-native-001." + suffix: {
+        "kind": "go", "module": "connectors/traefik/native_middleware",
+        "package": ".", "test": test,
+    }
+    for suffix, test in (
+        ("final-decision", "TestInformationalResponseFinalDecision"),
+        ("request-eos", "TestInformationalResponseDoesNotDrainRequest"),
+        ("implicit-final", "TestInformationalResponseImplicitFinal"),
+        ("streaming", "TestInformationalResponseStreamsBeforeEOS"),
+        ("upgrade", "TestInformationalResponseSwitchingProtocolsRemainsTerminal"),
+        ("header-bounds", "TestInformationalResponseRejectsInvalidHeaders"),
+    )
+}
+INFORMATIONAL_SPECIALISTS["specialist.sec-traefik-native-001.host"] = {
+    "kind": "native", "script": "connectors/traefik/scripts/runtime-native-informational.sh",
+    "args": [],
 }
 
 
@@ -677,6 +700,11 @@ def _migration_integration(execution: dict[str, Any]) -> bool:
 
 def _validate_offline_exceptions(exceptions: list[dict[str, Any]]) -> None:
     for execution in exceptions:
+        if (execution["id"] in INFORMATIONAL_SPECIALISTS and
+                execution["selector"] == INFORMATIONAL_SPECIALISTS[execution["id"]] and
+                set(execution["groups"]) == {"security-regression", "traefik-native-informational"} and
+                "expected_subtests" not in execution):
+            continue
         if (execution["selector"]["kind"] != "python" or
                 ("offline-unit" not in execution["groups"] and not _migration_integration(execution)) or
                 not execution["id"].startswith("offline.") or
