@@ -12,6 +12,20 @@
 
 ## Motivation und Problemstellung
 
+### N35-Vollständige Konsolidierung der Artefaktnamen
+
+Die N34-Analyse beseitigte ihre 8 vorangegangenen Findings, zeigte aber 1 weiteres
+wiederholtes `sequence-observation.json`-Literal an einem geänderten Erstvorkommen.
+Der Reader teilt jetzt alle übrigen 25 wiederholten Artefakt-/Quellbasisnamen,
+insgesamt 36 Namen. Jede neue Konstante behält ihren ursprünglichen Stringwert;
+das Inlining nur dieser Ergänzungen und Entfernen ihrer Deklarationen
+rekonstruiert den gesamten vorherigen Modul-AST exakt. Kein nicht ausgenommener
+String mit mindestens 5 Zeichen bleibt 3-mal wiederholt; reine Bezeichner behalten
+die dokumentierte Regelausnahme. Auswahl, Assertions, Ausführungsreihenfolge und
+Bytevalidierung bleiben erhalten. Headgenaue CI-/Sonar-Prüfung und finale Pin-Abnahme
+bleiben erforderlich. Die folgenden Sicherungsstände behalten ihre historische Evidenz.
+
+
 ### N34-Literalkonsolidierung nach gehosteter Analyse
 
 Die erste Analyse von Framework-PR #145 bestand ihr Quality Gate, meldete aber

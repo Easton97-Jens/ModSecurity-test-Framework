@@ -19,6 +19,20 @@ The one-way dependency remains Connector → Framework. The Framework has no
 Connector submodule. The MRTS tool remains pinned and read-only; Framework
 package/import corrections have separate followup ownership.
 
+## N35 complete artifact-name consolidation
+
+The N34 analysis removed its 8 preceding findings but exposed 1 further
+repeated `sequence-observation.json` literal on another changed first occurrence.
+The reader now shares all remaining 25 repeated artifact/source basenames,
+36 names in total. Each new constant has its original string value; inlining
+only these additions and removing their declarations reconstructs the entire
+preceding module AST exactly. No non-exempt string of at least 5 characters
+remains repeated 3 times; identifier-only strings retain the rule's documented
+exception. Selection, assertions, execution order and byte validation are
+unchanged. Fresh current-head CI/Sonar and final pin acceptance remain required.
+The following checkpoints retain their historical evidence.
+
+
 ## N34 literal consolidation after hosted analysis
 
 The first analysis of Framework PR #145 passed its Quality Gate but reported

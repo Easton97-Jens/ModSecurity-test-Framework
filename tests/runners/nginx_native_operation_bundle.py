@@ -28,6 +28,31 @@ CLIENT_STDOUT_LEAF = "client.stdout"
 CLIENT_STDERR_LEAF = "client.stderr"
 CLEANUP_LEAF = "cleanup.json"
 SOURCE_RESULT_LEAF = "source-result.json"
+NGINX_TRANSACTION_FAULT_SOURCE = "nginx_transaction_fault.c"
+NGINX_FINISH_FAULT_SOURCE = "nginx_finish_fault.c"
+NGINX_WRITE_FAULT_SOURCE = "nginx_write_fault.c"
+NGINX_ENGINE_BUDGET_FAULT_SOURCE = "nginx_engine_budget_fault.c"
+NGINX_BINARY_LEAF = "nginx-binary"
+SEQUENCE_OBSERVATION_LEAF = "sequence-observation.json"
+NATIVE_ACCESS_LEAF = "native-access.jsonl"
+PHASE1_EVENTS_LEAF = "phase1-events.jsonl"
+NATIVE_BUDGET_OBSERVATIONS_LEAF = "native-budget-observations.jsonl"
+REQUEST_WIRE_LEAF = "request-wire.bin"
+NATIVE_BEGIN_OBSERVATIONS_LEAF = "native-begin-observations.jsonl"
+CONFIGTEST_STDOUT_LEAF = "configtest.stdout"
+CONFIGTEST_STDERR_LEAF = "configtest.stderr"
+STDOUT_LOG_LEAF = "stdout.log"
+STDERR_LOG_LEAF = "stderr.log"
+STARTUP_STDOUT_LEAF = "startup.stdout"
+STARTUP_STDERR_LEAF = "startup.stderr"
+PHASE4_EVENTS_LEAF = "phase4-events.jsonl"
+NATIVE_EVENTS_LEAF = "native-events.jsonl"
+ACCESS_LEAF = "access.jsonl"
+FAULT_REQUEST_LEAF = "fault-request.bin"
+FAULT_RESPONSE_LEAF = "fault-response.bin"
+CONTROL_REQUEST_LEAF = "control-request.bin"
+CONTROL_RESPONSE_LEAF = "control-response.bin"
+NATIVE_INPUT_FAULT_LEAF = "native-input-fault.jsonl"
 
 
 RAW_LIMIT = 1024 * 1024
@@ -44,12 +69,12 @@ EVENT_CASES = frozenset({"event_metadata_truncation", "event_json_limit"})
 SEQUENCE_CASES = frozenset({"single_request_cleanup", "multiple_sequential_requests", "keep_alive_requests_if_supported", "clean_shutdown", "keepalive_allow_allow", "keepalive_allow_deny_allow", "early_mapping_failure_cleanup", "transaction_begin_failure_cleanup", "phase4_strict_http1_client_abort", "phase4_strict_host_survives", "phase4_strict_followup_request_succeeds", "keepalive_after_strict_new_connection", "keepalive_safe_followup", "response_short_write_resume", "response_write_would_block_resume", "transport_keep_alive", "transport_sequential_requests", "finish_failure_propagation", "engine_timeout_before_commit", "engine_timeout_after_commit", "transport_http11_content_length", "transport_http11_chunked"})
 CASE_IDS = RAW_CASES | INPUT_CASES | MIME_CASES | PHASE4_CASES | EVENT_CASES | SEQUENCE_CASES
 FAULT_SOURCES = {
-    "transaction_begin_failure_cleanup": "nginx_transaction_fault.c",
-    "finish_failure_propagation": "nginx_finish_fault.c",
-    "response_short_write_resume": "nginx_write_fault.c",
-    "response_write_would_block_resume": "nginx_write_fault.c",
-    "engine_timeout_before_commit": "nginx_engine_budget_fault.c",
-    "engine_timeout_after_commit": "nginx_engine_budget_fault.c",
+    "transaction_begin_failure_cleanup": NGINX_TRANSACTION_FAULT_SOURCE,
+    "finish_failure_propagation": NGINX_FINISH_FAULT_SOURCE,
+    "response_short_write_resume": NGINX_WRITE_FAULT_SOURCE,
+    "response_write_would_block_resume": NGINX_WRITE_FAULT_SOURCE,
+    "engine_timeout_before_commit": NGINX_ENGINE_BUDGET_FAULT_SOURCE,
+    "engine_timeout_after_commit": NGINX_ENGINE_BUDGET_FAULT_SOURCE,
 }
 
 
@@ -346,19 +371,19 @@ class BundleReader:
         return raw
 
 
-COMMON_RAW = frozenset({NGINX_CONFIG_LEAF, "nginx-binary", NGINX_MODULE_LEAF, BASELINE_CONFIG_LEAF, "rules.conf",
-                        "configtest.stdout", "configtest.stderr", "stdout.log", "stderr.log", "startup.stdout", "startup.stderr",
+COMMON_RAW = frozenset({NGINX_CONFIG_LEAF, NGINX_BINARY_LEAF, NGINX_MODULE_LEAF, BASELINE_CONFIG_LEAF, "rules.conf",
+                        CONFIGTEST_STDOUT_LEAF, CONFIGTEST_STDERR_LEAF, STDOUT_LOG_LEAF, STDERR_LOG_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF,
                         NGINX_ERROR_LEAF, WORKER_MAPS_LEAF, ROLES_LEAF, CLEANUP_LEAF, CLIENT_STDOUT_LEAF, CLIENT_STDERR_LEAF,
-                        "response.bin", "response.headers", "phase4-events.jsonl", "phase1-events.jsonl", "native-events.jsonl",
-                        "native-access.jsonl", "access.jsonl", "fault-request.bin", "fault-response.bin", "control-request.bin", "control-response.bin",
-                        "native-input-fault.jsonl", "native-input-fault.so", "response-header-fixture.json"})
+                        "response.bin", "response.headers", PHASE4_EVENTS_LEAF, PHASE1_EVENTS_LEAF, NATIVE_EVENTS_LEAF,
+                        NATIVE_ACCESS_LEAF, ACCESS_LEAF, FAULT_REQUEST_LEAF, FAULT_RESPONSE_LEAF, CONTROL_REQUEST_LEAF, CONTROL_RESPONSE_LEAF,
+                        NATIVE_INPUT_FAULT_LEAF, "native-input-fault.so", "response-header-fixture.json"})
 SEQUENCE_HASHES = {
-    "binary_sha256": "nginx-binary", "module_sha256": NGINX_MODULE_LEAF, "rules_sha256": BASELINE_CONFIG_LEAF,
-    "observed_sha256": "sequence-observation.json", "config_sha256": NGINX_CONFIG_LEAF, "native_access_sha256": "native-access.jsonl",
-    "events_sha256": "phase1-events.jsonl", "worker_maps_sha256": WORKER_MAPS_LEAF,
+    "binary_sha256": NGINX_BINARY_LEAF, "module_sha256": NGINX_MODULE_LEAF, "rules_sha256": BASELINE_CONFIG_LEAF,
+    "observed_sha256": SEQUENCE_OBSERVATION_LEAF, "config_sha256": NGINX_CONFIG_LEAF, "native_access_sha256": NATIVE_ACCESS_LEAF,
+    "events_sha256": PHASE1_EVENTS_LEAF, "worker_maps_sha256": WORKER_MAPS_LEAF,
     "native_writes_sha256": "native-write-observations.jsonl", "native_finish_sha256": "native-finish-observations.jsonl",
-    "native_budget_sha256": "native-budget-observations.jsonl", "request_wire_sha256": "request-wire.bin", "response_wire_sha256": "response-wire.bin",
-    "native_begin_sha256": "native-begin-observations.jsonl",
+    "native_budget_sha256": NATIVE_BUDGET_OBSERVATIONS_LEAF, "request_wire_sha256": REQUEST_WIRE_LEAF, "response_wire_sha256": "response-wire.bin",
+    "native_begin_sha256": NATIVE_BEGIN_OBSERVATIONS_LEAF,
     "upstream_request_wire_sha256": "upstream-request-wire.bin", "upstream_response_wire_sha256": "upstream-response-wire.bin",
 }
 
@@ -366,7 +391,7 @@ SEQUENCE_HASHES = {
 def read_hash_map(reader, prefix, mapping, allowed):
     require(isinstance(mapping, dict) and set(mapping) <= allowed, "closed raw artifact hash mapping required")
     require(all(isinstance(value, str) and SHA256.fullmatch(value) for value in mapping.values()), "exact raw artifact seals required")
-    return {leaf: reader.read(prefix + leaf, expected, ARTIFACT_LIMIT if leaf in {"nginx-binary", NGINX_MODULE_LEAF} else RAW_LIMIT)
+    return {leaf: reader.read(prefix + leaf, expected, ARTIFACT_LIMIT if leaf in {NGINX_BINARY_LEAF, NGINX_MODULE_LEAF} else RAW_LIMIT)
             for leaf, expected in mapping.items()}
 
 
@@ -418,14 +443,14 @@ def _read_sequence_invocation(reader, prefix, receipt, case_id, raw):
     for field, leaf in SEQUENCE_HASHES.items():
         if field in receipt and receipt[field] is not None:
             raw[leaf] = reader.read(prefix + leaf, receipt[field], ARTIFACT_LIMIT if field in {"binary_sha256", "module_sha256"} else RAW_LIMIT)
-    require({"nginx-binary", NGINX_MODULE_LEAF, BASELINE_CONFIG_LEAF, "sequence-observation.json", NGINX_CONFIG_LEAF, "native-access.jsonl"} <= set(raw), "sequence receipt omits required raw seals")
+    require({NGINX_BINARY_LEAF, NGINX_MODULE_LEAF, BASELINE_CONFIG_LEAF, SEQUENCE_OBSERVATION_LEAF, NGINX_CONFIG_LEAF, NATIVE_ACCESS_LEAF} <= set(raw), "sequence receipt omits required raw seals")
     if case_id in FAULT_SOURCES:
-        leaf = {"nginx_transaction_fault.c": "native-transaction-fault.so", "nginx_finish_fault.c": "native-finish-fault.so", "nginx_write_fault.c": "native-write-fault.so", "nginx_engine_budget_fault.c": "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
+        leaf = {NGINX_TRANSACTION_FAULT_SOURCE: "native-transaction-fault.so", NGINX_FINISH_FAULT_SOURCE: "native-finish-fault.so", NGINX_WRITE_FAULT_SOURCE: "native-write-fault.so", NGINX_ENGINE_BUDGET_FAULT_SOURCE: "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
         raw[leaf] = reader.read(prefix + leaf, receipt_seal(receipt, "fault_library_sha256"), ARTIFACT_LIMIT)
     # Original sequence producer retains these actual captures but has no
     # individual receipt seal for them. They are reopened and manifest-sealed
     # here rather than inventing fields in its original receipt.
-    for leaf in ("configtest.stdout", "configtest.stderr", "startup.stdout", "startup.stderr", NGINX_ERROR_LEAF, "phase1-events.jsonl"):
+    for leaf in (CONFIGTEST_STDOUT_LEAF, CONFIGTEST_STDERR_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF, NGINX_ERROR_LEAF, PHASE1_EVENTS_LEAF):
         if leaf not in raw:
             raw[leaf] = reader.read(prefix + leaf)
 
@@ -481,10 +506,10 @@ def read_invocation(reader, descriptor, case_id, operation, sources):
         _read_input_invocation(reader, prefix, receipt, sources, raw)
     else:
         raw.update(read_hash_map(reader, prefix, receipt.get("raw_sha256"), COMMON_RAW))
-        for field, leaf in (("binary_sha256", "nginx-binary"), ("module_sha256", NGINX_MODULE_LEAF)):
+        for field, leaf in (("binary_sha256", NGINX_BINARY_LEAF), ("module_sha256", NGINX_MODULE_LEAF)):
             if field in receipt:
                 raw[leaf] = reader.read(prefix + leaf, receipt[field], ARTIFACT_LIMIT)
-    for field, leaf in (("binary_sha256", "nginx-binary"), ("module_sha256", NGINX_MODULE_LEAF)):
+    for field, leaf in (("binary_sha256", NGINX_BINARY_LEAF), ("module_sha256", NGINX_MODULE_LEAF)):
         require(leaf in raw and digest(raw[leaf]) == sources[field], "actual build snapshot mismatch: " + leaf)
     return receipt, raw, original
 
@@ -560,8 +585,8 @@ def build_artifacts(receipt, raw, case_id, sources, source_bytes):
         require(raw[BASELINE_CONFIG_LEAF] == rules, "effective snapshotted rules differ from authenticated source")
     if case_id in INPUT_CASES | set(FAULT_SOURCES):
         leaf = "native-input-fault.so" if case_id in INPUT_CASES else {
-            "nginx_transaction_fault.c": "native-transaction-fault.so", "nginx_finish_fault.c": "native-finish-fault.so",
-            "nginx_write_fault.c": "native-write-fault.so", "nginx_engine_budget_fault.c": "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
+            NGINX_TRANSACTION_FAULT_SOURCE: "native-transaction-fault.so", NGINX_FINISH_FAULT_SOURCE: "native-finish-fault.so",
+            NGINX_WRITE_FAULT_SOURCE: "native-write-fault.so", NGINX_ENGINE_BUDGET_FAULT_SOURCE: "native-budget-fault.so"}[FAULT_SOURCES[case_id]]
         expected = sources.get("fault_library_sha256", {}).get(case_id)
         require(isinstance(expected, str) and SHA256.fullmatch(expected) and leaf in raw and digest(raw[leaf]) == expected,
                 "explicit actual compiled fault artifact authority required")
@@ -628,25 +653,25 @@ def actual_events(raw, leaf):
 
 
 def validate_raw_h1(helper, receipt, raw, case_id, run_id):
-    require_leaves(raw, {"fault-request.bin", "fault-response.bin", "control-request.bin", "control-response.bin", "access.jsonl",
-                         NGINX_ERROR_LEAF, "native-events.jsonl", ROLES_LEAF, CLEANUP_LEAF, "stdout.log", "stderr.log", "startup.stdout", "startup.stderr"})
+    require_leaves(raw, {FAULT_REQUEST_LEAF, FAULT_RESPONSE_LEAF, CONTROL_REQUEST_LEAF, CONTROL_RESPONSE_LEAF, ACCESS_LEAF,
+                         NGINX_ERROR_LEAF, NATIVE_EVENTS_LEAF, ROLES_LEAF, CLEANUP_LEAF, STDOUT_LOG_LEAF, STDERR_LOG_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF})
     exact(receipt, {"schema_version": 1, "connector": "nginx", "integration_mode": MODE, "configtest_exit_code": 0,
                     "host_observation_valid": True, "failure": None}, "actual raw H1 receipt")
     roles, cleanup = json_object(raw[ROLES_LEAF]), json_object(raw[CLEANUP_LEAF])
     observed_roles(roles, cleanup, run_id)
     control_run = run_id[:119] + "-control"
-    require(raw["fault-request.bin"] == helper.request_bytes(case_id, run_id)
-            and raw["control-request.bin"] == helper.request_bytes(case_id, control_run, control=True), "actual closed wire request mismatch")
-    accesses = json_lines(raw["access.jsonl"])
+    require(raw[FAULT_REQUEST_LEAF] == helper.request_bytes(case_id, run_id)
+            and raw[CONTROL_REQUEST_LEAF] == helper.request_bytes(case_id, control_run, control=True), "actual closed wire request mismatch")
+    accesses = json_lines(raw[ACCESS_LEAF])
     fault = [row for row in accesses if row.get("uri") == helper.request_path(case_id, run_id)]
     control = [row for row in accesses if row.get("uri") == helper.request_path(case_id, control_run)]
     require(len(fault) == len(control) == 1, "one actual fault and positive control access required")
-    errors = helper.validate_host_rejection(case_id, run_id, raw["fault-response.bin"], fault[0], raw[NGINX_ERROR_LEAF])
+    errors = helper.validate_host_rejection(case_id, run_id, raw[FAULT_RESPONSE_LEAF], fault[0], raw[NGINX_ERROR_LEAF])
     require(not errors, "; ".join(errors))
-    require(helper.response_status(raw["control-response.bin"]) == 200 and control[0].get("status") == 200, "positive H1 control must remain successful")
+    require(helper.response_status(raw[CONTROL_RESPONSE_LEAF]) == 200 and control[0].get("status") == 200, "positive H1 control must remain successful")
     for name, status in (("fault", 400), ("control", 200)):
         exact(receipt.get("requests", {}).get(name), {"client_exit_code": 0, "http_status": status}, "actual raw client " + name)
-    events = actual_events(raw, "native-events.jsonl")
+    events = actual_events(raw, NATIVE_EVENTS_LEAF)
     require(not any(event.get("uri") == helper.request_path(case_id, run_id) for event in events), "preconnector rejected request must not admit native events")
     control_transactions = sorted({event["transaction_id"] for event in events
                                    if event.get("uri") == helper.request_path(case_id, control_run)})
@@ -659,15 +684,15 @@ def validate_raw_h1(helper, receipt, raw, case_id, run_id):
 
 
 def validate_input(helper, receipt, raw, case_id, run_id):
-    require_leaves(raw, {"native-access.jsonl", "native-input-fault.jsonl", "phase1-events.jsonl", WORKER_MAPS_LEAF, NGINX_ERROR_LEAF,
-                         "configtest.stdout", "configtest.stderr", CLIENT_STDOUT_LEAF, CLIENT_STDERR_LEAF, "startup.stdout", "startup.stderr"})
+    require_leaves(raw, {NATIVE_ACCESS_LEAF, NATIVE_INPUT_FAULT_LEAF, PHASE1_EVENTS_LEAF, WORKER_MAPS_LEAF, NGINX_ERROR_LEAF,
+                         CONFIGTEST_STDOUT_LEAF, CONFIGTEST_STDERR_LEAF, CLIENT_STDOUT_LEAF, CLIENT_STDERR_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF})
     exact(receipt, {"configtest_exit_code": 0}, "actual input configtest")
     observed = json_object(raw[INPUT_FAULT_OBSERVATION_LEAF])
     errors = helper.observation_errors(observed, case_id, run_id)
     require(not errors, "; ".join(errors))
-    require(json_lines(raw["native-access.jsonl"]) == [observed["native_access"]]
-            and json_lines(raw["native-input-fault.jsonl"]) == [observed["native_fault"]], "actual fault/access ledger projection mismatch")
-    events = actual_events(raw, "phase1-events.jsonl")
+    require(json_lines(raw[NATIVE_ACCESS_LEAF]) == [observed["native_access"]]
+            and json_lines(raw[NATIVE_INPUT_FAULT_LEAF]) == [observed["native_fault"]], "actual fault/access ledger projection mismatch")
+    events = actual_events(raw, PHASE1_EVENTS_LEAF)
     identity = {"phase": "request_headers", "event": "connector_error",
                 "message_id": "MSCONN_EVENT_CONNECTOR_ERROR", "http_status": 500}
     errors = [event for event in events if all(
@@ -690,8 +715,8 @@ def validate_input(helper, receipt, raw, case_id, run_id):
 def validate_configtest(receipt, raw, case_id):
     exit_field = "observed_exit_code" if case_id in SEQUENCE_CASES else "configtest_exit_code"
     exact(receipt, {exit_field: 0}, "actual configtest outcome")
-    leaf = "stderr.log" if case_id in RAW_CASES else "configtest.stderr"
-    require_leaves(raw, {leaf, "stdout.log" if case_id in RAW_CASES else "configtest.stdout", "startup.stdout", "startup.stderr"})
+    leaf = STDERR_LOG_LEAF if case_id in RAW_CASES else CONFIGTEST_STDERR_LEAF
+    require_leaves(raw, {leaf, STDOUT_LOG_LEAF if case_id in RAW_CASES else CONFIGTEST_STDOUT_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF})
     modules = re.findall(rb'\bload_module\s+"([^"\r\n]+)"\s*;', raw[NGINX_CONFIG_LEAF])
     require(len(modules) == 1, "one actual module load required")
     configuration_path = modules[0].rsplit(b"/", 1)[0] + b"/nginx.conf"
@@ -714,8 +739,8 @@ def sequence_fault_ledgers(observed, raw):
             require_leaves(raw, {leaf})
             require(json_lines(raw[leaf]) == observed[field], "actual sequence fault ledger projection mismatch")
     if "native_budget" in observed:
-        require_leaves(raw, {"native-budget-observations.jsonl"})
-        ledger = json_lines(raw["native-budget-observations.jsonl"])
+        require_leaves(raw, {NATIVE_BUDGET_OBSERVATIONS_LEAF})
+        ledger = json_lines(raw[NATIVE_BUDGET_OBSERVATIONS_LEAF])
         require([item for item in ledger if item.get("native_operation") != "msconnector_transaction_contract_cleanup"] == observed["native_budget"]
                 and [item for item in ledger if item.get("native_operation") == "msconnector_transaction_contract_cleanup"] == observed["native_cleanup"], "actual timing/cleanup ledger projection mismatch")
 
@@ -723,9 +748,9 @@ def sequence_fault_ledgers(observed, raw):
 def sequence_wire(observed, raw):
     for field, leaf in (("wire", "response-wire.bin"),):
         if field in observed:
-            require_leaves(raw, {leaf, "request-wire.bin"})
+            require_leaves(raw, {leaf, REQUEST_WIRE_LEAF})
             require(raw[leaf] == bytes.fromhex(observed[field]["response_hex"])
-                    and raw["request-wire.bin"] == bytes.fromhex(observed[field]["request_hex"]), "actual downstream wire projection mismatch")
+                    and raw[REQUEST_WIRE_LEAF] == bytes.fromhex(observed[field]["request_hex"]), "actual downstream wire projection mismatch")
     if "upstream_wire" in observed:
         require(raw["upstream-request-wire.bin"] == bytes.fromhex(observed["upstream_wire"]["request_hex"])
                 and raw["upstream-response-wire.bin"] == bytes.fromhex(observed["upstream_wire"]["response_hex"]), "actual upstream wire projection mismatch")
@@ -760,8 +785,8 @@ def sequence_cleanup(case_id, observed, accesses, events, raw):
         native_error(events, "connector_error", "MSCONN_EVENT_CONNECTOR_ERROR", "request_headers", transactions[0], observed["requests"][0]["path"])
         exact(next(event for event in events if event.get("event") == "connector_error"), {"http_status": 500}, "actual allocation error status")
         cleanup_events(events, transactions, native_completed=0, error_class="connector_error", uris=uris)
-        require_leaves(raw, {"native-begin-observations.jsonl"})
-        ledger = json_lines(raw["native-begin-observations.jsonl"])
+        require_leaves(raw, {NATIVE_BEGIN_OBSERVATIONS_LEAF})
+        ledger = json_lines(raw[NATIVE_BEGIN_OBSERVATIONS_LEAF])
         require(ledger == observed.get("native_begin") and len(ledger) == 1, "actual scoped native allocation ledger required")
         require(set(ledger[0]) == {"native_operation", "observed_return", "worker_pid", "worker_uid", "master_pid", "transaction_id", "injected"},
                 "closed native allocation ledger fields required")
@@ -780,13 +805,13 @@ def sequence_cleanup(case_id, observed, accesses, events, raw):
 
 def validate_sequence(helper, receipt, raw, case_id, run_id):
     require_leaves(raw, {WORKER_MAPS_LEAF})
-    observed = json_object(raw["sequence-observation.json"])
+    observed = json_object(raw[SEQUENCE_OBSERVATION_LEAF])
     errors = helper.observation_errors(observed, case_id, run_id)
     require(not errors, "; ".join(errors))
     observed_roles(observed["roles"], observed["cleanup"], run_id)
-    accesses = json_lines(raw["native-access.jsonl"])
+    accesses = json_lines(raw[NATIVE_ACCESS_LEAF])
     require(accesses == observed["native_access"], "actual sequence access projection mismatch")
-    events = actual_events(raw, "phase1-events.jsonl")
+    events = actual_events(raw, PHASE1_EVENTS_LEAF)
     if "native_events" in observed:
         require(events == observed["native_events"], "actual sequence native event projection mismatch")
     sequence_fault_ledgers(observed, raw)
@@ -848,7 +873,7 @@ def validate_phase4_layer(helper, receipt, raw, case_id, run_id):
     require(not errors, "; ".join(errors))
     observed_roles(receipt.get("roles"), receipt.get("cleanup"), run_id)
     require(raw["response.headers"].startswith(b"HTTP/1.1 "), "actual downstream HTTP1.1 required")
-    events = actual_events(raw, "phase4-events.jsonl")
+    events = actual_events(raw, PHASE4_EVENTS_LEAF)
     transactions = sorted({event["transaction_id"] for event in receipt["native_events"]})
     cleanup_events(events, transactions, error_class="body_limit" if case_id == "phase4_body_reject" else "none",
                    uris={event["transaction_id"]: event["uri"] for event in receipt["native_events"]})
@@ -871,7 +896,7 @@ def validate_event_layer(reader, envelope, helper, case_id, run_id, sources, sou
     require(not errors, "; ".join(errors))
     events, transactions = [], []
     for name in names:
-        child_events = actual_events(raws[name], "phase4-events.jsonl")
+        child_events = actual_events(raws[name], PHASE4_EVENTS_LEAF)
         child_transactions = sorted({event["transaction_id"] for event in receipts[name]["native_events"]})
         cleanup_events(child_events, child_transactions,
                        uris={event["transaction_id"]: event["uri"] for event in receipts[name]["native_events"]})
