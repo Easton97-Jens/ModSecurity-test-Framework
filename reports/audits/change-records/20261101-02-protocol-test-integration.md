@@ -104,8 +104,9 @@ service; its real-service behavior remains unverified.
 ## Checks not run
 
 No full historical/default-suite campaign, live host/TLS/H2/H3 qualification,
-new module/toolchain version or MRTS execution. Local Go1.27.3 is not exact pinned
-production Go1.26.9 evidence. Unpublished-head hosted PR/master checks and Sonar
+new module/toolchain version or MRTS execution. Local Go 1.27.3 matches the selected
+toolchain; module minimum directives remain 1.26.9, not the toolchain pin.
+Unpublished-head hosted PR/master checks and Sonar
 remain pending.
 
 ## Limitations and residual risk
