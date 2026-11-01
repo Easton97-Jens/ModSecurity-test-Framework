@@ -83,6 +83,8 @@ class SequenceDriverPhasesTests(unittest.TestCase):
              mock.patch.object(DRIVER.STARTUP, "bounded_capture", side_effect=capture), \
              mock.patch.object(DRIVER.STARTUP, "observe_roles", return_value=roles), \
              mock.patch.object(DRIVER.STARTUP, "stop_owned_master", side_effect=stop), \
+             mock.patch.object(DRIVER, "preflight_sequence_context") as preflight, \
+             mock.patch.object(DRIVER, "observe_sequence_credentials", return_value={"controlled": True}), \
              mock.patch.object(DRIVER, "load", return_value=validator), \
              mock.patch.object(DRIVER, "run_sequence", side_effect=client), \
              mock.patch.object(DRIVER, "capture_http11_wire", return_value=(b"raw request", b"raw response")), \
@@ -91,6 +93,8 @@ class SequenceDriverPhasesTests(unittest.TestCase):
              mock.patch.object(DRIVER.subprocess, "Popen", side_effect=start) as child, \
              mock.patch.object(DRIVER.os, "geteuid", return_value=0):
             result = DRIVER.run(args)
+        self.assertEqual(preflight.call_args_list,
+                         [mock.call(output), mock.call(output, parent / "projection/child")])
         self.assertEqual(configtest.call_args.kwargs, {})
         self.assertEqual(len(configtest.call_args.args), 2)
         if child.called:
@@ -103,6 +107,26 @@ class SequenceDriverPhasesTests(unittest.TestCase):
         observed = json.loads((output / "sequence-observation.json").read_bytes())
         source = json.loads((output / "sequence-source.json").read_bytes())["cases"][0]
         return result, observed, source, order, output
+
+    def test_blocked_context_precedes_projection_configtest_and_child(self):
+        with tempfile.TemporaryDirectory(dir=os.environ.get("RUNNER_TEMP")) as temporary:
+            output = Path(temporary)
+            args = argparse.Namespace(case_id="single_request_cleanup", run_id="blocked",
+                                      framework_root=str(output), projection_parent=str(output),
+                                      fault_negative_control=False, engine_call_budget_ms=10)
+            with mock.patch.object(DRIVER.BASE, "validate_inputs", return_value=(output / "nginx", output / "module", output)), \
+                 mock.patch.object(DRIVER, "prepare_sequence_assets", return_value=({}, output / "docroot")), \
+                 mock.patch.object(DRIVER, "load", return_value=mock.Mock()), \
+                 mock.patch.object(DRIVER.os, "geteuid", return_value=0), \
+                 mock.patch.object(DRIVER, "hostruntime_preflight", return_value=77), \
+                 mock.patch.object(DRIVER, "prepare_sequence_projection") as projection, \
+                 mock.patch.object(DRIVER, "configtest_invocation") as configtest, \
+                 mock.patch.object(DRIVER.subprocess, "Popen") as child:
+                with self.assertRaises(DRIVER.ExecutionContextBlocked):
+                    DRIVER.run(args)
+                projection.assert_not_called()
+                configtest.assert_not_called()
+                child.assert_not_called()
 
     def test_success_receipts_are_raw_bound_without_canonical_promotion(self):
         result, observed, source, order, output = self.exercise()

@@ -4,6 +4,7 @@ from __future__ import annotations
 from modsecurity_test_framework.connector_context import load_source
 
 import hashlib
+from contextlib import redirect_stdout
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,8 @@ import subprocess
 import sys
 import time
 from typing import NamedTuple
+
+from modsecurity_connector_ci.runtime.common.hostruntime_preflight import main as hostruntime_preflight
 
 from modsecurity_connector_ci.runtime.lifecycle.nginx_sequence_client import capture_http11_wire, run_sequence
 from modsecurity_connector_ci.runtime.lifecycle.nginx_sequence_upstream import FramingUpstream, SynchronizedUpstream, TRANSPORT_BODY
@@ -74,6 +77,45 @@ FINISH_LEDGER = "native-finish-observations.jsonl"
 BUDGET_LEDGER = "native-budget-observations.jsonl"
 STATIC_LOCATION = 'location / { try_files $uri /index.html; }'
 PROBE_LOCATION = 'location / { try_files /index.html =404; }'
+
+
+class ExecutionContextBlocked(ValueError):
+    """The selected host context cannot meet the native identity contract."""
+
+
+def preflight_sequence_context(output, projection=None):
+    stage = "access" if projection is not None else "identity"
+    arguments = ["--connector", "nginx", "--profile", "nginx-native-sequence-h1",
+                 "--execution-context-only", "--runtime-root", str(output),
+                 "--output-dir", str(output / ("preflight-" + stage)),
+                 "--worker-user", "nobody", "--worker-group", "nogroup",
+                 "--require-root-master", "--require-chown"]
+    if projection is not None:
+        arguments += ["--worker-read", str(projection / "index.html"),
+                      "--worker-deny", str(output)]
+    with (output / ("preflight-" + stage + ".log")).open("x", encoding="utf-8") as stream:
+        with redirect_stdout(stream):
+            code = hostruntime_preflight(arguments)
+    if code != 0:
+        raise ExecutionContextBlocked("native identity/access prerequisite; see "
+                                      + str(output / ("preflight-" + stage) / "status.json"))
+
+
+def observe_sequence_credentials(roles):
+    """Retain actual hosted credentials in addition to the child preflight."""
+    observations = {}
+    for role, expected in (("master", 0), ("worker", 65534)):
+        process_root = Path("/proc") / str(roles[role + "_pid"])
+        fields = {}
+        for line in STARTUP.bounded_capture(process_root / "status").decode("ascii").splitlines():
+            name, _, value = line.partition(":")
+            if name in {"Uid", "Gid", "Groups"}:
+                fields[name] = [int(item) for item in value.split()]
+        if fields.get("Uid") != [expected] * 4 or fields.get("Gid") != [expected] * 4:
+            raise ValueError("actual native " + role + " UID/GID does not match the profile")
+        fields["user_namespace"] = os.readlink(process_root / "ns/user")
+        observations[role] = fields
+    return observations
 
 
 class PreparedInvocation(NamedTuple):
@@ -334,6 +376,7 @@ def execute_sequence(args, output, token, upstream, validator,
     post_roles = None
     upstream_observation = None
     client_exit = None
+    credentials = {}
     try:
         if failure or exit_code != 0:
             raise ValueError("native config acceptance is required before sequence")
@@ -343,6 +386,7 @@ def execute_sequence(args, output, token, upstream, validator,
             process = subprocess.Popen(argv, env=environment, stdin=subprocess.DEVNULL, stdout=out, stderr=err,
                                        pass_fds=worker_maps.descriptors(write_fd))
             roles = STARTUP.observe_roles(process, args.run_id, port, output, handles)
+            credentials = observe_sequence_credentials(roles)
             worker_maps.capture(roles)
             wire_observation, response_wire = capture_sequence_wire(args, output, port, token)
             observations = capture_sequence_requests(args, port, token, upstream, validator, response_wire)
@@ -370,6 +414,7 @@ def execute_sequence(args, output, token, upstream, validator,
     observed = {"schema_version": 1, "operation": "request_sequence", "protocol": "http1",
                 "case_id": args.case_id, "run_id": args.run_id, "client_exit_code": client_exit,
                 "requests": observations, "native_access": access, "roles": roles, "cleanup": cleanup}
+    observed["process_credentials"] = credentials
     return ExecutionOutcome(observed, wire_observation, post_roles, upstream_observation,
                             failure, process is not None)
 
@@ -492,7 +537,9 @@ def run(args):
     validator = load("nginx_sequence_contract", framework / "tests/runners/nginx_lifecycle_sequence.py")
     parent = BASE.absolute_path(args.projection_parent)
     hashes, source = prepare_sequence_assets(binary, module, output, framework, args.case_id)
+    preflight_sequence_context(output)
     identity, token, projection = prepare_sequence_projection(args, source, output, parent, framework)
+    preflight_sequence_context(output, projection)
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
@@ -533,6 +580,8 @@ def main():
     args = parser.parse_args()
     try:
         return 0 if run(args) else 1
+    except ExecutionContextBlocked as exc:
+        parser.exit(77, "BLOCKED: " + str(exc) + "\n")
     except (OSError, ValueError) as exc:
         parser.exit(2, "sequence boundary rejected: " + str(exc) + "\n")
 

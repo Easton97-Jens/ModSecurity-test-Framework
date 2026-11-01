@@ -555,6 +555,19 @@ validate_nginx_worker_isolation() {
         blocked "NGINX harness requires runuser and a distinct verifiable NGINX worker identity"
 }
 
+preflight_nginx_execution_context() {
+    context_stage=$1
+    shift
+    "$PYTHON_BIN" -P -m modsecurity_connector_ci.runtime.common.hostruntime_preflight \
+        --connector nginx --profile "nginx-native-$NGINX_PROTOCOL_PROFILE" \
+        --execution-context-only --runtime-root "$BUILD_ROOT" \
+        --output-dir "$LOG_DIR/execution-context-$context_stage" \
+        --worker-user "$NGINX_WORKER_RESOLVED_USER" \
+        --worker-group "$NGINX_WORKER_RESOLVED_GROUP" \
+        --require-root-master --require-chown "$@" || \
+        blocked "execution context does not satisfy NGINX; see $LOG_DIR/execution-context-$context_stage/status.json"
+}
+
 nginx_worker_access_notes() {
     if nginx_worker_identity_is_verifiable; then
         printf 'checked with runuser -u %s -g %s' \
@@ -3452,6 +3465,7 @@ validate_nginx_generated_path_authority
 validate_nginx_external_projection_authority
 require_private_worker_path_separation
 validate_nginx_worker_isolation
+preflight_nginx_execution_context identity
 
 echo "nginx_smoke: BUILD_ROOT=$BUILD_ROOT"
 echo "nginx_smoke: NGINX_BUILD_DIR=$NGINX_BUILD_DIR"
@@ -3635,6 +3649,15 @@ write_phase4_reload_overlap_directives "$NGINX_PHASE4_RELOAD_OVERLAP_DIRECTIVES_
 lock_private_runtime_paths
 prepare_nginx_worker_paths
 preflight_nginx_worker_docroot
+set -- --worker-read "$DOCROOT/index.html" \
+    --worker-write "$NGINX_WORKER_STATE_ROOT" \
+    --worker-write "$NGINX_SERVER_LOG_ROOT" \
+    --worker-deny "$LOG_DIR" --worker-deny "$NGINX_MEMCHECK_EVIDENCE_DIR"
+if [ "$NGINX_DOCROOT_PROJECTION" = "1" ]; then
+    set -- "$@" --worker-read "$DOCROOT/__modsec_smoke_ready" \
+        --worker-deny "$RUNTIME_ROOT" --worker-deny "$RULES_FILE"
+fi
+preflight_nginx_execution_context access "$@"
 
 LD_LIBRARY_PATH="$MODSECURITY_LIB_DIR:$NGINX_PREFIX/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH
