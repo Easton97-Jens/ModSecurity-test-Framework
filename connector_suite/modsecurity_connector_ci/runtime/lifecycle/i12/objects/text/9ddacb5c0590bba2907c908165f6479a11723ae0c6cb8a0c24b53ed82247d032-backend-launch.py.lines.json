@@ -1,0 +1,20 @@
+[
+  "\"\"\"Separate genuine Parent fixture backend process; actual capture only.\"\"\"\n",
+  "import importlib.util\n",
+  "from http.server import HTTPServer\n",
+  "import os\n",
+  "from pathlib import Path\n",
+  "import signal\n",
+  "import sys\n",
+  "sys.path.insert(0,'/mnt/src/ci/runtime/common')\n",
+  "spec=importlib.util.spec_from_file_location('lighttpd_independent_backend','/mnt/fixtures/observed-backend.py')\n",
+  "module=importlib.util.module_from_spec(spec);sys.modules[spec.name]=module;spec.loader.exec_module(module)\n",
+  "module.Handler.body_bytes=b'apx-eos-response-payload'\n",
+  "module.Handler.fixture=module.ResponseFixture(200,(('Content-Type','text/plain'),))\n",
+  "server=HTTPServer(('127.0.0.1',int(sys.argv[1])),module.Handler)\n",
+  "Path('/task/backend-ready.json').write_text('{\"pid\":'+str(os.getpid())+',\"port\":'+str(server.server_port)+'}\\n')\n",
+  "def stop(_signum,_frame):raise SystemExit(0)\n",
+  "signal.signal(signal.SIGTERM,stop)\n",
+  "try:server.serve_forever(poll_interval=0.05)\n",
+  "finally:server.server_close()\n"
+]

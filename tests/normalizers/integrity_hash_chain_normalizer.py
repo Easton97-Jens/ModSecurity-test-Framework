@@ -2,7 +2,7 @@
 from __future__ import annotations
 import hashlib, json
 from typing import Any
-from tests.normalizers.security_event_normalizer import find_body_payload_fields, normalize_value, parse_jsonl
+from modsecurity_test_framework.normalizers.security_event_normalizer import find_body_payload_fields, normalize_value, parse_jsonl
 
 def _canonical(row: dict[str, Any]) -> str:
     # Integrity must cover the recorded values.  Display normalization is

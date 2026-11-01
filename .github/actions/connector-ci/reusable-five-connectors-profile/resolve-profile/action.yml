@@ -1,0 +1,53 @@
+name: reusable-five-connectors-profile / resolve-profile
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+  caller-inputs:
+    description: Caller inputs context, passed explicitly
+    required: true
+outputs:
+  matrix:
+    description: Preserved caller output matrix
+    value: ${{ steps.profile.outputs.matrix }}
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up toolchain
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+    - name: Verify fixed No-CRS workflow contract
+      shell: bash -e {0}
+      run: |
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/install-ci-dependencies.py --ci-toolcache
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group inventory
+
+    - name: Validate global expanded behavioral inventory
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --check
+
+    - name: Resolve fixed connector matrix
+      id: profile
+      env:
+        PROFILE: ${{ fromJSON(inputs.caller-inputs).profile }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        matrix=$(python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/five-connector-no-crs-profile.py \
+          --profile "$PROFILE" --emit-github-matrix)
+        printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"

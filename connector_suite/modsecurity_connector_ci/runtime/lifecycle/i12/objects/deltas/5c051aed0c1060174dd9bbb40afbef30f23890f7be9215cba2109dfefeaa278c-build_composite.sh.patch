@@ -1,0 +1,5 @@
+--- a/payload
++++ b/payload
+@@ -92 +92 @@
+-cgo_ldflags="$COMMON_ARCHIVE $link_input -Wl,-rpath,$runtime_lib_dir -lstdc++ -pthread"
++cgo_ldflags="$COMMON_ARCHIVE $link_input -Wl,-rpath,$runtime_lib_dir -lstdc++ -pthread ${I12_ENVOY_OBSERVER_LDFLAGS:-}"

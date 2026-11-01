@@ -1,0 +1,257 @@
+name: Protected NGINX Root Broker Lifecycle
+
+on:
+  workflow_call:
+    inputs:
+      parent_head_sha:
+        description: Declarative Parent commit identity bound only into broker evidence.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: protected-nginx-root-broker-caller
+  cancel-in-progress: false
+
+jobs:
+  prepare-manifests:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      github.event.repository.fork == false &&
+      github.ref == 'refs/heads/master' &&
+      github.event.repository.default_branch == 'master'
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out protected master caller source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+          submodules: false
+          fetch-depth: 1
+
+      - name: Verify protected caller source identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          if [ "${#GITHUB_SHA}" -ne 40 ]; then
+            echo "BLOCKED: caller source identity is not a full commit SHA" >&2
+            exit 77
+          fi
+          case "$GITHUB_SHA" in
+            *[!0-9a-f]*)
+              echo "BLOCKED: caller source identity is not lowercase hexadecimal" >&2
+              exit 77
+              ;;
+            *)
+              ;;
+          esac
+
+      - name: Initialize Framework tooling from the protected caller gitlink
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          /usr/bin/git -c protocol.file.allow=never submodule update --init -- modules/ModSecurity-test-Framework
+          test "$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)" = \
+            "$(git ls-tree "$GITHUB_SHA" modules/ModSecurity-test-Framework | awk '{print $3}')"
+      - id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 -I ci/run-trusted-framework.py --tool python-interpreter --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Create only the two data-only caller manifests
+        env:
+          TARGET_PARENT_SHA: ${{ inputs.parent_head_sha }}
+          NO_CRS_RUN_ID: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-no-crs
+          WITH_CRS_RUN_ID: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-with-crs
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -I ci/run-trusted-framework.py --tool broker-caller --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- create-manifests \
+            --target-sha "$TARGET_PARENT_SHA" \
+            --no-crs-run-id "$NO_CRS_RUN_ID" \
+            --with-crs-run-id "$WITH_CRS_RUN_ID"
+
+      - name: Upload no-CRS caller manifest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: protected-nginx-caller-${{ github.run_id }}-${{ github.run_attempt }}-no-crs
+          path: ${{ runner.temp }}/protected-nginx-root-caller-${{ github.run_id }}-${{ github.run_attempt }}/no-crs/caller-manifest.json
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Upload OWASP CRS caller manifest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: protected-nginx-caller-${{ github.run_id }}-${{ github.run_attempt }}-with-crs
+          path: ${{ runner.temp }}/protected-nginx-root-caller-${{ github.run_id }}-${{ github.run_attempt }}/with-crs/caller-manifest.json
+          retention-days: 1
+          if-no-files-found: error
+
+  run-no-crs-broker:
+    needs: prepare-manifests
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      github.event.repository.fork == false &&
+      github.ref == 'refs/heads/master' &&
+      github.event.repository.default_branch == 'master' &&
+      needs.prepare-manifests.result == 'success'
+    permissions:
+      contents: read
+    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@8ae707d72f1a8acb25d239e55e28a73cbc7522b1
+    with:
+      caller_manifest_artifact: protected-nginx-caller-${{ github.run_id }}-${{ github.run_attempt }}-no-crs
+      parent_head_sha: ${{ inputs.parent_head_sha }}
+      framework_sha: 99a7985c1be92a2297b1b59208f64df6768f2cbf
+      protected_broker_sha: 8ae707d72f1a8acb25d239e55e28a73cbc7522b1
+      matrix_variant: no-crs
+      run_id: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-no-crs
+
+  run-with-crs-broker:
+    needs: prepare-manifests
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+      github.event.repository.fork == false &&
+      github.ref == 'refs/heads/master' &&
+      github.event.repository.default_branch == 'master' &&
+      needs.prepare-manifests.result == 'success'
+    permissions:
+      contents: read
+    uses: Easton97-Jens/ModSecurity-conector/.github/workflows/nginx-root-broker.yml@8ae707d72f1a8acb25d239e55e28a73cbc7522b1
+    with:
+      caller_manifest_artifact: protected-nginx-caller-${{ github.run_id }}-${{ github.run_attempt }}-with-crs
+      parent_head_sha: ${{ inputs.parent_head_sha }}
+      framework_sha: 99a7985c1be92a2297b1b59208f64df6768f2cbf
+      protected_broker_sha: 8ae707d72f1a8acb25d239e55e28a73cbc7522b1
+      matrix_variant: with-crs
+      run_id: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-with-crs
+
+  verify-evidence:
+    needs:
+      - prepare-manifests
+      - run-no-crs-broker
+      - run-with-crs-broker
+    if: >-
+      ${{ always() &&
+          github.event_name == 'workflow_dispatch' &&
+          github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+          github.event.repository.fork == false &&
+          github.ref == 'refs/heads/master' &&
+          github.event.repository.default_branch == 'master' &&
+          needs.prepare-manifests.result == 'success' &&
+          needs.run-no-crs-broker.result == 'success' &&
+          needs.run-with-crs-broker.result == 'success' }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out protected master caller source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          clean: true
+          submodules: false
+          fetch-depth: 1
+
+      - name: Initialize Framework tooling from the protected caller gitlink
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          /usr/bin/git -c protocol.file.allow=never submodule update --init -- modules/ModSecurity-test-Framework
+          test "$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)" = \
+            "$(git ls-tree "$GITHUB_SHA" modules/ModSecurity-test-Framework | awk '{print $3}')"
+      - id: setup-python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Verify Python interpreter contract
+        env:
+          EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: python3 -I ci/run-trusted-framework.py --tool python-interpreter --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+      - name: Download no-CRS broker evidence
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: trusted-nginx-root-broker-protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-no-crs
+          path: ${{ runner.temp }}/protected-nginx-root-evidence-${{ github.run_id }}-${{ github.run_attempt }}/no-crs
+
+      - name: Download OWASP CRS broker evidence
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: trusted-nginx-root-broker-protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-with-crs
+          path: ${{ runner.temp }}/protected-nginx-root-evidence-${{ github.run_id }}-${{ github.run_attempt }}/with-crs
+
+      - name: Validate exact broker evidence without root
+        env:
+          TARGET_PARENT_SHA: ${{ inputs.parent_head_sha }}
+          NO_CRS_RUN_ID: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-no-crs
+          WITH_CRS_RUN_ID: protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-with-crs
+        run: |
+          set -euo pipefail
+          python3 -I ci/run-trusted-framework.py --tool broker-caller --connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" -- verify-evidence \
+            --target-sha "$TARGET_PARENT_SHA" \
+            --no-crs-run-id "$NO_CRS_RUN_ID" \
+            --with-crs-run-id "$WITH_CRS_RUN_ID"
+
+  result:
+    needs:
+      - prepare-manifests
+      - run-no-crs-broker
+      - run-with-crs-broker
+      - verify-evidence
+    if: >-
+      ${{ always() &&
+          github.event_name == 'workflow_dispatch' &&
+          github.repository == 'Easton97-Jens/ModSecurity-conector' &&
+          github.event.repository.fork == false &&
+          github.ref == 'refs/heads/master' &&
+          github.event.repository.default_branch == 'master' }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Report the fail-closed broker lifecycle result
+        env:
+          CALLER_COMMIT: ${{ github.sha }}
+          TARGET_PARENT_SHA: ${{ inputs.parent_head_sha }}
+          PREPARE_RESULT: ${{ needs.prepare-manifests.result }}
+          NO_CRS_RESULT: ${{ needs.run-no-crs-broker.result }}
+          WITH_CRS_RESULT: ${{ needs.run-with-crs-broker.result }}
+          EVIDENCE_RESULT: ${{ needs.verify-evidence.result }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "Caller commit: $CALLER_COMMIT"
+          printf '%s\n' "Declarative target Parent SHA: $TARGET_PARENT_SHA"
+          printf '%s\n' "Protected broker SHA: 8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
+          printf '%s\n' "Protected Framework SHA: 99a7985c1be92a2297b1b59208f64df6768f2cbf"
+          printf '%s\n' "no-CRS result: $NO_CRS_RESULT"
+          printf '%s\n' "OWASP-CRS result: $WITH_CRS_RESULT"
+          printf '%s\n' "Evidence-readback result: $EVIDENCE_RESULT"
+          printf '%s\n' "Evidence artifacts: trusted-nginx-root-broker-protected-nginx-root-${{ github.run_id }}-${{ github.run_attempt }}-{no-crs,with-crs}"
+          if [ "$PREPARE_RESULT" != success ] || [ "$NO_CRS_RESULT" != success ] || \
+             [ "$WITH_CRS_RESULT" != success ] || [ "$EVIDENCE_RESULT" != success ]; then
+            printf '%s\n' 'BLOCKED: protected broker lifecycle did not satisfy every required job.' >&2
+            printf '%s\n' 'GESPERRT: Der geschützte Broker-Lifecycle hat nicht jeden Pflichtjob erfüllt.' >&2
+            exit 1
+          fi
+          printf '%s\n' 'PASS: no-CRS and OWASP-CRS broker evidence are fully bound and verified.'
+          printf '%s\n' 'PASS: no-CRS- und OWASP-CRS-Broker-Evidence sind vollständig gebunden und geprüft.'

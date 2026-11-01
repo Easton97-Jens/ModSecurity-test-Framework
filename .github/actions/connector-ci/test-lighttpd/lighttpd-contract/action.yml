@@ -1,0 +1,90 @@
+name: test-lighttpd / lighttpd-contract
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up toolchain
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+    - name: Install and locate the actual Stock-sidecar development prerequisites
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --yes build-essential autoconf automake libtool pkg-config bison flex libpcre2-dev libyajl-dev libxml2-dev libcurl4-openssl-dev libssl-dev zlib1g-dev
+    - name: Build the Framework-approved shared ModSecurity SDK
+      env:
+        PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        python3 -P - "$RUNNER_TEMP" <<'PY'
+        from pathlib import Path
+        import sys
+        from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root
+        validate_output_root(Path.cwd(), Path(sys.argv[1]))
+        PY
+        umask 077
+        sdk_root=$(mktemp -d "$RUNNER_TEMP/selected-modsecurity-sdk.XXXXXXXX")
+        env \
+          VERIFIED_RUN_ROOT="$sdk_root" \
+          BUILD_ROOT="$sdk_root/build" \
+          SOURCE_ROOT="$sdk_root/src" \
+          TMP_ROOT="$sdk_root/tmp" \
+          LOG_ROOT="$sdk_root/logs" \
+          CACHE_ROOT="$sdk_root/cache-v2" \
+          CONNECTOR_COMPONENT_CACHE="$sdk_root/cache-v2/shared" \
+          RUNTIME_REPORT_OUTPUT_ROOT="$sdk_root/build/runtime-component-reports" \
+          RUNTIME_COMPONENT_TARGET=shared \
+          ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 \
+          /bin/sh modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/provisioning/cache/with-runtime-components.sh \
+          /bin/sh -eu -s <<'SDK_EXPORT'
+            test -f "$MODSECURITY_INCLUDE_DIR/modsecurity/modsecurity.h"
+            test -f "$MODSECURITY_LIB_DIR/libmodsecurity.so"
+            printf "%s\n" \
+              "MODSECURITY_INCLUDE_DIR=$MODSECURITY_INCLUDE_DIR" \
+              "MODSECURITY_LIB_DIR=$MODSECURITY_LIB_DIR" \
+              "MODSECURITY_LIB_FILE=$MODSECURITY_LIB_DIR/libmodsecurity.so" >> "$GITHUB_ENV"
+        SDK_EXPORT
+    - name: Check lighttpd Common and host contracts
+      shell: bash -e {0}
+      run: |
+        set -eu
+        make check-lighttpd-common-adoption
+        make check-remaining-connectors-host-integration
+        make check-remaining-connectors-build-wiring
+        make check-remaining-connectors-start-wiring
+        make check-remaining-connectors-claim-policy
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group lighttpd --strict-skips
+    - name: Execute lighttpd technical-error callers and negative controls
+      env:
+        TMPDIR: ${{ runner.temp }}
+        RUNNER_TEMP: ${{ runner.temp }}
+      shell: bash -e {0}
+      run: make check-i10-lighttpd-callers
+    - name: Run private fixture namespace contract tests
+      env:
+        PYTHONDONTWRITEBYTECODE: "1"
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        namespace_temp_root="$(/usr/bin/mktemp -d "${RUNNER_TEMP}/lighttpd-namespace-contract.XXXXXX")"
+        /usr/bin/chmod 700 -- "$namespace_temp_root"
+        export LIGHTTPD_NAMESPACE_TEST_TEMP_PARENT="$namespace_temp_root"
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group lighttpd --strict-skips

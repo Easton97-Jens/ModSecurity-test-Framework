@@ -2,25 +2,28 @@
 
 **Sprache:** [English](connector-integration.md) | Deutsch
 
-Das Framework liefert wiederverwendbare Fälle, Runner, Normalizer,
-Katalogchecks und Report-Generierung. Ein Connector-Repository besitzt seinen
-Host-Adapter, Build-Integration, Runtime-Konfiguration, ausführbaren Harness
-und kanonische Host-Evidence.
+Das Framework besitzt sämtliche Tests und Testinfrastruktur, einschließlich
+connectorspezifischer Host-Testadapter, Harnesses, Provisionierung, Auswahl,
+Sammlung, Normalisierung, Validierung und Testreport-Generierung. Das
+Connector-Repository besitzt produktive Hostadapter, Build, Runtime-Konfiguration,
+Installation und Delivery sowie kleine gepinnte Testeinstiege.
 
 ## Ownership-Grenze
 
 | Bereich | Eigentümer |
 |---|---|
-| YAML-Fallschema, Auswahl und Normalisierung | Framework |
-| Host-Hooks, Filter, Plugins und Direktiven | Connector-Repository |
-| Host-Build und Runtime-Konfiguration | Connector-Repository |
-| Connector-Capabilities und Integrationsmodus | Connector-Repository |
-| Kanonische Runtime-Artefakte und Promotion-Entscheidung | Connector-Repository |
-| Generierte Cross-Case-Sicht | Framework-Generator mit deklarierten Eingaben |
+| Sämtliche Tests, Fallzulassung, Fixtures und Normalisierung | Framework |
+| Host-Testadapter, Harnesses und Testkomponenten-Vorbereitung | Framework |
+| Produktive Host-Hooks, Filter, Plugins und Direktiven | Connector-Repository |
+| Produkt-Build und produktive Runtime-Konfiguration | Connector-Repository |
+| Connector-Capabilities, Integrationsmodus und Produkt-Promotion | Connector-Repository mit revisionsgebundener Evidence |
+| Sammlung, Validierung und generierte Cross-Case-Sicht | Framework mit deklarierten laufbezogenen Inputs |
 
-Das Framework kann `BLOCKED` melden, wenn ein benötigter
-Connector-eigener Harness fehlt. Ein Framework-Starter- oder Self-Test-PASS
-beweist niemals einen Host-Lifecycle.
+[Die Testschnittstelle](connector-test-suite.de.md) verlangt explizite
+`TEST_ROOT`, `CONNECTOR_ROOT`, exakte Revision, Profil und externe Ausgabe.
+Das Framework hat kein Connector-Submodul. Ein Framework-Starter- oder
+Self-Test-PASS beweist niemals einen Host-Lifecycle; fehlende erforderliche
+Hostvoraussetzungen bleiben `BLOCKED`.
 
 ## Adaptervertrag
 
@@ -54,7 +57,7 @@ auch im Connector-Repository. Das Framework validiert Dokumentationsmetadaten,
 ohne C-Code des Connectors zu linken.
 
 Die ModSecurity-v3-Akquise akzeptiert nur den kanonischen HTTPS-Origin und den
-geprüften vollständigen Commit aus `ci/lib/common.sh`. Der Release-Tag ist
+geprüften vollständigen Commit aus Framework-`ci/lib/common.sh`. Der Release-Tag ist
 Metadatum und kein Git-Selektor: Leere Legacy-Aliase `MODSECURITY_*` normalisieren zur
 geprüften Identität; ein nichtleerer abweichender Wert stoppt vor einer
 Git-Nutzung. Der Fetch-Pfad erstellt immer einen frischen Checkout, prüft den
@@ -85,16 +88,16 @@ Shell weiterhin aus einer vertrauenswürdigen Umgebung starten.
 
 | Connector | Framework-Rolle | Erforderliche Evidence-Quelle |
 |---|---|---|
-| Apache | Anwendbare Fälle auswählen und materialisieren | Connector-eigener Apache-Host-Harness und Artefakte |
-| NGINX | Anwendbare Fälle auswählen und materialisieren | Connector-eigener NGINX-Host-Harness und Artefakte |
-| HAProxy | Anwendbare Fälle auswählen und normalisieren | Connector-eigener Harness des gewählten Integrationsmodus und Artefakte |
-| Envoy | Anwendbare Fälle auswählen und normalisieren | Connector-eigener Harness des gewählten Integrationsmodus und Artefakte |
-| Traefik | Anwendbare Fälle auswählen und normalisieren | Connector-eigener Harness des gewählten Integrationsmodus und Artefakte |
-| lighttpd | Anwendbare Fälle auswählen und normalisieren | Connector-eigener Harness des gewählten Integrationsmodus und Artefakte |
+| Apache | Anwendbare Fälle auswählen und materialisieren | Framework-Apache-Testadapter und beobachtete Hostartefakte |
+| NGINX | Anwendbare Fälle auswählen und materialisieren | Framework-NGINX-Testadapter und beobachtete Hostartefakte |
+| HAProxy | Anwendbare Fälle auswählen und normalisieren | Framework-Testadapter des gewählten Integrationsmodus und beobachtete Hostartefakte |
+| Envoy | Anwendbare Fälle auswählen und normalisieren | Framework-Testadapter des gewählten Integrationsmodus und beobachtete Hostartefakte |
+| Traefik | Anwendbare Fälle auswählen und normalisieren | Framework-Testadapter des gewählten Integrationsmodus und beobachtete Hostartefakte |
+| lighttpd | Anwendbare Fälle auswählen und normalisieren | Framework-Testadapter des gewählten Integrationsmodus und beobachtete Hostartefakte |
 
 Der gewählte Integrationsmodus, das Capability-Manifest, die
-Konfigurationsreferenz und das Lifecycle-Ergebnis gehören zum
-Connector-Repository. Dadurch wird Dokumentations-, Compatibility- oder
+produktive Konfigurationsreferenz gehören zum Connector-Repository.
+Das Framework erfasst und validiert beobachtete Lifecycle-Ergebnisse. Dadurch wird Dokumentations-, Compatibility- oder
 Prototyp-Material nicht als native Runtime-Implementierung behandelt.
 
 ### With-CRS-/No-MRTS-Fünf-Connector-Profil
@@ -112,8 +115,8 @@ Request- und Transaktionskorrelation, gepinnte CRS-Provenance, das
 Cleanup-Receipt-Felder. Er akzeptiert weder dynamische Adapterauswahl noch ein
 unvollständiges Fünf-Connector-Aggregat.
 
-Dies ist eine Validierungsgrenze für vom Host bereitgestellte Evidenz, kein
-Framework-Host-Harness. Das Profil und ein erfolgreicher Validatorlauf belegen
+Dies ist eine Validierungsgrenze für vom Host bereitgestellte Evidenz;
+die Definition dieses Profils führt keinen Framework-Host-Harness aus. Das Profil und ein erfolgreicher Validatorlauf belegen
 nicht, dass fünf Hosts liefen, ein Connector produktionsreif ist oder MRTS-
 Prozesse außerhalb des gelieferten Evidenzvertrags fehlten. Diese Runtime-
 Fakten bleiben Verantwortung des Connector-Repositories. Eine erfolgreiche
@@ -122,7 +125,8 @@ Framework-Ausgabe ist ausdrücklich `CONTRACT_VALIDATED` mit
 
 Das ausgewählte HAProxy-Tupel für dieses Profil ist
 `haproxy-spoe-spop-agent` mit `spoe-spop-agent`. Sein Framework-Smoke-
-Entrypoint ruft den connector-eigenen SPOE/SPOP-Smoke-Harness auf. Das echte
+Entrypoint ruft den Framework-eigenen SPOE/SPOP-Smoke-Harness für das
+explizit ausgewählte Connector-Produkt auf. Das echte
 native HTX-Tupel `haproxy-native-htx-filter` mit `native-htx-filter` bleibt
 eine explizite separate Parent-Full-Lifecycle-Identität und wird als Evidenz
 für das Fünf-Connector-Profil abgewiesen. Diese Bindung ändert keine

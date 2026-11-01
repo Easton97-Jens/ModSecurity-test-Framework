@@ -1,0 +1,168 @@
+name: test-full-smoke-sequential / manual-heavy-runtime-validation
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+  caller-matrix:
+    description: Caller matrix context, passed explicitly
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up toolchain
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+    - name: Initialize paths
+      id: paths
+      shell: bash -e {0}
+      run: |
+        set -eu
+        readonly ownership_mode_format='%u:%g:%a'
+        actual="$(git rev-parse --verify 'HEAD^{commit}')"
+        printf '%s\n' "$EXPECTED_PARENT_SHA" | /usr/bin/grep -Eq '^[0-9a-f]{40}$'
+        test "$actual" = "$EXPECTED_PARENT_SHA"
+        test "$(/usr/bin/id -u)" -ne 0
+        /usr/bin/sudo -n /usr/bin/id -u | /usr/bin/grep -qx 0
+        /usr/bin/sudo -n /usr/bin/id -g | /usr/bin/grep -qx 0
+        /usr/bin/getent group "$NGINX_FUNCTIONAL_WORKER_GROUP" >/dev/null 2>&1 || \
+          /usr/bin/sudo -n /usr/sbin/groupadd --system "$NGINX_FUNCTIONAL_WORKER_GROUP"
+        /usr/bin/getent passwd "$NGINX_FUNCTIONAL_WORKER_USER" >/dev/null 2>&1 || \
+          /usr/bin/sudo -n /usr/sbin/useradd --system --no-create-home --no-user-group \
+            --gid "$NGINX_FUNCTIONAL_WORKER_GROUP" --shell /usr/sbin/nologin \
+            "$NGINX_FUNCTIONAL_WORKER_USER"
+        worker_shell="$(/usr/bin/getent passwd "$NGINX_FUNCTIONAL_WORKER_USER" | /usr/bin/cut -d: -f7)"
+        worker_group_gid="$(/usr/bin/getent group "$NGINX_FUNCTIONAL_WORKER_GROUP" | /usr/bin/cut -d: -f3)"
+        worker_uid="$(/usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/id -u)"
+        worker_gid="$(/usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/id -g)"
+        test "$worker_shell" = /usr/sbin/nologin
+        test "$worker_uid" -ne 0
+        test "$worker_gid" -ne 0
+        test "$worker_gid" = "$worker_group_gid"
+        test -d /tmp
+        test ! -L /tmp
+        test "$(/usr/bin/stat -c '%u:%a' /tmp)" = 0:1777
+        runner_uid="$(/usr/bin/id -u)"
+        runner_gid="$(/usr/bin/id -g)"
+        functional_job_root="$(/usr/bin/sudo -n /usr/bin/mktemp -d /tmp/ModSecurity-conector-nginx-functional-root.XXXXXX)"
+        case "$functional_job_root" in
+          /tmp/ModSecurity-conector-nginx-functional-root.*) ;;
+          *) exit 1 ;;
+        esac
+        test -d "$functional_job_root"
+        test ! -L "$functional_job_root"
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$functional_job_root")" = 0:0:700
+        /usr/bin/sudo -n /bin/chmod 711 "$functional_job_root"
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$functional_job_root")" = 0:0:711
+        verified_root="$functional_job_root/ModSecurity-conector-nginx-exact-head"
+        functional_parent="$functional_job_root/ModSecurity-conector-nginx-functional-parent"
+        /usr/bin/sudo -n /bin/mkdir "$verified_root"
+        /usr/bin/sudo -n /bin/chown "$runner_uid:$runner_gid" "$verified_root"
+        /usr/bin/sudo -n /bin/chmod 700 "$verified_root"
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$verified_root")" = "$runner_uid:$runner_gid:700"
+        test ! -e "$functional_parent"
+        test ! -L "$functional_parent"
+        /usr/bin/sudo -n /bin/mkdir "$functional_parent"
+        /usr/bin/sudo -n /bin/chmod 711 "$functional_parent"
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$functional_parent")" = 0:0:711
+        /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/test -x "$functional_job_root"
+        /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/test -x "$functional_parent"
+        if /usr/bin/sudo -n /usr/sbin/runuser -u "$NGINX_FUNCTIONAL_WORKER_USER" -- /usr/bin/test -x "$verified_root"; then
+          echo "full-smoke worker can traverse the private provisioning root" >&2
+          exit 1
+        fi
+        evidence_root="$verified_root/nginx-functional-a-evidence"
+        /bin/mkdir -m 700 "$evidence_root"
+        test "$(/usr/bin/stat -c "$ownership_mode_format" "$evidence_root")" = "$runner_uid:$runner_gid:700"
+        build_root="$verified_root/build"
+        build_root_apache="$verified_root/apache-build"
+        source_root="$verified_root/src"
+        {
+          echo "RUN_ROOT=$verified_root"
+          echo "VERIFIED_RUN_ROOT=$verified_root"
+          echo "NGINX_FUNCTIONAL_A_PARENT_ROOT=$functional_parent"
+          echo "NGINX_FUNCTIONAL_A_EVIDENCE_ROOT=$evidence_root"
+          echo "XDG_STATE_HOME=$verified_root/state"
+          echo "SOURCE_ROOT=$source_root"
+          echo "BUILD_ROOT=$build_root"
+          echo "TMP_ROOT=$verified_root/tmp"
+          echo "LOG_ROOT=$verified_root/logs"
+          echo "CONNECTOR_COMPONENT_CACHE=$verified_root/component-cache"
+          echo "RUNTIME_REPORT_OUTPUT_ROOT=$build_root/runtime-component-reports"
+          echo "NGINX_HARNESS_PARENT=$verified_root/nginx-harness"
+          echo "MODSECURITY_SOURCE_DIR=$source_root/ModSecurity_V3"
+          echo "MODSECURITY_V3_SOURCE_DIR=$source_root/ModSecurity_V3"
+          echo "PYTHONPYCACHEPREFIX=$verified_root/python-pycache"
+        } >> "$GITHUB_ENV"
+        {
+          echo "verified_root=$verified_root"
+          echo "build_root=$build_root"
+          echo "build_root_apache=$build_root_apache"
+          echo "source_root=$source_root"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Install selected Apache native lifecycle prerequisites
+      shell: bash -e {0}
+      run: |
+        set -eu
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --yes build-essential apache2-dev libmodsecurity-dev
+    - name: Lint and py-compile
+      shell: bash -e {0}
+      run: |
+        make setup-dev
+        make lint
+        find modules/ModSecurity-test-Framework/tests/normalizers modules/ModSecurity-test-Framework/tests/runners modules/ModSecurity-test-Framework/ci -type f -name '*.py' -print0 | xargs -0 -r .venv/bin/python -P -m py_compile
+        git diff --check
+
+    - name: Sequential full smoke
+      env:
+        CALLER_VARIANT: ${{ fromJSON(inputs.caller-matrix).variant }}
+      shell: bash -e {0}
+      run: |
+        set -eu
+        make PYTHON="$PWD/.venv/bin/python" check-bounded-smoke-runtime-contract
+        make fetch-deps
+        case "$CALLER_VARIANT" in
+          no-crs)
+            ON_DEMAND_TESTS=1 SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-no-crs
+            ;;
+          with-crs)
+            ON_DEMAND_TESTS=1 SMOKE_PREPARE_TIMEOUT_SECONDS=3600 REFRESH=1 make test-smoke-sequential-with-crs
+            ;;
+          *)
+            echo "unknown test variant: $CALLER_VARIANT" >&2
+            exit 1
+            ;;
+        esac
+
+    - name: Upload smoke artifacts
+      if: always()
+      continue-on-error: true
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: full-smoke-sequential-${{ fromJSON(inputs.caller-matrix).variant }}-artifacts
+        retention-days: 1
+        if-no-files-found: warn
+        path: |
+          ${{ steps.paths.outputs.build_root_apache }}/logs
+          ${{ steps.paths.outputs.build_root_apache }}/results
+          ${{ steps.paths.outputs.build_root }}/logs
+          ${{ steps.paths.outputs.build_root }}/results
+          ${{ steps.paths.outputs.build_root }}/runtime-component-reports
+          ${{ steps.paths.outputs.build_root }}/bounded-smoke-*
+          ${{ steps.paths.outputs.verified_root }}/nginx-functional-a-evidence

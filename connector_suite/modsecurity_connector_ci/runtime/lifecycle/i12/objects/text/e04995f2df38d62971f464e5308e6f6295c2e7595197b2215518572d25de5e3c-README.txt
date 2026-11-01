@@ -1,0 +1,15 @@
+Private HAProxy I12 source handoff
+
+This is test-only source instrumentation retained for #410 review. It does not install or change a product checkout. The manifest binds the exact base file bytes, current product revision, original retained build revision, HAProxy/SDK versions and every resulting source variant. Current product files are independently byte-equal to the 150 retained HAP/Common inputs. The retained source snapshot already contains Common observer C52 and SDK accessor89, while its missing observer header is explicitly supplied by this patch; do not misdescribe these as edits to Git revision3a.
+
+Copy the needed source files into a disposable directory without Git metadata. Create .codex-source-copy in that directory, then run through RTK:
+
+    rtk proxy python3 apply-to-source-copy.py --source-copy /path/to/disposable/source-copy --variant direct
+
+Use companion-host or spop-agent for the separate exact source variants. The common patch must be applied first; the helper does this, checks all base hashes, refuses Git/symlink targets, applies with fuzz0, and verifies every resulting byte hash. No patch application changes a delivery branch.
+
+helpers/ contains the exact C52/H5/SDK89 observer sources, native CAP SHA helper and errno/error-queue-preserving SSL_write capture helper. Compile own C17/C++17 helpers with Wall/Wextra/Werror and mark only third-party SDK headers as system headers. All 37 GNU wrap symbols are in manifest.json. A host additionally links the SSL_write helper and --wrap=SSL_write. The companion host/agent additionally link companion-observer.c and libcrypto. Paths to source copy, HAProxy3.2.25 build tree, SDK include/library, objects, external outputs and rpath must be supplied by the caller. Use the actual current repository-native build targets and source overlay arrangement; no bundled command uses an old retained host path or substitutes a build/config load for runtime evidence.
+
+fixtures/ retains exact launch/client/backend sources for the three primary v8 runs, four extra native-body/header predicates and two proposed SDK-owned limit fixtures. Their /mnt/fixtures, /mnt/artifacts and /task paths are fixed private isolated-runtime mount destinations. They are not host directory defaults. The private controller and its source/UID/resource/peer guards are deliberately not recreated or bypassed. A future runtime needs independently reviewed readonly bindings, private namespace admission and a fresh own nonce. openssl.cnf is public provider/certificate-request configuration; no generated certificate, private key or TLS session material is included.
+
+Exact source-copy application proves patch portability only. It does not prove binary reproducibility, host execution, future PASS or Root approval. Actual binary and runtime hashes remain in separately reviewed run evidence.

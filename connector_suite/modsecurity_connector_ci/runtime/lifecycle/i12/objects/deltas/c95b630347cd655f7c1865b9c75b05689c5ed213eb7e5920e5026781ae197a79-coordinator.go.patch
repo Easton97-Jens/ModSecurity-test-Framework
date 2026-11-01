@@ -1,0 +1,35 @@
+--- a/payload
++++ b/payload
+@@ -559,0 +560,5 @@
++	}
++	if probe, ok := e.tx.(interface {
++		I12Observe(int, int, int, int, int, bool)
++	}); ok {
++		probe.I12Observe(12, 1, 0, 0, 0, true)
+@@ -1335,0 +1341,26 @@
++
++// I12Observe forwards a direct source operation on the actual retained entry.
++func (a *Admission) I12Observe(operation, direction, eos, size, declaredSize int, result bool) {
++	if a == nil || a.e == nil {
++		return
++	}
++	a.e.mu.Lock()
++	defer a.e.mu.Unlock()
++	if probe, ok := a.e.tx.(interface {
++		I12Observe(int, int, int, int, int, bool)
++	}); ok {
++		probe.I12Observe(operation, direction, eos, size, declaredSize, result)
++	}
++}
++func (r *Response) I12Observe(operation, direction, eos, size, declaredSize int, result bool) {
++	if r == nil || r.e == nil {
++		return
++	}
++	r.e.mu.Lock()
++	defer r.e.mu.Unlock()
++	if probe, ok := r.e.tx.(interface {
++		I12Observe(int, int, int, int, int, bool)
++	}); ok {
++		probe.I12Observe(operation, direction, eos, size, declaredSize, result)
++	}
++}

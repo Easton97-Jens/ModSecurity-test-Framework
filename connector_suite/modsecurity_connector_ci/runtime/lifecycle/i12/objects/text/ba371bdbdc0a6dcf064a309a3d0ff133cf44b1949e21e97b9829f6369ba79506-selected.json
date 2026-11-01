@@ -1,0 +1,6 @@
+{
+  "leg_id": "haproxy-spop-request",
+  "case_id": "NEED-request-eos-once",
+  "run_scoped_case_id": "I12::haproxy-spop-request::NEED-request-eos-once",
+  "run": "20261014-hap-spop-request-01"
+}

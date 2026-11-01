@@ -1,0 +1,21 @@
+[
+  "#define _POSIX_C_SOURCE 200809L\n",
+  "#include <errno.h>\n",
+  "#include <stdio.h>\n",
+  "#include <string.h>\n",
+  "#include <time.h>\n",
+  "#include <openssl/sha.h>\n",
+  "#include \"native-lifecycle-observer.h\"\n",
+  "void haproxy_lifecycle_companion_observe(const void *transaction,const char *kind,\n",
+  "        const char *handle,unsigned int actual_operation) {\n",
+  "    const int saved=errno;\n",
+  "    if(handle!=NULL && strlen(handle)==64U) {\n",
+  "        unsigned char digest[SHA256_DIGEST_LENGTH];char hex[65];struct timespec now;\n",
+  "        if(SHA256((const unsigned char *)handle,64U,digest)!=NULL && clock_gettime(CLOCK_REALTIME,&now)==0) {\n",
+  "            for(size_t i=0;i<SHA256_DIGEST_LENGTH;++i)(void)snprintf(hex+2U*i,3,\"%02x\",digest[i]);\n",
+  "            fprintf(stderr,\"HAPROXY_COMPANION_LIFECYCLE {\\\"kind\\\":\\\"%s\\\",\\\"scope_call\\\":%llu,\\\"capability_sha256\\\":\\\"%s\\\",\\\"actual_operation\\\":%u,\\\"wall_ns\\\":%llu}\\n\",kind,(unsigned long long)msconnector_lifecycle_host_scope_call(transaction),hex,actual_operation,(unsigned long long)now.tv_sec*1000000000ULL+(unsigned long long)now.tv_nsec);\n",
+  "        }\n",
+  "    }\n",
+  "    errno=saved;\n",
+  "}\n"
+]

@@ -1,0 +1,57 @@
+name: test-apache / apache-autotools-bootstrap
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Setup python
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+    - name: Install Apache Autotools test prerequisites
+      shell: bash -e {0}
+      run: |
+        set -eu
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends --yes \
+          apache2 \
+          apache2-dev \
+          autoconf \
+          automake \
+          build-essential \
+          curl \
+          libmodsecurity-dev \
+          libtool \
+          make
+    - name: Verify Apache intervention cleanup source contract
+      shell: bash -e {0}
+      run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group apache
+    - name: Verify Apache native and APR lifecycle failures
+      shell: bash -e {0}
+      run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group apache
+    - name: Verify native response limits before EOS and after commit
+      shell: bash -e {0}
+      run: make check-apache-native-response-limit
+    - name: Verify Apache physical event sink and caller failures
+      shell: bash -e {0}
+      run: make check-apache-event-sink
+    - name: Execute selected Apache contracts (specialist bootstrap is on demand)
+      env:
+        APACHE_AUTOTOOLS_TEST_PARENT: ${{ runner.temp }}
+        MODSECURITY_PREFIX: /usr
+      shell: bash -e {0}
+      run: make check-apache-autotools-bootstrap

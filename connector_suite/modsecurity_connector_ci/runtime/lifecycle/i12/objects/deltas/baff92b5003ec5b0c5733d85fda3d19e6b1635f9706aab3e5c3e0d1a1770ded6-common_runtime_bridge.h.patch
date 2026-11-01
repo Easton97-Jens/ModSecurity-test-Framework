@@ -1,0 +1,6 @@
+--- a/payload
++++ b/payload
+@@ -114,0 +115,3 @@
++void msc_envoy_ext_proc_i12_observer_snapshot(void);
++void msc_envoy_ext_proc_transaction_i12_observe(msc_envoy_ext_proc_transaction *transaction, int operation, int direction, int eos, size_t size, size_t declared_size, int result);
++

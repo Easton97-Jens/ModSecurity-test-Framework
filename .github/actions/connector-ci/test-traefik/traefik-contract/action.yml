@@ -1,0 +1,106 @@
+name: test-traefik / traefik-contract
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up toolchain
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+    - name: Execute Traefik engine service regression contracts
+      shell: bash -e {0}
+      run: |
+        set -eu
+        command -v cc >/dev/null
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group traefik-python
+    - name: Verify native provenance with real foreign Unix peers
+      env:
+        PYTHON_EXECUTABLE: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: |
+        set -eu
+        sudo mkdir -p /var/tmp/codex/ModSecurity-conector
+        provenance_root=$(sudo mktemp -d /var/tmp/codex/ModSecurity-conector/ci-provenance.XXXXXX)
+        trap 'sudo rm -rf -- "$provenance_root"' EXIT
+        sudo chmod 0755 "$provenance_root"
+        sudo env RUNNER_TEMP="$provenance_root" \
+          CONNECTOR_ROOT="$CONNECTOR_ROOT" CONNECTOR_REVISION="$CONNECTOR_REVISION" \
+          TEST_ROOT="$TEST_ROOT" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" FRAMEWORK_REVISION="$FRAMEWORK_REVISION" \
+          CONNECTOR_TEST_PROFILE="$CONNECTOR_TEST_PROFILE" CONNECTOR_TEST_OUTPUT_ROOT="$provenance_root" \
+          PYTHONPATH="$TEST_ROOT:$TEST_ROOT/connector_suite" PYTHONSAFEPATH=1 \
+          PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
+          "$PYTHON_EXECUTABLE" -P "$TEST_ROOT/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --group traefik-peer --strict-skips
+    - name: Install Go required by the Traefik observer
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        cache: false
+        check-latest: false
+        go-version-file: .go-version
+    - name: Execute Traefik technical-error callers and negative controls
+      env:
+        TMPDIR: ${{ runner.temp }}
+        RUNNER_TEMP: ${{ runner.temp }}
+      shell: bash -e {0}
+      run: make check-i10-traefik-callers
+    - name: Execute the Traefik response-observer suite
+      shell: bash -e {0}
+      run: |
+        export GOTOOLCHAIN=local
+        export TMPDIR=/tmp
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --module connectors/traefik/response_observer
+    - name: Check Traefik Common and host contracts
+      shell: bash -e {0}
+      run: |
+        set -eu
+        make check-traefik-common-adoption
+        make check-remaining-connectors-host-integration
+        make check-remaining-connectors-build-wiring
+        make check-remaining-connectors-start-wiring
+        make check-remaining-connectors-claim-policy
+    - name: Exercise staged executable and private socket regressions
+      env:
+        TMPDIR: ${{ runner.temp }}
+        PYTHONDONTWRITEBYTECODE: "1"
+      shell: bash -e {0}
+      run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group traefik-python
+    - name: Collect host runtime preflight evidence
+      if: always()
+      env:
+        CONNECTOR: traefik
+        RUNTIME_LOCK: modules/ModSecurity-test-Framework/ci/provisioning/runtime-component-lock.json
+      shell: bash -e {0}
+      run: |
+        set -u
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/common/collect_hostruntime_preflight_evidence.py \
+          --connector "$CONNECTOR" \
+          --runtime-lock "$RUNTIME_LOCK" \
+          --runner-temp "$RUNNER_TEMP" \
+          --binary-name traefik \
+          --profile traefik-forwardauth \
+          --config connectors/traefik/config/traefik-forwardauth.conf \
+          --fixture connectors/traefik/config/traefik-native-middleware-dynamic.yaml \
+          --profile traefik-native \
+          --config connectors/traefik/config/traefik-forwardauth.conf \
+          --fixture connectors/traefik/config/traefik-native-middleware-dynamic.yaml
+    - name: Upload sanitized host runtime evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: traefik-hostruntime-evidence
+        path: ${{ runner.temp }}/hostruntime-evidence/traefik
+        if-no-files-found: error

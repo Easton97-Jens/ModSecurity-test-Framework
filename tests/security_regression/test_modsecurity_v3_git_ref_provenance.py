@@ -299,6 +299,7 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         ) as temporary:
             temporary_path = Path(temporary)
             environment, _, _, _, _ = self.create_fixture(temporary_path)
+            environment["TEST_ROOT"] = environment["FRAMEWORK_ROOT"]
             environment.pop("CI_INHERITED_UPSTREAM_ENV", None)
             environment.pop("CI_INHERITED_UPSTREAM_ENV_STATUS", None)
             common = Path(environment["FRAMEWORK_ROOT"]) / "ci/lib/common.sh"

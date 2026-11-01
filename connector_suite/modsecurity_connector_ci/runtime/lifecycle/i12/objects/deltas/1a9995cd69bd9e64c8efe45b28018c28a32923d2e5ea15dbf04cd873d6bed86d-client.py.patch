@@ -1,0 +1,10 @@
+--- a/payload
++++ b/payload
+@@ -5 +5 @@
+-name=sys.argv[1];body=b'haproxy-lifecycle-main\n' if name=='main' else b'neighbor'
++name=sys.argv[1];body=('haproxy-lifecycle-'+name+'\n').encode()
+@@ -42,3 +42 @@
+-expected_status=200 if name=='main' else 200
+-row['source_bound_expected_status']=expected_status
+-if row['status']!=expected_status or not row['body_complete']:raise SystemExit(1)
++if row['status']!=200 or not row['body_complete']:raise SystemExit(1)

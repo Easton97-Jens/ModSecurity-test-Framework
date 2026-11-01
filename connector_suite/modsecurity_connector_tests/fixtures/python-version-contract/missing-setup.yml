@@ -1,0 +1,11 @@
+name: missing setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fixture-job:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Use Python without setup
+        run: python3 -c 'print("unsafe")'

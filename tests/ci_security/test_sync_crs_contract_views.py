@@ -82,7 +82,12 @@ class SyncCrsContractViewsTests(unittest.TestCase):
             check=False,
             capture_output=True,
             text=True,
-            env={"PATH": "/usr/bin:/bin", "PYTHONNOUSERSITE": "1"},
+            env={
+                "PATH": "/usr/bin:/bin",
+                "PYTHONPATH": str(ROOT),
+                "PYTHONSAFEPATH": "1",
+                "PYTHONNOUSERSITE": "1",
+            },
         )
 
     def _copy_fixture(self, root: Path) -> None:

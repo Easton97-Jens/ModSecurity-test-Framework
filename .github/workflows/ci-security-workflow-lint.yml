@@ -81,6 +81,19 @@ jobs:
           [ "${#workflow_files[@]}" -gt 0 ]
           "$TOOLS_DIR/actionlint" -shellcheck="$TOOLS_DIR/shellcheck" "${workflow_files[@]}"
 
+      - name: Lint actual connector composite action source
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+          ACTION_SYNTAX_ROOT: ${{ runner.temp }}/connector-composite-syntax
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/connector_suite
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$ACTION_SYNTAX_ROOT"
+          python3 ci/checks/security/check-connector-composite-actions.py \
+            --framework-root "$GITHUB_WORKSPACE" --output-root "$ACTION_SYNTAX_ROOT" \
+            --actionlint "$TOOLS_DIR/actionlint" --shellcheck "$TOOLS_DIR/shellcheck"
+
       - name: Validate Framework workflow security contract
         run: |
           set -euo pipefail

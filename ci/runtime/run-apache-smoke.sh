@@ -3,7 +3,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/path-bootstrap.sh"
-CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:?CONNECTOR_ROOT is required explicitly}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
 . "$CI_ROOT/lib/mrts-common.sh"
@@ -360,4 +360,4 @@ LOG_DIR="$APACHE_RUNTIME_LOG_DIR" \
     MODSECURITY_RULE_PREAMBLE_FILE="$MODSECURITY_RULE_PREAMBLE_FILE" \
     SMOKE_CASES="$SMOKE_CASES" \
     CASE_SCOPE="$CASE_SCOPE" \
-    FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$CONNECTOR_ROOT/connectors/apache/harness/run_apache_smoke.sh"
+    FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$TEST_ROOT/connector_suite/adapters/apache/harness/run_apache_smoke.sh"

@@ -1,0 +1,9 @@
+name: Insecure zizmor fixture
+on: pull_request_target
+permissions:
+  contents: read
+jobs:
+  unsafe:
+    runs-on: ubuntu-26.04
+    steps:
+      - run: echo "${{ github.event.pull_request.title }}"

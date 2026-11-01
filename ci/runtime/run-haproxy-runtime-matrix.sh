@@ -3,7 +3,7 @@ set -u
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/path-bootstrap.sh"
-CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:?CONNECTOR_ROOT is required explicitly}"
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
 RESULTS_ROOT="${RESULTS_ROOT:-$BUILD_ROOT/results}"
 TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp/haproxy-runtime-matrix}"

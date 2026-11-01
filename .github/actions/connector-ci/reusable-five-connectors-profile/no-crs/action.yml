@@ -1,0 +1,263 @@
+name: reusable-five-connectors-profile / no-crs
+description: Framework-owned connector tests; Parent retains its job and check identity.
+inputs:
+  framework-revision:
+    description: Exact Framework commit pinned by this caller
+    required: true
+  caller-matrix:
+    description: Caller matrix context, passed explicitly
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
+    - name: Set up toolchain
+      id: setup-python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version-file: .python-version
+        check-latest: false
+
+    - name: Verify Python interpreter contract
+      env:
+        EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+
+    - name: Set up canonical Go for Envoy and Traefik builds
+      if: ${{ fromJSON(inputs.caller-matrix).connector == 'envoy' || fromJSON(inputs.caller-matrix).connector == 'traefik' }}
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: .go-version
+        check-latest: false
+        cache: false
+
+    - name: Verify declared fixed profile
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/five-connector-no-crs-profile.py \
+          --profile "$FIVE_CONNECTOR_PROFILE" \
+          --verify-row \
+          --connector "$CONNECTOR" \
+          --integration-mode "$CI_INTEGRATION_MODE" \
+          --protocol "$CI_PROTOCOL" \
+          --phase4-mode "$CI_PHASE4_MODE" \
+          --evidence-scope "$CI_EVIDENCE_SCOPE" \
+          --connector-profile "$CI_CONNECTOR_PROFILE"
+
+    - name: Declare selected profile and evidence scope
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        {
+          echo "### $CONNECTOR CI profile"
+          echo
+          echo "| Matrix axis | Selected value |"
+          echo "| --- | --- |"
+          echo "| profile | \`$CI_PROFILE\` |"
+          echo "| connector profile | \`$CI_CONNECTOR_PROFILE\` |"
+          echo "| integration mode | \`$CI_INTEGRATION_MODE\` |"
+          echo "| protocol | \`$CI_PROTOCOL\` |"
+          echo "| Phase-4 mode | \`$CI_PHASE4_MODE\` |"
+          echo "| evidence scope | \`$CI_EVIDENCE_SCOPE\` |"
+          echo
+          echo "This job runs only the fixed canonical No-CRS baseline. It does not claim CRS, MRTS, production, full-matrix, HTTP/2, HTTP/3, or unobserved response behavior."
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Initialize private canonical roots
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+        SETUP_PYTHON_PATH: ${{ steps.setup-python.outputs.python-path }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        parent_commit=$(git rev-parse HEAD)
+        framework_commit=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+        test "$parent_commit" = "$GITHUB_SHA"
+        verified_root="$RUNNER_TEMP/ModSecurity-conector-verified/$CI_PROFILE/$parent_commit/$framework_commit/$CONNECTOR/$NO_CRS_RUN_ID"
+        build_root="$verified_root/build"
+        verified_evidence_root="$verified_root/evidence"
+        evidence_root="$verified_evidence_root/no-crs-evidence"
+        run_root="$verified_root/runs"
+        log_root="$verified_root/run-logs"
+        diagnostic_root="$verified_root/failure-diagnostics"
+        cache_root="$verified_root/cache-v2"
+        umask 077
+        mkdir -p "$evidence_root" "$diagnostic_root"
+        printf '%s\n' \
+          "connector=$CONNECTOR" \
+          "profile=$CI_PROFILE" \
+          "run_id=$NO_CRS_RUN_ID" \
+          "parent_commit=$parent_commit" \
+          "framework_commit=$framework_commit" \
+          > "$diagnostic_root/identity.txt"
+        {
+          echo "FIVE_CONNECTOR_PARENT_COMMIT=$parent_commit"
+          echo "FIVE_CONNECTOR_FRAMEWORK_COMMIT=$framework_commit"
+          echo "VERIFIED_RUN_ROOT=$verified_root"
+          echo "VERIFIED_BUILD_ROOT=$build_root"
+          echo "VERIFIED_EVIDENCE_ROOT=$verified_evidence_root"
+          echo "RUNTIME_RUN_ROOT=$run_root"
+          echo "RUNTIME_LOG_ROOT=$log_root"
+          echo "FIVE_CONNECTOR_DIAGNOSTIC_ROOT=$diagnostic_root"
+          echo "BUILD_ROOT=$build_root"
+          echo "TMP_ROOT=$build_root/tmp"
+          echo "LOG_ROOT=$build_root/logs"
+          echo "CACHE_ROOT=$cache_root"
+          echo "VERIFIED_COMPONENT_CACHE=$cache_root/shared"
+          echo "CONNECTOR_COMPONENT_CACHE=$cache_root/shared"
+          echo "SOURCE_ROOT=$verified_root/src"
+          echo "EVIDENCE_ROOT=$evidence_root"
+          echo "NO_CRS_EVIDENCE_ROOT=$evidence_root"
+          echo "RUNTIME_REPORT_OUTPUT_ROOT=$build_root/runtime-component-reports"
+          echo "PYTHON=$SETUP_PYTHON_PATH"
+          echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+        } >> "$GITHUB_ENV"
+
+    - name: Prepare framework dependencies
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        make setup-dev
+
+    - name: Provision host component
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        case "$CONNECTOR" in
+          apache|haproxy)
+            RUNTIME_COMPONENT_TARGET="$CONNECTOR" make prepare-runtime-components
+            ;;
+          envoy)
+            make prepare-envoy-runtime
+            ;;
+          traefik)
+            make prepare-traefik-runtime
+            ;;
+          lighttpd)
+            make prepare-lighttpd-runtime-build
+            ;;
+          *)
+            echo "FAIL: connector is outside the fixed profile: $CONNECTOR" >&2
+            exit 2
+            ;;
+        esac
+
+    - name: Build connector
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        make "build-$CONNECTOR"
+
+    - name: Validate retained Envoy and Traefik configuration inputs
+      if: ${{ fromJSON(inputs.caller-matrix).connector == 'envoy' || fromJSON(inputs.caller-matrix).connector == 'traefik' }}
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        make "check-config-$CONNECTOR"
+
+    - name: Run canonical minimal No-CRS runtime smoke
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        RUNTIME_EVIDENCE_ROOT="$EVIDENCE_ROOT" make "runtime-smoke-$CONNECTOR"
+
+    - name: Validate canonical evidence and profile receipt
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        make "evidence-check-$CONNECTOR"
+        python3 -P modules/ModSecurity-test-Framework/ci/checks/catalog/no_crs_baseline.py validate \
+          --evidence-root "$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID" \
+          --connector "$CONNECTOR" \
+          --capabilities "connectors/$CONNECTOR/capabilities.json" \
+          --check all
+        test -f "$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID/logs/five_connector_profile_receipt.log"
+
+    - name: Publish canonical status
+      if: always()
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        result="$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID/result.json"
+        test -f "$result"
+        status=$(python3 -P -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["status"])' "$result")
+        {
+          echo "### $CONNECTOR canonical No-CRS status"
+          echo
+          echo "\`$status\`"
+        } >> "$GITHUB_STEP_SUMMARY"
+        test "$status" = PASS
+
+    - name: Check process cleanup
+      if: always()
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        cleanup_log="$EVIDENCE_ROOT/$CONNECTOR/$NO_CRS_RUN_ID/logs/process_cleanup.log"
+        test -f "$cleanup_log"
+        test "$(cat "$cleanup_log")" = none
+
+    - name: Capture bounded connector failure diagnostics
+      if: failure()
+      env:
+        CONNECTOR: ${{ fromJSON(inputs.caller-matrix).connector }}
+      shell: bash -e {0}
+      run: |
+        set -euo pipefail
+        manifest="$FIVE_CONNECTOR_DIAGNOSTIC_ROOT/retained-paths.txt"
+        {
+          printf '%s\n' "connector=$CONNECTOR" "run_id=$NO_CRS_RUN_ID"
+          for root in "$LOG_ROOT" "$RUNTIME_LOG_ROOT" "$RUNTIME_REPORT_OUTPUT_ROOT"; do
+            if [ -d "$root" ]; then
+              printf 'files-under=%s\n' "$root"
+              find "$root" -xdev -type f -printf '%p\n' | sort
+            else
+              printf 'missing-root=%s\n' "$root"
+            fi
+          done
+        } > "$manifest"
+
+    - name: Upload bounded connector failure diagnostics
+      if: failure()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: five-connector-diagnostics-${{ fromJSON(inputs.caller-matrix).connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+        retention-days: 10
+        if-no-files-found: error
+        path: |
+          ${{ env.FIVE_CONNECTOR_DIAGNOSTIC_ROOT }}
+          ${{ env.LOG_ROOT }}
+          ${{ env.RUNTIME_LOG_ROOT }}
+          ${{ env.RUNTIME_REPORT_OUTPUT_ROOT }}
+
+    - name: Upload canonical connector evidence
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: five-no-crs-${{ fromJSON(inputs.caller-matrix).connector }}-${{ github.run_id }}-${{ github.run_attempt }}
+        retention-days: 10
+        if-no-files-found: error
+        path: ${{ env.EVIDENCE_ROOT }}/${{ fromJSON(inputs.caller-matrix).connector }}/${{ env.NO_CRS_RUN_ID }}/

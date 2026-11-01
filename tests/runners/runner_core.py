@@ -13,15 +13,16 @@ import sys
 import time
 from typing import Any, Iterable, Mapping
 
-FRAMEWORK_CI_LIB = Path(__file__).resolve().parents[2] / "ci" / "lib"
-if str(FRAMEWORK_CI_LIB) not in sys.path:
-    sys.path.insert(0, str(FRAMEWORK_CI_LIB))
 
-from adapter_interface import ConnectorAdapter
-from case_roots import case_dirs, infer_runner_scope, path_is_in_extra_root
-from generated_report_utils import write_generated_report_file  # noqa: E402
-from msconnector_models import intervention_from_expect, operation_status
-from runtime_path_safety import (  # noqa: E402
+from modsecurity_test_framework.runners.adapter_interface import ConnectorAdapter
+from modsecurity_test_framework.runners.case_roots import case_dirs, infer_runner_scope, path_is_in_extra_root
+from modsecurity_test_framework.support.generated_report_utils import write_generated_report_file  # noqa: E402
+from modsecurity_test_framework.runners.msconnector_models import (
+    intervention_from_expect,
+    operation_status,
+    validate_result_binding,
+)
+from modsecurity_test_framework.support.runtime_path_safety import (  # noqa: E402
     absolute_path_without_traversal,
     has_symlink_component,
     private_runtime_root,
@@ -1552,9 +1553,35 @@ def assert_phase4_log(
     return errors
 
 
-def phase4_log_metadata(phase4_log_file: str | Path | None) -> dict[str, Any]:
-    if phase4_log_file is None:
+def _phase4_intervention_for_binding(line, expected):
+    try:
+        item = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(item, dict) or item.get("event") != "phase4_intervention":
+        return None
+    if item.get("transaction_id") != expected["transaction_id"]:
+        return None
+    for field, value in expected.items():
+        if field in item and item[field] != value:
+            raise ValueError(f"phase4 result identity mismatch: {field}")
+    return item
+
+
+def phase4_log_metadata(
+    phase4_log_file: str | Path | None,
+    *,
+    binding: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Select one request's intervention; an unbound shared log proves nothing.
+
+    Legacy host events carry a transaction ID without the harness's run/case/
+    revision context. The caller supplies that context and must obtain the ID
+    from the actual request. Any context present in an event must agree too.
+    """
+    if phase4_log_file is None or binding is None:
         return {}
+    expected = validate_result_binding(binding)
     path = Path(phase4_log_file)
     if not path.exists():
         return {}
@@ -1563,12 +1590,12 @@ def phase4_log_metadata(phase4_log_file: str | Path | None) -> dict[str, Any]:
         line = line.strip()
         if not line:
             continue
-        try:
-            item = json.loads(line)
-        except json.JSONDecodeError:
+        item = _phase4_intervention_for_binding(line, expected)
+        if item is None:
             continue
-        if isinstance(item, dict) and item.get("event") == "phase4_intervention":
-            metadata = item
+        if metadata and metadata != item:
+            raise ValueError("conflicting phase4 events for one transaction identity")
+        metadata = item
     return metadata
 
 

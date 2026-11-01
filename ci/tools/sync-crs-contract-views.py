@@ -14,7 +14,11 @@ from pathlib import Path
 import re
 import tempfile
 
-from crs_contract_pins import CrsPins, load_crs_pins, require_regular_file_within_root
+from modsecurity_test_framework.support.crs_contract_pins import (
+    CrsPins,
+    load_crs_pins,
+    require_regular_file_within_root,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]

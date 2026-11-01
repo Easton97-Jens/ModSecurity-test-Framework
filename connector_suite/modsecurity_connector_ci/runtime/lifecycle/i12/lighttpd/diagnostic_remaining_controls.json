@@ -1,0 +1,14 @@
+{
+  "schema": "lighttpd-stock-native-applicable-negative-controls-v1",
+  "route": "lighttpd-stock-native-control",
+  "original_oracles_preserved": true,
+  "scope": "Each original obligation gets a distinct actual host/client/backend run. Observed transport or pass-through behavior cannot qualify absent native entity hooks, native timeout/cancel delivery, or Strict client abort.",
+  "cases": [
+    {"case_id": "NEED-missing-eos", "backend_short_length": true, "prove_unsupported_body_modes": true, "expected_visible_status": 200, "expected_client_exit": 1, "remaining_original_contract": "No stock entity callback delivers response body/EOS; client-observed incomplete framing is not native missing-EOS detection."},
+    {"case_id": "NEED-budget-precommit", "runtime_settings": {"max_event_json_bytes": "128"}, "request_marker": "block", "expected_visible_status": 500, "expected_client_exit": 0, "remaining_original_contract": "A genuine event serialization budget128 rejects the actual P1 denial event before upstream/commit. This is a technical event-budget failure, never native BODY_LIMIT or a body-streaming claim."},
+    {"case_id": "NEED-budget-postcommit", "runtime_settings": {"max_event_json_bytes": "128"}, "fault": "logging_error", "backend_chunk_delay_seconds": 0.2, "expected_visible_status": 200, "expected_client_exit": 0, "remaining_original_contract": "After actual response delivery, separately labelled logging boundary failure requests a technical event exceeding the genuine event serialization budget128. Real SDK return1 remains separate. Already transmitted status200 cannot be rewritten; no body-budget enforcement is claimed."},
+    {"case_id": "NEED-cancel", "backend_short_length": true, "expected_visible_status": 200, "expected_client_exit": 1, "remaining_original_contract": "Actual upstream premature EOF exercises transport cleanup. The native cancellation caller is compiled only in the absent stock body-hook ABI; SDK cancellation is not fabricated."},
+    {"case_id": "NEED-timeout", "backend_chunk_delay_seconds": 2, "client_timeout_seconds": 1, "expected_visible_status": 200, "expected_client_exit": 1, "remaining_original_contract": "A bounded independent client read timeout after actual response headers is recorded. No automatic native engine timer or Runtime timeout invocation is claimed; original native-timeout oracle remains unresolved."},
+    {"case_id": "NEED-abort-reset-observation", "backend_chunk_delay_seconds": 0.2, "abort_after_first_receive": true, "expected_visible_status": 200, "expected_client_exit": 0, "remaining_original_contract": "Actual client SO_LINGER(1,0) close after receiving bytes, host reset/cleanup and neighbor are observed. This is client-originated RST, not a supported connector Strict abort primitive."}
+  ]
+}

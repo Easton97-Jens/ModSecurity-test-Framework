@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 import unittest
 
-from tests.runners import nginx_native_operation_bundle as bundle
-from tests.runners import nginx_native_operation_projection as projection
+from modsecurity_test_framework.runners import nginx_native_operation_bundle as bundle
+from modsecurity_test_framework.runners import nginx_native_operation_projection as projection
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -38,7 +38,8 @@ class NativeProjectionTests(unittest.TestCase):
                 technical["http_status"] = 504
             proof["events"].insert(0, technical)
             if case_id in bundle.INPUT_CASES:
-                proof["actual_status"] = 400
+                proof["actual_status"] = 500
+                technical["http_status"] = 500
             if case_id == "early_mapping_failure_cleanup":
                 technical["transaction_id"] = ""
                 proof.update(events=[technical], transaction_ids=[], actual_status=500)
@@ -133,7 +134,7 @@ class NativeProjectionTests(unittest.TestCase):
         value = projection.project_native_operation(case, proof)
         self.assertEqual(case["phase"], 2)
         self.assertEqual(case["expected_status"], 500)
-        self.assertEqual(dict(value["native_expected_overrides"]), {"phase": 1, "expected_status": 400})
+        self.assertEqual(dict(value["native_expected_overrides"]), {"phase": 1, "expected_status": 500})
         with self.assertRaises(TypeError):
             value["native_expected_overrides"]["phase"] = 2
         with self.assertRaises(TypeError):

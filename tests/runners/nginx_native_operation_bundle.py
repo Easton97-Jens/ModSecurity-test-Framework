@@ -5,6 +5,8 @@ a trusted build. No artifacts are written and no native events are manufactured.
 """
 from __future__ import annotations
 
+from modsecurity_test_framework.connector_context import source_path, test_root
+
 import hashlib
 import json
 import math
@@ -12,9 +14,10 @@ import os
 from pathlib import Path
 import re
 import stat
-import sys
-import threading
 import types
+
+_WORKER_SELF_MAPS_HELPER_NAME = 'worker-self-maps.so'
+
 
 RAW_LIMIT = 1024 * 1024
 ARTIFACT_LIMIT = 64 * 1024 * 1024
@@ -22,7 +25,6 @@ MODE = "native-nginx-http-module"
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 RUN_ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
-_HELPER_LOCK = threading.RLock()
 RAW_CASES = frozenset({"invalid_content_length", "conflicting_content_length", "duplicate_transfer_encoding", "content_length_overflow"})
 INPUT_CASES = frozenset({"body_size_nonzero_with_null_data", "header_count_nonzero_with_null_headers"})
 MIME_CASES = frozenset({"phase4_in_scope_content_type", "phase4_content_type_with_charset", "phase4_out_of_scope_content_type", "phase4_missing_content_type"})
@@ -192,10 +194,44 @@ def required_source_paths(case_id):
         parent.update({"ci/runtime/lifecycle/nginx_sequence_client.py", "ci/runtime/lifecycle/nginx_sequence_upstream.py"})
         framework.add("tests/runners/nginx_http11_framing.py")
     if case_id in INPUT_CASES:
-        parent.add("tests/fixtures/nginx_common_input_fault.c")
+        parent.update({"tests/fixtures/nginx_common_input_fault.c",
+                       "tests/fixtures/nginx_worker_self_maps.c",
+                       "ci/runtime/lifecycle/nginx-worker-self-maps.py"})
     if case_id in FAULT_SOURCES:
         parent.add("tests/fixtures/" + FAULT_SOURCES[case_id])
     return frozenset({"parent:" + item for item in parent} | {"framework:" + item for item in framework})
+
+
+def _read_source_authority(name, sources):
+    """Read one source using its explicit reviewed Parent or Framework owner."""
+    owner, relative = name.split(":", 1)
+    root = sources.get(owner + "_root")
+    if owner == "parent":
+        # Admit the original authority with the same no-follow/owner guards.
+        descriptor = open_directory(root)
+        try:
+            metadata = os.fstat(descriptor)
+            require(metadata.st_uid == os.geteuid() and not metadata.st_mode & 0o022,
+                    "owned non-writable artifact authority required")
+        finally:
+            os.close(descriptor)
+        selected_parent = os.environ.get("CONNECTOR_ROOT")
+        if selected_parent and root.resolve() == Path(selected_parent).resolve():
+            require(sources.get("framework_root") == test_root(),
+                    "reviewed source requires the explicit selected Framework root")
+        path = source_path(relative, root=root)
+        roots = (root, sources.get("framework_root"))
+        require(all(isinstance(selected, Path) and selected.is_absolute()
+                    and ".." not in selected.parts for selected in roots),
+                "absolute artifact authority required")
+        require(any(path.is_relative_to(selected) for selected in roots),
+                "reviewed source must stay inside explicit Parent/Framework roots")
+        # Framework is a separate authority even when nested under Parent.
+        authority = roots[1] if path.is_relative_to(roots[1]) else roots[0]
+        raw = read_bounded_file(authority, path.relative_to(authority).as_posix())
+    else:
+        raw = read_bounded_file(root, relative)
+    return raw
 
 
 def verify_source_authority(record, envelope, sources):
@@ -211,9 +247,7 @@ def verify_source_authority(record, envelope, sources):
     require(isinstance(mapping, dict) and set(mapping) == required, "closed producer/source path set mismatch")
     captured = {}
     for name in sorted(required):
-        owner, relative = name.split(":", 1)
-        root = sources.get(owner + "_root")
-        raw = read_bounded_file(root, relative)
+        raw = _read_source_authority(name, sources)
         require(mapping[name] == digest(raw), "actual producer/source bytes mismatch: " + name)
         captured[name] = raw
     for container in (record.get("provenance"), record.get("result")):
@@ -225,7 +259,9 @@ def verify_source_authority(record, envelope, sources):
 
 
 def load_helpers(case_id, source_bytes, framework_root):
-    """Execute only caller-authorized, independently reopened source bytes."""
+    """Execute reopened sources with a private authenticated dependency table."""
+    import builtins
+
     _, main = route(case_id)
     dependencies = []
     if case_id in PHASE4_CASES:
@@ -237,27 +273,28 @@ def load_helpers(case_id, source_bytes, framework_root):
                 "captured HTTP/1.1 framing source is required")
         dependencies.append("nginx_http11_framing")
     modules = {}
-    previous = {}
-    # Imports are scoped under the lock and restored, not taken from arbitrary
-    # already-imported modules or receipt-controlled sys.path entries.
-    with _HELPER_LOCK:
-        try:
-            for name in dependencies + [main]:
-                relative = "tests/runners/" + name + ".py"
-                module = types.ModuleType(name)
-                module.__file__ = str(framework_root / relative)
-                previous[name] = sys.modules.get(name)
-                sys.modules[name] = module
-                if case_id in SEQUENCE_CASES and name == main:
-                    module._AUTHENTICATED_WIRE = modules["nginx_http11_framing"]
-                exec(compile(source_bytes["framework:" + relative], module.__file__, "exec"), module.__dict__)
-                modules[name] = module
-        finally:
-            for name, original in previous.items():
-                if original is None:
-                    sys.modules.pop(name, None)
-                else:
-                    sys.modules[name] = original
+    names = frozenset(dependencies + [main])
+
+    def authenticated_import(name, globals=None, locals=None, fromlist=(), level=0):
+        short = name.removeprefix("modsecurity_test_framework.runners.")
+        if level == 0 and short in names:
+            require(short in modules, "authenticated helper dependency order mismatch")
+            return modules[short]
+        if level == 0 and name == "modsecurity_test_framework.runners":
+            require(fromlist and all(item in modules for item in fromlist),
+                    "uncaptured helper import is forbidden")
+            return types.SimpleNamespace(**{item: modules[item] for item in fromlist})
+        return builtins.__import__(name, globals, locals, fromlist, level)
+
+    for name in dependencies + [main]:
+        relative = "tests/runners/" + name + ".py"
+        module = types.ModuleType("modsecurity_test_framework.authenticated_helpers." + name)
+        module.__file__ = str(framework_root / relative)
+        module.__dict__["__builtins__"] = {**vars(builtins), "__import__": authenticated_import}
+        if case_id in SEQUENCE_CASES and name == main:
+            module._AUTHENTICATED_WIRE = modules["nginx_http11_framing"]
+        exec(compile(source_bytes["framework:" + relative], module.__file__, "exec"), module.__dict__)
+        modules[name] = module
     return modules[main]
 
 
@@ -370,10 +407,40 @@ def read_invocation(reader, descriptor, case_id, operation, sources):
             if leaf not in raw:
                 raw[leaf] = reader.read(prefix + leaf)
     elif case_id in INPUT_CASES:
-        raw.update(read_hash_map(reader, prefix, receipt.get("artifacts_sha256"), COMMON_RAW))
-        raw.update(read_hash_map(reader, prefix, receipt.get("raw_artifacts_sha256"), COMMON_RAW))
+        artifacts, captures = receipt.get("artifacts_sha256"), receipt.get("raw_artifacts_sha256")
+        require(isinstance(artifacts, dict) and isinstance(captures, dict), "closed input artifact maps required")
+        helper_key, ledger = "worker_self_map_library_sha256", "worker-self-maps.raw"
+        helper_present = helper_key in artifacts
+        require(helper_present == (ledger in captures), "worker helper and sealed ledger must be paired")
+        expected_helper = sources.get(helper_key)
+        require(expected_helper is None or helper_present, "explicit worker helper must be declared")
+        if helper_present:
+            require(isinstance(expected_helper, str) and SHA256.fullmatch(expected_helper)
+                    and artifacts[helper_key] == expected_helper, "explicit actual worker helper digest required")
+            raw[_WORKER_SELF_MAPS_HELPER_NAME] = reader.read(prefix + _WORKER_SELF_MAPS_HELPER_NAME, expected_helper, ARTIFACT_LIMIT)
+            raw[ledger] = reader.read(prefix + ledger, captures[ledger], 64 * 1024)
+        raw.update(read_hash_map(reader, prefix, {key: value for key, value in artifacts.items()
+                                                if key != helper_key}, COMMON_RAW))
+        raw.update(read_hash_map(reader, prefix, {key: value for key, value in captures.items()
+                                                if key != ledger}, COMMON_RAW))
         raw["input-fault-observation.json"] = reader.read(prefix + "input-fault-observation.json", receipt_seal(receipt, "observed_sha256"))
         raw["nginx.conf"] = reader.read(prefix + "nginx.conf", receipt_seal(receipt, "config_sha256"))
+        if helper_present:
+            header, separator, maps = raw[ledger].partition(b"\n")
+            require(separator and len(header) <= 1024, "bounded worker self-map framing required")
+            identity = json_object(header)
+            fields = {"version", "pid", "ppid", "uid", "gid", "starttime", "bytes"}
+            require(set(identity) == fields and all(type(value) is int for value in identity.values()),
+                    "exact numeric worker self-map identity required")
+            roles = json_object(raw["input-fault-observation.json"]).get("roles", {})
+            exact(identity, {"version": 1, "pid": roles.get("worker_pid"), "ppid": roles.get("master_pid"),
+                             "uid": 65534, "gid": 65534, "bytes": len(maps)}, "actual worker self-map identity")
+            require(identity["starttime"] > 0 and maps.endswith(b"\n") and maps == raw.get("worker-maps.log"),
+                    "complete original worker maps must match sealed self-map ledger")
+            paths = {line.split(None, 5)[5] for line in maps.decode("utf-8").splitlines()
+                     if len(line.split(None, 5)) == 6}
+            require({str(reader.root / prefix / leaf) for leaf in (_WORKER_SELF_MAPS_HELPER_NAME, "nginx-module.so")} <= paths,
+                    "actual worker maps omit fixed helper or module snapshot")
     else:
         raw.update(read_hash_map(reader, prefix, receipt.get("raw_sha256"), COMMON_RAW))
         for field, leaf in (("binary_sha256", "nginx-binary"), ("module_sha256", "nginx-module.so")):
@@ -563,19 +630,23 @@ def validate_input(helper, receipt, raw, case_id, run_id):
     require(json_lines(raw["native-access.jsonl"]) == [observed["native_access"]]
             and json_lines(raw["native-input-fault.jsonl"]) == [observed["native_fault"]], "actual fault/access ledger projection mismatch")
     events = actual_events(raw, "phase1-events.jsonl")
-    protocol = [event for event in events if event.get("phase") in (1, "1", "request_headers") and event.get("event") == "protocol_error"]
-    require(protocol == observed["native_events"], "actual native protocol event projection mismatch")
-    require(len(events) == 2 and events[0] == protocol[0] and events[1].get("event") == "transaction_cleanup",
-            "terminal P1 mapper failure permits only its protocol error then cleanup source event")
+    identity = {"phase": "request_headers", "event": "connector_error",
+                "message_id": "MSCONN_EVENT_CONNECTOR_ERROR", "http_status": 500}
+    errors = [event for event in events if all(
+        type(event.get(key)) is type(value) and event.get(key) == value
+        for key, value in identity.items())]
+    require(errors == observed["native_events"], "actual native connector error projection mismatch")
+    require(len(events) == 2 and events[0] == errors[0] and events[1].get("event") == "transaction_cleanup",
+            "terminal P1 mapper failure permits only its connector error then cleanup source event")
     exact(events[0], {"transaction_id": observed["transaction_id"], "method": "", "uri": ""},
           "actual pre-mapping terminal source identity")
     require(re.findall(rb'\bmodsecurity_transaction_id\s+"([^"\r\n]+)"\s*;', raw["nginx.conf"]) == [observed["transaction_id"].encode()], "actual configured mapper transaction differs from native ledger")
-    require(observed["native_diagnostic"].encode() in raw["nginx-error.log"] and raw["client.stdout"] == b"400"
+    require(observed["native_diagnostic"].encode() in raw["nginx-error.log"] and raw["client.stdout"] == b"500"
             and raw["client.stderr"] == b"", "actual diagnostic/client bytes mismatch")
-    cleanup_events(events, [observed["transaction_id"]], error_class="protocol_error",
+    cleanup_events(events, [observed["transaction_id"]], error_class="connector_error",
                    uris={observed["transaction_id"]: observed["native_access"]["uri"]})
     observed_roles(observed["roles"], observed["cleanup"], run_id)
-    return {"events": events, "transaction_ids": [observed["transaction_id"]], "actual_status": 400, "observation": observed}
+    return {"events": events, "transaction_ids": [observed["transaction_id"]], "actual_status": 500, "observation": observed}
 
 
 def validate_configtest(receipt, raw, case_id):

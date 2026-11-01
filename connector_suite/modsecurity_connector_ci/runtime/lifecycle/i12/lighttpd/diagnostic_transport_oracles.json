@@ -1,0 +1,32 @@
+{
+  "schema": "lighttpd-stock-native-transport-controls-v1",
+  "route": "lighttpd-stock-native-control",
+  "cases": [
+    {
+      "case_id": "NEED-incomplete-framing",
+      "path": "/diagnostic/incomplete-content-length",
+      "backend_body": "diagnostic-native-response",
+      "backend_declared_content_length": 35,
+      "backend_actual_body_bytes": 26,
+      "expected_oracle": {"native_result": "diagnostic_incomplete_host_framing", "visible_status": 200, "rule_id": null, "phase": 3, "client_exit": 1, "event_fields": [], "physical_evidence_not_projection": true, "unresolved_expected_value_reason": null},
+      "expected_checks": {"actual_message_complete": false, "native_body_streaming_capability": false},
+      "reason": "A real backend sends status200/Content-Length35 and only26 entity bytes then closes. The independent client must retain received status and bytes while reporting framing failure. Stock mode=none does not manufacture a native body EOS/error decision."
+    },
+    {
+      "case_id": "NEED-first-byte-before-late-error",
+      "path": "/diagnostic/first-byte-before-logging-failure",
+      "fault": "logging_error",
+      "expected_oracle": {"native_result": "technical_error_after_observed_first_byte", "visible_status": 200, "rule_id": null, "phase": 5, "client_exit": 0, "event_fields": ["connector", "transaction_id", "phase", "status", "reason"], "physical_evidence_not_projection": true, "unresolved_expected_value_reason": null},
+      "expected_checks": {"first_receive_precedes_explicit_logging_boundary_fault": true, "actual_sdk_logging_return": 1, "injected_runtime_boundary_return": -1, "response_committed": true},
+      "reason": "The independent client must physically receive response bytes before the separately labelled injected logging-boundary failure. The real SDK return stays1; the Runtime boundary returns-1. No Strict abort or native body-hook capability is inferred."
+    },
+    {
+      "case_id": "NEED-p3-redirect",
+      "path": "/diagnostic/phase3-redirect-normalization",
+      "backend_marker": "redirect",
+      "expected_oracle": {"native_result": "unsupported_redirect_normalized_to_deny", "visible_status": 403, "rule_id": 1100202, "phase": 3, "event_fields": ["connector", "transaction_id", "rule_id", "phase", "status"], "physical_evidence_not_projection": true, "unresolved_expected_value_reason": null},
+      "expected_checks": {"native_redirect_status": 302, "visible_location_header": false},
+      "reason": "Canonical rule1100202 requests a native302 redirect in P3. The actual stock-native profile does not advertise redirect delivery; the adapter selects its declared403 denial fallback. The physical native302 and visible403/absentLocation must remain distinct."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+--- a/payload
++++ b/payload
+@@ -4,0 +5 @@
++#include "lighttpd-host-observer.h"
+@@ -1643,0 +1645,3 @@
++    lighttpd_observe_body("stock_request_content_length_eos", state->transaction,
++        (int64_t)state->payload.request_headers.content_length, (int64_t)state->payload.body_read, 0U,
++        state->payload.body_read == state->payload.request_headers.content_length);
+@@ -1710,0 +1715,3 @@
++    lighttpd_observe_body("stock_response_content_length_eos", state->transaction,
++        (int64_t)state->payload.response_headers.content_length, (int64_t)state->payload.body_read, 0U,
++        state->payload.response_headers.no_body || state->payload.body_read == state->payload.response_headers.content_length);

@@ -1,0 +1,11 @@
+--- a/payload
++++ b/payload
+@@ -21 +21 @@
+-SecRequestBodyLimit 1024
++SecRequestBodyLimit 16
+@@ -66 +66 @@
+-    env=dict(os.environ,MSCONNECTOR_LIFECYCLE_FD=str(fd),MSCONNECTOR_LIFECYCLE_RUN='20261014-haproxy-htx-01',MSCONNECTOR_LIFECYCLE_PROFILE='haproxy-native-htx',MSCONNECTOR_LIFECYCLE_CASE='NEED-request-eos-once')
++    env=dict(os.environ,MSCONNECTOR_LIFECYCLE_FD=str(fd),MSCONNECTOR_LIFECYCLE_RUN='20261014-hap-native-limit-1',MSCONNECTOR_LIFECYCLE_PROFILE='haproxy-native-htx',MSCONNECTOR_LIFECYCLE_CASE='NEED-request-reject')
+@@ -80 +80 @@
+-    receipt={'commands':receipts,'snapshots':snapshots,'source_instrumentation_is_test_only':True,'selected_id':'I12::haproxy-native-htx::NEED-request-eos-once','full_lifecycle_pass':None,'effective_rules_sha256':hashlib.sha256((TASK/'rules.conf').read_bytes()).hexdigest(),'effective_config_sha256':hashlib.sha256((TASK/'haproxy.cfg').read_bytes()).hexdigest() if (TASK/'haproxy.cfg').exists() else None}
++    receipt={'commands':receipts,'snapshots':snapshots,'source_instrumentation_is_test_only':True,'selected_id':'I12::haproxy-native-htx::NEED-request-reject','full_lifecycle_pass':None,'effective_rules_sha256':hashlib.sha256((TASK/'rules.conf').read_bytes()).hexdigest(),'effective_config_sha256':hashlib.sha256((TASK/'haproxy.cfg').read_bytes()).hexdigest() if (TASK/'haproxy.cfg').exists() else None}

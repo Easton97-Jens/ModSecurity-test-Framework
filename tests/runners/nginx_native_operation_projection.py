@@ -10,8 +10,8 @@ import re
 from types import MappingProxyType
 
 from ci.checks.catalog.no_crs_baseline import json_schema_errors
-from tests.runners import nginx_native_operation_bundle as bundle
-from tests.runners import nginx_http11_framing as framing
+from modsecurity_test_framework.runners import nginx_native_operation_bundle as bundle
+from modsecurity_test_framework.runners import nginx_http11_framing as framing
 
 ROOT = Path(__file__).resolve().parents[2]
 _SCHEMA = bundle.json_object((ROOT / "tests/schemas/no-crs-baseline/case-catalog.schema.json").read_bytes())
@@ -42,8 +42,8 @@ def descriptor_registry():
 
 NATIVE_DESCRIPTORS = descriptor_registry()
 _TECHNICAL = MappingProxyType({
-    "body_size_nonzero_with_null_data": ("protocol_error", "MSCONN_EVENT_PROTOCOL_ERROR", "request_headers"),
-    "header_count_nonzero_with_null_headers": ("protocol_error", "MSCONN_EVENT_PROTOCOL_ERROR", "request_headers"),
+    "body_size_nonzero_with_null_data": ("connector_error", "MSCONN_EVENT_CONNECTOR_ERROR", "request_headers"),
+    "header_count_nonzero_with_null_headers": ("connector_error", "MSCONN_EVENT_CONNECTOR_ERROR", "request_headers"),
     "early_mapping_failure_cleanup": ("protocol_error", "MSCONN_EVENT_PROTOCOL_ERROR", "request_headers"),
     "transaction_begin_failure_cleanup": ("connector_error", "MSCONN_EVENT_CONNECTOR_ERROR", "request_headers"),
     "finish_failure_propagation": ("invalid_engine_response", "MSCONN_EVENT_INVALID_ENGINE_RESPONSE", "logging"),
@@ -146,7 +146,7 @@ def native_facts(proof, case_id):
                                  "actual_action": "", "http_status": 403, "visible_http_status": 0,
                                  "transport_result": "not_observable"}, "actual request deny Rule/action/status")
         if case_id in bundle.INPUT_CASES:
-            bundle.require(event["event"] in {"protocol_error", "transaction_cleanup"}, "pointer terminal proof contains foreign native operation")
+            bundle.require(event["event"] in {"connector_error", "transaction_cleanup"}, "pointer terminal proof contains foreign native operation")
     return selected_events(case_id, events, transactions)
 
 
@@ -188,8 +188,10 @@ def mapping_facts(proof):
 
 
 def visible_status(proof, case_id, selected):
-    if case_id in bundle.RAW_CASES | bundle.INPUT_CASES:
+    if case_id in bundle.RAW_CASES:
         bundle.require(proof["actual_status"] == 400, "actual wire rejection status required")
+    if case_id in bundle.INPUT_CASES:
+        bundle.require(proof["actual_status"] == 500, "actual internal mapper failure status required")
     if case_id in {"clean_shutdown", "finish_failure_propagation", "engine_timeout_after_commit"}:
         bundle.require(proof["actual_status"] == 200, "actual already-visible response status required")
     if case_id == "engine_timeout_before_commit":

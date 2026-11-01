@@ -1,0 +1,43 @@
+--- a/payload
++++ b/payload
+@@ -11,0 +12,2 @@
++#include <time.h>
++#include "native-lifecycle-observer.h"
+@@ -1318,0 +1321 @@
++    (void)msconnector_lifecycle_host_retire(transaction);
+@@ -1415 +1418 @@
+-int haproxy_modsecurity_transaction_begin_request_with_profile(
++static int observed_real_begin_request_with_profile(
+@@ -1519,0 +1523,32 @@
++int haproxy_modsecurity_transaction_begin_request_with_profile(
++        haproxy_modsecurity_engine *engine, const haproxy_modsecurity_request *request,
++        const char *profile_id, haproxy_modsecurity_decision *decision,
++        haproxy_modsecurity_transaction **transaction) {
++    uint64_t call = msconnector_lifecycle_host_begin();
++    int result = observed_real_begin_request_with_profile(engine, request, profile_id,
++        decision, transaction);
++    int saved = errno;
++    haproxy_modsecurity_transaction *actual = transaction == NULL ? NULL : *transaction;
++    (void)msconnector_lifecycle_host_end(call, actual,
++        actual == NULL ? NULL : &actual->contract,
++        actual == NULL ? NULL : actual->transaction, result == 0 && actual != NULL);
++    errno = saved;
++    return result;
++}
++
++void haproxy_lifecycle_host_observe(haproxy_modsecurity_transaction *transaction,
++        const char *kind, unsigned int channel_flags, int response_finished,
++        int request_finished, int committed) {
++    int saved = errno;
++    struct timespec now;
++    if (clock_gettime(CLOCK_REALTIME, &now) == 0) {
++        fprintf(stderr, "HAPROXY_LIFECYCLE {\"kind\":\"%s\",\"scope_call\":%llu,"
++            "\"wall_ns\":%llu,\"channel_flags\":%u,\"response_finished\":%d,"
++            "\"request_finished\":%d,\"headers_committed\":%d}\n", kind,
++            (unsigned long long)msconnector_lifecycle_host_scope_call(transaction),
++            (unsigned long long)now.tv_sec * 1000000000ULL + (unsigned long long)now.tv_nsec,
++            channel_flags, response_finished, request_finished, committed);
++    }
++    errno = saved;
++}
++
