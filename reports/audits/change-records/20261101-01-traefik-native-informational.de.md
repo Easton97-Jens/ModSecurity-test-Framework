@@ -87,6 +87,14 @@ allein belegt keine Hostlaufzeitunterstützung.
 
 ### Sonar-Korrektur und autorisierte Integration
 
+Die Connector-Pin-Prüfung nach dem Merge zeigte einen Dokumentationsfehler:
+Die Sprachumschaltung im neuen deutschen Leitfaden hatte eine Reihenfolge,
+die der bestehende Zweisprachigkeitsprüfer des Connectors ablehnt. Eine gezielte
+Nachbesserung stellt die vorgeschriebene Reihenfolge her:
+Der englische Link steht vor der deutschen Sprachbezeichnung.
+Keine Änderung an Prüfern oder Runtime-Quellen. Die Connector-Integration bleibt
+von einer bestandenen Prüfung des daraus entstandenen exakten Paars abhängig.
+
 Die Integrationsfortsetzung behebt fünf neue PR-Befunde: `go:S3776` in den Tests
 für finale Entscheidungen und impliziten Abschluss, `python:S3776` in Hostprobe
 und Runner sowie `python:S1186` im absichtlich stillen Request-Log-Override.

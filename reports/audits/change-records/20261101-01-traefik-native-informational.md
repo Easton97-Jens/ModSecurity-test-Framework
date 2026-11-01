@@ -81,6 +81,13 @@ PASS alone does not establish host runtime support.
 
 ### Sonar remediation and authorized integration
 
+The post-merge Connector pin check exposed a documentation integration error:
+the new German guide's language-switch order did not match the Connector's
+existing bilingual checker. A focused follow-up restores the required order:
+the English link precedes the German language label.
+No checker or runtime source changes. Connector integration remains conditional
+on a clean check of the resulting exact pair.
+
 The integration follow-up addresses five new PR findings: `go:S3776` in the
 final-decision and implicit-final tests, `python:S3776` in the host probe and
 runner, and `python:S1186` in the intentionally silent request-log override.

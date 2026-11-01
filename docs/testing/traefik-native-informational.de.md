@@ -1,6 +1,6 @@
 # Regression für Traefik-Native-Informationsantworten
 
-**Sprache:** Deutsch | [English](traefik-native-informational.md)
+**Sprache:** [English](traefik-native-informational.md) | Deutsch
 
 Das Framework besitzt die Regression für das externe Connector-Finding
 `SEC-TRAEFIK-NATIVE-001`. Die Produktquelle verbleibt im Connector-Repository.
