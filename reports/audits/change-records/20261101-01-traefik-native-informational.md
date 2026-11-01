@@ -79,7 +79,7 @@ Real host results, exact committed pair, race/vet and final scan evidence are
 owned by the coordinating task and its external delivery report. A Go package
 PASS alone does not establish host runtime support.
 
-## Sonar remediation and authorized integration
+### Sonar remediation and authorized integration
 
 The integration follow-up addresses five new PR findings: `go:S3776` in the
 final-decision and implicit-final tests, `python:S3776` in the host probe and

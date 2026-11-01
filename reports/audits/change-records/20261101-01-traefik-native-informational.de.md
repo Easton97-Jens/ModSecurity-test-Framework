@@ -85,7 +85,7 @@ Reale Hostergebnisse, exaktes Commitpaar, Race/Vet und finale Scanevidence gehö
 der koordinierenden Aufgabe und ihrem externen Lieferbericht. Ein Go-Paket-PASS
 allein belegt keine Hostlaufzeitunterstützung.
 
-## Sonar-Korrektur und autorisierte Integration
+### Sonar-Korrektur und autorisierte Integration
 
 Die Integrationsfortsetzung behebt fünf neue PR-Befunde: `go:S3776` in den Tests
 für finale Entscheidungen und impliziten Abschluss, `python:S3776` in Hostprobe
