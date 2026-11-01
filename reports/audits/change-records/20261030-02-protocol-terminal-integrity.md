@@ -11,6 +11,38 @@
 | Framework base revision | `d3b47aec9410f7adc3bb40df1ea413c00c438e89` |
 | Issue or pull request | Separate Framework Draft follow-up to merged PR #112; delivery recorded in its PR |
 
+### Test-migration follow-up — 2026-11-01
+
+The user resumed work and explicitly permitted new tests after the migration.
+Draft #143 now incorporates Framework master
+`d503ddbea1a3b6df7766edc247b0a9886ff10668` through an ordinary branch merge,
+not a PR merge. It remains independent of Draft #144; Parent and MRTS are
+unchanged. The original no-new-tests statements below describe October30 only.
+
+Twelve new self-test methods expand into **51 explicit variants**: 47 negative
+and four positive controls. They cover primary/follow-up integer schemas,
+missing/mistyped/failed terminal metadata, HTTP-denial status coherence, strict
+known/unmapped failed exits, optional normal follow-ups and legitimate
+unknown-length success/denial. These are explicitly selected Framework
+self-tests, not additional default cases. The migrated standard inventory stays
+at100 cases; no selector, binding, archive or generated migration map changes.
+
+Actual RTK-wrapped validation with the Framework interpreter and external
+`TMPDIR`: `python -m unittest discover -s tests/protocol_client -q` passed
+**43 methods**, including the31 existing methods. Importing the unchanged
+`d503ddbe` validator into the same12 new methods produced **44 assertion
+failures, zero errors, exit1**; the fixed validator passes all51 variants.
+Three negative follow-up-schema controls were already rejected by the old
+reader. Four positive variants remain accepted. This is artifact-admission
+proof, not real H2/H3 traffic, host qualification or authenticated attestation.
+
+The four existing no-CRS artifact/correlation/revalidation/finalizer consumer
+methods also passed. `make check-documentation check-canonical-common-pins`
+passed (links,340 bilingual pairs, path references, Change Record and pins);
+syntax and whitespace checks passed. A first documentation run rejected an
+extra level-two record heading; changing it to a subsection restored the
+template contract. Independent final test/EN-DE review found no blocker.
+
 ## Motivation and problem statement
 
 The protocol artifact reader trusted a normal `PASS` without checking Curl's
@@ -30,8 +62,9 @@ read-only and untouched. This does not change connector protocol support.
 Require integer schema version1; reject missing, mistyped or contradictory
 successful terminal outcomes. Preserve HTTP-denial evidence with Curl22 and
 `http_response_error`, ordinary unknown-length success and strict failed-primary
-reset evidence. Require Curl0/`none` for any `PASS` follow-up. Add no test cases,
-assertions, selectors or harnesses while the user reorganizes tests.
+reset evidence. Require Curl0/`none` for any `PASS` follow-up. The initial
+October30 implementation added no tests during reorganization; the authorized
+November1 follow-up adds focused regression coverage as described above.
 
 ## Alternatives considered
 
@@ -60,7 +93,8 @@ documentation and this paired record. Two existing positive observations in
 `tests/protocol_client/test_check_protocol_evidence.py` and
 `tests/no_crs/test_no_crs_baseline.py` receive only producer-written terminal
 metadata for their existing HTTP403 denial. No test definitions or assertions
-were added or changed; existing negative fixtures remain unchanged.
+were added or changed on October30. The November1 follow-up adds the12 methods
+and normal-success observation factory in the same protocol evidence test file.
 
 ## Commands and results
 
@@ -86,8 +120,8 @@ Hosted CI/Sonar and delivery results remain revision-bound in the Draft PR.
 Strengthens evidence integrity without changing authentication, isolation,
 Quality Gates or scanner settings. This is a consistency repair, not an
 authenticated-attestation mechanism or a connector vulnerability claim. No new
-negative regression cases were authored under the user's current constraint;
-source review and existing checks are the available evidence layers.
+negative regression cases were authored on October30. The November1 follow-up
+now supplies the explicit negative and legitimate-control evidence above.
 
 ## Documentation and runtime evidence
 
@@ -97,8 +131,8 @@ host, HTTP2/HTTP3 transport or connector lifecycle qualification was collected.
 
 ## Checks not run
 
-No new tests, full runtime matrix, native connector build, dependency audit or
-new coverage campaign. Focused existing checks match this Python reader scope.
+No full runtime matrix, native connector build, dependency audit or new runtime
+qualification campaign. Focused self-tests match this Python reader scope.
 Hosted CI/Sonar require a published revision and must be reported separately.
 The optional local Gitleaks executable is unavailable; it was not installed.
 The scoped source/documentation diff received a manual no-secrets review.
@@ -112,7 +146,7 @@ The broader protocol-parity workstream remains incomplete.
 
 ## Final diff and review status
 
-Task-owned Framework worktree only; no main-checkout edits, merge, history
+Task-owned Framework worktree only; no main-checkout edits, PR merge, history
 rewrite, default-branch push or Parent gitlink change. Final scoped diff,
 whitespace, independent review and revision-bound delivery are recorded in
 external evidence before handoff.

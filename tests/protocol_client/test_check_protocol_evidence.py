@@ -224,7 +224,211 @@ def strict_h3_failure_observation(**details: object) -> dict[str, object]:
     return observation
 
 
+def normal_h3_success_observation(**details: object) -> dict[str, object]:
+    observation: dict[str, object] = {
+        "schema_version": 1,
+        "status": "PASS",
+        "requested_protocol": "h3",
+        "downstream_protocol": "h3",
+        "negotiated_protocol": "h3",
+        "transport": "quic_udp",
+        "alpn": "h3",
+        "stream_id": 4,
+        "fallback_used": False,
+        "quic_udp_observed": True,
+        "quic_connection_id_present": True,
+        "quic_version": "v1",
+        "http_status": 200,
+        "curl_exit_code": 0,
+        "transport_error": "none",
+    }
+    observation.update(details)
+    return observation
+
+
 class ProtocolEvidenceTest(unittest.TestCase):
+    def test_primary_schema_requires_integer_one(self) -> None:
+        for value in (None, True, 1.0, "1", 2):
+            with self.subTest(schema_version=value):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    observation = normal_h3_success_observation(schema_version=value)
+                    if value is None:
+                        del observation["schema_version"]
+                    write_bundle(root, observation, followup=False)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(root, protocol="h3")
+                    self.assertIn("observation has an invalid schema_version", errors)
+
+    def test_normal_pass_rejects_missing_mistyped_or_failed_exit_code(self) -> None:
+        for value in (None, False, "0", 0.0, 28, 95):
+            with self.subTest(curl_exit_code=value):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    observation = normal_h3_success_observation(curl_exit_code=value)
+                    if value is None:
+                        del observation["curl_exit_code"]
+                    write_bundle(root, observation, followup=False)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(root, protocol="h3")
+                    self.assertTrue(any("curl_exit_code" in error for error in errors), errors)
+
+    def test_normal_pass_rejects_missing_or_contradictory_error_category(self) -> None:
+        for value in (None, "timeout", "http_response_error"):
+            with self.subTest(transport_error=value):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    observation = normal_h3_success_observation(transport_error=value)
+                    if value is None:
+                        del observation["transport_error"]
+                    write_bundle(root, observation, followup=False)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(root, protocol="h3")
+                    self.assertIn(
+                        "successful transfer transport_error contradicts curl_exit_code", errors
+                    )
+
+    def test_normal_pass_requires_a_typed_observed_http_status(self) -> None:
+        for value in (None, True, "200", 200.0, 99, 1000):
+            with self.subTest(http_status=value):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    observation = normal_h3_success_observation(http_status=value)
+                    if value is None:
+                        del observation["http_status"]
+                    write_bundle(root, observation, followup=False)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(root, protocol="h3")
+                    self.assertIn("successful transfer requires a client-observed HTTP status", errors)
+
+    def test_http_denial_exit_requires_an_error_http_status(self) -> None:
+        with temporary_artifact_directory() as temporary:
+            root = Path(temporary)
+            write_bundle(root, normal_h3_success_observation(
+                curl_exit_code=22, transport_error="http_response_error", http_status=200,
+            ), followup=False)
+            errors = check_protocol_evidence.validate_protocol_artifacts(root, protocol="h3")
+            self.assertIn("HTTP error transfer requires an error HTTP status", errors)
+
+    def test_normal_success_and_http_denial_do_not_require_content_length(self) -> None:
+        for exit_code, category, status in ((0, "none", 200), (22, "http_response_error", 403)):
+            with self.subTest(curl_exit_code=exit_code, http_status=status):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    # No content-length/completion flag: terminal Curl evidence
+                    # remains valid for supported unknown-length write-out formats.
+                    write_bundle(root, normal_h3_success_observation(
+                        curl_exit_code=exit_code, transport_error=category, http_status=status,
+                    ), followup=False)
+                    self.assertEqual(
+                        check_protocol_evidence.validate_protocol_artifacts(root, protocol="h3"), []
+                    )
+
+    def test_strict_reset_rejects_missing_mistyped_or_successful_exit_code(self) -> None:
+        for value in (None, True, "95", 95.0, 0, 22):
+            with self.subTest(curl_exit_code=value):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    observation = strict_h3_failure_observation(
+                        http_status=200, curl_exit_code=value, transport_error="h3_failure",
+                    )
+                    if value is None:
+                        del observation["curl_exit_code"]
+                    write_bundle(root, observation)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(
+                        root, protocol="h3", strict=True,
+                    )
+                    self.assertIn("strict evidence requires a failed integer curl_exit_code", errors)
+
+    def test_strict_reset_rejects_a_contradictory_error_category(self) -> None:
+        for value in (None, "none", "h2_failure"):
+            with self.subTest(transport_error=value):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    observation = strict_h3_failure_observation(
+                        http_status=200, curl_exit_code=95, transport_error=value,
+                    )
+                    if value is None:
+                        del observation["transport_error"]
+                    write_bundle(root, observation)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(
+                        root, protocol="h3", strict=True,
+                    )
+                    self.assertIn("strict evidence transport_error contradicts curl_exit_code", errors)
+
+    def test_strict_followup_requires_a_successful_terminal_outcome(self) -> None:
+        variants = (
+            ("curl_exit_code", None), ("curl_exit_code", False),
+            ("curl_exit_code", "0"), ("curl_exit_code", 0.0),
+            ("curl_exit_code", 22), ("curl_exit_code", 28),
+            ("transport_error", None), ("transport_error", "timeout"),
+        )
+        for field, value in variants:
+            with self.subTest(field=field, value=value):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    write_bundle(root, strict_h3_failure_observation(
+                        http_status=200, curl_exit_code=95, transport_error="h3_failure",
+                    ))
+                    followup = read_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT)
+                    if value is None:
+                        del followup[field]
+                    else:
+                        followup[field] = value
+                    write_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT, followup)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(
+                        root, protocol="h3", strict=True,
+                    )
+                    self.assertTrue(any("successful transfer" in error for error in errors), errors)
+
+    def test_optional_normal_pass_followup_rejects_failed_terminal_metadata(self) -> None:
+        for field, value in (("curl_exit_code", 28), ("transport_error", "timeout")):
+            with self.subTest(field=field, value=value):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    write_bundle(root, normal_h3_success_observation())
+                    followup = read_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT)
+                    followup[field] = value
+                    write_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT, followup)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(root, protocol="h3")
+                    self.assertTrue(any("successful transfer" in error for error in errors), errors)
+
+    def test_followup_schema_requires_integer_one(self) -> None:
+        for value in (None, True, 1.0, "1", 2):
+            with self.subTest(schema_version=value):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    write_bundle(root, strict_h3_failure_observation(
+                        http_status=200, curl_exit_code=95, transport_error="h3_failure",
+                    ))
+                    followup = read_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT)
+                    if value is None:
+                        del followup["schema_version"]
+                    else:
+                        followup["schema_version"] = value
+                    write_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT, followup)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(
+                        root, protocol="h3", strict=True,
+                    )
+                    self.assertIn("independent follow-up has an invalid schema_version", errors)
+
+    def test_strict_unmapped_exit_requires_a_bounded_failure_category(self) -> None:
+        # A signal exit has no stable Curl-code mapping. Its producer may emit
+        # a bounded stderr-derived category, but never a successful category.
+        for category in (None, "none", "client_or_network_failure", "h3_failure"):
+            with self.subTest(transport_error=category):
+                with temporary_artifact_directory() as temporary:
+                    root = Path(temporary)
+                    observation = strict_h3_failure_observation(
+                        http_status=200, curl_exit_code=-15, transport_error=category,
+                    )
+                    if category is None:
+                        del observation["transport_error"]
+                    write_bundle(root, observation)
+                    errors = check_protocol_evidence.validate_protocol_artifacts(
+                        root, protocol="h3", strict=True,
+                    )
+                    if category in (None, "none"):
+                        self.assertIn("strict evidence requires a categorized transport failure", errors)
+                    else:
+                        self.assertEqual(errors, [])
+
     def test_strict_h3_requires_client_visible_reset_and_followup(self) -> None:
         with temporary_artifact_directory() as temporary:
             root = Path(temporary)

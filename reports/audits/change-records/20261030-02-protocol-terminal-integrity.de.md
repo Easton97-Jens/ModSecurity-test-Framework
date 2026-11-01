@@ -11,6 +11,42 @@
 | Framework-Basisrevision | `d3b47aec9410f7adc3bb40df1ea413c00c438e89` |
 | Issue oder Pull Request | Separater Framework-Draft-Nachfolger des gemergten PR #112; Auslieferung im zugehörigen PR dokumentiert |
 
+### Nachtrag nach dem Testumzug — 2026-11-01
+
+Der Nutzer hat die Arbeit fortgesetzt und nach dem Umzug neue Tests ausdrücklich
+freigegeben. Draft #143 übernimmt Framework-Master
+`d503ddbea1a3b6df7766edc247b0a9886ff10668` durch einen normalen Branch-Merge,
+nicht durch einen PR-Merge. Er bleibt unabhängig von Draft #144; Parent und
+MRTS bleiben unverändert. Die ursprünglichen Aussagen ohne neue Tests unten
+beschreiben ausschließlich den30.Oktober.
+
+Zwölf neue Selbsttestmethoden ergeben **51 explizite Varianten**: 47 negative
+und vier positive Kontrollen. Sie prüfen ganzzahlige Primär-/Follow-up-Schemas,
+fehlende/falsch typisierte/fehlgeschlagene Abschlussmetadaten, Statuskonsistenz
+bei HTTP-Ablehnung, strikte bekannte/unzugeordnete fehlgeschlagene Exit-Codes,
+optionale normale Follow-ups und gültigen Erfolg/Ablehnung ohne bekannte
+Inhaltslänge. Dies sind explizit ausgewählte Framework-Selbsttests, keine
+zusätzlichen Standardfälle. Das migrierte Standardinventar bleibt bei100 Fällen;
+Selektoren, Bindungen, Archiv und generierte Migrationszuordnung ändern sich nicht.
+
+Tatsächliche RTK-Prüfung mit Framework-Interpreter und externem `TMPDIR`:
+`python -m unittest discover -s tests/protocol_client -q` bestand mit
+**43 Methoden**, einschließlich der31 bestehenden Methoden. Der unveränderte
+`d503ddbe`-Prüfer wurde in dieselben12 neuen Methoden importiert und erzeugte
+**44 Assertion-Fehler, null Ausführungsfehler, Exit1**; der korrigierte Prüfer
+besteht alle51 Varianten. Drei negative Follow-up-Schema-Kontrollen lehnte
+bereits der alte Prüfer ab. Vier positive Varianten bleiben akzeptiert.
+Dies belegt Artefaktannahme, keinen echten H2-/H3-Verkehr, keine Hostqualifikation
+und keine authentifizierte Attestierung.
+
+Auch die vier bestehenden No-CRS-Verbrauchermethoden für Artefakte, Korrelation,
+erneute Validierung und Finalisierung bestanden.
+`make check-documentation check-canonical-common-pins` bestand (Links,
+340 Sprachpaare, Pfadreferenzen, Change Record und Pins); Syntax und
+Whitespace-Prüfungen bestanden. Der erste Dokumentationslauf lehnte eine
+zusätzliche Überschrift zweiter Ebene ab; als Unterabschnitt erfüllt sie den
+Vorlagenvertrag wieder. Unabhängiger finaler Test-/EN-DE-Review ohne Blocker.
+
 ## Motivation und Problemstellung
 
 Der Protokollartefakt-Prüfer vertraute einem normalen `PASS`, ohne den
@@ -34,8 +70,9 @@ Ganzzahlige Schema-Version1 verlangen; fehlende, falsch typisierte oder
 widersprüchliche erfolgreiche Transferabschlüsse ablehnen. HTTP-Ablehnungen
 mit Curl22/`http_response_error`, gewöhnlichen Erfolg ohne bekannte Inhaltslänge
 und strikte fehlgeschlagene Primär-/Reset-Evidence erhalten. Jedes
-`PASS`-Follow-up benötigt Curl0/`none`. Während des Testumbaus auf Nutzerwunsch
-keine Testfälle, Assertions, Selektoren oder Harnesses hinzufügen.
+`PASS`-Follow-up benötigt Curl0/`none`. Die ursprüngliche Implementierung vom
+30.Oktober ergänzte während des Umbaus keine Tests; der autorisierte Nachtrag
+vom1.November ergänzt die oben beschriebene fokussierte Regressionserfassung.
 
 ## Untersuchte Alternativen
 
@@ -67,8 +104,9 @@ Positivbeobachtungen in
 `tests/protocol_client/test_check_protocol_evidence.py` und
 `tests/no_crs/test_no_crs_baseline.py` erhalten nur bereits vom Produzenten
 geschriebene Abschlussmetadaten für ihre bestehende HTTP403-Ablehnung.
-Keine Testdefinition oder Assertion wurde ergänzt oder verändert; bestehende
-Negativdaten bleiben unverändert.
+Am30.Oktober wurde keine Testdefinition oder Assertion ergänzt oder verändert.
+Der Nachtrag vom1.November ergänzt die12 Methoden und die Factory für normale
+Erfolgsbeobachtungen in derselben Protokollevidenz-Testdatei.
 
 ## Befehle und Ergebnisse
 
@@ -95,9 +133,9 @@ Hosted CI/Sonar und Auslieferungsergebnisse bleiben im Draft-PR revisionsgebunde
 Stärkt die Evidence-Integrität, ohne Authentifizierung, Isolation, Quality Gates
 oder Scanner-Einstellungen zu ändern. Dies ist eine Konsistenzkorrektur,
 keine authentifizierte Attestierung und kein behaupteter Connector-Sicherheits-
-befund. Gemäß aktueller Nutzervorgabe wurden keine neuen negativen
-Regressionsfälle geschrieben; Source-Review und bestehende Prüfungen sind die
-verfügbaren Nachweisebenen.
+befund. Am30.Oktober wurden keine neuen negativen Regressionsfälle geschrieben.
+Der Nachtrag vom1.November liefert nun die oben aufgeführten expliziten
+Negativnachweise und gültigen Kontrollen.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -108,9 +146,9 @@ wurde erhoben.
 
 ## Nicht ausgeführte Prüfungen
 
-Keine neuen Tests, vollständige Runtime-Matrix, nativen Connector-Builds,
-Dependency-Audits oder neue Coverage-Kampagne. Die fokussierten bestehenden
-Prüfungen entsprechen dem Umfang dieses Python-Prüfers. Hosted CI/Sonar
+Keine vollständige Runtime-Matrix, nativen Connector-Builds, Dependency-Audits
+oder neue Runtime-Qualifikationskampagne. Die fokussierten Selbsttests
+entsprechen dem Umfang dieses Python-Prüfers. Hosted CI/Sonar
 benötigen eine veröffentlichte Revision und werden getrennt berichtet.
 Das optionale lokale Gitleaks-Programm ist nicht verfügbar und wurde nicht
 installiert. Der begrenzte Source-/Dokumentationsdiff wurde manuell auf neu
@@ -126,6 +164,6 @@ Integration. Der übergeordnete Protokollparitäts-Workstream bleibt offen.
 ## Finaler Diff- und Review-Status
 
 Nur aufgabeneigener Framework-Arbeitsbaum; keine Hauptcheckout-Änderung, kein
-Merge, History-Rewrite, Default-Branch-Push oder Parent-Gitlink-Update.
+PR-Merge, History-Rewrite, Default-Branch-Push oder Parent-Gitlink-Update.
 Finaler begrenzter Diff, Whitespace-Prüfung, unabhängiger Review und
 revisionsgebundene Auslieferung werden vor Übergabe extern dokumentiert.
