@@ -564,6 +564,28 @@ def _followup_type_errors(observation: Mapping[str, Any]) -> list[str]:
     return errors
 
 
+def _successful_transfer_errors(
+    observation: Mapping[str, Any], *, allow_http_error: bool,
+) -> list[str]:
+    """Check terminal producer facts, not the optional content-length proof."""
+
+    errors: list[str] = []
+    exit_code = observation.get("curl_exit_code")
+    outcomes = {0: "none", 22: "http_response_error"} if allow_http_error else {0: "none"}
+    if isinstance(exit_code, bool) or not isinstance(exit_code, int):
+        errors.append("successful transfer requires an integer curl_exit_code")
+    elif exit_code not in outcomes:
+        errors.append("successful transfer has a failed curl_exit_code")
+    elif observation.get("transport_error") != outcomes[exit_code]:
+        errors.append("successful transfer transport_error contradicts curl_exit_code")
+    status = observation.get("http_status")
+    if isinstance(status, bool) or not isinstance(status, int) or not 100 <= status <= 999:
+        errors.append("successful transfer requires a client-observed HTTP status")
+    elif exit_code == 22 and status < 400:
+        errors.append("HTTP error transfer requires an error HTTP status")
+    return errors
+
+
 def _followup_safety_errors(observation: Mapping[str, Any]) -> list[str]:
     """Validate the payload-free, bounded vocabulary of an optional follow-up."""
 
@@ -572,10 +594,13 @@ def _followup_safety_errors(observation: Mapping[str, Any]) -> list[str]:
     if unknown:
         errors.append("follow-up has unsupported fields: " + ", ".join(sorted(unknown)))
     errors.extend(_payload_errors(observation, path="followup"))
-    if observation.get("schema_version") != 1:
+    schema_version = observation.get("schema_version")
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version != 1:
         errors.append("independent follow-up has an invalid schema_version")
     errors.extend(_followup_reason_errors(observation))
     errors.extend(_followup_type_errors(observation))
+    if observation.get("status") == "PASS":
+        errors.extend(_successful_transfer_errors(observation, allow_http_error=False))
     return errors
 
 
@@ -715,6 +740,9 @@ def _primary_observation_errors(
     unknown = set(observation) - ALLOWED_OBSERVATION_FIELDS
     if unknown:
         errors.append("observation has unsupported fields: " + ", ".join(sorted(unknown)))
+    schema_version = observation.get("schema_version")
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int) or schema_version != 1:
+        errors.append("observation has an invalid schema_version")
     errors.extend(_payload_errors(observation))
     errors.extend(protocol_client.validate_protocol_observation(
         observation,
@@ -820,6 +848,7 @@ def _normal_evidence_errors(observation: Mapping[str, Any], followup_path: Path)
     errors: list[str] = []
     if observation.get("status") != "PASS":
         errors.append("protocol client observation is not PASS")
+    errors.extend(_successful_transfer_errors(observation, allow_http_error=True))
     if followup_path.exists():
         followup, followup_errors = _read_json(followup_path)
         errors.extend(followup_errors)
@@ -828,10 +857,34 @@ def _normal_evidence_errors(observation: Mapping[str, Any], followup_path: Path)
     return errors
 
 
+def _failed_transfer_errors(observation: Mapping[str, Any]) -> list[str]:
+    """Keep reset evidence consistent with the producer's failed transfer."""
+
+    exit_code = observation.get("curl_exit_code")
+    if isinstance(exit_code, bool) or not isinstance(exit_code, int) or exit_code in {0, 22}:
+        return ["strict evidence requires a failed integer curl_exit_code"]
+    expected_error = protocol_client._returncode_transport_error(
+        exit_code, observation.get("http_status"),
+    )
+    observed_error = observation.get("transport_error")
+    if expected_error is not None:
+        if observed_error != expected_error:
+            return ["strict evidence transport_error contradicts curl_exit_code"]
+    elif observed_error not in (
+        "timeout", "tls_failure", "h2_failure", "h3_failure",
+        "protocol_failure", "client_or_network_failure",
+    ):
+        # Unknown subprocess outcomes use a bounded stderr-derived category;
+        # neither raw stderr nor a fabricated successful category is allowed.
+        return ["strict evidence requires a categorized transport failure"]
+    return []
+
+
 def _strict_primary_errors(observation: Mapping[str, Any], *, protocol: str) -> list[str]:
     errors: list[str] = []
     if observation.get("status") != "FAIL":
         errors.append("strict evidence requires a client-observed failed transfer")
+    errors.extend(_failed_transfer_errors(observation))
     if observation.get("response_committed") is not True:
         errors.append("strict evidence requires response_committed=true")
     if observation.get("client_first_body_byte_visible") is not True:
@@ -842,7 +895,11 @@ def _strict_primary_errors(observation: Mapping[str, Any], *, protocol: str) -> 
     if isinstance(stream_id, bool) or not isinstance(stream_id, int) or stream_id < 0:
         errors.append("strict evidence requires a non-negative stream_id")
     observed_status = observation.get("http_status")
-    if isinstance(observed_status, bool) or not isinstance(observed_status, int):
+    if (
+        isinstance(observed_status, bool)
+        or not isinstance(observed_status, int)
+        or not 100 <= observed_status <= 999
+    ):
         errors.append("strict evidence requires a client-observed response status")
     if observation.get("stream_reset") is not True:
         errors.append("strict evidence requires stream_reset=true")

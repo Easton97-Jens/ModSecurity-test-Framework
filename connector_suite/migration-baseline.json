@@ -7,7 +7,7 @@
     "native_sources": 88,
     "python_go_source_sets": 634,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "010ad0f5febbc2041f540dd665fdf723ee4604085784741e2e0a288e1debaac7"
+    "sha256": "b45a0b467b85e2319a417540d0bed1e7baaac2ce08d840ce997f3392b40603b2"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -1277,8 +1277,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:105",
-      "line": 105,
+      "id": "Connector:connectors/envoy/Makefile:106",
+      "line": 106,
       "make_target": "hostruntime-preflight-envoy",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1288,8 +1288,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:108",
-      "line": 108,
+      "id": "Connector:connectors/envoy/Makefile:109",
+      "line": 109,
       "make_target": "hostruntime-preflight-envoy-ext-authz",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1299,8 +1299,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:111",
-      "line": 111,
+      "id": "Connector:connectors/envoy/Makefile:112",
+      "line": 112,
       "make_target": "hostruntime-preflight-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1310,8 +1310,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:117",
-      "line": 117,
+      "id": "Connector:connectors/envoy/Makefile:118",
+      "line": 118,
       "make_target": "self-test",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1321,8 +1321,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:155",
-      "line": 155,
+      "id": "Connector:connectors/envoy/Makefile:156",
+      "line": 156,
       "make_target": "test-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1332,8 +1332,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:186",
-      "line": 186,
+      "id": "Connector:connectors/envoy/Makefile:188",
+      "line": 188,
       "make_target": "runtime-smoke-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1343,8 +1343,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:199",
-      "line": 199,
+      "id": "Connector:connectors/envoy/Makefile:201",
+      "line": 201,
       "make_target": "transport-cancel-smoke-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1354,8 +1354,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:204",
-      "line": 204,
+      "id": "Connector:connectors/envoy/Makefile:206",
+      "line": 206,
       "make_target": "check-envoy-config",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1365,8 +1365,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:222",
-      "line": 222,
+      "id": "Connector:connectors/envoy/Makefile:224",
+      "line": 224,
       "make_target": "runtime-smoke-envoy",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1376,8 +1376,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:33",
-      "line": 33,
+      "id": "Connector:connectors/envoy/Makefile:34",
+      "line": 34,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1387,8 +1387,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:35",
-      "line": 35,
+      "id": "Connector:connectors/envoy/Makefile:36",
+      "line": 36,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1398,8 +1398,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:39",
-      "line": 39,
+      "id": "Connector:connectors/envoy/Makefile:40",
+      "line": 40,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -11070,7 +11070,7 @@
       "actual_callers": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:155",
+        "Connector:connectors/envoy/Makefile:156",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11081,7 +11081,7 @@
       "current_caller_ids": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:155",
+        "Connector:connectors/envoy/Makefile:156",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11147,7 +11147,7 @@
       "actual_callers": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:155",
+        "Connector:connectors/envoy/Makefile:156",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11158,7 +11158,7 @@
       "current_caller_ids": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:155",
+        "Connector:connectors/envoy/Makefile:156",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -135077,14 +135077,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:204",
+        "Connector:connectors/envoy/Makefile:206",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:204",
+        "Connector:connectors/envoy/Makefile:206",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
@@ -135149,14 +135149,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:204",
+        "Connector:connectors/envoy/Makefile:206",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:204",
+        "Connector:connectors/envoy/Makefile:206",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
@@ -135359,12 +135359,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -135422,12 +135422,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -135485,12 +135485,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -136224,14 +136224,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:222",
+        "Connector:connectors/envoy/Makefile:224",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:222",
+        "Connector:connectors/envoy/Makefile:224",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
@@ -136293,14 +136293,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:222",
+        "Connector:connectors/envoy/Makefile:224",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:222",
+        "Connector:connectors/envoy/Makefile:224",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
@@ -140848,6 +140848,9 @@
         "TestRequestBodyHasNoConnectorAggregateGate",
         "TestRequestDenyUsesImmediateResponseBeforeResponseHeaders",
         "TestRequestMetadataAcceptsCaseInsensitiveMatchingAuthorityAndHost",
+        "TestRequestMetadataRejectsConnectionSpecificHeadersForHTTP2",
+        "TestRequestMetadataRejectsHeaderValueControlCharacters",
+        "TestRequestMetadataRejectsInvalidRequestPseudoHeaders",
         "TestRequestMetadataRejectsMismatchedAuthorityAndHost",
         "TestRequestMetadataRejectsMissingAuthorityAndHost",
         "TestRequestMetadataUsesEnvoyAttributesWithoutPeerInference",
@@ -141617,6 +141620,7 @@
         "TestUDSEngineNativeBodyPolicy",
         "TestUDSEngineTimeoutClosesBlockedConnection",
         "TestUDSEngineUsesOneSessionForFullLifecycle",
+        "TestUDSIncompleteResponseClosesWithoutFinish",
         "TestUDSTechnicalResultReachesProductiveMiddleware",
         "TestWriteUDSConnectionFrameUsesDuplexConnection"
       ],
@@ -141672,8 +141676,13 @@
       "automatic_selection": "not inferred; source-owned load_tests and the Connector inventory remain authoritative",
       "definition_ids": [
         "TestCreateConfigFailsClosedUntilUDSEngineIsConfigured",
+        "TestDirectResponseEOSErrorAtFinishMarksResponseIncomplete",
+        "TestEmptyHostWriteDoesNotInventResponseEOS",
+        "TestEngineErrorAfterCommittedResponseDoesNotInventResponseEOS",
+        "TestEvaluationFailureCommitErrorMarksResponseIncomplete",
         "TestIncompleteHostWriteDoesNotInventResponseEOS",
         "TestInspectingRequestBodyUsesDirectContext",
+        "TestLateDecisionAcknowledgementErrorMarksResponseIncomplete",
         "TestLateResponseDecisionDoesNotHijackTheHostConnection",
         "TestLateResponseDecisionDoesNotReplaceCommittedResponse",
         "TestMiddlewareAcceptsMatchingHostHeaderWithoutAuthorityDuplicate",
@@ -141702,12 +141711,22 @@
         "TestMiddlewareStreamsHandlerRequestBodyWithoutAggregatePolicy",
         "TestMiddlewareStreamsRequestAndResponseInBoundedChunks",
         "TestMiddlewareStreamsSkippedRequestBodyWithoutAggregatePolicy",
+        "TestNoBodyResponseCommitErrorDoesNotInventResponseEOS",
         "TestOptionalResponseWriterInterfacesArePreserved",
+        "TestPreCommitDenialAcknowledgementErrorMarksResponseIncomplete",
+        "TestPreCommitDenialDoesNotReenterCommitAfterAppliedOutcome",
+        "TestPreCommitDenialWriteFailureMarksResponseIncomplete",
         "TestPreCommitResponseDecisionDoesNotBufferOrForwardBody",
+        "TestPreCommitResponseEOSErrorFallbackMarksResponseIncomplete",
+        "TestReadFromEngineEOSErrorAfterHostCommitDoesNotWriteFailure",
+        "TestReadFromInitialSourceErrorDoesNotInventResponseEOS",
+        "TestReadFromInitialZeroProgressPreservesPreCommitResponseDeny",
+        "TestReadFromLateDecisionAcknowledgementErrorDoesNotInventResponseEOS",
         "TestReadFromUsesUnderlyingReaderFromAndKeepsChunksBounded",
         "TestRemovedBodyOptionJSONIsRejected",
         "TestRemovedResponseBodyOptionIsRejected",
         "TestRequestHeaderRejectionNeverReflectsHeaderValue",
+        "TestResponseCommitErrorDoesNotInventResponseEOS",
         "TestResponseWriteFlushesForwardedChunk",
         "TestTraefikMiddlewareEntryPointSignature"
       ],
@@ -142992,6 +143011,7 @@
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_masking_keeps_code_offsets_while_hiding_decoy_tokens",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_missing_eos_helper_call_is_rejected",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_missing_serialization_failure_return_is_rejected",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_phase3_negotiated_protocol_guards_cannot_be_bypassed",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_phase3_response_header_failures_are_not_ignored",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_prefix_truncation_is_rejected",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_removed_duplicate_eos_terminal_bridge_is_rejected",
@@ -144205,6 +144225,7 @@
         "modsecurity_connector_tests.test_apache_phase4_response_regression_wiring.ApachePhase4ResponseRegressionWiringTest.test_internal_redirect_regression_has_explicit_pre_fix_bypass_and_post_fix_abort_modes",
         "modsecurity_connector_tests.test_apache_phase4_response_regression_wiring.ApachePhase4ResponseRegressionWiringTest.test_normal_internal_redirect_refuses_the_target_handler_before_it_runs",
         "modsecurity_connector_tests.test_apache_phase4_response_regression_wiring.ApachePhase4ResponseRegressionWiringTest.test_parent_runner_keeps_framework_catalog_unchanged",
+        "modsecurity_connector_tests.test_apache_phase4_response_regression_wiring.ApachePhase4ResponseRegressionWiringTest.test_phase3_derives_negotiated_response_protocol_and_fails_closed_when_unknown",
         "modsecurity_connector_tests.test_apache_phase4_response_regression_wiring.ApachePhase4ResponseRegressionWiringTest.test_regression_cases_cover_deny_allow_log_only_empty_and_limit",
         "modsecurity_connector_tests.test_apache_phase4_response_regression_wiring.ApachePhase4ResponseRegressionWiringTest.test_rogue_handler_exercises_late_output_after_a_phase4_eos",
         "modsecurity_connector_tests.test_apache_phase4_response_regression_wiring.ApachePhase4ResponseRegressionWiringTest.test_synchronized_upstream_cli_contract_selects_only_supported_arguments"
@@ -145243,6 +145264,8 @@
         "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_ext_authz_compat_runtime_uses_private_loopback_tls",
         "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_ext_authz_response_phase_validator_binds_p3_and_p4_records_without_payloads",
         "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_ext_authz_runtime_does_not_claim_host_owned_response_body_verification",
+        "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_ext_proc_h2_capabilities_remain_profile_only",
+        "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_ext_proc_materializer_selects_fail_closed_downstream_protocols",
         "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_ext_proc_runtime_uses_canonical_p1_p4_traffic_vectors",
         "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_first_body_byte_is_read_once_without_header_remainder",
         "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_phase4_barrier_confirms_first_byte_before_upstream_eos",
@@ -149059,6 +149082,7 @@
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_macro_redefined_response_validator_is_rejected",
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_mapper_caller_default_must_remain_internal_server_error",
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_mapper_client_header_limit_cannot_be_removed_or_unbounded",
+        "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_mapper_client_limit_counts_the_synthetic_authority_host",
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_mapper_rejection_is_bound_to_the_mapper_call",
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_mapper_typed_error_status_cannot_be_success_or_client_default",
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_missing_phase4_error_header_is_rejected",
@@ -157292,10 +157316,18 @@
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_binds_stream_and_upstream_provenance",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_feature_report_retains_duplicate_unknown_and_missing_field_errors",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_followup_rejects_payload_fields_and_mismatched_provenance",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_followup_schema_requires_integer_one",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_http_denial_exit_requires_an_error_http_status",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_malformed_command_url_is_a_validation_error",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_normal_evidence_requires_an_executed_command_and_matching_status",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_normal_pass_rejects_missing_mistyped_or_failed_exit_code",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_normal_pass_rejects_missing_or_contradictory_error_category",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_normal_pass_requires_a_typed_observed_http_status",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_normal_success_and_http_denial_do_not_require_content_length",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_optional_normal_followup_is_still_payload_checked",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_optional_normal_pass_followup_rejects_failed_terminal_metadata",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_oversized_version_artifact_is_rejected_before_validation",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_primary_schema_requires_integer_one",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_rejects_a_client_command_that_did_not_force_h3",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_rejects_fallback_or_conflicting_protocol_selectors",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_rejects_overridden_or_payload_capturing_client_output_options",
@@ -157303,7 +157335,11 @@
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_rejects_unredacted_command_path_and_resolve_value",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_strict_evidence_rejects_missing_followup_and_raw_connection_id",
         "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_strict_followup_requires_a_distinct_bound_correlation",
-        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_strict_h3_requires_client_visible_reset_and_followup"
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_strict_followup_requires_a_successful_terminal_outcome",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_strict_h3_requires_client_visible_reset_and_followup",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_strict_reset_rejects_a_contradictory_error_category",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_strict_reset_rejects_missing_mistyped_or_successful_exit_code",
+        "modsecurity_test_framework.selftests.protocol_client.test_check_protocol_evidence.ProtocolEvidenceTest.test_strict_unmapped_exit_requires_a_bounded_failure_category"
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
@@ -157459,6 +157495,10 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_default_case_paths_preserve_the_existing_safe_flow",
         "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_library_helpers_return_expected_statuses_without_exiting_caller",
         "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_mrts_generated_paths_are_confined_to_the_build_root",
+        "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_nginx_configured_non_quic_source_remains_accepted",
+        "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_nginx_configured_quic_source_flags_preserve_include_order",
+        "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_nginx_explicit_flat_headers_take_precedence_over_source",
+        "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_nginx_unconfigured_source_is_rejected_without_flags",
         "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_openssl_and_aws_lc_pins_reject_inherited_and_post_source_mutation",
         "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_prerequisite_wrappers_propagate_blocked_and_failed_statuses",
         "modsecurity_test_framework.selftests.security_regression.test_common_shell_sonar_contracts.CommonShellSonarContractsTest.test_runtime_path_guard_rejects_all_source_checkout_roots",
@@ -160266,7 +160306,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "e96231a2c239c66381120bd0423cd11937dea6c15bde93d0328dc58c52140d3f",
-      "sha256_framework_source": "350ba9bc636a8258587326e6ca2d0ae89519a603545d00a3cf8f203977fe3964",
+      "sha256_framework_source": "3e8630aaca2d3ae7694bc658b4131df5aa96216eb0486421f2fbaac5d5b3fc85",
       "sha256_updated_base": "e96231a2c239c66381120bd0423cd11937dea6c15bde93d0328dc58c52140d3f"
     },
     {
@@ -160518,7 +160558,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "7862451b810d9fc0887e72198a07394f12f77716040256fae54bc34b48188de9",
-      "sha256_framework_source": "83240e41021f870bb711c0e32046a72c16883f7d5827bff02f198ae392bdeb23",
+      "sha256_framework_source": "9dd60eb9fd99249726aedaab976d4296759c2a9d545c266a5b61a48bb8b482b8",
       "sha256_updated_base": "7862451b810d9fc0887e72198a07394f12f77716040256fae54bc34b48188de9"
     },
     {
@@ -160608,7 +160648,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "87b2cebbe969617a27c5c88ac0faf34cf71871109d236657eaae02f187bf62d0",
-      "sha256_framework_source": "de524f34f41d4de02eff0bb2aefaf37f8226000455b3cf49c4707935f35970b9",
+      "sha256_framework_source": "406cb6923d6f770d2aef99cb1e7942e9d3b496ed5be4d87c6dbe5b77c9bfb775",
       "sha256_updated_base": "87b2cebbe969617a27c5c88ac0faf34cf71871109d236657eaae02f187bf62d0"
     },
     {
@@ -164856,7 +164896,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-      "sha256_framework_source": "04a43f05836989b4b86b0cb6f1742dcbdc5bb8ac534a08b7bf56bc09dc4f6392",
+      "sha256_framework_source": "ea9c0b07d76ed9a1e1bb1b647c750e0044fd8544e88dbf5741d07266a1f16ab7",
       "sha256_updated_base": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
     },
     {
@@ -165198,7 +165238,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "3848137c942fab9593ee227a2c73494cc262b4867ebadc014ba35b90f73af449",
-      "sha256_framework_source": "3848137c942fab9593ee227a2c73494cc262b4867ebadc014ba35b90f73af449",
+      "sha256_framework_source": "8463c368e15987de6474b1ee1835f08bfc32e390b791c978d70c26496c9cd78b",
       "sha256_updated_base": "3848137c942fab9593ee227a2c73494cc262b4867ebadc014ba35b90f73af449"
     },
     {
@@ -166791,7 +166831,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "23c07a0625fe9f8f0f473cb8afa28ba1e273edf637cdfdb3e9cacc2dc633c3d9",
-      "sha256_framework_source": "23c07a0625fe9f8f0f473cb8afa28ba1e273edf637cdfdb3e9cacc2dc633c3d9",
+      "sha256_framework_source": "2facf7ebfcfdb053aecc85f56743edec9e2403757343d337d5ae88f1efe488e1",
       "sha256_updated_base": "23c07a0625fe9f8f0f473cb8afa28ba1e273edf637cdfdb3e9cacc2dc633c3d9"
     },
     {
@@ -166800,7 +166840,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "c9337c8151954c1b8c7455f8c39aeb4e3284762bf39ebeb53acc761234c91449",
-      "sha256_framework_source": "c9337c8151954c1b8c7455f8c39aeb4e3284762bf39ebeb53acc761234c91449",
+      "sha256_framework_source": "66d5b4acc9662920a9d4e45167c1fe0ce9e2d15b04c73d791d38bad608cf71ff",
       "sha256_updated_base": "c9337c8151954c1b8c7455f8c39aeb4e3284762bf39ebeb53acc761234c91449"
     },
     {
@@ -166917,7 +166957,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "010ad0f5febbc2041f540dd665fdf723ee4604085784741e2e0a288e1debaac7",
+      "sha256_framework_source": "b45a0b467b85e2319a417540d0bed1e7baaac2ce08d840ce997f3392b40603b2",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {
@@ -167826,7 +167866,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "2188bbbac00c33ec5db195153d20f18f1dbc29425ac9066ea2f8e95187493ea7",
-      "sha256_framework_source": "aca1b5a5690535cbd507dcc840a9b705e94435b5ec6c3b07a18ac1c274cc8d8b",
+      "sha256_framework_source": "c6b0a86d197fcfd1aea9817144ec0aae847fec1c0e1ade3b2c2836a425662fbc",
       "sha256_updated_base": "2188bbbac00c33ec5db195153d20f18f1dbc29425ac9066ea2f8e95187493ea7"
     },
     {
@@ -168204,7 +168244,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "3788ad15fffa6c7645d9d01b3cc9537ccf30a4423f321e58795863ddc12fdf75",
-      "sha256_framework_source": "93610cb51f99ac1aa6378b2ae46dc6d47d3518f4cf4bad7f3dde1ab42fdb5d50",
+      "sha256_framework_source": "6c1eb64b860ed743b0cd06a413a0ba52909cb22b90b2166aa16e2cda649104b8",
       "sha256_updated_base": "3788ad15fffa6c7645d9d01b3cc9537ccf30a4423f321e58795863ddc12fdf75"
     },
     {
@@ -168510,7 +168550,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "331f86e74214a649d3714e97214bf9f03b16b6d9e033919bf6e5a9c03068e6fd",
-      "sha256_framework_source": "f23a6e49b7ac3fbb9624163a7342b49e18e1f54d4805e0b358047d58af8bf8d9",
+      "sha256_framework_source": "cf17809529f17659ce840f9ba0046cad3c9ae1cb68b02e3d375ac4b264e6783f",
       "sha256_updated_base": "331f86e74214a649d3714e97214bf9f03b16b6d9e033919bf6e5a9c03068e6fd"
     },
     {
@@ -169770,7 +169810,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "0d772b35a1eb968aeb032cd32e5a221ff8ffc3267153160d6935648e698247d1",
-      "sha256_framework_source": "a249bfba3347e5efb9a849e435e1d017a78c84e0c255b74baff03866ff7b22c6",
+      "sha256_framework_source": "3113ca6f12521ae752c757430f864971c320accd0d279afe5a6cff2fb80a19d4",
       "sha256_updated_base": "0d772b35a1eb968aeb032cd32e5a221ff8ffc3267153160d6935648e698247d1"
     },
     {
@@ -170031,7 +170071,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "64c99fdbc44f9e909d9f9b13a604df526427eaa1461c4f32786490531d4782b9",
-      "sha256_framework_source": "1a1e8ca5713135452b62a2d35c894cff55db496ea9f0db0393680fcb641d9899",
+      "sha256_framework_source": "dea515650f6e79a58ca93f106c35f63a5ff6cab1d7ff5b6b383dd17822470d65",
       "sha256_updated_base": "64c99fdbc44f9e909d9f9b13a604df526427eaa1461c4f32786490531d4782b9"
     },
     {
@@ -170211,7 +170251,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "426f4c69c3e28972ccae27ce415bbba9deff6079af4be2733decdb4ff936baaa",
-      "sha256_framework_source": "358aa12738b07a7a89586d3d861a97938647676921d31ef0a73bf29176bc262b",
+      "sha256_framework_source": "0a08568e4bdde3b860538cf54723eb587b6b3ac5fa120fb37ecb3c0bb6aabeab",
       "sha256_updated_base": "426f4c69c3e28972ccae27ce415bbba9deff6079af4be2733decdb4ff936baaa"
     },
     {
@@ -170553,7 +170593,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "de7aa397d6ba294f73b067dd72f3c9069f2ae8e9be7853ea7e7263d74efe2aca",
-      "sha256_framework_source": "2b8744e4d16c69f13e0627206477ae53724557767bd139eb5a199f4263b87b33",
+      "sha256_framework_source": "6bf00c82ed596b79533d1a27aba9a057702a337b14047a577999264a9103918b",
       "sha256_updated_base": "de7aa397d6ba294f73b067dd72f3c9069f2ae8e9be7853ea7e7263d74efe2aca"
     },
     {
@@ -171685,7 +171725,7 @@
   "framework_revision": "3a4f2281568139d94fda6b51dc2e07bb8fc06c67",
   "generator": "connector_suite/modsecurity_connector_ci/tools/build-migration-map.py",
   "inputs": {
-    "current_inventory_sha256": "04a43f05836989b4b86b0cb6f1742dcbdc5bb8ac534a08b7bf56bc09dc4f6392",
+    "current_inventory_sha256": "ea9c0b07d76ed9a1e1bb1b647c750e0044fd8544e88dbf5741d07266a1f16ab7",
     "initial_inventory_sha256": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
     "source_map_sha256": "efd8ec2d12ab62762d251c3b8ecd85185a3c397b7b0a258ed95fc39e183a71e8",
     "updated_base_inventory_sha256": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"

@@ -85,8 +85,8 @@ class NginxNativeSecurityContractTest(unittest.TestCase):
         )
         self.assertIn(
             "if (contract->max_header_count > 0U &&\n"
-            "        ngx_http_modsecurity_count_list_headers(&r->headers_in.headers) >\n"
-            "            contract->max_header_count) {\n"
+            "        (header_count > contract->max_header_count ||\n"
+            "            (authority.len > 0U && header_count == contract->max_header_count))) {\n"
             "        if (failure_status != NULL) {\n"
             "            *failure_status = NGX_HTTP_BAD_REQUEST;\n"
             "        }\n"
