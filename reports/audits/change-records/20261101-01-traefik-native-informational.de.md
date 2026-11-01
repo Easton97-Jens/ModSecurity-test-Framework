@@ -85,6 +85,29 @@ Reale Hostergebnisse, exaktes Commitpaar, Race/Vet und finale Scanevidence gehö
 der koordinierenden Aufgabe und ihrem externen Lieferbericht. Ein Go-Paket-PASS
 allein belegt keine Hostlaufzeitunterstützung.
 
+## Sonar-Korrektur und autorisierte Integration
+
+Die Integrationsfortsetzung behebt fünf neue PR-Befunde: `go:S3776` in den Tests
+für finale Entscheidungen und impliziten Abschluss, `python:S3776` in Hostprobe
+und Runner sowie `python:S1186` im absichtlich stillen Request-Log-Override.
+Kohärente Helfer erhalten Assertions, Operationsreihenfolge und alle 31 Go-Fallnamen.
+Der stille Override erklärt seinen Schutz privater Requestdaten. Keine Regel,
+Schwelle, Gate, Warnung, Prüfung oder Assertion wird abgeschwächt oder unterdrückt.
+Native Tools aktualisieren Quelldigests und generierte Registrierung; das
+Standardinventar bleibt bei 100 Fällen und 80 Ausführungen.
+
+Die initiale Sonar-Master-Baseline enthält 83 offene Framework-Issues, getrennt
+von den fünf auftragsbezogenen PR-Issues. Die unabhängige Connector-Master-Baseline
+enthält fünf Issues, seine ursprüngliche PR-Analyse keines. Diese datierten
+Inventare liegen getrennt im externen Evidenceverzeichnis `integration/`.
+Unabhängiger Baseline-Code bleibt unverändert.
+
+Der Nutzer hat die reguläre Integration von Framework #146 und danach
+Connector #435 mit dem tatsächlich entstandenen Framework-Master-SHA autorisiert.
+Finale Head-CI, Sonar-Issues/-Gates, Regeln und Reviews werden nach der Korrektur
+erneut geprüft. Der Koordinator dokumentiert terminale Ergebnisse und die frische
+Hostabnahme des neuen Paares getrennt; frühere Paarnachweise bleiben historisch.
+
 ## Nicht ausgeführte Prüfungen
 
 Diese begrenzte Teilaufgabe führte weder allgemeine Protokollmatrix noch MRTS
@@ -104,5 +127,6 @@ erfüllt sein.
 
 Übergabe an die koordinierende Aufgabe für finales Diff-, Whitespace- und
 Secret-Review sowie separate Framework-/Connector-Draft-PRs. Framework-
-Integration muss einer abhängigen Connector-Pinänderung vorausgehen. Weder
-Merge noch direkter Master-Push sind autorisiert.
+Integration muss einer abhängigen Connector-Pinänderung vorausgehen. Kein direkter
+Master-Push oder Bypass ist autorisiert. Reguläre Merges erfordern alle finalen
+Head-Integrationsbedingungen.

@@ -62,13 +62,15 @@ func (engine informationalEngine) Open(context.Context, Metadata) (Transaction, 
 	return engine.tx, nil
 }
 
+type informationalResponseCase struct {
+	name   string
+	infos  []int
+	status int
+	action Action
+}
+
 func TestInformationalResponseFinalDecision(t *testing.T) {
-	tests := []struct {
-		name   string
-		infos  []int
-		status int
-		action Action
-	}{
+	tests := []informationalResponseCase{
 		{"100-200-allow", []int{100}, 200, ActionAllow},
 		{"102-201-allow", []int{102}, 201, ActionAllow},
 		{"103-200-allow", []int{103}, 200, ActionAllow},
@@ -85,117 +87,140 @@ func TestInformationalResponseFinalDecision(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			completed := make(chan *informationalTransaction, 2)
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				tx := &informationalTransaction{action: test.action}
-				next := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-					if request.URL.Path == "/followup" {
-						_, _ = writer.Write([]byte("legitimate"))
-						return
-					}
-					writer.Header().Set("Link", "</early.css>; rel=preload")
-					for _, status := range test.infos {
-						writer.WriteHeader(status)
-						if len(tx.statuses) != 0 || len(tx.commits) != 0 {
-							t.Errorf("1xx consumed P3/commit: statuses=%v commits=%v", tx.statuses, tx.commits)
-						}
-					}
-					writer.Header().Set("X-Final-Protected", "secret")
-					writer.WriteHeader(test.status)
-					writer.WriteHeader(202) // A repeated final status must not re-evaluate P3.
-					_, _ = writer.Write([]byte("PROTECTED-UPSTREAM-BYTES"))
-				})
-				informationalMiddleware(t, tx, next).ServeHTTP(w, r)
-				completed <- tx
-			}))
-			defer server.Close()
-			client := server.Client()
-			client.Timeout = 5 * time.Second
-			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-			var infos []int
-			var reused bool
-			trace := &httptrace.ClientTrace{
-				Got1xxResponse: func(code int, _ textproto.MIMEHeader) error { infos = append(infos, code); return nil },
-				GotConn:        func(info httptrace.GotConnInfo) { reused = info.Reused },
-			}
-			request, _ := http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), http.MethodGet, server.URL, nil)
-			response, err := client.Do(request)
-			if err != nil {
-				t.Fatal(err)
-			}
-			body, err := io.ReadAll(response.Body)
-			response.Body.Close()
-			if err != nil {
-				t.Fatal(err)
-			}
-			tx := <-completed
-			wantStatus := test.status
-			if test.action == ActionDeny {
-				wantStatus = 403
-			}
-			if test.action == ActionRedirect {
-				wantStatus = 307
-			}
-			if response.StatusCode != wantStatus {
-				t.Errorf("final status=%d want=%d body=%q", response.StatusCode, wantStatus, body)
-			}
-			if !reflect.DeepEqual(infos, test.infos) {
-				t.Errorf("observed 1xx=%v want=%v", infos, test.infos)
-			}
-			if !reflect.DeepEqual(tx.statuses, []int{test.status}) {
-				t.Errorf("P3 statuses=%v want exactly [%d]", tx.statuses, test.status)
-			}
-			var protected bool
-			for index, call := range tx.headerCalls {
-				if call.direction == DirectionResponse {
-					for _, header := range tx.headerValues[index] {
-						protected = protected || (header.Name == "X-Final-Protected" && header.Value == "secret")
-					}
-				}
-			}
-			if !protected {
-				t.Error("P3 missed final-only protected header")
-			}
-			if test.action == ActionAllow {
-				if string(body) != "PROTECTED-UPSTREAM-BYTES" {
-					t.Errorf("allow body=%q", body)
-				}
-				assertBoundedBodies(t, tx.bodyCalls, DirectionResponse, 2, len(body))
-			} else {
-				if strings.Contains(string(body), "PROTECTED-UPSTREAM-BYTES") {
-					t.Errorf("denial leaked upstream bytes: %q", body)
-				}
-				if string(body) != "request rejected\n" {
-					t.Errorf("own rejection body=%q", body)
-				}
-				if test.action == ActionRedirect && response.Header.Get("Location") != "/safe" {
-					t.Error("lost redirect Location")
-				}
-			}
-			if len(tx.closed) != 1 {
-				t.Errorf("cleanup count=%d", len(tx.closed))
-			}
-			if test.action == ActionAllow && (len(tx.closed) != 1 || !tx.closed[0].ResponseEOS) {
-				t.Errorf("missing response EOS: %+v", tx.closed)
-			}
-			followup, _ := http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), http.MethodGet, server.URL+"/followup", nil)
-			response, err = client.Do(followup)
-			if err != nil {
-				t.Fatal(err)
-			}
-			body, err = io.ReadAll(response.Body)
-			response.Body.Close()
-			if err != nil {
-				t.Fatal(err)
-			}
-			followTx := <-completed
-			if response.StatusCode != 200 || string(body) != "legitimate" || !reused {
-				t.Errorf("followup status=%d body=%q keepalive-reused=%t", response.StatusCode, body, reused)
-			}
-			if len(followTx.closed) != 1 {
-				t.Errorf("followup cleanup count=%d", len(followTx.closed))
-			}
+			runInformationalFinalDecision(t, test)
 		})
+	}
+}
+
+func runInformationalFinalDecision(t *testing.T, test informationalResponseCase) {
+	t.Helper()
+	completed := make(chan *informationalTransaction, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tx := &informationalTransaction{action: test.action}
+		next := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			serveInformationalFinal(t, tx, test, writer, request)
+		})
+		informationalMiddleware(t, tx, next).ServeHTTP(w, r)
+		completed <- tx
+	}))
+	defer server.Close()
+	client := server.Client()
+	client.Timeout = 5 * time.Second
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	var infos []int
+	var reused bool
+	trace := &httptrace.ClientTrace{
+		Got1xxResponse: func(code int, _ textproto.MIMEHeader) error { infos = append(infos, code); return nil },
+		GotConn:        func(info httptrace.GotConnInfo) { reused = info.Reused },
+	}
+	request, _ := http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), http.MethodGet, server.URL, nil)
+	response, body := readInformationalResponse(t, client, request)
+	tx := <-completed
+	assertInformationalFinal(t, test, response, body, infos, tx)
+	followup, _ := http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), http.MethodGet, server.URL+"/followup", nil)
+	response, body = readInformationalResponse(t, client, followup)
+	followTx := <-completed
+	if response.StatusCode != 200 || string(body) != "legitimate" || !reused {
+		t.Errorf("followup status=%d body=%q keepalive-reused=%t", response.StatusCode, body, reused)
+	}
+	if len(followTx.closed) != 1 {
+		t.Errorf("followup cleanup count=%d", len(followTx.closed))
+	}
+}
+
+func serveInformationalFinal(t *testing.T, tx *informationalTransaction, test informationalResponseCase, writer http.ResponseWriter, request *http.Request) {
+	t.Helper()
+	if request.URL.Path == "/followup" {
+		_, _ = writer.Write([]byte("legitimate"))
+		return
+	}
+	writer.Header().Set("Link", "</early.css>; rel=preload")
+	for _, status := range test.infos {
+		writer.WriteHeader(status)
+		if len(tx.statuses) != 0 || len(tx.commits) != 0 {
+			t.Errorf("1xx consumed P3/commit: statuses=%v commits=%v", tx.statuses, tx.commits)
+		}
+	}
+	writer.Header().Set("X-Final-Protected", "secret")
+	writer.WriteHeader(test.status)
+	writer.WriteHeader(202) // A repeated final status must not re-evaluate P3.
+	_, _ = writer.Write([]byte("PROTECTED-UPSTREAM-BYTES"))
+}
+
+func readInformationalResponse(t *testing.T, client *http.Client, request *http.Request) (*http.Response, []byte) {
+	t.Helper()
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response, body
+}
+
+func assertInformationalFinal(t *testing.T, test informationalResponseCase, response *http.Response, body []byte, infos []int, tx *informationalTransaction) {
+	t.Helper()
+	wantStatus := test.status
+	if test.action == ActionDeny {
+		wantStatus = 403
+	}
+	if test.action == ActionRedirect {
+		wantStatus = 307
+	}
+	if response.StatusCode != wantStatus {
+		t.Errorf("final status=%d want=%d body=%q", response.StatusCode, wantStatus, body)
+	}
+	if !reflect.DeepEqual(infos, test.infos) {
+		t.Errorf("observed 1xx=%v want=%v", infos, test.infos)
+	}
+	if !reflect.DeepEqual(tx.statuses, []int{test.status}) {
+		t.Errorf("P3 statuses=%v want exactly [%d]", tx.statuses, test.status)
+	}
+	assertInformationalProtectedHeader(t, tx)
+	assertInformationalBody(t, test.action, response, body, tx)
+	if len(tx.closed) != 1 {
+		t.Errorf("cleanup count=%d", len(tx.closed))
+	}
+	if test.action == ActionAllow && (len(tx.closed) != 1 || !tx.closed[0].ResponseEOS) {
+		t.Errorf("missing response EOS: %+v", tx.closed)
+	}
+}
+
+func assertInformationalProtectedHeader(t *testing.T, tx *informationalTransaction) {
+	t.Helper()
+	var protected bool
+	for index, call := range tx.headerCalls {
+		if call.direction == DirectionResponse {
+			for _, header := range tx.headerValues[index] {
+				protected = protected || (header.Name == "X-Final-Protected" && header.Value == "secret")
+			}
+		}
+	}
+	if !protected {
+		t.Error("P3 missed final-only protected header")
+	}
+}
+
+func assertInformationalBody(t *testing.T, action Action, response *http.Response, body []byte, tx *informationalTransaction) {
+	t.Helper()
+	if action == ActionAllow {
+		if string(body) != "PROTECTED-UPSTREAM-BYTES" {
+			t.Errorf("allow body=%q", body)
+		}
+		assertBoundedBodies(t, tx.bodyCalls, DirectionResponse, 2, len(body))
+	} else {
+		if strings.Contains(string(body), "PROTECTED-UPSTREAM-BYTES") {
+			t.Errorf("denial leaked upstream bytes: %q", body)
+		}
+		if string(body) != "request rejected\n" {
+			t.Errorf("own rejection body=%q", body)
+		}
+		if action == ActionRedirect && response.Header.Get("Location") != "/safe" {
+			t.Error("lost redirect Location")
+		}
 	}
 }
 
@@ -231,56 +256,57 @@ func TestInformationalResponseImplicitFinal(t *testing.T) {
 	for _, method := range []string{"write", "empty-write", "flush", "read-from", "finish"} {
 		for _, action := range []Action{ActionAllow, ActionDeny} {
 			t.Run(method+"-"+string(action), func(t *testing.T) {
-				done := make(chan *informationalTransaction, 1)
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					tx := &informationalTransaction{action: action}
-					informationalMiddleware(t, tx, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-						writer.WriteHeader(103)
-						writer.Header().Set("X-Final-Protected", "secret")
-						switch method {
-						case "write":
-							_, _ = writer.Write([]byte("protected"))
-						case "empty-write":
-							_, _ = writer.Write(nil)
-						case "flush":
-							writer.(http.Flusher).Flush()
-						case "read-from":
-							_, _ = writer.(io.ReaderFrom).ReadFrom(&plainReader{reader: strings.NewReader("protected")})
-						}
-					})).ServeHTTP(w, r)
-					done <- tx
-				}))
-				defer server.Close()
-				client := server.Client()
-				client.Timeout = 5 * time.Second
-				var infos []int
-				trace := &httptrace.ClientTrace{Got1xxResponse: func(code int, _ textproto.MIMEHeader) error { infos = append(infos, code); return nil }}
-				request, _ := http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), http.MethodGet, server.URL, nil)
-				response, err := client.Do(request)
-				if err != nil {
-					t.Fatal(err)
-				}
-				body, err := io.ReadAll(response.Body)
-				response.Body.Close()
-				if err != nil {
-					t.Fatal(err)
-				}
-				tx := <-done
-				status := 200
-				if action == ActionDeny {
-					status = 403
-				}
-				if response.StatusCode != status || !reflect.DeepEqual(infos, []int{103}) || !reflect.DeepEqual(tx.statuses, []int{200}) {
-					t.Errorf("status=%d infos=%v P3=%v", response.StatusCode, infos, tx.statuses)
-				}
-				if action == ActionDeny && strings.Contains(string(body), "protected") {
-					t.Errorf("protected body leaked: %q", body)
-				}
-				if len(tx.closed) != 1 {
-					t.Errorf("cleanup count=%d", len(tx.closed))
-				}
+				runInformationalImplicitFinal(t, method, action)
 			})
 		}
+	}
+}
+
+func runInformationalImplicitFinal(t *testing.T, method string, action Action) {
+	t.Helper()
+	done := make(chan *informationalTransaction, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tx := &informationalTransaction{action: action}
+		informationalMiddleware(t, tx, http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			writer.WriteHeader(103)
+			writer.Header().Set("X-Final-Protected", "secret")
+			writeInformationalImplicitFinal(writer, method)
+		})).ServeHTTP(w, r)
+		done <- tx
+	}))
+	defer server.Close()
+	client := server.Client()
+	client.Timeout = 5 * time.Second
+	var infos []int
+	trace := &httptrace.ClientTrace{Got1xxResponse: func(code int, _ textproto.MIMEHeader) error { infos = append(infos, code); return nil }}
+	request, _ := http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), http.MethodGet, server.URL, nil)
+	response, body := readInformationalResponse(t, client, request)
+	tx := <-done
+	status := 200
+	if action == ActionDeny {
+		status = 403
+	}
+	if response.StatusCode != status || !reflect.DeepEqual(infos, []int{103}) || !reflect.DeepEqual(tx.statuses, []int{200}) {
+		t.Errorf("status=%d infos=%v P3=%v", response.StatusCode, infos, tx.statuses)
+	}
+	if action == ActionDeny && strings.Contains(string(body), "protected") {
+		t.Errorf("protected body leaked: %q", body)
+	}
+	if len(tx.closed) != 1 {
+		t.Errorf("cleanup count=%d", len(tx.closed))
+	}
+}
+
+func writeInformationalImplicitFinal(writer http.ResponseWriter, method string) {
+	switch method {
+	case "write":
+		_, _ = writer.Write([]byte("protected"))
+	case "empty-write":
+		_, _ = writer.Write(nil)
+	case "flush":
+		writer.(http.Flusher).Flush()
+	case "read-from":
+		_, _ = writer.(io.ReaderFrom).ReadFrom(&plainReader{reader: strings.NewReader("protected")})
 	}
 }
 

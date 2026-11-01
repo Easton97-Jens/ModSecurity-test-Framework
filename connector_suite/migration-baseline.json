@@ -7,7 +7,7 @@
     "native_sources": 88,
     "python_go_source_sets": 634,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "05801817ab504164d8ec8a1016715562aa8c5a3227144db600d29937564030c7"
+    "sha256": "010ad0f5febbc2041f540dd665fdf723ee4604085784741e2e0a288e1debaac7"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -164856,7 +164856,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-      "sha256_framework_source": "9c92ea0388e5e70d363b69190fff9a52a312372687f89024a80119db4962fbb9",
+      "sha256_framework_source": "04a43f05836989b4b86b0cb6f1742dcbdc5bb8ac534a08b7bf56bc09dc4f6392",
       "sha256_updated_base": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
     },
     {
@@ -166917,7 +166917,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "05801817ab504164d8ec8a1016715562aa8c5a3227144db600d29937564030c7",
+      "sha256_framework_source": "010ad0f5febbc2041f540dd665fdf723ee4604085784741e2e0a288e1debaac7",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {
@@ -171685,7 +171685,7 @@
   "framework_revision": "3a4f2281568139d94fda6b51dc2e07bb8fc06c67",
   "generator": "connector_suite/modsecurity_connector_ci/tools/build-migration-map.py",
   "inputs": {
-    "current_inventory_sha256": "9c92ea0388e5e70d363b69190fff9a52a312372687f89024a80119db4962fbb9",
+    "current_inventory_sha256": "04a43f05836989b4b86b0cb6f1742dcbdc5bb8ac534a08b7bf56bc09dc4f6392",
     "initial_inventory_sha256": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
     "source_map_sha256": "efd8ec2d12ab62762d251c3b8ecd85185a3c397b7b0a258ed95fc39e183a71e8",
     "updated_base_inventory_sha256": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
@@ -175691,7 +175691,7 @@
       "framework_path": "connector_suite/adapters/traefik/native_middleware/informational_response_test.go",
       "logical_path": "connectors/traefik/native_middleware/informational_response_test.go",
       "migration_source": false,
-      "sha256_framework_source": "7595852421815086828356bbc727742cceb3bdda810815f9dbee728d0f4ac413"
+      "sha256_framework_source": "5f49356f42fe73662351ac992f0b577cd3195a6458a4c8abc8ace0175f0b09ca"
     },
     {
       "framework_path": "connector_suite/adapters/traefik/scripts/native-informational-rules.conf",
@@ -175709,7 +175709,7 @@
       "framework_path": "connector_suite/adapters/traefik/scripts/runtime_native_informational.py",
       "logical_path": "connectors/traefik/scripts/runtime_native_informational.py",
       "migration_source": false,
-      "sha256_framework_source": "c34468488c207f170a9bed62588d6378864eef622d1842f76cef1e00cf15f87c"
+      "sha256_framework_source": "716b46d4e86b502c5382ce0159928499063f7813b90110e79a3000181b30b1f7"
     }
   ],
   "prerequisite_catalog": {

@@ -73,9 +73,36 @@ def handler():
                 pass
 
         def log_message(self, *_args):
+            # Suppress request logging so the fixture emits no private request data.
             pass
 
     return Upstream
+
+
+def validate_probe_response(response, body, transaction_id, informational, deny):
+    if len(body) > MAX_BODY:
+        raise RuntimeError("response exceeded bounded probe limit")
+    expected = 403 if deny else 201
+    if response.status != expected:
+        raise RuntimeError(f"{transaction_id}: expected final {expected}, observed {response.status}")
+    if response.informational != ([103] if informational else []):
+        raise RuntimeError(f"{transaction_id}: expected informational head was not observed")
+    if deny and body not in (b"", b"request rejected\n"):
+        raise RuntimeError("P3 denial body differs from the middleware denial body")
+    if deny and (PROTECTED in body or b"protected-upstream-body" in body):
+        raise RuntimeError("P3 denial exposed protected upstream bytes")
+    if not deny and body != ALLOW_BODY:
+        raise RuntimeError("legitimate upstream response did not complete")
+
+
+def require_probe_completion(connection, response, completion_socket):
+    if completion_socket is not None:
+        try:
+            native.require_response_socket_eof(completion_socket)
+        finally:
+            completion_socket.close()
+    elif response.will_close or connection.sock is None:
+        raise RuntimeError("probe connection was not reusable")
 
 
 def probe(connection, transaction_id, informational, deny, close=False):
@@ -90,26 +117,8 @@ def probe(connection, transaction_id, informational, deny, close=False):
     completion_socket = connection.sock.dup() if close else None
     response = connection.getresponse()
     body = response.read(MAX_BODY + 1)
-    if len(body) > MAX_BODY:
-        raise RuntimeError("response exceeded bounded probe limit")
-    expected = 403 if deny else 201
-    if response.status != expected:
-        raise RuntimeError(f"{transaction_id}: expected final {expected}, observed {response.status}")
-    if response.informational != ([103] if informational else []):
-        raise RuntimeError(f"{transaction_id}: expected informational head was not observed")
-    if deny and body not in (b"", b"request rejected\n"):
-        raise RuntimeError("P3 denial body differs from the middleware denial body")
-    if deny and (PROTECTED in body or b"protected-upstream-body" in body):
-        raise RuntimeError("P3 denial exposed protected upstream bytes")
-    if not deny and body != ALLOW_BODY:
-        raise RuntimeError("legitimate upstream response did not complete")
-    if completion_socket is not None:
-        try:
-            native.require_response_socket_eof(completion_socket)
-        finally:
-            completion_socket.close()
-    elif response.will_close or connection.sock is None:
-        raise RuntimeError("probe connection was not reusable")
+    validate_probe_response(response, body, transaction_id, informational, deny)
+    require_probe_completion(connection, response, completion_socket)
     return {"transaction_id": transaction_id, "status": response.status,
             "informational_statuses": response.informational, "response_bytes": len(body),
             "protected_body_absent": deny, "connection_reused": True,
@@ -142,6 +151,48 @@ def validate_correlated_evidence(artifacts, observations):
             raise RuntimeError("unexpected recovery/panic in real Traefik host")
 
 
+def wait_for_native_route(setup):
+    deadline = time.monotonic() + 15
+    while True:
+        ready = http.client.HTTPConnection("127.0.0.1", setup.traefik_port, timeout=2)
+        try:
+            ready.response_class = native.CompletionHTTPResponse
+            ready.request("GET", "/native-informational", headers={"X-Request-Id": "sec-traefik-native-001-readiness", "Connection": "close"})
+            completion_socket = ready.sock.dup()
+            response = ready.getresponse()
+            body = response.read(MAX_BODY + 1)
+            try:
+                native.require_response_socket_eof(completion_socket)
+            finally:
+                completion_socket.close()
+            if response.status == 201 and body == ALLOW_BODY:
+                break
+            if response.status != 404 or time.monotonic() >= deadline:
+                raise RuntimeError(f"native route readiness returned {response.status}")
+        finally:
+            ready.close()
+        time.sleep(0.1)
+
+
+def probe_keepalive_sequence(setup, observations):
+    connection = http.client.HTTPConnection("127.0.0.1", setup.traefik_port, timeout=10)
+    connection.response_class = InformationalResponse
+    try:
+        original_socket = None
+        for name, informational, deny in (("103-deny", True, True),
+                ("control-deny", False, True), ("103-allow", True, False),
+                ("legitimate-followup", False, False)):
+            tid = "sec-traefik-native-001-" + name
+            if original_socket is not None and connection.sock is not original_socket:
+                raise RuntimeError("legitimate followup did not reuse the TCP connection")
+            final = name == "legitimate-followup"
+            observations.append(probe(connection, tid, informational, deny, close=final))
+            if original_socket is None:
+                original_socket = connection.sock
+    finally:
+        connection.close()
+
+
 def run():
     context = ConnectorContext.from_environment()
     os.environ.setdefault("MSCONNECTOR_RULES_FILE", str(Path(__file__).with_name("native-informational-rules.conf")))
@@ -168,42 +219,8 @@ def run():
         with native.running_traefik_host(inputs, artifacts, setup, processes,
                 engine_description="SEC native Common/libmodsecurity engine",
                 host_description="SEC pinned Traefik local-plugin host"):
-            deadline = time.monotonic() + 15
-            while True:
-                ready = http.client.HTTPConnection("127.0.0.1", setup.traefik_port, timeout=2)
-                try:
-                    ready.response_class = native.CompletionHTTPResponse
-                    ready.request("GET", "/native-informational", headers={"X-Request-Id": "sec-traefik-native-001-readiness", "Connection": "close"})
-                    completion_socket = ready.sock.dup()
-                    response = ready.getresponse()
-                    body = response.read(MAX_BODY + 1)
-                    try:
-                        native.require_response_socket_eof(completion_socket)
-                    finally:
-                        completion_socket.close()
-                    if response.status == 201 and body == ALLOW_BODY:
-                        break
-                    if response.status != 404 or time.monotonic() >= deadline:
-                        raise RuntimeError(f"native route readiness returned {response.status}")
-                finally:
-                    ready.close()
-                time.sleep(0.1)
-            connection = http.client.HTTPConnection("127.0.0.1", setup.traefik_port, timeout=10)
-            connection.response_class = InformationalResponse
-            try:
-                original_socket = None
-                for name, informational, deny in (("103-deny", True, True),
-                        ("control-deny", False, True), ("103-allow", True, False),
-                        ("legitimate-followup", False, False)):
-                    tid = "sec-traefik-native-001-" + name
-                    if original_socket is not None and connection.sock is not original_socket:
-                        raise RuntimeError("legitimate followup did not reuse the TCP connection")
-                    final = name == "legitimate-followup"
-                    observations.append(probe(connection, tid, informational, deny, close=final))
-                    if original_socket is None:
-                        original_socket = connection.sock
-            finally:
-                connection.close()
+            wait_for_native_route(setup)
+            probe_keepalive_sequence(setup, observations)
         if processes.traefik.poll() is not None or processes.engine.poll() is not None:
             raise RuntimeError("host or engine exited unexpectedly")
         native.stop_native_processes(processes)

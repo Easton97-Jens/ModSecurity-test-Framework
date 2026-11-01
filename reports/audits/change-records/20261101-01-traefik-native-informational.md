@@ -79,6 +79,29 @@ Real host results, exact committed pair, race/vet and final scan evidence are
 owned by the coordinating task and its external delivery report. A Go package
 PASS alone does not establish host runtime support.
 
+## Sonar remediation and authorized integration
+
+The integration follow-up addresses five new PR findings: `go:S3776` in the
+final-decision and implicit-final tests, `python:S3776` in the host probe and
+runner, and `python:S1186` in the intentionally silent request-log override.
+Cohesive helpers retain the assertions, operation order and all 31 Go case names.
+The silent override now explains its request-data privacy purpose. No rule,
+threshold, gate, warning, check or assertion is weakened or suppressed. Native
+tools refresh source bindings and generated registration; the standard inventory
+remains 100 cases and 80 executions.
+
+The initial Sonar master baseline contains 83 unresolved Framework issues,
+separate from the five task-owned PR issues. The independent Connector master
+baseline contains five issues and its original PR analysis contains none.
+These dated inventories are retained separately under the external `integration/`
+evidence directory. Unrelated baseline code is unchanged.
+
+The user authorized regular Framework #146 integration followed by Connector
+#435 with the actual resulting Framework master SHA. Final-head CI, Sonar
+issues/gates, rules and reviews are checked again after remediation. The
+coordinator records terminal results and fresh new-pair host acceptance separately;
+earlier pair evidence remains historical.
+
 ## Checks not run
 
 This bounded subtask did not run the general protocol matrix, MRTS or a full
@@ -96,5 +119,5 @@ Host prerequisites and identity checks must pass without weakened isolation.
 
 Changes are handed to the coordinating task for final diff, whitespace and
 secret review and separate Framework/Connector Draft PRs. Framework integration
-must precede a dependent Connector pin update. No merge or direct master push
-is authorized.
+must precede a dependent Connector pin update. No direct master push or bypass
+is authorized. Regular merges require all final-head integration conditions.

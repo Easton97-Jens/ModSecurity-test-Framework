@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "9c92ea0388e5e70d363b69190fff9a52a312372687f89024a80119db4962fbb9",
+  "inventory_sha256": "04a43f05836989b4b86b0cb6f1742dcbdc5bb8ac534a08b7bf56bc09dc4f6392",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -2356,7 +2356,7 @@
         "TestInformationalResponseRejectsInvalidHeaders"
       ],
       "source": "connectors/traefik/native_middleware/informational_response_test.go",
-      "source_sha256": "7595852421815086828356bbc727742cceb3bdda810815f9dbee728d0f4ac413"
+      "source_sha256": "5f49356f42fe73662351ac992f0b577cd3195a6458a4c8abc8ace0175f0b09ca"
     },
     {
       "contains_selected_definitions": [],
