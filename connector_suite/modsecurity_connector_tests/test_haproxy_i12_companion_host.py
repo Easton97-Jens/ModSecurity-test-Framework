@@ -22,7 +22,7 @@ runner = load_source(SOURCE)
 def prepare_component_certificate(root):
     configuration = root / "openssl.cnf"
     configuration.write_text("[req]\ndistinguished_name=dn\nprompt=no\nx509_extensions=ext\n[dn]\nCN=localhost\n[ext]\nsubjectAltName=DNS:localhost\n")
-    argv = ["rtk", "proxy", "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+    argv = ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
             "-keyout", str(root / runner.TLS_KEY), "-out", str(root / runner.TLS_CERT),
             "-days", "1", "-config", str(configuration)]
     result = subprocess.run(argv, capture_output=True, timeout=20)

@@ -43,6 +43,8 @@ The selected [CodeQL SSL model](https://github.com/github/codeql/blob/6e9f9e3839
 - `.github/workflows/ci-findings-regressions.yml`: include changed paths and run the new regression plus three existing actual loopback/child-process controls without accepting skips. Scanner queries, categories, exclusions and permissions are unchanged.
 - Native generators refresh exactly three inventory source hashes, add seven archived definitions (7,966 to 7,973), and update migration source/caller metadata. All case IDs and selectors are unchanged: default 100 cases/80 executions, optional 2,586/1,140 and 1,993 original IDs preserved.
 
+The first PR run exposed an existing component-certificate helper dependency on an unavailable `rtk` executable. That subprocess argument list now invokes the installed `openssl` directly, matching the adjacent Envoy/HTX fixture helpers. Local shell verification remains RTK-wrapped; no tool installation or authentication change is introduced. Run 41399496348 at initial head 11b0da7 failed before the actual client-process control; its failure is not counted as a pass. Follow-up head checks must replace that stale result.
+
 ## Commands and results
 
 All procedures use RTK and the Framework-owned interpreter. `FRAMEWORK_ROOT` denotes the task worktree; `RUN_ROOT` denotes the configured external evidence root for run ID `framework-tls-floor-20261102`. Exact invocation details and lifecycle results are retained in its execution plan; no raw logs or certificate private keys are copied here.

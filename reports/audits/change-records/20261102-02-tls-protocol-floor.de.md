@@ -43,6 +43,8 @@ Das gewählte [CodeQL-SSL-Modell](https://github.com/github/codeql/blob/6e9f9e38
 - `.github/workflows/ci-findings-regressions.yml`: betroffene Pfade aufnehmen und die neue Regression zusammen mit drei bestehenden tatsächlichen Loopback-/Kindprozesskontrollen ohne zulässige Skips ausführen. Scanner-Abfragen, Kategorien, Ausschlüsse und Berechtigungen bleiben unverändert.
 - Native Generatoren aktualisieren genau drei Inventar-Quellhashes, ergänzen sieben archivierte Definitionen (7.966 auf 7.973) und aktualisieren Quell-/Aufrufermetadaten der Migration. Alle Fall-IDs und Selektoren bleiben unverändert: Standard 100 Fälle/80 Ausführungen, optional 2.586/1.140 und 1.993 ursprüngliche IDs erhalten.
 
+Der erste PR-Lauf zeigte die bestehende Abhängigkeit der Komponenten-Zertifikatshilfe von einer nicht verfügbaren ausführbaren Datei `rtk`. Ihre Subprozessargumente rufen nun das installierte `openssl` direkt auf, passend zu den benachbarten Envoy-/HTX-Fixture-Hilfen. Lokale Shell-Prüfungen bleiben RTK-umhüllt; keine Toolinstallation oder Authentifizierungsänderung wird eingeführt. Run 41399496348 am ersten Head 11b0da7 scheiterte vor der tatsächlichen Clientprozesskontrolle; dieser Fehler zählt nicht als PASS. Prüfungen des Folge-Heads müssen das veraltete Ergebnis ersetzen.
+
 ## Befehle und Ergebnisse
 
 Alle Verfahren verwenden RTK und den Framework-eigenen Interpreter. `FRAMEWORK_ROOT` bezeichnet den Task-Worktree; `RUN_ROOT` bezeichnet die konfigurierte externe Evidenzwurzel für Run-ID `framework-tls-floor-20261102`. Genaue Aufrufe und Lifecycle-Ergebnisse verbleiben im dortigen Ausführungsplan; Rohlogs und private Zertifikatschlüssel werden hier nicht kopiert.

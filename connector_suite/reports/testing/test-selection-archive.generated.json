@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "5b153d035bf6cb728cd47225b3cdcc5e2cf82d074a49101fdea7b6f0f6cb360c",
+  "inventory_sha256": "a4115ab4df7ad5d558ebdbe1104c1041c3313951b35dc413896646f43d4b22bb",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -5774,7 +5774,7 @@
         "modsecurity_connector_tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_controller_child_is_explicit_and_fresh"
       ],
       "source": "tests/test_haproxy_i12_companion_host.py",
-      "source_sha256": "a531f90ab711460fc23aaae003ce41ed35d0a362b663755af3f2d7ab246b8029"
+      "source_sha256": "a212e384252296d0ee3b0ca8e176b297945da9a578e8fb1a99fc2d544ad71d4f"
     },
     {
       "contains_selected_definitions": [],
