@@ -76,6 +76,8 @@ Vollständige Tests, Connector-Builds, Host-Runtime, I12/Matrizen und Remote-Qua
 
 Parent-Integration erfordert separate Reparatur und Pin-Update. Git-Objekttests prüfen die Verifier-Datengrenze, keine Hosted-Runtime-Bereitschaft. Aktuelle GitHub-Head-Prüfungen sind nach dem Push als Delivery-Evidenz zu prüfen.
 
+Hosted-Lint und Action-Version-Prüfungen am ersten Head585bf6e fanden den Whole-Source-Migrationsdigest der Exact-Head-Action und eine redundant kopierte kanonische URL. Der vorherige einzelne Quelleneintrag wurde gegen den Basiscommit authentifiziert; genau dieser Action-Digest in `ci/tooling/connector-actions.lock.json` und sein Aggregat in `ci/checks/security/connector_action_pins.py` wurden erneuert. Register, Action-Records und Autorität bleiben erhalten. Dieser gepflegte Snapshot hat keinen eingecheckten Generator. Das doppelte URL-Literal wurde durch einen SHA-256-Vertrauensanker ersetzt. `rtk bypass env PYTHONDONTWRITEBYTECODE=1 /var/tmp/codex/ModSecurity-test-Framework/venv/bin/python ci/tools/check-common-versions.py --validate-canonical` bestanden; `python -m unittest tests.ci_security.test_connector_action_pins -v`6 Tests bestanden;2 gezielte Synchronisierertests bestanden. Das unveränderliche Snapshot-Gate verlangt weiterhin separate Prüfung, wenn künftige Wartung Composite-Quellbytes ändert.
+
 ## Finaler Diff- und Review-Status
 
 Finaler fokussierter Diff geprüft; keine Geheimnisse oder sensiblen Rohlogs erfasst. Review fand Verlust des atomaren Dateimodus; gezielte Regression deckt dessen Erhalt jetzt ab. Keine Parent-/MRTS-Änderungen oder Merge.

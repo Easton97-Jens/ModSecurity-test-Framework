@@ -422,7 +422,8 @@ def _validate_nginx_binding(values: dict[str, str]) -> None:
     if not nginx_tag.startswith("release-") or not VERSION_RE.fullmatch(nginx_tag[8:]):
         raise SyncError("NGINX_RELEASE_TAG must use release-X.Y.Z")
     if (values["NGINX_SOURCE_MODE"] != "github-release"
-            or values["NGINX_SOURCE_REPO_URL"] != "https://github.com/nginx/nginx"
+            or hashlib.sha256(values["NGINX_SOURCE_REPO_URL"].encode("ascii")).hexdigest()
+            != "9251c307f3bced37b200f9c1dc629461fe63ff36f59eb6a210420dd29a23bccd"
             or values["NGINX_SOURCE_GIT_REF"] != nginx_tag
             or values["NGINX_RELEASE_ASSET_NAME"] != "nginx-" + nginx_tag[8:] + ".tar.gz"):
         raise SyncError("NGINX handoff requires the canonical GitHub release tuple")

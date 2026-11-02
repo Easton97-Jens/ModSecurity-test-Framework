@@ -69,7 +69,7 @@
     ".github/actions/connector-ci/test-full-smoke-sequential/manual-heavy-runtime-validation/action.yml": "f5d3e8f677629c0bdbc8f0c6f3d47bec2bcd720ae36a7c2e4b56edf972df54a7",
     ".github/actions/connector-ci/test-haproxy/haproxy-structure/action.yml": "f02d66fca9774d7e5f05f015b1d16234c564724fe78fe365786bfe62917dd660",
     ".github/actions/connector-ci/test-lighttpd/lighttpd-contract/action.yml": "8b7895c9b732826d8a3401b968960e2e07fb688d0258694dd1d657fc181e3048",
-    ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml": "749d20776f866e549b5f2f15c4350c569151600c6426a47d46072fcb39984f66",
+    ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml": "167af932a0371c04fc1819f2defce7c081a82f98f16c1f80ecdb15e1dde40cc6",
     ".github/actions/connector-ci/test-nginx/nginx-structure/action.yml": "8145241d8498a9ee5ce426c3b82debd1c4089f8420099e636008788c27fd4e6e",
     ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml": "9d98db46d3990fd4f8ed919825d8678a849f11add5ed848765b11de9f02d4efa",
     ".github/actions/connector-context/action.yml": "4b97c12fa791026c94dfc0af8ea772d333938536e0cac4346e50c66de1115289",
