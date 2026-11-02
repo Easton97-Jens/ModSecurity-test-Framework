@@ -71,6 +71,8 @@ The local execution plan retains complete context/environment command arguments.
 
 Additional regression work updates `connector_suite/modsecurity_connector_tests/test_framework_workflow_pin_projection.py` and its independent `framework_sha_fixture.py` helper. Against the separate Parent patch, 10 projection tests and 39 updater tests passed: the six early selected-action gate pins remain closed, move with the existing pin synchronizer, reject stale/missing/extra/symbolic identities, and stop a changed Gitlink plus changed checkout before verifier execution. Independent review also passed 24 shell admission cases. Native documentation checks and Ruff lint passed. Whole-file formatter drift in three legacy Python files is present in the base too; those unrelated regions were preserved. The previously formatted `workflow_sources.py` remains formatted.
 
+Hosted scaffold validation identified the immutable connector-source contract as an additional affected owner. Renewed exactly the 18 reviewed composite SHA entries in `ci/tooling/connector-actions.lock.json` and its aggregate in `ci/checks/security/connector_action_pins.py` from a deterministic external script after authenticating the prior contract. This maintained snapshot has no checked-in generator. Action records, source registry, authority and six unaffected sources are unchanged. Native `rtk make check-canonical-common-pins PYTHON="$FRAMEWORK_PYTHON"` and six `tests.ci_security.test_connector_action_pins` tests passed, including tampered early identity/checkout/selector checks across all 18 composites.
+
 ## Security impact
 
 This repairs bootstrap/source-contract correctness while retaining immutable

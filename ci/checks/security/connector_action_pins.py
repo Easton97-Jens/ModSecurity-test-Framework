@@ -19,7 +19,7 @@ AUTHORITY = {"repository": "Easton97-Jens/ModSecurity-conector",
              "path": "ci/tooling/security-tools.lock.yml",
              "sha256": "ad2b62a5d698ba7211a02df8b0239b7d0be7b105e2154fef738d96242aeb7f64"}
 ACTION_RECORDS_SHA256 = "3830ab9e7242edf449b834f83b08b0e862e601d7ac7ec6586bf4ea1490b9b240"
-SOURCES_SHA256 = "dad975edb75d6b5b32750c21dc82c13767f9dc5c61c7b702252a68fdb5bb5014"
+SOURCES_SHA256 = "4c7f1c2c72780c4bddf8d9e8297cf38bba7bf45dd55debf12348a7c01938559f"
 WORKFLOWS = frozenset({"connector-nginx-root-broker-historical.yml",
     "connector-protected-nginx-exact-head.yml", "connector-protected-nginx-root-broker-caller.yml",
     "connector-trusted-lighttpd-namespace.yml"})
