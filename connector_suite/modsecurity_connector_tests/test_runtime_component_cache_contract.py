@@ -17,10 +17,10 @@ ROOT = connector_root()
 PINNED_NGINX_ENV = {
     "NGINX_SOURCE_MODE": "github-release",
     "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-    "NGINX_RELEASE_TAG": "release-1.31.6",
-    "NGINX_SOURCE_GIT_REF": "release-1.31.6",
-    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.6.tar.gz",
-    "NGINX_SHA256": "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
+    "NGINX_RELEASE_TAG": "release-1.31.8",
+    "NGINX_SOURCE_GIT_REF": "release-1.31.8",
+    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.8.tar.gz",
+    "NGINX_SHA256": "0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1",
 }
 MODSECURITY_PUBLIC_HEADERS = (
     "modsecurity.h",
@@ -726,7 +726,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             archive_root = cache_root / "archives"
             provenance = components.nginx_pinned_provenance(dict(PINNED_NGINX_ENV))
             identity = components.nginx_pinned_archive_cache_identity(provenance)
-            archive_path = archive_root / "nginx/nginx-1.31.6.tar.gz"
+            archive_path = archive_root / "nginx/nginx-1.31.8.tar.gz"
 
             def write_mismatched_archive(_url: str, destination: Path) -> None:
                 destination.write_bytes(b"not-the-reviewed-nginx-release-asset")
@@ -1738,7 +1738,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             entry = cache_root / "builds/connectors/nginx" / cache_key
             build_path = entry / "build"
             nginx_prefix = entry / "nginx"
-            archive_path = cache_root / "archives/nginx/nginx-1.31.6.tar.gz"
+            archive_path = cache_root / "archives/nginx/nginx-1.31.8.tar.gz"
             archive_path.parent.mkdir(parents=True)
             archive_path.write_bytes(b"reviewed-nginx-release-fixture")
             modsecurity_lib = root / "shared-modsecurity/lib/libmodsecurity.so"
@@ -1841,7 +1841,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 binary.write_text(
                     "#!/bin/sh\n"
                     "if [ \"$1\" = \"-V\" ]; then\n"
-                    "  printf '%s\\n' 'nginx version: nginx/1.31.6' >&2\n"
+                    "  printf '%s\\n' 'nginx version: nginx/1.31.8' >&2\n"
                     "  printf '%s\\n' 'configure arguments: --prefix=/managed/nginx --add-dynamic-module=/managed/module' >&2\n"
                     "fi\n",
                     encoding="utf-8",
@@ -1853,10 +1853,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 config = active_nginx_prefix / "conf/nginx.conf"
                 config.parent.mkdir(parents=True, exist_ok=True)
                 config.write_text("events {}\n", encoding="utf-8")
-                source_header = active_build_path / "nginx-1.31.6/src/core/nginx.h"
+                source_header = active_build_path / "nginx-1.31.8/src/core/nginx.h"
                 source_header.parent.mkdir(parents=True, exist_ok=True)
                 source_header.write_text(
-                    '#define NGINX_VERSION "1.31.6"\n',
+                    '#define NGINX_VERSION "1.31.8"\n',
                     encoding="utf-8",
                 )
                 builder_artifacts = active_build_path / "logs/nginx/artifacts.txt"
@@ -1915,10 +1915,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual(contract["parent_archive_sha256"], nginx_provenance["sha256"])
             self.assertEqual(contract["builder_archive_sha256"], nginx_provenance["sha256"])
             self.assertTrue(contract["builder_archive_verified"])
-            self.assertEqual(contract["source_version_readback"], "nginx/1.31.6")
+            self.assertEqual(contract["source_version_readback"], "nginx/1.31.8")
             self.assertEqual(contract["binary_path"], str(entry / "nginx/sbin/nginx"))
             self.assertEqual(contract["binary_sha256"], real_sha256_file(entry / "nginx/sbin/nginx"))
-            self.assertEqual(contract["binary_version_readback"], "nginx/1.31.6")
+            self.assertEqual(contract["binary_version_readback"], "nginx/1.31.8")
             self.assertTrue(contract["configure_arguments"])
             self.assertEqual(contract["framework_commit"], "f" * 40)
             self.assertEqual(contract["parent_commit"], "a" * 40)
@@ -2023,7 +2023,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 )
                 self.assertIn(expected_blocker, invalid_record["runtime_contract_blockers"])
 
-            source_header = entry / "build/nginx-1.31.6/src/core/nginx.h"
+            source_header = entry / "build/nginx-1.31.8/src/core/nginx.h"
             original_source_header = source_header.read_text(encoding="utf-8")
             source_header.unlink()
             assert_contract_blocked("source_version_readback")

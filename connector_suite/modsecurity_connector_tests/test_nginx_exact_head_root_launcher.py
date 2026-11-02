@@ -482,13 +482,13 @@ class RootLauncherContractTests(unittest.TestCase):
 
     def test_rejects_previous_release_and_crossed_candidate_pins(self) -> None:
         previous_digest = "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279"
-        current_digest = "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"
+        current_digest = "0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1"
         with tempfile.TemporaryDirectory() as temporary:
             candidate_path = Path(temporary) / "candidate.json"
             artifacts = {"nginx": b"nginx", "module": b"module", "library": b"library"}
             for version, digest in (
                 ("1.31.5", previous_digest),
-                ("1.31.6", previous_digest),
+                ("1.31.8", previous_digest),
                 ("1.31.5", current_digest),
             ):
                 with self.subTest(version=version, digest=digest):

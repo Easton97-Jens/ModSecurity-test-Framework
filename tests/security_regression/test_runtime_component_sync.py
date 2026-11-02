@@ -83,6 +83,35 @@ class RuntimeComponentSyncTests(unittest.TestCase):
                     )
                     self.assertNotEqual(result.returncode, 0, result.stdout)
 
+    def test_ordinary_nginx_handoffs_follow_common_and_preserve_historical_broker(self):
+        import runpy
+        tool = runpy.run_path(str(TOOL))
+        values = tool["common_values"](COMMON)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for relative in tool["NGINX_HANDOFF_PATHS"]:
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes((ROOT / relative).read_bytes())
+            historical = root / "connector_suite/modsecurity_connector_ci/runtime/broker/nginx_root_broker.py"
+            historical.write_text('NGINX_PINNED_RELEASE_TAG = "release-1.31.4"\n')
+            before = historical.read_bytes()
+            changed = dict(values, NGINX_RELEASE_TAG="release-9.8.7",
+                           NGINX_RELEASE_ASSET_NAME="nginx-9.8.7.tar.gz", NGINX_SHA256="a" * 64)
+            output = tool["render_nginx_handoffs"](root, changed)
+            self.assertEqual(len(output), len(tool["NGINX_HANDOFF_PATHS"]))
+            for path, text in output.items():
+                self.assertIn("9.8.7", text)
+                path.chmod(0o644)
+                tool["atomic_write"](path, text)
+                self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(output, tool["render_nginx_handoffs"](root, changed))
+            self.assertEqual(historical.read_bytes(), before)
+            action = root / tool["NGINX_HANDOFF_PATHS"][0]
+            action.write_text(action.read_text() + "\nNGINX_RELEASE_TAG: release-9.8.7\n")
+            with self.assertRaisesRegex(tool["SyncError"], "one literal handoff"):
+                tool["render_nginx_handoffs"](root, changed)
+
     def test_checked_in_inventory_is_current_and_includes_lighttpd(self):
         result = self.run_tool("--check")
         self.assertEqual(result.returncode, 0, result.stderr)

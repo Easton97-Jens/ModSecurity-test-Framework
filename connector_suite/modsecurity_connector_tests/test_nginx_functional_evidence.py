@@ -85,7 +85,7 @@ class NginxFunctionalEvidenceTest(unittest.TestCase):
         self._write_private(phase4 / "logs" / "phase4-before-usr1.log", jsonl)
         lifecycle = b"\n".join(WRITER_MODULE.LIFECYCLE_MARKERS.values()) + b"\n"
         self._write_private(phase4 / "logs" / "nginx-lifecycle.txt", lifecycle)
-        self._write_private(phase4 / "logs" / "nginx-version.log", b"nginx version: nginx/1.31.6\n")
+        self._write_private(phase4 / "logs" / "nginx-version.log", b"nginx version: nginx/1.31.8\n")
         self._write_private(
             self.functional_root / mode / "allow" / "logs" / "observed-status.txt",
             b"200\n",
@@ -135,7 +135,7 @@ class NginxFunctionalEvidenceTest(unittest.TestCase):
         self.assertNotIn(b"/private/input-", raw)
         observed = json.loads(raw)
         self.assertEqual(observed["parent_sha"], PARENT_SHA)
-        self.assertEqual(observed["nginx_version"], "1.31.6")
+        self.assertEqual(observed["nginx_version"], "1.31.8")
         self.assertEqual(observed["nginx_archive_sha256"], NGINX_ARCHIVE_SHA256)
         self.assertEqual(observed["status"], "PASS")
         self.assertEqual(set(observed["modes"]), {"on", "off"})
@@ -148,16 +148,18 @@ class NginxFunctionalEvidenceTest(unittest.TestCase):
             self.assertTrue(all(observed["modes"][mode]["lifecycle"].values()))
 
     def test_writer_version_matches_the_exact_head_workflow(self) -> None:
-        workflow = yaml.safe_load(
-            (source_path('.github/workflows/test-nginx-exact-head.yml', root=ROOT)).read_text(encoding="utf-8")
-        )
-        release = workflow["jobs"]["nginx-exact-head"]["env"]["NGINX_RELEASE_TAG"]
-        self.assertEqual(release, "release-1.31.6")
+        action = yaml.safe_load((test_root() /
+            ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml").read_text())
+        releases = [step["env"]["NGINX_RELEASE_TAG"] for step in action["runs"]["steps"]
+                    if "NGINX_RELEASE_TAG" in step.get("env", {})]
+        self.assertEqual(len(releases), 1)
+        release = releases[0]
+        self.assertEqual(release, "release-1.31.8")
         self.assertEqual(WRITER_MODULE.EXPECTED_NGINX_VERSION, release.removeprefix("release-"))
 
     def test_unreviewed_nginx_version_blocks_collection(self) -> None:
         for mode in ("on", "off"):
-            for version in ("1.31.5", "1.31.7", "1.31.60", "1.31.6.1", "1.31.6-unreviewed"):
+            for version in ("1.31.5", "1.31.7", "1.31.80", "1.31.8.1", "1.31.8-unreviewed"):
                 with self.subTest(mode=mode, version=version):
                     self._write_mode("on")
                     self._write_mode("off")
@@ -169,9 +171,9 @@ class NginxFunctionalEvidenceTest(unittest.TestCase):
 
     def test_malformed_or_conflicting_version_readback_is_rejected(self) -> None:
         for payload in (
-            b"prefix nginx/1.31.6\n",
-            b"nginx version: nginx/1.31.6\nnginx version: nginx/1.31.5\n",
-            b"nginx version: nginx/1.31.6\nnginx version: nginx/1.31.6\n",
+            b"prefix nginx/1.31.8\n",
+            b"nginx version: nginx/1.31.8\nnginx version: nginx/1.31.5\n",
+            b"nginx version: nginx/1.31.8\nnginx version: nginx/1.31.8\n",
         ):
             with self.subTest(payload=payload):
                 self._write_mode("on")
@@ -190,24 +192,24 @@ class NginxFunctionalEvidenceTest(unittest.TestCase):
             b"configure arguments: --prefix=/private/build --with-http_ssl_module\n",
         ):
             with self.subTest(metadata=metadata):
-                payload = b"nginx version: nginx/1.31.6\n" + metadata
+                payload = b"nginx version: nginx/1.31.8\n" + metadata
                 for mode in ("on", "off"):
                     target = self.functional_root / mode / "phase4" / "logs" / "nginx-version.log"
                     self._write_private(target, payload)
                 document = self.collect()
-                self.assertEqual(document["nginx_version"], "1.31.6")
+                self.assertEqual(document["nginx_version"], "1.31.8")
                 serialized = json.dumps(document).encode("utf-8")
                 self.assertNotIn(metadata, serialized)
                 self.assertNotIn(b"/private/build", serialized)
 
     def test_verbose_readback_rejects_invalid_version_and_metadata(self) -> None:
-        valid = b"nginx version: nginx/1.31.6\n"
+        valid = b"nginx version: nginx/1.31.8\n"
         metadata = b"built by gcc 13.3.0\nconfigure arguments: --with-compat\n"
         for payload in (
             metadata,
             metadata + valid,
-            b"nginx version: nginx/1.31.60\n" + metadata,
-            b"nginx version: nginx/1.31.6.1\n" + metadata,
+            b"nginx version: nginx/1.31.80\n" + metadata,
+            b"nginx version: nginx/1.31.8.1\n" + metadata,
             b"nginx version: nginx/1.31.7\n" + metadata,
             valid + metadata + valid,
             valid + metadata + b"nginx version: nginx/1.31.5\n",

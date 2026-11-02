@@ -25,7 +25,7 @@ from typing import Any
 
 MAX_SOURCE_BYTES = 1024 * 1024
 MAX_OUTPUT_BYTES = 16 * 1024
-EXPECTED_NGINX_VERSION = "1.31.6"
+EXPECTED_NGINX_VERSION = "1.31.8"
 # nginx -V adds these build-information lines after the exact version line.
 # Their content is hashed with the source, never copied into public evidence.
 NGINX_BUILD_METADATA = re.compile(

@@ -105,10 +105,10 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertIn("RUNTIME_COMPONENT_TARGET: nginx", workflow)
         self.assertIn("NGINX_SOURCE_MODE: github-release", workflow)
         self.assertIn("NGINX_SOURCE_REPO_URL: https://github.com/nginx/nginx", workflow)
-        self.assertIn("NGINX_RELEASE_TAG: release-1.31.6", workflow)
-        self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.6", workflow)
-        self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.6.tar.gz", workflow)
-        self.assertIn("NGINX_SHA256: 974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1", workflow)
+        self.assertIn("NGINX_RELEASE_TAG: release-1.31.8", workflow)
+        self.assertIn("NGINX_SOURCE_GIT_REF: release-1.31.8", workflow)
+        self.assertIn("NGINX_RELEASE_ASSET_NAME: nginx-1.31.8.tar.gz", workflow)
+        self.assertIn("NGINX_SHA256: 0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1", workflow)
         for override in (
             "MRTS_NATIVE_NGINX_BIN",
             "MRTS_NATIVE_NGINX_MODULE_DIR",
