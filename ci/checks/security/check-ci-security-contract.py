@@ -310,7 +310,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "canonical-maintenance",
         "Resolve mandatory global and selected runtime scopes",
-    ): "671e37c65ab0314dfe0ef383126deed805d449e5b746f94a37c382564654d403",
+    ): "ec81d9447c1f6754948b7f96e55787b4f562d5bd6b938b867b75dd066b548990",
     (
         "canonical-maintenance",
         "Validate review issue reconciliation without writes",
@@ -3328,7 +3328,7 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
             ("Validate review issue reconciliation without writes", {"name", "run"}),
             (
                 STEP_RETAIN_CALLER_BOUND_CANONICAL_MAINTENANCE_PLAN,
-                {"name", "uses", "with"},
+                {"name", "if", "uses", "with"},
             ),
         ],
         "candidate": [
@@ -3595,6 +3595,7 @@ def _common_version_plan_artifact_upload_errors(path: Path, job: Any) -> list[st
         != UPLOAD_ARTIFACT.removesuffix("@")
         or not isinstance(with_values, dict)
         or set(with_values) != {"name", "path", "retention-days", "if-no-files-found"}
+        or upload.get("if") != "${{ !cancelled() }}"
         or with_values.get("name") != COMMON_VERSION_PLAN_ARTIFACT_NAME
         or upload_paths != COMMON_VERSION_PLAN_ARTIFACT_UPLOAD_PATHS
         or with_values.get("retention-days") != 1

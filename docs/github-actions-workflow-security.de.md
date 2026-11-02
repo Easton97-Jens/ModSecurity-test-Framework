@@ -355,6 +355,18 @@ oder aktiviert Auto-Merge. Ein fehlendes globales Ergebnis, eine unvollständige
 CI-Pin-Gruppe, Drift generierter Views, ein fehlerhafter Review-Eintrag oder
 ein Hash-Mismatch führt fail-closed zum Abbruch.
 
+Der CRS-View-Synchronizer importiert das Framework-Paket relativ zu seinem
+eingecheckten Skriptpfad. Direkte Resolver-, Candidate- und Publisher-Aufrufe
+funktionieren dadurch ohne vom Caller gesetzten `PYTHONPATH`, auch wenn `--root`
+einen getrennten Datenbaum auswählt. Pläne enthalten begrenzte, escapte
+Diagnosemeldungen für Komponenten und generierte Views. Der kanonische Job gibt
+den Bericht außerdem bei deaktivierter Verarbeitung von Runner-Kommandos aus
+und bewahrt das JSON-/Markdown-Artefakt auch nach einem fehlgeschlagenen Resolver
+oder einer fehlgeschlagenen Review-Validierung auf, sofern der Run nicht
+abgebrochen wird. Die Aufbewahrung der Diagnose erlaubt keine Downstream-Arbeit:
+Ein fehlgeschlagener Resolver lässt den Job weiterhin fehlschlagen und blockiert
+die Veröffentlichung.
+
 Reguläre Dependabot-`github-actions`-Versionsupdates sind mit
 `open-pull-requests-limit: 0` deaktiviert, weil Dependabot nur generierte
 Workflow-Referenzen ändern kann, während `common.sh` die kanonische Quelle ist.
