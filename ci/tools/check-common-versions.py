@@ -111,6 +111,7 @@ GITHUB_RELEASE_URL_RE = re.compile(
     r"^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/releases/download/"
     r"([^/]+)/([^/?#]+)$"
 )
+CANONICAL_MAINTENANCE_PATH = "ci/tools/canonical_maintenance.py"
 
 # These are checked-in generated projections of common.sh.  Keep this list
 # exact: a broad directory exemption would allow an active consumer to hide a
@@ -159,7 +160,7 @@ NON_CONSUMER_METADATA_PATHS = frozenset(
         "ci/checks/security/check-github-actions-workflows.py",
         # These validate the source-layout label against canonical provenance;
         # neither acquires nor executes a PyYAML artifact.
-        "ci/tools/canonical_maintenance.py",
+        CANONICAL_MAINTENANCE_PATH,
         "ci/tools/sync-canonical-python-pins.py",
     }
 )
@@ -1436,7 +1437,9 @@ def _canonical_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
         if osv_version and (
             osv_version.style != "literal-assignment"
             or not re.fullmatch(
-                re.escape(series) + r"\.(0|[1-9][0-9]*)", osv_version.default
+                re.escape(series) + r"\.(0|[1-9]\d*)",
+                osv_version.default,
+                flags=re.ASCII,
             )
         ):
             errors.append(f"{prefix}_VERSION must be an exact stable {series} patch")
@@ -4756,7 +4759,7 @@ def unified_orchestrator_component(
                 + ", ".join(missing)
             ),
             variables=list(definition.variables),
-            details={"owner": "ci/tools/canonical_maintenance.py"},
+            details={"owner": CANONICAL_MAINTENANCE_PATH},
         )
     return ComponentResult(
         component=definition.name,
@@ -4766,7 +4769,7 @@ def unified_orchestrator_component(
             "orchestrator; run resolve-canonical-maintenance.py."
         ),
         variables=list(definition.variables),
-        details={"owner": "ci/tools/canonical_maintenance.py"},
+        details={"owner": CANONICAL_MAINTENANCE_PATH},
     )
 
 

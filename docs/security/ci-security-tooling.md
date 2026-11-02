@@ -236,6 +236,14 @@ with routine version updates. Dependabot continues to monitor `pip`; every
 proposed update remains subject to the lock/provenance review and immutable-pin
 contract, and no workflow auto-fixes a dependency.
 
+Source builds require an explicit `RUNNER_TEMP` directory outside the checkout.
+The directory must belong to the current user, have no group/world write bits,
+and use a physical path with trusted ancestors; root-owned sticky shared
+ancestors are allowed. Generic `TMPDIR`, `TMP` and `TEMP` values do not select
+the build root. For a local venv invocation, set `RUNNER_TEMP` to the task-owned
+external directory explicitly. The disposable build child remains private; its
+backend receives only that child as `TMPDIR`.
+
 ## CPython baseline and maintenance contract
 
 `.python-version` is the single canonical Framework interpreter selector. It

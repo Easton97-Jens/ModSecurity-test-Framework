@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import os
+import stat
 from pathlib import Path
 import tarfile
 import tempfile
@@ -18,7 +19,8 @@ SPEC = importlib.util.spec_from_file_location(
     "source_dependency_installer",
     ROOT / "ci/tools/install_hash_locked_ci_dependencies.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 INSTALLER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(INSTALLER)
 
@@ -31,6 +33,120 @@ class Response(io.BytesIO):
 
 
 class SourceDependencyBuildTests(unittest.TestCase):
+    def test_source_temp_rejects_replaceable_ancestor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            ancestor = Path(temporary) / "shared"
+            selected = ancestor / "private"
+            selected.mkdir(parents=True, mode=0o700)
+            ancestor.chmod(0o777)
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(selected)}, clear=True):
+                with self.assertRaisesRegex(
+                    INSTALLER.InstallError, "adversary-writable"
+                ):
+                    INSTALLER.require_source_temporary_root()
+            ancestor.chmod(0o755)
+            original_lstat = Path.lstat
+
+            def foreign_owner(path):
+                details = original_lstat(path)
+                if path == ancestor:
+                    fields = list(details)
+                    fields[4] = os.getuid() + 1
+                    return os.stat_result(fields)
+                return details
+
+            with (
+                patch.dict(os.environ, {"RUNNER_TEMP": str(selected)}, clear=True),
+                patch.object(Path, "lstat", foreign_owner),
+            ):
+                with self.assertRaisesRegex(
+                    INSTALLER.InstallError, "trusted non-symlink"
+                ):
+                    INSTALLER.require_source_temporary_root()
+
+    def test_root_owned_sticky_shared_ancestor_is_allowed_but_not_as_base(self):
+        directory = mock.Mock(spec=Path)
+        directory.lstat.return_value = os.stat_result(
+            (stat.S_IFDIR | stat.S_ISVTX | 0o777, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        )
+        INSTALLER.trusted_source_directory_component(directory, selected=False)
+        with self.assertRaisesRegex(
+            INSTALLER.InstallError, "without shared write access"
+        ):
+            INSTALLER.trusted_source_directory_component(directory, selected=True)
+
+    def test_generic_temp_environment_cannot_select_source_build_storage(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.dict(
+                os.environ,
+                {"TMPDIR": temporary, "TMP": temporary, "TEMP": temporary},
+                clear=True,
+            ):
+                with self.assertRaisesRegex(
+                    INSTALLER.InstallError, "explicit external RUNNER_TEMP"
+                ):
+                    INSTALLER.require_source_temporary_root()
+
+    def test_source_temp_admits_private_and_actions_style_directories(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for mode in (0o700, 0o755):
+                with self.subTest(mode=oct(mode)):
+                    directory.chmod(mode)
+                    with patch.dict(
+                        os.environ, {"RUNNER_TEMP": str(directory)}, clear=True
+                    ):
+                        self.assertEqual(
+                            INSTALLER.require_source_temporary_root(), directory
+                        )
+
+    def test_source_temp_rejects_shared_writes_wrong_owner_links_and_checkout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for mode in (0o770, 0o777, 0o1777):
+                directory.chmod(mode)
+                with (
+                    self.subTest(mode=oct(mode)),
+                    patch.dict(os.environ, {"RUNNER_TEMP": str(directory)}, clear=True),
+                ):
+                    with self.assertRaisesRegex(
+                        INSTALLER.InstallError, "without shared write access"
+                    ):
+                        INSTALLER.require_source_temporary_root()
+            directory.chmod(0o700)
+            original_lstat = Path.lstat
+
+            def foreign_selected_owner(path):
+                details = original_lstat(path)
+                if path == directory:
+                    fields = list(details)
+                    fields[4] = os.getuid() + 1
+                    return os.stat_result(fields)
+                return details
+
+            with (
+                patch.dict(os.environ, {"RUNNER_TEMP": str(directory)}, clear=True),
+                patch.object(Path, "lstat", foreign_selected_owner),
+            ):
+                with self.assertRaisesRegex(
+                    INSTALLER.InstallError, "trusted non-symlink"
+                ):
+                    INSTALLER.require_source_temporary_root()
+            linked = directory / "link"
+            linked.symlink_to(directory, target_is_directory=True)
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(linked)}, clear=True):
+                with self.assertRaisesRegex(INSTALLER.PINS.PinError, "symlink"):
+                    INSTALLER.require_source_temporary_root()
+            for path in (ROOT, ROOT / "ci"):
+                with (
+                    self.subTest(path=path),
+                    patch.dict(os.environ, {"RUNNER_TEMP": str(path)}, clear=True),
+                ):
+                    with self.assertRaisesRegex(
+                        INSTALLER.InstallError, "outside the checkout"
+                    ):
+                        INSTALLER.require_source_temporary_root()
+
     def test_runtime_admits_venv_and_verified_actions_setup_python(self):
         with patch.object(INSTALLER.sys, "base_prefix", "/different-base"):
             INSTALLER.require_runtime_environment()
@@ -88,11 +204,10 @@ class SourceDependencyBuildTests(unittest.TestCase):
             directory = Path(temporary)
             opener = mock.Mock()
             opener.open.return_value = Response(b"unverified source")
+            url = Response().geturl()
             with patch.object(INSTALLER.request, "build_opener", return_value=opener):
                 with self.assertRaisesRegex(INSTALLER.InstallError, "SHA-256 mismatch"):
-                    INSTALLER.download_verified(
-                        Response().geturl(), "0" * 64, directory
-                    )
+                    INSTALLER.download_verified(url, "0" * 64, directory)
             self.assertEqual(list(directory.iterdir()), [])
             opener.open.return_value = Response(b"verified source")
             with patch.object(INSTALLER.request, "build_opener", return_value=opener):
@@ -104,10 +219,9 @@ class SourceDependencyBuildTests(unittest.TestCase):
             self.assertEqual(result.read_bytes(), b"verified source")
 
     def test_redirect_handler_fails_closed(self):
+        handler = INSTALLER.NoRedirect()
         with self.assertRaisesRegex(INSTALLER.InstallError, "redirects"):
-            INSTALLER.NoRedirect().redirect_request(
-                None, None, 302, "", {}, "https://evil.invalid"
-            )
+            handler.redirect_request(None, None, 302, "", {}, "https://evil.invalid")
 
     def test_source_archive_rejects_traversal_links_and_devices(self):
         for name, kind in (

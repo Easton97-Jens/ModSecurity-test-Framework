@@ -97,6 +97,14 @@ Additional coordinator checks passed on actual Python 3.15.2: 72 contract/genera
 
 Hosted CPython 3.15.2 setup, verified source build, pure-wheel installation and pip checks succeeded; the hosted wheel SHA matched both local builds. Initial CI exposed old inline-install expectations and five test typing/import errors. Follow-up regression updates check actual no-argument delegation and executable helper controls while retaining installation-before-snapshot/apply/validation ordering. The 27 affected workflow/CRS tests and 24 typed builder/maintenance tests passed on 3.15; no runtime helper or security gate was weakened.
 
+Sonar follow-up preserves every gate and addresses the temporary-root boundary
+with explicit `RUNNER_TEMP` admission: physical external path, current UID,
+no shared write access and trusted ancestry. Generic public-temp environment
+fallbacks were removed. ASCII-only regex semantics remain explicit while
+complexity, repeated literals and test assertion boundaries were simplified.
+Source builds and pip checks passed again; no finding was suppressed or marked
+false positive. The combined Framework PR supersedes the initial migration PR.
+
 ## Security impact
 
 No vulnerability-remediation claim is made. The migration retains immutable

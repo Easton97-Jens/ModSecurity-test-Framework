@@ -258,6 +258,15 @@ gebündelt. Dependabot überwacht weiterhin `pip`; jedes vorgeschlagene Update
 unterliegt dem Lock-/Provenienzreview und dem Immutable-Pin-Contract, und kein
 Workflow behebt Abhängigkeiten automatisch.
 
+Source-Builds benötigen ein explizites `RUNNER_TEMP`-Verzeichnis außerhalb des
+Checkouts. Es muss dem aktuellen Benutzer gehören, darf keine Gruppen-/
+Weltschreibrechte haben und muss einen physischen Pfad mit vertrauenswürdigen
+Vorfahren verwenden; root-eigene gemeinsame Vorfahren mit Sticky-Bit sind
+erlaubt. Generische Werte aus `TMPDIR`, `TMP` und `TEMP` wählen den Build-Root
+nicht aus. Bei lokalem venv-Aufruf ist `RUNNER_TEMP` explizit auf das task-eigene
+externe Verzeichnis zu setzen. Der temporäre Build-Unterordner bleibt privat;
+der Backend-Prozess erhält nur diesen Unterordner als `TMPDIR`.
+
 ## CPython-Baseline und Wartungsvertrag
 
 `.python-version` ist der einzige kanonische Framework-Interpreter-Selektor.

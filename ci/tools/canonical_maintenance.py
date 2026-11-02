@@ -1069,7 +1069,7 @@ def resolve_pyyaml_source(
     if (
         artifact != f"pyyaml-{current}.tar.gz"
         or platform != "source-pure-python"
-        or re.fullmatch(r"3\.15\.(0|[1-9][0-9]*)", python_version) is None
+        or re.fullmatch(r"3\.15\.(0|[1-9]\d*)", python_version, flags=re.ASCII) is None
     ):
         raise MaintenanceError(
             "PyYAML source tuple requires the reviewed CPython 3.15 source layout"
@@ -2108,7 +2108,9 @@ def resolve_osv_compatibility(entries: dict[str, Any]) -> dict[str, Any]:
             version = _entry_value(entries, f"{prefix}_VERSION")
             if (
                 SHA40_RE.fullmatch(sha) is None
-                or re.fullmatch(re.escape(series) + r"\.(0|[1-9][0-9]*)", version)
+                or re.fullmatch(
+                    re.escape(series) + r"\.(0|[1-9]\d*)", version, flags=re.ASCII
+                )
                 is None
             ):
                 raise MaintenanceError(
