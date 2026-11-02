@@ -113,7 +113,10 @@ GENERATED_VIEW_PATHS = (
 )
 ALLOWED_AUTOMATIC_PATHS = frozenset(
     {
-        *GENERATED_VIEW_PATHS,
+        # Composite integration sources retain separate reviewed snapshot
+        # authority; native maintenance may only publish runtime data views.
+        *(path for path in GENERATED_VIEW_PATHS
+          if path.startswith("connector_suite/modsecurity_connector_ci/")),
         COMMON_SH_PATH,
         PYTHON_VERSION_PATH,
         CI_REQUIREMENTS_PATH,

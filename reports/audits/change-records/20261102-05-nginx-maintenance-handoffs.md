@@ -78,6 +78,8 @@ Parent integration requires its separate repair and pin update. Git-object tests
 
 Hosted lint and action-version checks on initial head585bf6e identified the exact-head action whole-source migration digest and a redundant copied canonical URL. Authenticated the previous single source entry against the base commit, renewed exactly that action digest in `ci/tooling/connector-actions.lock.json` and its aggregate in `ci/checks/security/connector_action_pins.py`; preserved registry, action records and authority. This maintained snapshot has no checked-in generator. Replaced the duplicate URL literal with a SHA-256 trust anchor. `rtk bypass env PYTHONDONTWRITEBYTECODE=1 /var/tmp/codex/ModSecurity-test-Framework/venv/bin/python ci/tools/check-common-versions.py --validate-canonical` passed; `python -m unittest tests.ci_security.test_connector_action_pins -v` passed6 tests;2 focused synchronizer cases passed. The immutable snapshot gate still requires separate review when future maintenance changes composite source bytes.
 
+Current-head CI authority tests rejected automatic publication of the integration composite. Kept its existing read-only publisher boundary: generator/rollback still cover the action, but native automatic publication excludes it. Explicit reviewed maintenance must renew the source snapshot as above. `python -m unittest tests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_native_workflow_publisher_outputs_have_exact_transaction_authority -v` passed after correction.
+
 ## Final diff and review status
 
 Final scoped diff reviewed; no secrets or raw sensitive logs recorded. Review caught atomic mode loss and the focused regression now covers mode preservation. No Parent/MRTS edits or merge.
