@@ -95,6 +95,18 @@ Actionlint, parsed-run `bash -n`, Ruff lint for the two changed Python files,
 and `git diff --check`. These checks did not execute APT or establish a hosted
 analysis result; the repaired head still requires a fresh hosted Sonar run.
 
+The Parent follow-up reached interpreter verification successfully on hosted
+Python 3.15.1, then failed closed on stale reviewed Framework source digests.
+Regenerated `connector_suite/config/testing/active-cases.json` through the
+existing `update-inventory-bindings.py --apply` entrypoint. Structural comparison
+proves that only ten source SHA-256 values changed; every other field and list
+length is identical. The inventory retains 80 execution records, 100 default
+cases, 2,686 catalog cases and 2,586 on-demand cases. The generator check and
+native connector admission (`--check`, no matrix execution) passed; 72 focused
+inventory tests passed with two skips. After five additional Sonar maintenance
+fixes, 62 workflow-source/Python-contract tests passed on Python 3.15.2. The
+historical broker keeps its exact revision, grants and forwarded inputs.
+
 ## Security impact
 
 This repairs bootstrap/source-contract correctness while retaining immutable
@@ -107,13 +119,14 @@ assessment.
 
 `docs/connector-integration.md` and its German companion describe the new
 bootstrap and bounded composition contract. Tests provide static source and
-local shell evidence. No hosted CI, connector-host runtime, merge, or Parent pin
+local shell evidence. No successful current-head CI, connector-host runtime, merge, or Parent pin
 update is established by this record.
 
 ## Checks not run
 
-The latest hosted Sonar attempt failed at APT provisioning; the repaired
-workflow has not yet been rerun on a hosted runner. Connector runtime
+Hosted Sonar on Framework `44d5481cff7c7c75974e9f1f61a10f6eee4a286d`
+passed APT provisioning and reached analysis. Its remaining new-code findings
+were repaired without suppressions; a fresh analysis must confirm this follow-up. Connector runtime
 matrices are outside this workflow-contract change. Full default inventory was
 not expanded or weakened.
 

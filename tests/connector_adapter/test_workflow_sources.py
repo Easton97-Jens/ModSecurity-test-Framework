@@ -227,10 +227,12 @@ jobs:
                 with self.assertRaises(WorkflowSourceError):
                     self.expand_historical(caller)
         path.write_text(original)
+        invalid_trigger = caller.replace("workflow_call:", "workflow_dispatch:", 1)
         with self.assertRaises(WorkflowSourceError):
-            self.expand_historical(caller.replace("workflow_call:", "workflow_dispatch:", 1))
+            self.expand_historical(invalid_trigger)
+        invalid_passthrough = caller.replace("${{ inputs.run_id }}", "foreign", 1)
         with self.assertRaises(WorkflowSourceError):
-            self.expand_historical(caller.replace("${{ inputs.run_id }}", "foreign", 1))
+            self.expand_historical(invalid_passthrough)
 
     def test_connector_composites_verify_source_before_bootstrapping_python(self):
         framework = Path(__file__).resolve().parents[2]

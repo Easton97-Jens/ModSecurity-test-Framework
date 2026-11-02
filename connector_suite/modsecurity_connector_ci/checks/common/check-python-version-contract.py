@@ -28,6 +28,7 @@ from modsecurity_test_framework.workflow_sources import read_connector_workflow,
 
 
 CANONICAL_VERSION_FILE = ".python-version"
+UPDATE_SUBMODULES_WORKFLOW = "update-submodules.yml"
 SETUP_PYTHON_REFERENCE = read_action_reference(connector_root(), "actions/setup-python")
 SETUP_PYTHON_ACTION, SETUP_PYTHON_RELEASE_COMMENT = SETUP_PYTHON_REFERENCE.split(" ", 1)
 VERIFIER_NAME = "Verify Python interpreter contract"
@@ -146,7 +147,7 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("sonarqube.yml", "analysis"),
         JobIdentity("sonar-native-security.yml", "sdk"),
         JobIdentity("sonar-native-security.yml", "native"),
-        JobIdentity("update-submodules.yml", "resolve-submodule-update"),
+        JobIdentity(UPDATE_SUBMODULES_WORKFLOW, "resolve-submodule-update"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "prepare-manifests"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "verify-evidence"),
         JobIdentity("test-apache.yml", "apache-autotools-bootstrap"),
@@ -163,8 +164,8 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "create-go-update-pr"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "resolve-go-release"),
         JobIdentity(UPDATE_GO_VERSION_WORKFLOW, "validate-go-release"),
-        JobIdentity("update-submodules.yml", "create-submodule-update-pr"),
-        JobIdentity("update-submodules.yml", "validate-submodule-update"),
+        JobIdentity(UPDATE_SUBMODULES_WORKFLOW, "create-submodule-update-pr"),
+        JobIdentity(UPDATE_SUBMODULES_WORKFLOW, "validate-submodule-update"),
         JobIdentity(UPDATE_WORKFLOW_TOOLS_WORKFLOW, "publisher"),
         JobIdentity(UPDATE_WORKFLOW_TOOLS_WORKFLOW, "resolver"),
         JobIdentity(UPDATE_WORKFLOW_TOOLS_WORKFLOW, "validator"),

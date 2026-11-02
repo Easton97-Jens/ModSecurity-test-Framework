@@ -102,6 +102,19 @@ und `git diff --check`. Diese Prüfungen führten APT nicht aus und belegen kein
 gehostetes Analyseergebnis; der reparierte Stand benötigt einen neuen
 gehosteten Sonar-Lauf.
 
+Der Parent-Folgecommit erreichte auf dem Hosted-Runner erfolgreich die
+Interpreterprüfung mit Python 3.15.1 und verweigerte danach veraltete geprüfte
+Framework-Quelldigests. `connector_suite/config/testing/active-cases.json` wurde
+über den vorhandenen Einstieg `update-inventory-bindings.py --apply` erneuert.
+Der strukturelle Vergleich belegt ausschließlich zehn geänderte SHA-256-Werte;
+alle anderen Felder und Listenlängen sind identisch. Das Inventar behält 80
+Ausführungseinträge, 100 Standardfälle, 2.686 Katalogfälle und 2.586 On-Demand-Fälle.
+Generatorprüfung und native Connector-Zulassung (`--check`, keine Matrix)
+bestanden; 72 fokussierte Inventartests bestanden mit zwei übersprungenen Tests.
+Nach fünf zusätzlichen Sonar-Wartbarkeitskorrekturen bestanden 62 Workflowquellen-
+und Python-Vertragstests unter Python 3.15.2. Der historische Broker behält seine
+exakte Revision, Berechtigungen und weitergeleiteten Eingaben.
+
 ## Sicherheitsauswirkung
 
 Die Änderung repariert Bootstrap-/Source-Vertragskorrektheit und erhält
@@ -114,13 +127,14 @@ negative Tests ab. Dies ist keine Connector-Sicherheitsbewertung.
 
 `docs/connector-integration.md` und die deutsche Begleitdatei beschreiben den
 Bootstrap und die begrenzte Komposition. Tests liefern statische Source- und
-lokale Shell-Evidenz. Dieser Record belegt keine gehostete CI, Connector-Host-
-Runtime, Merge oder Parent-Pin-Aktualisierung.
+lokale Shell-Evidenz. Dieser Record belegt keine vollständig erfolgreiche CI für den aktuellen
+Commit, Connector-Host-Runtime, Merge oder Parent-Pin-Aktualisierung.
 
 ## Nicht ausgeführte Prüfungen
 
-Der letzte gehostete Sonar-Versuch scheiterte an der APT-Provisionierung; der
-reparierte Workflow wurde noch nicht auf einem gehosteten Runner wiederholt.
+Hosted-Sonar auf Framework `44d5481cff7c7c75974e9f1f61a10f6eee4a286d` bestand die
+APT-Bereitstellung und erreichte die Analyse. Die verbliebenen Befunde im neuen
+Code wurden ohne Unterdrückungen bearbeitet; die erneute Analyse steht noch aus.
 Connector-Runtime-Matrizen liegen außerhalb dieser Workflow-Vertragsänderung.
 Das vollständige Default-Inventar wurde nicht erweitert oder abgeschwächt.
 
