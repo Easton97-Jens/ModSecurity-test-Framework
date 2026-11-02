@@ -695,8 +695,18 @@ jobs:
                 "",
                 1,
             ),
+            "publisher-omits-test-view-write": workflow.replace(
+                "          python3 ci/tools/sync-maintenance-test-views.py --write --root .\n",
+                "",
+                1,
+            ),
+            "publisher-skips-precheckout-metadata-proof": workflow.replace(
+                "--verify-python-candidate --base", "--check --base", 1
+            ),
             "publisher-allows-generated-view-only": workflow.replace(
-                "          expected_paths=$'.python-version\\nci/lib/common.sh'\n",
+                "          expected_paths=$'.python-version\\nci/lib/common.sh"
+                "\\nconnector_suite/config/testing/active-cases.json"
+                "\\nconnector_suite/reports/testing/test-selection-archive.generated.json'\n",
                 "          expected_paths='.python-version'\n",
                 1,
             ),
@@ -1113,15 +1123,8 @@ jobs:
                 "|| { echo 'review-issue App configuration is required' >&2; exit 1; }\n"
             ),
             "candidate": (
-                "          allowed='^(.github/workflows/[^/]+\\.yml|ci/lib/common\\.sh|"
-                "ci/provisioning/runtime-(components\\.manifest|component-lock)\\.json|"
-                "ci/tooling/security-tools\\.lock\\.yml|\\.python-version|"
-                "requirements-ci\\.lock|docs/(reference/variables|"
-                "github-actions-workflow-security)(\\.de)?\\.md|tests/schemas/"
-                "five-connectors-with-crs-no-mrts/(normalized-event|manifest|receipt)"
-                "\\.schema\\.json|tests/cases/security/crs/"
-                "crs_sqli_anomaly_block\\.yaml|modsecurity_test_framework/data/"
-                "framework-contract-catalog\\.json)$'\n"
+                "          python3 -m py_compile ci/tools/canonical_maintenance.py "
+                "ci/tools/resolve-canonical-maintenance.py\n"
             ),
             "publish": (
                 '          [[ -n "$PUBLISHER_CLIENT_ID" && -n "$PUBLISHER_PRIVATE_KEY" ]] '

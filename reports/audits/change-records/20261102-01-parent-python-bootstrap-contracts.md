@@ -143,3 +143,32 @@ Implementation diff and whitespace reviewed; no secrets or raw logs recorded.
 Independent review found no open blocker; hosted checks remain pending before final delivery.
 
 The next hosted Parent head passed the inventory digest boundary, then its NGINX setup/quick-check correctly rejected the derived specialist archive. Regenerated `connector_suite/reports/testing/test-selection-archive.generated.json` with the existing `update-test-archive.py`. Its prior inventory and source digests matched the last archive baseline exactly. Changes describe the new inventory digest, 16 existing source records and one new source record, with 35 additional on-demand definitions. Native sources, Framework case catalogues and extracted native definitions are unchanged. This is declarative availability, not extra automatic selection or execution evidence. The complete native `make check-active-inventory` entrypoint passed for both projections on Python 3.15.2.
+
+Durable updater follow-up: a normal Python patch or canonical component update
+would otherwise change whole-source-bound `common.sh` without refreshing the
+inventory/archive. Added the exact `sync-maintenance-test-views.py` entrypoint,
+ordered native derivation and exactly those two generated paths to common
+maintenance's candidate, publisher and rollback profiles. Python publication
+retains the single assignment and four exact paths; prior to Draft checkout,
+trusted code verifies fixed regular Git blobs, unchanged modes, strict ASCII
+Python selector and byte-exact base-derived metadata. Oversized blobs are
+rejected before capture; foreign Git/context selection and extra metadata
+changes are rejected. No full-source derivation is run in the workflow-tool
+validator's intentionally minimal snapshot. Standalone writes are fail-closed;
+common-maintenance restores its snapshot on a generator failure.
+
+Validation on actual Python 3.15.2: 105 combined publisher/security/Python/
+maintenance tests passed (20.373 s), including 12 helper cases and 33 canonical
+workflow/rollback cases. Ruff lint/format passed for all seven changed/new Python
+files; Actionlint passed all three changed workflows. Exact reviewed program
+hashes and the closed metadata path sets changed together. The metadata
+projections are regenerated only after these source/test changes settle.
+
+An offline synthetic `3.15.2` to `3.15.3` pin transition exercised the real native
+Python-pin and test-view generators: exactly four output files changed, with
+only the existing common-source SHA in inventory and its derived SHA in the
+archive. No selection changed. All four task file contents were restored byte
+for byte; this does not assert an upstream release. Final real metadata write
+and read-only checks passed, as did complete native inventory/archive admission.
+The final archive retains 8,021 on-demand definitions; this is distinct from
+2,686 selectable catalog cases and the unchanged 100 automatic default cases.

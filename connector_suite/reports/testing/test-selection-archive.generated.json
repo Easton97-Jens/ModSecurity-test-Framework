@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8008,
+  "on_demand_definition_count": 8021,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -11898,12 +11898,12 @@
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_derived_ci_tool_asset_is_rechecked_after_its_version_change",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_codeql_action_uses_a_numeric_release_page_for_major_review",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_require_root_rejects_a_symlinked_ancestor",
-        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_generated_catalog_is_validated_after_crs_views_in_both_modes",
+        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_maintenance_test_views_follow_catalog_after_crs_views_in_both_modes",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_apply_safe_updates_rolls_back_on_generated_view_failure",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_ci_tool_provider_transition_is_classified_before_release_lookup"
       ],
       "source": "framework/tests/ci_security/test_canonical_maintenance.py",
-      "source_sha256": "2f91398c211bbf10f130c2c9c80e87ff062b6e164d1d7673565a522470e28c1d"
+      "source_sha256": "a168ebaee84a3c7bc4f8d2cc2cf17c320cdac1b83b40ad0bddda01c259acb90f"
     },
     {
       "contains_selected_definitions": [],
@@ -11981,7 +11981,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_archive_member_validation_rejects_path_escape"
       ],
       "source": "framework/tests/ci_security/test_ci_security_contract.py",
-      "source_sha256": "5ce262257e5ce2069b082111730681541b1f9853d874f3ef65b962ff2fb3ca7c"
+      "source_sha256": "def500e892d53b40161b0b44a614b4979479a20b9ccd2b37f85f3b236f42176a"
     },
     {
       "contains_selected_definitions": [],
@@ -12174,6 +12174,26 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "tests/ci_security/test_maintenance_test_views.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_exact_candidate_is_verified_without_checkout_or_head_execution",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_selection_extra_source_or_wrong_digest_is_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_archive_metadata_or_wrong_inventory_digest_is_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_non_native_format_is_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_mode_change_or_symlink_is_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_oversized_blob_is_rejected_before_content_capture",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_wrong_python_selector_is_rejected_before_metadata_admission",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_duplicate_or_non_ascii_python_assignment_is_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_option_shaped_revision_cannot_become_a_git_option",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_explicit_root_and_local_context_do_not_inherit_product_selection",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_write_refreshes_inventory_before_archive_then_check_is_clean",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_check_rejects_drift_without_any_write_or_archive_generation"
+      ],
+      "source": "framework/tests/ci_security/test_maintenance_test_views.py",
+      "source_sha256": "cc7ed39d42827bbefcddf756aa1eb4bc71c7c15de9160b6bae89b7470c2041f5"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "tests/ci_security/test_osv_evidence_contract.py",
       "on_demand_definitions": [
         "modsecurity_test_framework.selftests.ci_security.test_osv_evidence_contract.JsonEvidenceContractTest.test_regular_bounded_json_object_is_accepted",
@@ -12315,6 +12335,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_candidate_validates_runtime_lock_and_crs_contract_before_publishing",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_component_is_an_argv_element_and_globals_are_not_filtered",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_generated_contract_catalog_is_allowlisted_for_candidate_and_publication",
+        "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_maintenance_test_outputs_have_exactly_three_allowlist_projections",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_fatal_resolver_plan_is_summarized_before_failure_is_returned",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_issue_writes_are_trusted_default_branch_only",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_caller_bound_plan_artifact_is_uploaded_once_and_consumed_by_downstream_jobs",
@@ -12326,7 +12347,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_result_summary_covers_required_outcomes"
       ],
       "source": "framework/tests/ci_security/test_unified_common_maintenance_workflow.py",
-      "source_sha256": "26c2da5c008f039bdd47bea0c7fc9110281f77018393e31f4eb3d4eac48c7900"
+      "source_sha256": "91425841768ec93bb061c03ee05870d201bab90e12effa6a6cb6de0bf7e54399"
     },
     {
       "contains_selected_definitions": [],

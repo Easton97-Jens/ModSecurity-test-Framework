@@ -33,7 +33,7 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; er läuft nur lesend und ohne persistierte Checkout-Credentials. |
 | `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `actions/download-artifact`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | Workflow und natives Publisher-Token `contents: read`; nur das kurzlebige, repositorybegrenzte App-Token hat `contents`, `pull-requests`, `workflows`: write | Der vertrauenswürdige Canonical-Job löst genau einen per SHA-256 gebundenen Plan auf und bewahrt ihn einen Tag auf. Vor dessen Anwendung sichern Candidate und Publisher die feste native Workflow-Tool-Eingabefläche unter `RUNNER_TEMP`; danach leiten beide den exakten Tool-Kandidaten ab und prüfen Digest, Release-Assets und isolierten vorgeschlagenen Baum. Der Publisher vergleicht den Digest über Jobs hinweg und akzeptiert nur einen exakten, begrenzten Draft-PR-Branch; ein bestehender Branch muss außerdem bytegenau den nativ aus der Basis abgeleiteten Dateien entsprechen. |
-| `check-python-version.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | Workflow-Standard `permissions: {}`; nur Resolver, Kandidatenvalidierung und Publisher erhalten eingebaute `contents: read`; das repository-begrenzte App-Token hat nur `contents`, `pull-requests`: write | Resolver- und Kandidatenjobs sind read-only. Der Default-Branch-Publisher löst einen stabilen Kandidaten unabhängig erneut auf, verifiziert genau einen festen Draft-Branch/PR und ändert nur die kanonische Python-Zuweisung in `ci/lib/common.sh` und die generierte `.python-version`; er merged nie. Ein finaler read-only-Outcome-Job macht nur den exakten No-Update-Zustand grün. |
+| `check-python-version.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | Workflow-Standard `permissions: {}`; nur Resolver, Kandidatenvalidierung und Publisher erhalten eingebaute `contents: read`; das repository-begrenzte App-Token hat nur `contents`, `pull-requests`: write | Resolver- und Kandidatenjobs sind read-only. Der Default-Branch-Publisher löst einen stabilen Kandidaten unabhängig erneut auf, verifiziert genau einen festen Draft-Branch/PR und ändert nur die kanonische Python-Zuweisung in `ci/lib/common.sh`, die generierte `.python-version` und die zwei exakten abgeleiteten Inventar-/Archivdateien; er merged nie. Ein finaler read-only-Outcome-Job macht nur den exakten No-Update-Zustand grün. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, Zeitplan | `actions/github-script` | Workflow-Standard `contents: read`; Cleanup-Job effektiv `actions: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; sein Job kann nur Repository-Artefakte löschen. |
 | `five-connectors-with-crs-no-mrts-contract.yml` | gefilterter `push`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; dieses nur lesende Gate installiert nur die hash-gesperrte Abhängigkeit aus `requirements-ci.lock` und validiert dann den portablen geschlossenen Fixture-, CRS-Provenance- und Evidenzvertrag, nie ein Connector-Host-Runtime-Ergebnis. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode und seine Entwicklungsabhängigkeiten sind nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
@@ -157,7 +157,9 @@ normalen Git-Push-Schritte, verifiziert, dass ein vorhandener Draft-Branch nur
 PR-Event zurück. Der Contract weist eine explizite Token-/Secret-Referenz auf
 Workflow-Ebene oder in jedem Reader-Job zurück und bindet die Profile der
 schreibfähigen Publisher exakt. Der Python-Publisher löst den
-Kandidaten unabhängig erneut auf, erlaubt nur `ci/lib/common.sh` und die generierte `.python-version` sowohl im
+Kandidaten unabhängig erneut auf, erlaubt nur `ci/lib/common.sh`, die generierte `.python-version`,
+`connector_suite/config/testing/active-cases.json` und
+`connector_suite/reports/testing/test-selection-archive.generated.json` sowohl im
 geprüften Diff als auch in `add-paths`, begrenzt den Source-Diff auf die Python-Zuweisung, fixiert den Automationsbranch, setzt
 `draft: true` und weist Merge- oder Auto-Merge-Shell-Kommandos im Source-
 Contract zurück. GitHub-Berechtigungen sind Job- und nicht Schritt-spezifisch:
@@ -234,8 +236,8 @@ geprüfte Änderung, bevor er sie anwenden darf. CPython löst den festen
 `3.15.x`-Kandidaten vor dem Update unabhängig erneut auf. Jeder Publisher
 validiert genau einen passenden Draft-Branch und offenen PR: fester
 Branch/Titel, Draft-Status, Marker, `master` als Basis und den erlaubten
-Pfadumfang. CPython erlaubt nur seine kanonische Zuweisung in `ci/lib/common.sh` und die
-generierte Ansicht `.python-version`; Workflow-Tools behalten
+Pfadumfang. CPython erlaubt nur seine kanonische Zuweisung in `ci/lib/common.sh`, die
+generierte Ansicht `.python-version` und die exakten digestabgeleiteten Inventar-/Archivdateien; Workflow-Tools behalten
 ihre bestehende Allowlist. Kein Publisher force-pusht, zielt direkt auf den
 Default-Branch, aktiviert Auto-Merge oder maskiert Cleanup-/Publishing-Fehler.
 
@@ -468,3 +470,12 @@ Artefakte über eine Vertrauensgrenze hinweg konsumiert, OIDC nutzt, einen
 wiederverwendbaren Workflow aufruft oder eine neue Write-Berechtigung benötigt,
 müssen Checker, Fixtures, Inventar und Change Record erweitert werden, bevor
 sich auf das neue Verhalten verlassen wird.
+
+Die kanonische Wartung erneuert über `ci/tools/sync-maintenance-test-views.py`
+zuerst die Quellbindings und danach das abhängige Spezialistenarchiv. Vor dem
+Checkout prüft die Wiederverwendung eines Python-Drafts die vier regulären
+Git-Blobs gegen die vertrauenswürdige Basis: In diesen Metadatendateien dürfen
+nur der Common-Quelldigest und der daraus abgeleitete Inventar-Digest wechseln.
+Die geschlossene Common-Pfadrichtlinie umfasst diese zwei Ausgaben; ihr
+transaktionaler Rollback erhält beide. Kein Fall wird automatisch ergänzt und
+während des reinen Git-Nachweises läuft kein Head-Generator.

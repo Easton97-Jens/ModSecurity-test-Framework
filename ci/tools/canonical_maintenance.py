@@ -77,6 +77,11 @@ FRAMEWORK_CONTRACT_CATALOG_PATH = (
     "modsecurity_test_framework/data/framework-contract-catalog.json"
 )
 
+MAINTENANCE_INVENTORY_PATH = "connector_suite/config/testing/active-cases.json"
+MAINTENANCE_ARCHIVE_PATH = (
+    "connector_suite/reports/testing/test-selection-archive.generated.json"
+)
+
 MANDATORY_GLOBAL_SCOPES = (
     "go-ftw",
     "albedo",
@@ -95,6 +100,8 @@ GENERATED_VIEW_PATHS = (
     "docs/reference/variables.md",
     "docs/reference/variables.de.md",
     FRAMEWORK_CONTRACT_CATALOG_PATH,
+    MAINTENANCE_INVENTORY_PATH,
+    MAINTENANCE_ARCHIVE_PATH,
 )
 ALLOWED_AUTOMATIC_PATHS = frozenset(
     {
@@ -113,6 +120,8 @@ ALLOWED_AUTOMATIC_PATHS = frozenset(
         "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
         "tests/cases/security/crs/crs_sqli_anomaly_block.yaml",
         FRAMEWORK_CONTRACT_CATALOG_PATH,
+        MAINTENANCE_INVENTORY_PATH,
+        MAINTENANCE_ARCHIVE_PATH,
     }
     | {
         f".github/workflows/{name}"
@@ -2356,6 +2365,16 @@ def generated_view_status(root: Path, *, write: bool = False) -> list[dict[str, 
                 sys.executable,
                 str(root / "ci/tools/generate-framework-contract-catalog.py"),
                 *([] if write else ["--check"]),
+            ],
+        ),
+        (
+            "maintenance-test-views",
+            [
+                sys.executable,
+                str(root / "ci/tools/sync-maintenance-test-views.py"),
+                mode,
+                "--root",
+                str(root),
             ],
         ),
     )

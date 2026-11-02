@@ -270,7 +270,7 @@ jobs:
               git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
               git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH"
               changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH")"
-              expected_paths=$'.python-version\nci/lib/common.sh'
+              expected_paths=$'.python-version\nci/lib/common.sh\nconnector_suite/config/testing/active-cases.json\nconnector_suite/reports/testing/test-selection-archive.generated.json'
               test "$changed_paths" = "$expected_paths"
               python3 - "$DEFAULT_BRANCH" "$UPDATE_BRANCH" "$CANDIDATE" <<'PY'
           import re
@@ -321,6 +321,9 @@ jobs:
                   "existing CPython Draft common.sh diff is not the reviewed canonical assignment update"
               )
           PY
+              python3 ci/tools/sync-maintenance-test-views.py --root . \
+                --verify-python-candidate --base "origin/$DEFAULT_BRANCH" \
+                --head "origin/$UPDATE_BRANCH"
               git diff --check "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH"
               git switch --detach "origin/$UPDATE_BRANCH"
               ;;
@@ -341,10 +344,11 @@ jobs:
           test "$DEFAULT_BRANCH" = "master"
           test -z "$(git branch --show-current)"
           python3 ci/tools/sync-canonical-python-pins.py --check --root .
+          python3 ci/tools/sync-maintenance-test-views.py --check --root .
           python3 ci/checks/security/check-python-version.py
           python3 ci/checks/security/check-ci-security-contract.py
           changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")"
-          expected_paths=$'.python-version\nci/lib/common.sh'
+          expected_paths=$'.python-version\nci/lib/common.sh\nconnector_suite/config/testing/active-cases.json\nconnector_suite/reports/testing/test-selection-archive.generated.json'
           test "$changed_paths" = "$expected_paths"
           git diff --check "origin/$DEFAULT_BRANCH...HEAD"
 
@@ -370,11 +374,13 @@ jobs:
           python3 ci/tools/update-python-version.py --check --expected-candidate "$CANDIDATE"
           python3 ci/tools/update-python-version.py --update --expected-candidate "$CANDIDATE"
           python3 ci/tools/sync-canonical-python-pins.py --write --root .
+          python3 ci/tools/sync-maintenance-test-views.py --write --root .
           python3 ci/tools/sync-canonical-python-pins.py --check --root .
+          python3 ci/tools/sync-maintenance-test-views.py --check --root .
           python3 ci/checks/security/check-python-version.py
           python3 ci/checks/security/check-ci-security-contract.py
           changed_paths="$(git diff --name-only origin/master)"
-          expected_paths=$'.python-version\nci/lib/common.sh'
+          expected_paths=$'.python-version\nci/lib/common.sh\nconnector_suite/config/testing/active-cases.json\nconnector_suite/reports/testing/test-selection-archive.generated.json'
           test "$changed_paths" = "$expected_paths"
           git diff --check origin/master
           test "$(git branch --show-current)" = "master"
@@ -389,13 +395,13 @@ jobs:
             '' \
             'This Draft pull request was generated only after a read-only CPython 3.15 candidate validation.' \
             '' \
-            'The publisher independently re-resolved the official Python.org metadata and verified the canonical `ci/lib/common.sh` pin plus its generated `.python-version` view.' \
+            'The publisher independently re-resolved the official Python.org metadata and verified the canonical `ci/lib/common.sh` pin, generated `.python-version`, source digest inventory and derived specialist archive.' \
             '' \
             '## Deutsch' \
             '' \
             'Dieser Draft Pull Request wurde erst nach einer schreibgeschützten CPython-3.15-Kandidatenvalidierung erzeugt.' \
             '' \
-            'Der Publisher hat die offiziellen Python.org-Metadaten unabhängig erneut aufgelöst und den kanonischen Pin in `ci/lib/common.sh` sowie die daraus generierte Ansicht `.python-version` geprüft.' \
+            'Der Publisher hat die offiziellen Python.org-Metadaten unabhängig erneut aufgelöst und den kanonischen Pin in `ci/lib/common.sh` sowie die generierte Ansicht `.python-version`, das Quelldigestinventar und das abgeleitete Spezialistenarchiv geprüft.' \
             > "$RUNNER_TEMP/framework-python-version-pr-body.md"
 
       - name: Create or update Draft pull request
@@ -412,6 +418,8 @@ jobs:
           add-paths: |
             ci/lib/common.sh
             .python-version
+            connector_suite/config/testing/active-cases.json
+            connector_suite/reports/testing/test-selection-archive.generated.json
 
   outcome:
     needs:

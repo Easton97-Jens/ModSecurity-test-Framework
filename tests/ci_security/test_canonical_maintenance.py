@@ -480,7 +480,9 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             with self.assertRaisesRegex(MAINTENANCE.MaintenanceError, "symlink"):
                 MAINTENANCE.require_root(symlink_root)
 
-    def test_generated_catalog_is_validated_after_crs_views_in_both_modes(self) -> None:
+    def test_maintenance_test_views_follow_catalog_after_crs_views_in_both_modes(
+        self,
+    ) -> None:
         for write in (False, True):
             with (
                 self.subTest(write=write),
@@ -497,19 +499,28 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                             1,
                             stdout="",
                             stderr="framework contract catalog is stale",
-                        )
+                        ),
+                        subprocess.CompletedProcess(
+                            [], 1, stdout="", stderr="maintenance test views are stale"
+                        ),
                     ],
                 ) as run,
             ):
                 statuses = MAINTENANCE.generated_view_status(ROOT, write=write)
             self.assertEqual(
-                [item["name"] for item in statuses][-2:],
-                ["crs-contract-views", "framework-contract-catalog"],
+                [item["name"] for item in statuses][-3:],
+                [
+                    "crs-contract-views",
+                    "framework-contract-catalog",
+                    "maintenance-test-views",
+                ],
             )
+            self.assertEqual(statuses[-2]["status"], "blocked")
+            self.assertIn("catalog is stale", statuses[-2]["message"])
             self.assertEqual(statuses[-1]["status"], "blocked")
-            self.assertIn("catalog is stale", statuses[-1]["message"])
+            self.assertIn("test views are stale", statuses[-1]["message"])
             self.assertEqual(
-                run.call_args_list[-1],
+                run.call_args_list[-2],
                 mock.call(
                     [
                         MAINTENANCE.sys.executable,
@@ -522,6 +533,28 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                     text=True,
                 ),
             )
+            self.assertEqual(
+                run.call_args_list[-1],
+                mock.call(
+                    [
+                        MAINTENANCE.sys.executable,
+                        str(ROOT / "ci/tools/sync-maintenance-test-views.py"),
+                        "--write" if write else "--check",
+                        "--root",
+                        str(ROOT),
+                    ],
+                    cwd=ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                ),
+            )
+        for path in (
+            MAINTENANCE.MAINTENANCE_INVENTORY_PATH,
+            MAINTENANCE.MAINTENANCE_ARCHIVE_PATH,
+        ):
+            self.assertIn(path, MAINTENANCE.GENERATED_VIEW_PATHS)
+            self.assertIn(path, MAINTENANCE.ALLOWED_AUTOMATIC_PATHS)
         self.assertIn(
             MAINTENANCE.FRAMEWORK_CONTRACT_CATALOG_PATH,
             MAINTENANCE.GENERATED_VIEW_PATHS,
@@ -557,9 +590,20 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             common.write_bytes(b"PIN=old\n")
             catalog = root / MAINTENANCE.FRAMEWORK_CONTRACT_CATALOG_PATH
             catalog.write_bytes(b"original catalog\n")
+            inventory = root / MAINTENANCE.MAINTENANCE_INVENTORY_PATH
+            inventory.write_bytes(b"original inventory\n")
+            archive = root / MAINTENANCE.MAINTENANCE_ARCHIVE_PATH
+            archive.write_bytes(b"original archive\n")
             subprocess.run(["git", "init", "--quiet"], cwd=root, check=True)
             subprocess.run(
-                ["git", "add", "ci/lib/common.sh", str(catalog.relative_to(root))],
+                [
+                    "git",
+                    "add",
+                    "ci/lib/common.sh",
+                    str(catalog.relative_to(root)),
+                    str(inventory.relative_to(root)),
+                    str(archive.relative_to(root)),
+                ],
                 cwd=root,
                 check=True,
             )
@@ -588,10 +632,12 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                 MAINTENANCE._canonical_json(plan)
             ).hexdigest()
 
-            def fail_catalog_generation(_root: Path, *, write: bool):
+            def fail_test_view_generation(_root: Path, *, write: bool):
                 self.assertTrue(write)
                 catalog.write_bytes(b"partially regenerated catalog\n")
-                return [{"name": "framework-contract-catalog", "status": "blocked"}]
+                inventory.write_bytes(b"partially regenerated inventory\n")
+                archive.write_bytes(b"partially regenerated archive\n")
+                return [{"name": "maintenance-test-views", "status": "blocked"}]
 
             with (
                 mock.patch.object(
@@ -600,7 +646,7 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                 mock.patch.object(
                     MAINTENANCE,
                     "generated_view_status",
-                    side_effect=fail_catalog_generation,
+                    side_effect=fail_test_view_generation,
                 ),
             ):
                 with self.assertRaisesRegex(
@@ -613,6 +659,8 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                     )
             self.assertEqual(common.read_bytes(), b"PIN=old\n")
             self.assertEqual(catalog.read_bytes(), b"original catalog\n")
+            self.assertEqual(inventory.read_bytes(), b"original inventory\n")
+            self.assertEqual(archive.read_bytes(), b"original archive\n")
             self.assertEqual(
                 subprocess.run(
                     ["git", "status", "--porcelain=v1"],

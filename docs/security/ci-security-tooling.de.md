@@ -74,7 +74,7 @@ bleiben artefaktfrei.
 | `ci-security-quality.yml` | PR- und Default-Branch-Änderungen am CI-Security-Python-Scope | Prüfsummenverifiziertes Ruff-Lint/-Format und Pyright mit exakt festgelegter Node.js-Runtime. Der Scope umfasst CI-Security- und Change-Record-Checker, Downloader und deren Tests. |
 | `ci-security-secrets.yml` | PR, Zeitplan, manuell | Gitleaks checkt den exakten PR-Head aus und beweist ihn; danach scannt es exakt den Bereich Merge-Base bis Head mit `--redact=100`. Die gesamte Historie ist geplant/manuell advisory, bis Findings triagiert sind. |
 | `ci-security-osv.yml` | Begrenztes nicht privilegiertes `pull_request`; Zeitplan und manuell auf dem Default-Branch | Der PR-Job führt die vertrauenswürdige PR-Basis-SHA aus, holt die nummerierte PR-Referenz ohne Checkout, verifiziert ihre exakte Head-SHA und vergleicht begrenzte `requirements-dev.txt`- und `requirements-ci.lock`-Blobs ohne Remediation. `setup-python` erhält ausschließlich eine private reguläre, nicht symlinkte Versionsdatei aus einem größenbegrenzten Trusted-Base-Blob. Striktes CPython 3.15 ist erforderlich, ausgenommen allein die exakte Basis vor dem Selektor `f73f8842f45318e2df8aff1d31855eeb7c20a22f`; diese wählt allein `3.13.14`, sowie die exakte Übergangsbasis `91145b7ba721bdec4e89af754cf40bf496fd2a08`, die `3.14.10` erfordert. Jeder andere CP313-/CP314-Selektor oder eine andere fehlende Basisdatei scheitert geschlossen, und kein PR-Head-Python-Selektor, Source oder Workflow-Content wird gelesen oder ausgeführt. Er scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
-| `check-python-version.yml` | Geplant/manuell auf der vertrauenswürdigen `master`-Revision | Ein dreistufiger CPython-Wartungsworkflow löst einen Kandidaten auf, validiert ihn und darf erst danach einen Draft-Review-PR veröffentlichen. Die zwei read-only Stufen verwenden die ausgecheckte vertrauenswürdige Revision und kein Token; die Kandidatvalidierung materialisiert nur den festen Pfad `${{ runner.temp }}/framework-python-3.15-candidate`. Der Publisher ist durch `github.ref == 'refs/heads/master'` und einen validierten Kandidaten begrenzt, löst ihn unabhängig erneut auf, beschränkt Änderungen auf die kanonische Zuweisung in `ci/lib/common.sh` und die generierte `.python-version` und verwendet den festen Review-Branch `automation/update-framework-python-315`. |
+| `check-python-version.yml` | Geplant/manuell auf der vertrauenswürdigen `master`-Revision | Ein dreistufiger CPython-Wartungsworkflow löst einen Kandidaten auf, validiert ihn und darf erst danach einen Draft-Review-PR veröffentlichen. Die zwei read-only Stufen verwenden die ausgecheckte vertrauenswürdige Revision und kein Token; die Kandidatvalidierung materialisiert nur den festen Pfad `${{ runner.temp }}/framework-python-3.15-candidate`. Der Publisher ist durch `github.ref == 'refs/heads/master'` und einen validierten Kandidaten begrenzt, löst ihn unabhängig erneut auf, beschränkt Änderungen auf die kanonische Zuweisung in `ci/lib/common.sh`, die generierte `.python-version`, das Quelldigestinventar und das abgeleitete Spezialistenarchiv und verwendet den festen Review-Branch `automation/update-framework-python-315`. |
 | `ci-security-codeql-pr.yml` | PR | CodeQL analysiert den exakten PR-Head mit ausschließlich `contents: read`, dem `linked`-Tool-Bundle der gepinnten Action, `upload: never` und `upload-database: false`. Es analysiert GitHub Actions, Python und C/C++ und ignoriert `tools/MRTS/**`; es erhält nie eine Code-Scanning-Write-Berechtigung. |
 | `ci-security-codeql.yml` | Default-Branch-Push, Zeitplan, manuell | Vertrauenswürdiges CodeQL analysiert die exakte `github.sha` mit demselben begrenzten Sprach-Scope und `linked`-Tool-Bundle. Seine eine Job-spezifische `security-events: write`-Berechtigung wird ausschließlich nach Nicht-PR-Ausführung zum Upload von Code-Scanning-SARIF verwendet. Go oder JavaScript/TypeScript werden nicht behauptet; C/C++ verwendet `build-mode: none`, damit der Scan keine Connector- oder MRTS-Abhängigkeiten provisioniert. |
 | `ci-security-scorecard.yml` | PR; Default-Branch-Push, Zeitplan, manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OpenSSF-Scorecard-Binary bewertet den exakten lokalen PR-Checkout ohne GitHub-Token. Das PR-Ergebnis wird JSON-validiert, bleibt aber artefaktfrei. Vertrauenswürdige Default-Branch-Jobs verwenden die exakte `github.sha`, bewahren eine validierte begrenzte JSON-Datei einen Tag auf und bleiben advisory, weil kein Score-Schwellenwert gesetzt ist; Scanner- und JSON-Validierungsfehler sind nicht advisory. SARIF wird nicht hochgeladen. |
@@ -309,9 +309,27 @@ GitHub-Token noch HTML-Scraping. Der geplante/manuelle Workflow
 Sein Publisher löst den Kandidaten unabhängig erneut auf und validiert ihn,
 ist durch `github.ref == 'refs/heads/master'` beschränkt und kann nur einen
 Draft-PR auf `automation/update-framework-python-315` mit
-ausschließlich `ci/lib/common.sh` und dessen generierter Ansicht
-`.python-version` als Änderungspfaden erstellen oder aktualisieren. Er
+ausschließlich `ci/lib/common.sh`, dessen generierter Ansicht `.python-version`,
+`connector_suite/config/testing/active-cases.json` und
+`connector_suite/reports/testing/test-selection-archive.generated.json`
+als Änderungspfaden erstellen oder aktualisieren. Er
 merged nicht automatisch und verwendet keinen floating version selector.
+
+`ci/tools/sync-maintenance-test-views.py --root . --write` führt zuerst den
+vorhandenen Inventar-Binding-Generator und danach den Spezialistenarchiv-Generator
+aus; `--check` prüft beide ohne Schreibzugriff. Der kanonische Common-Updater
+führt dies zuletzt aus, ergänzt ausschließlich diese zwei Datenausgaben in
+seinen geschlossenen Publisher-Pfaden und stellt sie beim Fehler mit dem
+bestehenden transaktionalen Rollback wieder her. Der Python-Publisher prüft vier
+exakte Pfade und seine einzelne kanonische Zuweisung. Vor dem Checkout eines
+vorhandenen Draft-Heads liest sein vertrauenswürdiger Helper begrenzte reguläre
+Git-Blobs, erhält Dateimodi und vergleicht beide Metadatendateien bytegenau mit
+der vertrauenswürdigen Basis plus neuem Common-Quelldigest. Jede Auswahl und
+jedes andere Feld bleiben unverändert; das Archiv darf nur seinen Inventar-Digest
+ändern. Git- und geerbter Repository-Kontext werden bereinigt. Ein fehlgeschlagener
+eigenständiger `--write`-Lauf kann teilweise erzeugte Metadaten hinterlassen und
+muss den Job vor Veröffentlichung abbrechen; Common-Maintenance stellt den
+vollständigen Snapshot wieder her.
 
 Die Static-Tool-Baselines folgen demselben Vertrag: `pyproject.toml` deklariert
 Ruff `target-version = "py315"`, und `pyrightconfig.json` deklariert

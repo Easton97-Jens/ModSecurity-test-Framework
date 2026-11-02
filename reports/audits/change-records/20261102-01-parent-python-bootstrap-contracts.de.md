@@ -152,3 +152,35 @@ Implementierungsdiff und Whitespace geprüft; keine Secrets oder Rohlogs erfasst
 Unabhängiges Review fand keinen offenen Blocker; gehostete Prüfungen bleiben vor finaler Lieferung offen.
 
 Der nächste gehostete Parent-Commit bestand die Inventar-Digestgrenze; sein NGINX-Setup/Quick-Check verweigerte anschließend korrekt das abgeleitete Spezialistenarchiv. `connector_suite/reports/testing/test-selection-archive.generated.json` wurde mit dem vorhandenen `update-test-archive.py` neu erzeugt. Die vorherigen Inventar- und Quelldigests entsprachen exakt der letzten Archiv-Basis. Die Änderung beschreibt den neuen Inventar-Digest, 16 vorhandene und einen neuen Quelleintrag sowie 35 zusätzliche On-Demand-Definitionen. Native Quellen, Framework-Fallkataloge und extrahierte native Definitionen bleiben unverändert. Dies beschreibt deklarative Verfügbarkeit, keine zusätzliche automatische Auswahl oder Ausführungsevidenz. Der vollständige native Einstieg `make check-active-inventory` bestand mit beiden Ansichten unter Python 3.15.2.
+
+Dauerhafter Updater-Folgefix: Ein normaler Python-Patch oder kanonisches
+Komponentenupdate würde sonst das vollständig quellgebundene `common.sh`
+ändern, ohne Inventar/Archiv zu erneuern. Der exakte Einstieg
+`sync-maintenance-test-views.py`, geordnete native Ableitung und genau diese zwei
+generierten Pfade wurden in Candidate-, Publisher- und Rollback-Profile der
+Common-Wartung aufgenommen. Python-Veröffentlichung behält die einzelne
+Zuweisung und vier exakte Pfade; vor dem Draft-Checkout prüft vertrauenswürdiger
+Code feste reguläre Git-Blobs, unveränderte Modi, den strikten ASCII-Python-
+Selektor und bytegenaue basisabgeleitete Metadaten. Zu große Blobs werden vor
+dem Einlesen verweigert, fremder Git-/Kontextbezug und zusätzliche Metadaten-
+änderungen abgelehnt. Im bewusst minimalen Snapshot des Workflow-Tool-Validators
+läuft keine Vollquellableitung. Eigenständige Schreibläufe brechen beim Fehler
+ab; Common-Maintenance stellt beim Generatorfehler seinen Snapshot wieder her.
+
+Validierung mit tatsächlichem Python 3.15.2: 105 kombinierte Publisher-/Security-/
+Python-/Wartungstests bestanden (20,373 s), einschließlich zwölf Helper-Fällen
+und 33 kanonischen Workflow-/Rollback-Fällen. Ruff-Lint/Format bestanden für alle
+sieben geänderten/neuen Python-Dateien, Actionlint für alle drei geänderten
+Workflows. Exakte geprüfte Programmhashes und geschlossene Metadaten-Pfadmengen
+wurden gemeinsam angepasst. Die Metadatenansichten werden erst nach Abschluss
+dieser Quell-/Teständerungen erneuert.
+
+Ein synthetischer Offline-Pinwechsel von `3.15.2` auf `3.15.3` durchlief die echten
+nativen Python-Pin- und Testansicht-Generatoren: Genau vier Ausgabedateien änderten
+sich, im Inventar ausschließlich der vorhandene Common-Quelldigest und im Archiv
+der daraus abgeleitete Digest. Keine Auswahl änderte sich. Alle vier Taskdateien
+wurden bytegenau wiederhergestellt; dies behauptet kein Upstream-Release. Finale
+reale Metadaten-Erzeugung, schreibgeschützte Prüfung und vollständige native
+Inventar-/Archivzulassung bestanden. Das finale Archiv erhält 8.021 On-Demand-
+Definitionen; diese sind von 2.686 auswählbaren Katalogfällen und den unveränderten
+100 automatischen Standardfällen zu unterscheiden.
