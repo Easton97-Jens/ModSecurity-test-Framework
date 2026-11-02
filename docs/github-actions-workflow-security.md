@@ -48,14 +48,14 @@ releases, and commit identities are:
 | Action | Official upstream | Release | Commit SHA | License | Necessary use |
 | --- | --- | --- | --- | --- | --- |
 | `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | v7.0.1 | 3d3c42e5aac5ba805825da76410c181273ba90b1 | MIT | Checks out the Framework source for validation or maintenance. |
-| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | v7.0.0 | 5fda3b95a4ea91299a34e894583c3862153e4b97 | MIT | Selects the exact `.python-version` interpreter for Framework CI and controlled maintenance validation. |
-| `actions/setup-node` | [actions/setup-node](https://github.com/actions/setup-node) | v7.0.0 | 820762786026740c76f36085b0efc47a31fe5020 | MIT | Selects the reviewed Node.js runtime for checksum-verified Pyright. |
-| `actions/upload-artifact` | [actions/upload-artifact](https://github.com/actions/upload-artifact) | v7.0.1 | 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a | MIT | Retains only bounded CI-security evidence. |
-| `actions/download-artifact` | [actions/download-artifact](https://github.com/actions/download-artifact) | v8.0.1 | 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c | MIT | Retrieves one caller-bound canonical maintenance-plan artifact for same-run validation. |
+| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | v7.1.0 | 6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 | MIT | Selects the exact `.python-version` interpreter for Framework CI and controlled maintenance validation. |
+| `actions/setup-node` | [actions/setup-node](https://github.com/actions/setup-node) | v7.1.0 | 949feb2413d6458794dcd2491c4babbbce0c15c1 | MIT | Selects the reviewed Node.js runtime for checksum-verified Pyright. |
+| `actions/upload-artifact` | [actions/upload-artifact](https://github.com/actions/upload-artifact) | v7.0.2 | cf430e030ddbb5b0abf93d22962f4752f3646cd9 | MIT | Retains only bounded CI-security evidence. |
+| `actions/download-artifact` | [actions/download-artifact](https://github.com/actions/download-artifact) | v8.0.2 | 9000827ccba6bdab643e8b6fd33ac0654aef8333 | MIT | Retrieves one caller-bound canonical maintenance-plan artifact for same-run validation. |
 | `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | v9.0.0 | 3a2844b7e9c422d3c10d287c895573f7108da1b3 | MIT | Inspects constrained Draft PRs or performs artifact-retention cleanup. |
-| `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | v3.2.0 | bcd2ba49218906704ab6c1aa796996da409d3eb1 | MIT | Mints the Common-version, CPython-version, or workflow-tool publisher's short-lived, repository-limited App token. |
+| `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | v3.3.0 | 64ab729a6294000f5aa4a4bc0b73d1f32bc45510 | MIT | Mints the Common-version, CPython-version, or workflow-tool publisher's short-lived, repository-limited App token. |
 | `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | v8.1.1 | 5f6978faf089d4d20b00c7766989d076bb2fc7f1 | MIT | Creates constrained Common-version or CPython-version Draft pull requests. |
-| `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | v4.38.2 | 2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 | MIT | Performs the bounded CodeQL analysis and trusted SARIF upload. |
+| `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | v4.39.1 | 9b3254085494b55a0f7c4c2b3d2d52cc712ce370 | MIT | Performs the bounded CodeQL analysis and trusted SARIF upload. |
 | `actions/dependency-review-action` | [actions/dependency-review-action](https://github.com/actions/dependency-review-action) | v5.0.0 | a1d282b36b6f3519aa1f3fc636f609c47dddb294 | MIT | Reviews dependency-changing pull requests without remediation. |
 
 The contract rejects tags, branches, shortened or uppercase SHAs, dynamic
