@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tarfile
@@ -157,8 +158,9 @@ def validated_build_lock(values: dict[str, str]) -> tuple[str, list[dict[str, st
             raise InstallError("malformed build-tool wheel")
         name = artifact_name(wheel["url"])
         match = re.fullmatch(
-            r"(setuptools|wheel|cython|packaging)-[0-9]+\.[0-9]+(?:\.[0-9]+)?-py3-none-any\.whl",
+            r"(setuptools|wheel|cython|packaging)-\d+\.\d+(?:\.\d+)?-py3-none-any\.whl",
             name,
+            flags=re.ASCII,
         )
         if (
             match is None
@@ -251,6 +253,44 @@ def source_install(values: dict[str, str], work: Path) -> None:
     run([sys.executable, "-I", "-m", "pip", "check"], work, environment)
 
 
+def trusted_source_directory_component(path: Path, selected: bool) -> None:
+    """Reject ancestry that another user can replace or redirect."""
+    details = path.lstat()
+    if not stat.S_ISDIR(details.st_mode) or details.st_uid not in (0, os.getuid()):
+        raise InstallError(
+            "source build ancestry must contain trusted non-symlink directories"
+        )
+    writable = details.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+    protected_shared_ancestor = (
+        not selected and details.st_uid == 0 and details.st_mode & stat.S_ISVTX
+    )
+    if selected and (details.st_uid != os.getuid() or writable):
+        raise InstallError(
+            "source build temporary root must be user-owned without shared write access"
+        )
+    if writable and not protected_shared_ancestor:
+        raise InstallError("source build ancestry must not be adversary-writable")
+
+
+def require_source_temporary_root() -> Path:
+    """Require an external, user-owned build base without shared write access."""
+    temporary_root = os.environ.get("RUNNER_TEMP")
+    if not temporary_root or not Path(temporary_root).is_absolute():
+        raise InstallError("source builds require an explicit external RUNNER_TEMP")
+    candidate = Path(temporary_root)
+    if ".." in candidate.parts or candidate == Path(candidate.anchor):
+        raise InstallError(
+            "source build temporary root must be an existing external directory"
+        )
+    PINS.reject_symlink_components(candidate, "source build temporary root")
+    for component in (*reversed(candidate.parents), candidate):
+        trusted_source_directory_component(component, component == candidate)
+    selected = candidate.resolve(strict=True)
+    if selected == ROOT or ROOT in selected.parents:
+        raise InstallError("source build temporary root must be outside the checkout")
+    return selected
+
+
 def main() -> int:
     if len(sys.argv) != 1:
         raise InstallError("no arguments are accepted")
@@ -279,22 +319,12 @@ def main() -> int:
         subprocess.run([sys.executable, "-I", "-m", "pip", "check"], check=True)
     else:
         if not re.fullmatch(
-            r"3\.15\.(0|[1-9][0-9]*)", values["CI_CANONICAL_PYTHON_VERSION"]
+            r"3\.15\.(0|[1-9]\d*)",
+            values["CI_CANONICAL_PYTHON_VERSION"],
+            flags=re.ASCII,
         ) or sys.version_info[:2] != (3, 15):
             raise InstallError("source builds are reviewed only for CPython 3.15")
-        temporary_root = os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR")
-        if not temporary_root or not Path(temporary_root).is_absolute():
-            raise InstallError(
-                "source builds require an external RUNNER_TEMP or TMPDIR"
-            )
-        PINS.reject_symlink_components(
-            Path(temporary_root), "source build temporary root"
-        )
-        selected = Path(temporary_root).resolve(strict=True)
-        if selected == ROOT or ROOT in selected.parents or not selected.is_dir():
-            raise InstallError(
-                "source build temporary root must be outside the checkout"
-            )
+        selected = require_source_temporary_root()
         with tempfile.TemporaryDirectory(
             prefix="pyyaml-build-", dir=selected
         ) as temporary:

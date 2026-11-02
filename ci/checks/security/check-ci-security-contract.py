@@ -48,7 +48,7 @@ CI_DEPENDENCY_INSTALLER_SHA256 = (
 CI_DEPENDENCY_SOURCE_INSTALLER = "ci/tools/install_hash_locked_ci_dependencies.py"
 CI_DEPENDENCY_BUILD_LOCK = "ci/pyyaml-build-tools.lock.json"
 CI_DEPENDENCY_SOURCE_INSTALLER_SHA256 = (
-    "cf25436ad89407c416b64635924f8eecd1cb9d66d40faa7776ab7a433aa591ea"
+    "0b1316e8ce64803b91944243b7db4339e460b7b512715d1140da7b21b185e8a3"
 )
 CI_DEPENDENCY_BUILD_LOCK_SHA256 = (
     "9d3438c190d5c316c7ed93e89a7175f2d6ad296a40e029949ed21fcb4c814fd6"
@@ -4342,6 +4342,45 @@ def forbidden_workflow_snippet_errors(
     ]
 
 
+def osv_trusted_base_environment_errors(
+    path: Path, steps: list[Any], install_step: dict[str, Any]
+) -> list[str]:
+    """Bind both OSV bootstrap steps to the same exact historical identities."""
+
+    expected_env = {
+        "BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "OSV_LEGACY_BASE_SHA": OSV_LEGACY_BASE_SHA,
+        "OSV_LEGACY_BASE_VERSION": OSV_LEGACY_BASE_VERSION,
+        "OSV_PY314_BASE_SHA": OSV_PY314_BASE_SHA,
+        "OSV_PY314_BASE_VERSION": OSV_PY314_BASE_VERSION,
+        "PYTHON_VERSION_FILE": OSV_TRUSTED_BASE_PYTHON_VERSION_FILE,
+    }
+    errors: list[str] = []
+    materialize_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("name") == "Materialize trusted base Python version"
+    ]
+    if len(materialize_steps) != 1:
+        errors.append(
+            f"{path}: OSV must declare exactly one trusted-base Python materialization"
+        )
+    for step in [*materialize_steps, install_step]:
+        environment = step.get("env")
+        if not isinstance(environment, dict) or set(environment) != set(expected_env):
+            errors.append(
+                f"{path}: OSV trusted-base bootstrap must bind exact historical base identities"
+            )
+            continue
+        for key, expected in expected_env.items():
+            if environment.get(key) != expected:
+                errors.append(
+                    f"{path}: OSV trusted-base bootstrap must bind {key}: {expected}"
+                )
+    return errors
+
+
 def osv_trusted_base_bootstrap_errors(path: Path, data: dict[str, Any]) -> list[str]:
     """Keep the trusted-base OSV bootstrap available without PR-head content."""
 
@@ -4367,37 +4406,7 @@ def osv_trusted_base_bootstrap_errors(path: Path, data: dict[str, Any]) -> list[
     run = install_steps[0].get("run")
     if not isinstance(run, str):
         return [f"{path}: OSV trusted-base bootstrap must be a shell string"]
-    expected_env = {
-        "BASE_SHA": "${{ github.event.pull_request.base.sha }}",
-        "OSV_LEGACY_BASE_SHA": OSV_LEGACY_BASE_SHA,
-        "OSV_LEGACY_BASE_VERSION": OSV_LEGACY_BASE_VERSION,
-        "OSV_PY314_BASE_SHA": OSV_PY314_BASE_SHA,
-        "OSV_PY314_BASE_VERSION": OSV_PY314_BASE_VERSION,
-        "PYTHON_VERSION_FILE": OSV_TRUSTED_BASE_PYTHON_VERSION_FILE,
-    }
-    errors: list[str] = []
-    materialize_steps = [
-        step
-        for step in steps
-        if isinstance(step, dict)
-        and step.get("name") == "Materialize trusted base Python version"
-    ]
-    if len(materialize_steps) != 1:
-        errors.append(
-            f"{path}: OSV must declare exactly one trusted-base Python materialization"
-        )
-    for step in [*materialize_steps, install_steps[0]]:
-        environment = step.get("env")
-        if not isinstance(environment, dict) or set(environment) != set(expected_env):
-            errors.append(
-                f"{path}: OSV trusted-base bootstrap must bind exact historical base identities"
-            )
-            continue
-        for key, expected in expected_env.items():
-            if environment.get(key) != expected:
-                errors.append(
-                    f"{path}: OSV trusted-base bootstrap must bind {key}: {expected}"
-                )
+    errors = osv_trusted_base_environment_errors(path, steps, install_steps[0])
     if publisher_body_digest(run) != OSV_TRUSTED_BASE_INSTALL_SHA256:
         errors.append(
             f"{path}: OSV trusted-base bootstrap must match the reviewed program"

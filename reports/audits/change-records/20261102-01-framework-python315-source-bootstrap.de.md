@@ -104,6 +104,15 @@ Zusätzliche Koordinator-Prüfungen bestanden auf echtem Python 3.15.2: 72 Vertr
 
 Gehostetes CPython-3.15.2-Setup, geprüfter Source-Build, Pure-Wheel-Installation und Pip-Prüfungen bestanden; der gehostete Wheel-SHA entsprach beiden lokalen Builds. Erste CI zeigte alte Inline-Installationsannahmen und fünf Typisierungs-/Importfehler in Tests. Folgekorrekturen prüfen echte argumentlose Delegation und ausführbare Helper-Kontrollen und erhalten Installation-vor-Snapshot/Anwendung/Validierung. Die 27 betroffenen Workflow-/CRS-Tests und 24 typisierten Builder-/Maintenance-Tests bestanden auf 3.15; Runtime-Helper und Security-Gates wurden nicht abgeschwächt.
 
+Sonar-Nachbesserungen erhalten alle Gates und begrenzen temporäre Build-Pfade
+durch explizite `RUNNER_TEMP`-Zulassung: physischer externer Pfad, aktuelle UID,
+keine gemeinsamen Schreibrechte und vertrauenswürdige Vorfahren. Generische
+Public-Temp-Umgebungs-Fallbacks entfallen. ASCII-only-Regex-Semantik bleibt
+explizit, während Komplexität, Literale und Test-Assertion-Grenzen vereinfacht
+wurden. Source-Build und Pip-Prüfungen bestanden erneut; kein Finding wurde
+unterdrückt oder als False Positive markiert. Der gemeinsame Framework-PR
+ersetzt den anfänglichen Migrations-PR.
+
 ## Sicherheitsauswirkung
 
 Es wird keine Schwachstellenbehebung behauptet. Die Migration erhält

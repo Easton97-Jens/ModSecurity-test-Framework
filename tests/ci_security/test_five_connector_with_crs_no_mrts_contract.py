@@ -1786,7 +1786,8 @@ class FiveConnectorWorkflowSecurityContractTest(unittest.TestCase):
         )
         self.assertGreaterEqual(commands.count(("-I", "-m", "pip", "check")), 3)
         spec = importlib.util.spec_from_file_location("portable_ci_installer", source)
-        assert spec is not None and spec.loader is not None
+        assert spec is not None
+        assert spec.loader is not None
         dependency_installer = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(dependency_installer)
         with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "must-not-be-inherited"}):

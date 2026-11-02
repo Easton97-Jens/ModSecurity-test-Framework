@@ -292,6 +292,7 @@ class CanonicalMaintenanceTests(unittest.TestCase):
         for variable, invalid in (
             ("CI_CANONICAL_PYYAML_PLATFORM", "manylinux_x86_64"),
             ("CI_CANONICAL_PYTHON_VERSION", "3.14.10"),
+            ("CI_CANONICAL_PYTHON_VERSION", "3.15.1\u0660"),
             ("CI_CANONICAL_PYYAML_ARTIFACT", "pyyaml-6.0.3.zip"),
         ):
             with self.subTest(variable=variable):
