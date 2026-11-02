@@ -109,11 +109,9 @@ class TLSProtocolFloorTests(unittest.TestCase):
     def test_legacy_protocols_fail_after_successful_legacy_controls(self):
         for version, negotiated in ((ssl.TLSVersion.TLSv1, "TLSv1"),
                                     (ssl.TLSVersion.TLSv1_1, "TLSv1.1")):
-            with self.subTest(legacy_control=negotiated):
-                try:
-                    actual = handshake(self.peer_context(True, version), self.peer_context(False, version))
-                except ssl.SSLError as error:
-                    self.fail(f"BLOCKED: legacy control {negotiated} cannot negotiate: {error.reason}")
+            with self.subTest(legacy_control=negotiated, control_failure="BLOCKED"):
+                # Unavailable legacy controls must fail, never count as rejection.
+                actual = handshake(self.peer_context(True, version), self.peer_context(False, version))
                 self.assertEqual(actual, negotiated)
             for name, client, context in self.contexts():
                 with self.subTest(context=name, rejected=negotiated):
