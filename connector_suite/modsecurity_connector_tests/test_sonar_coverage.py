@@ -31,8 +31,14 @@ class SonarCoverageTests(unittest.TestCase):
 
     def test_accepts_a_measured_repository_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            report = self.write_report(directory, filename="ci/checks/analysis/check-sonar-scope.py")
+            report = self.write_report(directory, filename="ci/tools/read-framework-revisions.py")
             self.assertEqual(COVERAGE.validate_python_report(report), 1)
+
+    def test_migrated_framework_source_is_not_parent_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report = self.write_report(directory, filename="ci/checks/analysis/check-sonar-scope.py")
+            with self.assertRaisesRegex(ValueError, "not a repository file"):
+                COVERAGE.validate_python_report(report)
 
     def test_rejects_external_paths_even_with_execution_counts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -42,7 +48,7 @@ class SonarCoverageTests(unittest.TestCase):
 
     def test_rejects_a_report_without_actual_execution(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            report = self.write_report(directory, filename="ci/checks/analysis/check-sonar-scope.py", hits="0")
+            report = self.write_report(directory, filename="ci/tools/read-framework-revisions.py", hits="0")
             with self.assertRaisesRegex(ValueError, "no measured execution"):
                 COVERAGE.validate_python_report(report)
 
@@ -81,9 +87,48 @@ class SonarCoverageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "no execution counters"):
                     COVERAGE.native_coverage(output, {})
 
+    def test_go_coverage_supplies_reviewed_overlay_to_listing_and_measurement(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            overlay = output / "module-tests/active-tests-fixture/go-overlay.json"
+            calls = []
+            def run(command, **keywords):
+                calls.append((command, keywords))
+                if "--emit-go-overlay" in command:
+                    return str(overlay) + "\n"
+                if "-list" in command:
+                    return "TestExistingSelector\n"
+                for argument in command:
+                    if argument.startswith("-coverprofile="):
+                        Path(argument.split("=", 1)[1]).write_text("mode: set\nmodule/source.go:1.1,2.1 1 1\n")
+                return ""
+            with (mock.patch.dict(COVERAGE.GO_TESTS, {"module": ("connectors/envoy/ext_proc", ("TestExistingSelector",))}, clear=True),
+                  mock.patch.object(COVERAGE, "run", side_effect=run)):
+                result = COVERAGE.go_coverage(output, {})
+            go_calls = [command for command, _ in calls if command[:2] == ["go", "test"]]
+            self.assertEqual(len(go_calls), 2)
+            for command in go_calls:
+                self.assertIn(f"-overlay={overlay}", command)
+                self.assertIn("^(TestExistingSelector)$", command)
+            self.assertEqual(result["module"]["test_sources"], str(overlay.parent / "go-overlay-sources.json"))
+            self.assertIn("--on-demand", calls[0][0])
+            self.assertEqual(calls[0][1]["env"]["ON_DEMAND_TESTS"], "1")
+
     def offline_fixture(self, *, timing: bool = False) -> dict:
         return {"id": "offline.fixture", "selector": {"kind": "python", "target": "tests.fixture.Case.test_unit"},
                 "groups": ["offline-unit", "offline-timing"] if timing else ["offline-unit"]}
+
+    def test_offline_admission_retains_units_without_discovering_other_specialists(self) -> None:
+        inventory = SimpleNamespace(offline_case_ids=("unit.case", "new.runtime.case"))
+        module = mock.Mock()
+        module.load_inventory.return_value = inventory
+        module.select_executions.return_value = (self.offline_fixture(),)
+        with mock.patch.object(COVERAGE, "load_tool", return_value=module):
+            actual, selected = COVERAGE.admitted_offline_inventory()
+        self.assertIs(actual, inventory)
+        self.assertEqual(selected, (self.offline_fixture(),))
+        module.select_executions.assert_called_once_with(
+            inventory, groups=("offline-unit",), on_demand=True)
 
     def test_normal_offline_python_stays_in_measured_partition(self) -> None:
         execution = self.offline_fixture()
@@ -109,7 +154,7 @@ class SonarCoverageTests(unittest.TestCase):
                        "COVERAGE_FILE": "parent.data", "ON_DEMAND_TESTS": "1", "PATH": "preserved"}
         command, actual = COVERAGE.offline_command(selected, Path("/external/unit-output"),
                                                   environment, measured=False)
-        self.assertEqual(command[1], "ci/tools/run-active-tests.py")
+        self.assertEqual(command[1], str(source_path("ci/tools/run-active-tests.py", root=ROOT)))
         self.assertIn("--strict-skips", command)
         self.assertEqual(command[-2:], ["--execution", "offline.fixture"])
         self.assertEqual(actual, {"PATH": "preserved"})
@@ -122,7 +167,7 @@ class SonarCoverageTests(unittest.TestCase):
         self.assertEqual(command[1:4], ["-m", "coverage", "run"])
         self.assertIn(f"--rcfile={COVERAGE.RCFILE}", command)
         self.assertIn("--parallel-mode", command)
-        self.assertIn("ci/tools/run-active-tests.py", command)
+        self.assertIn(str(source_path("ci/tools/run-active-tests.py", root=ROOT)), command)
         self.assertEqual(command[-2:], ["--execution", "offline.fixture"])
         self.assertNotIn("ON_DEMAND_TESTS", environment)
 
@@ -149,6 +194,20 @@ class SonarCoverageTests(unittest.TestCase):
             with mock.patch.object(COVERAGE, "read_python_coverage_data", return_value=data) as read:
                 self.assertEqual(COVERAGE.child_coverage_witnesses({path}, 1), [path.name])
         read.assert_called_once_with(path)
+
+    def test_child_witness_ignores_unrelated_framework_sources(self) -> None:
+        data = mock.Mock()
+        data.has_arcs.return_value = True
+        data.measured_files.return_value = {
+            str(test_root() / "modsecurity_test_framework/connector_context.py"),
+            str(source_path(COVERAGE.ACTIVE_INVENTORY_SOURCE, root=ROOT)),
+        }
+        data.lines.return_value = [COVERAGE.python_child_witness_line()]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "python.data.child"
+            path.write_bytes(b"unit metadata fixture; no real coverage claim")
+            with mock.patch.object(COVERAGE, "read_python_coverage_data", return_value=data):
+                self.assertTrue(COVERAGE.child_file_has_witness(path, COVERAGE.python_child_witness_line()))
 
     def test_child_witness_copy_survives_raw_combine_cleanup_with_exact_bytes(self) -> None:
         body = b"synthetic retention fixture; not measured coverage\x00\xff"
