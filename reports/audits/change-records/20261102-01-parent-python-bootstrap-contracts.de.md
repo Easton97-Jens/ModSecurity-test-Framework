@@ -186,3 +186,7 @@ Definitionen; diese sind von 2.686 auswählbaren Katalogfällen und den unverän
 100 automatischen Standardfällen zu unterscheiden.
 
 Die gehostete Qualitätsprüfung fand drei Typfehler wegen optionaler Imports im neuen Test-Fixture-Loader. Eine explizite Laufzeitprüfung verwirft nun fehlende Modulspezifikation oder Loader vor dem Import; zwölf Helper-Tests und vollständiges Ruff-Lint/Format bestanden erneut. Lokales Pyright bleibt ohne Node nicht ausführbar; das neue gehostete Ergebnis muss dies belegen. Der Archiv-Quelldigest wurde über denselben nativen Helper erneuert.
+
+Die abschließende Sonar-Prüfung meldete einen verbleibenden CLI-zu-Git-Argumentpfad bei der Kandidatenprüfung. Der Helper akzeptiert nun keine Revisionsargumente per CLI: Der Kandidatenmodus verwendet ausschließlich die festen Referenzen `origin/master` und `origin/automation/update-framework-python-315`. Nach Prüfung des angegebenen Checkouts liefert die Root-Auswahl die vertrauenswürdige Tool-Root-Konstante. Zwei Regressionstests prüfen diese festen Referenzen und verweigern Überschreibungen vor dem Prozessstart. Git-Optionsgrenzen, begrenzte Blobs, Modusprüfungen und bytegenaue Begleitprüfungen bleiben wirksam.
+
+Die abschließenden 107 gezielten Tests bestanden mit Python 3.15.2 (21,222 s), einschließlich aller 14 Helper-Fälle. Ruff-Lint/Format und Actionlint bestanden. Die native Neugenerierung erhielt die automatische Auswahl unverändert und ergänzte ausschließlich die zwei neuen On-Demand-Testdefinitionen auf insgesamt 8.023 archivierte Definitionen.

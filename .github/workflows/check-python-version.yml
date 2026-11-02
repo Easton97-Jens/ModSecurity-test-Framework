@@ -321,9 +321,7 @@ jobs:
                   "existing CPython Draft common.sh diff is not the reviewed canonical assignment update"
               )
           PY
-              python3 ci/tools/sync-maintenance-test-views.py --root . \
-                --verify-python-candidate --base "origin/$DEFAULT_BRANCH" \
-                --head "origin/$UPDATE_BRANCH"
+              python3 ci/tools/sync-maintenance-test-views.py --root . --verify-python-candidate
               git diff --check "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH"
               git switch --detach "origin/$UPDATE_BRANCH"
               ;;

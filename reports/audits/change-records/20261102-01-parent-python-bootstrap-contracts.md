@@ -174,3 +174,7 @@ The final archive retains 8,021 on-demand definitions; this is distinct from
 2,686 selectable catalog cases and the unchanged 100 automatic default cases.
 
 Hosted final-head quality checking found three optional-import typing errors in the new test fixture loader. An explicit runtime guard now rejects a missing module specification or loader before import; the 12 helper tests and full-file Ruff lint/format passed again. Local Pyright remains unavailable because Node is absent; the fresh hosted check must establish its result. The archive source digest was regenerated through the same native helper.
+
+The final Sonar review identified a remaining CLI-to-Git argument path in candidate verification. The helper now accepts no CLI revision arguments: candidate mode uses only the fixed `origin/master` and `origin/automation/update-framework-python-315` references. After validating the requested checkout, root selection returns the trusted tool-root constant. Two regression cases verify those fixed references and reject reference overrides before starting a process. Git option boundaries, bounded blobs, mode checks and byte-exact companion checks remain enforced.
+
+The final 107 focused tests passed on Python 3.15.2 (21.222 s), including all 14 helper cases. Ruff lint/format and Actionlint passed. Native regeneration retained the unchanged automatic selection and added only the two new on-demand test definitions, for 8,023 archived definitions.

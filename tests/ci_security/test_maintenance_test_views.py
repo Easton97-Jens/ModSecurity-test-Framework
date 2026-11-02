@@ -232,6 +232,41 @@ class MaintenanceTestViewsTests(unittest.TestCase):
                 )
             self.assertEqual(os.environ["CONNECTOR_ROOT"], "/foreign")
 
+    def test_cli_candidate_verification_uses_only_fixed_publisher_refs(self):
+        with (
+            mock.patch.object(TOOL, "verify_python_candidate") as verify,
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(
+                TOOL.main(["--root", str(ROOT), "--verify-python-candidate"]), 0
+            )
+        verify.assert_called_once_with(
+            TOOL.TOOL_ROOT,
+            "origin/master",
+            "origin/automation/update-framework-python-315",
+        )
+        self.assertIs(TOOL.validate_root(ROOT), TOOL.TOOL_ROOT)
+
+    def test_cli_rejects_reference_overrides_before_starting_any_process(self):
+        for flag in ("--head", "--base"):
+            with (
+                self.subTest(flag=flag),
+                mock.patch.object(TOOL.subprocess, "run") as process,
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit) as rejected,
+            ):
+                TOOL.main(
+                    [
+                        "--root",
+                        str(ROOT),
+                        "--verify-python-candidate",
+                        flag,
+                        "untrusted",
+                    ]
+                )
+            self.assertEqual(rejected.exception.code, 2)
+            process.assert_not_called()
+
     def native_mocks(self, changed):
         original = (self.root / TOOL.INVENTORY).read_bytes()
         updated = original.replace(b'"same"', b'"updated"') if changed else original

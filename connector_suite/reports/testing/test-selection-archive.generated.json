@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8021,
+  "on_demand_definition_count": 8023,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -11981,7 +11981,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_archive_member_validation_rejects_path_escape"
       ],
       "source": "framework/tests/ci_security/test_ci_security_contract.py",
-      "source_sha256": "def500e892d53b40161b0b44a614b4979479a20b9ccd2b37f85f3b236f42176a"
+      "source_sha256": "103b16007210f417d0e8323a4c0af4c5adf680d4638bffae4b391a5f9ffd8c25"
     },
     {
       "contains_selected_definitions": [],
@@ -12186,11 +12186,13 @@
         "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_duplicate_or_non_ascii_python_assignment_is_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_option_shaped_revision_cannot_become_a_git_option",
         "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_explicit_root_and_local_context_do_not_inherit_product_selection",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_cli_candidate_verification_uses_only_fixed_publisher_refs",
+        "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_cli_rejects_reference_overrides_before_starting_any_process",
         "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_write_refreshes_inventory_before_archive_then_check_is_clean",
         "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_check_rejects_drift_without_any_write_or_archive_generation"
       ],
       "source": "framework/tests/ci_security/test_maintenance_test_views.py",
-      "source_sha256": "e4e730a6044c96489a4709930a509c89b093de147a825e7fca7003f562205b84"
+      "source_sha256": "456f0689abf75e47f1b856528b647e91e0050bca28fa36ce58b1eabb48acef67"
     },
     {
       "contains_selected_definitions": [],

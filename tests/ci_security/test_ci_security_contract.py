@@ -701,7 +701,7 @@ jobs:
                 1,
             ),
             "publisher-skips-precheckout-metadata-proof": workflow.replace(
-                "--verify-python-candidate --base", "--check --base", 1
+                "--verify-python-candidate", "--check", 1
             ),
             "publisher-allows-generated-view-only": workflow.replace(
                 "          expected_paths=$'.python-version\\nci/lib/common.sh"

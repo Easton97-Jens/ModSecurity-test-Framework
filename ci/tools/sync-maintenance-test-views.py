@@ -31,7 +31,7 @@ def validate_root(value):
         or root.resolve() != TOOL_ROOT
     ):
         raise ValueError("--root must identify this trusted tool checkout")
-    return root.resolve()
+    return TOOL_ROOT
 
 
 @contextmanager
@@ -230,18 +230,14 @@ def main(argv=None):
     modes.add_argument("--write", action="store_true")
     modes.add_argument("--check", action="store_true")
     modes.add_argument("--verify-python-candidate", action="store_true")
-    parser.add_argument("--base")
-    parser.add_argument("--head")
     args = parser.parse_args(argv)
     try:
         root = validate_root(args.root)
         if args.verify_python_candidate:
-            if not args.base or not args.head:
-                raise ValueError("candidate verification requires --base and --head")
-            verify_python_candidate(root, args.base, args.head)
+            verify_python_candidate(
+                root, "origin/master", "origin/automation/update-framework-python-315"
+            )
         else:
-            if args.base or args.head:
-                raise ValueError("--base and --head require candidate verification")
             sync(root, write=args.write)
     except (
         OSError,
