@@ -7,7 +7,7 @@
     "native_sources": 88,
     "python_go_source_sets": 636,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "f1d57a53b3a1d9daa2aef7a05f277a4ac4e3caef359d2a8d591ff761e28b0912"
+    "sha256": "bbfbbee4a5637078a83eb524bb4f19e7c3e04586c3da63117868afa3b031ad95"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -158746,6 +158746,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_all_catalog_cases_preserve_artifacts_receipts_and_responses",
         "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_literal_traversal_leaves_real_outside_artifacts_unchanged",
         "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_loopback_rejects_unread_body_and_preserves_valid_wire",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_non_catalog_canonical_names_preserve_artifacts",
         "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_noncanonical_targets_reject_before_body_or_files",
         "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_raw_parser_rejects_normalized_targets_without_continue"
       ],
@@ -165079,7 +165080,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-      "sha256_framework_source": "fc007bdea733980700a74609acb41e5332977516b19f2f6e2823ecb5860557fd",
+      "sha256_framework_source": "7a01c955646f30678131003fe431dcc86462dd0f67b552fda607ad17f1ea65e1",
       "sha256_updated_base": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
     },
     {
@@ -166762,7 +166763,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "732a853d610383d58ffa240f29f100406f18a859df89d7b9a91d2662670c0703",
-      "sha256_framework_source": "8b95a3e3391ebe485f87c128436c15f06e5726bc25955f7aa8f58e067ac7149f",
+      "sha256_framework_source": "5f282825152973225c772aeb8db46c10225c973346d51cbfdf9380dc98253cc7",
       "sha256_updated_base": "732a853d610383d58ffa240f29f100406f18a859df89d7b9a91d2662670c0703"
     },
     {
@@ -167140,7 +167141,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "f1d57a53b3a1d9daa2aef7a05f277a4ac4e3caef359d2a8d591ff761e28b0912",
+      "sha256_framework_source": "bbfbbee4a5637078a83eb524bb4f19e7c3e04586c3da63117868afa3b031ad95",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {
@@ -171730,7 +171731,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "b066d5840bb013161b6c7f6638acc1ba1d100a0b767242e69c661762577e8f00",
-      "sha256_framework_source": "c99f13b983f997ee2a498ef24864cb03fca042be8cb2a6b16be723f4ede7e420",
+      "sha256_framework_source": "8e9db599b520798f2e8e42042a21e5233ebd6cd28408d31cb81542b1115113c3",
       "sha256_updated_base": "b066d5840bb013161b6c7f6638acc1ba1d100a0b767242e69c661762577e8f00"
     },
     {
@@ -171908,7 +171909,7 @@
   "framework_revision": "3a4f2281568139d94fda6b51dc2e07bb8fc06c67",
   "generator": "connector_suite/modsecurity_connector_ci/tools/build-migration-map.py",
   "inputs": {
-    "current_inventory_sha256": "fc007bdea733980700a74609acb41e5332977516b19f2f6e2823ecb5860557fd",
+    "current_inventory_sha256": "7a01c955646f30678131003fe431dcc86462dd0f67b552fda607ad17f1ea65e1",
     "initial_inventory_sha256": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
     "source_map_sha256": "efd8ec2d12ab62762d251c3b8ecd85185a3c397b7b0a258ed95fc39e183a71e8",
     "updated_base_inventory_sha256": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"

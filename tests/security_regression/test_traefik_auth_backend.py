@@ -160,6 +160,20 @@ class BackendTargetTests(unittest.TestCase):
                 self.assertGreater(record['finished_ns'], 0)
         self.assertEqual(len((self.root / 'receipts.jsonl').read_text().splitlines()), 16)
 
+    def test_non_catalog_canonical_names_preserve_artifacts(self):
+        for name in ('a', '-', 'safe-case-42', 'z' * 23):
+            with self.subTest(name=name):
+                handler = self.handler('/' + name)
+                self.invoke(handler)
+                handler.send_error.assert_not_called()
+                expected = b'i12-response-marker:' + name.encode('ascii') + b'\n'
+                self.assertEqual((self.root / (name + '.request-body.raw')).read_bytes(),
+                                 b'actual-request-body')
+                self.assertEqual((self.root / (name + '.response-body.raw')).read_bytes(), expected)
+                record = json.loads((self.root / 'receipts.jsonl').read_text().splitlines()[-1])
+                self.assertEqual(record['case'], name)
+                self.assertEqual(record['response_body_sha256'], hashlib.sha256(expected).hexdigest())
+
     def test_loopback_rejects_unread_body_and_preserves_valid_wire(self):
         server = http.server.HTTPServer(('127.0.0.1', 0), BACKEND.Handler)
         thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.01})
