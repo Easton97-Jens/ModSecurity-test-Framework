@@ -417,6 +417,17 @@ Dateien `.python-version` und `requirements-ci.lock` sind generierte Ansichten.
 Mit `ci/tools/sync-canonical-python-pins.py --check` werden sie netzwerkfrei
 geprüft; `--write` aktualisiert sie atomar.
 
+`CI_OSV_LEGACY_BASE_SHA` / `CI_OSV_LEGACY_BASE_VERSION` und
+`CI_OSV_PY314_BASE_SHA` / `CI_OSV_PY314_BASE_VERSION` binden exakte historische
+OSV-Bootstrap-Tupel. `CI_OSV_PY314_MAINTENANCE_BASE_SHA` erlaubt zusätzlich nur
+`68ca7b411db12ed96ee6208aa792b43e8043470c` mit derselben exakt geprüften Version
+`3.14.10`. Dies sind kanonische Quellfelder und keine Aufrufer-Overrides;
+`ci/tools/sync-canonical-workflow-pins.py` erzeugt ihre festen Workflow-Env-
+Ansichten. Nur das ursprüngliche CP313-Tupel darf einen fehlenden Selektor
+ersetzen. Jede CP314-Ausnahme benötigt ihren Basis-`.python-version`-Blob;
+eine andere SHA, neuere Patchversion oder Vorabversion wird abgelehnt, statt
+Bootstrap-Code vom Head auszuwählen.
+
 ## Weitere dokumentierte Eingaben und Platzhalter
 
 Die folgenden Werte erscheinen in fokussierten Build-, Import-, Test- oder

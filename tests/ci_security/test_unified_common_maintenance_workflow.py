@@ -1,8 +1,12 @@
 """Contract checks for the unified common-version maintenance workflow."""
 
+import os
 from pathlib import Path
 import re
 import shlex
+import subprocess
+import sys
+import tempfile
 import unittest
 
 import yaml
@@ -325,6 +329,9 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             'cat "$RUNNER_TEMP/canonical-maintenance-plan.md" >> "$GITHUB_STEP_SUMMARY"',
             resolver,
         )
+        self.assertIn("printf '::stop-commands::%s\\n'", resolver)
+        self.assertIn('cat "$RUNNER_TEMP/canonical-maintenance-plan.md"\n', resolver)
+        self.assertIn("printf '::%s::\\n'", resolver)
         self.assertIn("if (( resolver_exit != 0 )); then", resolver)
         self.assertIn('exit "$resolver_exit"', resolver)
         self.assertLess(
@@ -333,6 +340,49 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             ),
             resolver.index("if (( resolver_exit != 0 )); then"),
         )
+
+    def test_fatal_plan_is_logged_with_commands_disabled_and_keeps_exit_code(
+        self,
+    ) -> None:
+        resolver = self.workflow["jobs"]["canonical-maintenance"]["steps"][2]["run"]
+        diagnostic_script = resolver[
+            resolver.index(
+                'test -s "$RUNNER_TEMP/canonical-maintenance-plan.json"'
+            ) : resolver.index(
+                'python3 - "$RUNNER_TEMP/canonical-maintenance-plan.json"'
+            )
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = "blocked CRS: missing package\n::error::untrusted diagnostic\n"
+            (root / "canonical-maintenance-plan.json").write_text(
+                "{}", encoding="utf-8"
+            )
+            (root / "canonical-maintenance-plan.md").write_text(
+                report, encoding="utf-8"
+            )
+            result = subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    f"set -euo pipefail\nresolver_exit=2\n{diagnostic_script}",
+                ],
+                env={
+                    "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+                    "RUNNER_TEMP": temporary,
+                    "GITHUB_STEP_SUMMARY": str(root / "summary"),
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertEqual((root / "summary").read_text(encoding="utf-8"), report)
+            lines = result.stdout.splitlines()
+            self.assertRegex(lines[0], r"^::stop-commands::[a-f0-9]{64}$")
+            marker = lines[0].removeprefix("::stop-commands::")
+            self.assertEqual(lines[-1], f"::{marker}::")
+            self.assertEqual("\n".join(lines[1:-1]) + "\n", report)
 
     def test_issue_writes_are_trusted_default_branch_only(self) -> None:
         self.assertNotIn("pull_request_target", self.text)
@@ -382,6 +432,7 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         ]
         self.assertEqual(len(uploads), 1)
         upload = uploads[0]
+        self.assertEqual(upload["if"], "${{ !cancelled() }}")
         self.assertEqual(
             upload["uses"],
             "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",

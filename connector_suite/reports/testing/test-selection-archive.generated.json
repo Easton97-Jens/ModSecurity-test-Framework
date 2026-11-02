@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "e0ecdcffe5961eb058b08aa0a13b3124947cba4a0a6db40b8cb224c6b90f1483",
+  "inventory_sha256": "b19e40f8129f404dea7bf35afc2baaef33281a6438e07126f4b051b489a61121",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8023,
+  "on_demand_definition_count": 8028,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -11885,6 +11885,7 @@
       "contains_selected_definitions": [],
       "framework_path": "tests/ci_security/test_canonical_maintenance.py",
       "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_plan_markdown_includes_bounded_inert_failure_reasons",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_go_ftw_ignores_drafts_and_keeps_derived_aliases_out_of_updates",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_albedo_zero_minor_transition_is_a_review_with_safe_patch",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_pyyaml_update_is_an_atomic_artifact_platform_digest_tuple",
@@ -11899,11 +11900,14 @@
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_codeql_action_uses_a_numeric_release_page_for_major_review",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_require_root_rejects_a_symlinked_ancestor",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_maintenance_test_views_follow_catalog_after_crs_views_in_both_modes",
+        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_native_workflow_publisher_outputs_have_exact_transaction_authority",
+        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_actual_action_pin_projection_covers_the_findings_workflow",
+        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_findings_workflow_projection_is_applied_and_rolled_back_transactionally",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_apply_safe_updates_rolls_back_on_generated_view_failure",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_ci_tool_provider_transition_is_classified_before_release_lookup"
       ],
       "source": "framework/tests/ci_security/test_canonical_maintenance.py",
-      "source_sha256": "a168ebaee84a3c7bc4f8d2cc2cf17c320cdac1b83b40ad0bddda01c259acb90f"
+      "source_sha256": "0f2c1df745f8546500eb6e1ab34a33740971abd67bf3b0c74b2bd1b3de93b12b"
     },
     {
       "contains_selected_definitions": [],
@@ -11981,7 +11985,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_archive_member_validation_rejects_path_escape"
       ],
       "source": "framework/tests/ci_security/test_ci_security_contract.py",
-      "source_sha256": "103b16007210f417d0e8323a4c0af4c5adf680d4638bffae4b391a5f9ffd8c25"
+      "source_sha256": "7c195b6c3c456f00939d923d7bc4de3a97ef60eec836d7bdddd4184ba766bc21"
     },
     {
       "contains_selected_definitions": [],
@@ -12170,7 +12174,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_fetcher_requires_a_runner_temp_child_without_symlinks"
       ],
       "source": "framework/tests/ci_security/test_framework_ci_security_contract.py",
-      "source_sha256": "919edf7f7eb653667e8f3a10952858d2255d7df1fef5df609980f2179cb2e4db"
+      "source_sha256": "928652f4104cb0b4e8513abf5789162907839e342ee6af1a9a61b8ebaba13bde"
     },
     {
       "contains_selected_definitions": [],
@@ -12306,7 +12310,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_write_rejects_symlinked_generated_output"
       ],
       "source": "framework/tests/ci_security/test_sync_canonical_workflow_pins.py",
-      "source_sha256": "511b4c3afc52bdb056466349a5cdf5dc150a67e5a78ae7c29d18e3cd470b4d34"
+      "source_sha256": "033a52c3528477d95e8c8fc6dc2c012f4fff915b181ef1f10f9bb552a4b64517"
     },
     {
       "contains_selected_definitions": [],
@@ -12324,7 +12328,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_sync_crs_contract_views.SyncCrsContractViewsTests.test_symlinked_generated_parent_is_rejected"
       ],
       "source": "framework/tests/ci_security/test_sync_crs_contract_views.py",
-      "source_sha256": "1dbbfcafa5f9cc49500a18d8d72dd3abcad521c30e1e4de5b4603276c5877402"
+      "source_sha256": "8d75fff26e5eba68524a78801c55c0cf3dfabb5ebf199bdccb7c32b32abf8c31"
     },
     {
       "contains_selected_definitions": [],
@@ -12339,6 +12343,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_generated_contract_catalog_is_allowlisted_for_candidate_and_publication",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_maintenance_test_outputs_have_exactly_three_allowlist_projections",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_fatal_resolver_plan_is_summarized_before_failure_is_returned",
+        "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_fatal_plan_is_logged_with_commands_disabled_and_keeps_exit_code",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_issue_writes_are_trusted_default_branch_only",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_caller_bound_plan_artifact_is_uploaded_once_and_consumed_by_downstream_jobs",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_downstream_jobs_apply_only_the_downloaded_plan",
@@ -12349,7 +12354,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_result_summary_covers_required_outcomes"
       ],
       "source": "framework/tests/ci_security/test_unified_common_maintenance_workflow.py",
-      "source_sha256": "91425841768ec93bb061c03ee05870d201bab90e12effa6a6cb6de0bf7e54399"
+      "source_sha256": "4433ac6059e9f5eec18098c69fc24111cc972965232dc42d09dfb66da33d698c"
     },
     {
       "contains_selected_definitions": [],
@@ -13623,7 +13628,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_list_components_and_unknown_component_are_deterministic"
       ],
       "source": "framework/tests/security_regression/test_common_version_atomic_provenance.py",
-      "source_sha256": "8c6bbd531efb6fd06be17076aaa5172366753f5bc7cc3e9973e31aa0820beee7"
+      "source_sha256": "022f9e19f14d9a103802d6aab3ad4efd000e7cb3b706b437b7fd5573724e4649"
     },
     {
       "contains_selected_definitions": [],

@@ -396,6 +396,16 @@ maintenance plan and may not drift independently. The committed
 `ci/tools/sync-canonical-python-pins.py --check` to validate them or `--write`
 to update them atomically; the tool performs no network discovery.
 
+`CI_OSV_LEGACY_BASE_SHA` / `CI_OSV_LEGACY_BASE_VERSION` and
+`CI_OSV_PY314_BASE_SHA` / `CI_OSV_PY314_BASE_VERSION` bind exact historical OSV
+bootstrap tuples. `CI_OSV_PY314_MAINTENANCE_BASE_SHA` additionally admits only
+`68ca7b411db12ed96ee6208aa792b43e8043470c` with the same exact reviewed
+`3.14.10` version. These are canonical source fields, not caller overrides;
+`ci/tools/sync-canonical-workflow-pins.py` emits their fixed workflow env views.
+Only the original CP313 tuple may synthesize an absent selector. Every CP314
+exception requires its base `.python-version` blob; another SHA, newer patch,
+or prerelease is rejected rather than selecting bootstrap code from the head.
+
 ## Additional documented inputs and placeholders
 
 The values below appear in focused build, import, testing, or historical

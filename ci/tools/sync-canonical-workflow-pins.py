@@ -67,6 +67,9 @@ OSV_COMPATIBILITY_FIELD_LINES = {
     "OSV_PY314_BASE_SHA": re.compile(
         r"^(?P<prefix>\s*OSV_PY314_BASE_SHA:\s*)(?P<value>[^\s#]+)(?P<suffix>\s*(?:#.*)?)$"
     ),
+    "OSV_PY314_MAINTENANCE_BASE_SHA": re.compile(
+        r"^(?P<prefix>\s*OSV_PY314_MAINTENANCE_BASE_SHA:\s*)(?P<value>[^\s#]+)(?P<suffix>\s*(?:#.*)?)$"
+    ),
     "OSV_PY314_BASE_VERSION": re.compile(
         r"^(?P<prefix>\s*OSV_PY314_BASE_VERSION:\s*)(?P<value>[^\s#]+)(?P<suffix>\s*(?:#.*)?)$"
     ),
@@ -198,6 +201,7 @@ def canonical_names(source: str | None = None) -> list[str]:
         "CI_OSV_LEGACY_BASE_VERSION",
         "CI_OSV_PY314_BASE_SHA",
         "CI_OSV_PY314_BASE_VERSION",
+        "CI_OSV_PY314_MAINTENANCE_BASE_SHA",
     ]
     names += [
         f"CI_ACTION_{suffix}_{field}"

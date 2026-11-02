@@ -248,7 +248,7 @@ Umgebung und installiert nur das lokal Hash-gesperrte PyYAML-Wheel in die
 geprüfte Runtime. Diese muss eine venv oder das verifizierte Actions-setup-python-
 Präfix sein. OSV behält den binären Inline-Bootstrap nur für exakte historische
 Basis-SHA-/Versionspaare: `f73f8842f45318e2df8aff1d31855eeb7c20a22f` / `3.13.14`
-und `91145b7ba721bdec4e89af754cf40bf496fd2a08` / `3.14.10`. Aktuelle
+und `91145b7ba721bdec4e89af754cf40bf496fd2a08` und `68ca7b411db12ed96ee6208aa792b43e8043470c` / `3.14.10`. Aktuelle
 vertrauenswürdige Basen verwenden ihren ausgecheckten Helper; Bootstrap-Code
 vom PR-Head wird nie geholt. Der [Tooling-Leitfaden](security/ci-security-tooling.de.md)
 beschreibt Provenienz, externe Build-Ausgabe und die begrenzte OSV-Abdeckung des
@@ -370,6 +370,18 @@ Publisher erstellt oder aktualisiert nur den festen Draft-PR und merged nie
 oder aktiviert Auto-Merge. Ein fehlendes globales Ergebnis, eine unvollständige
 CI-Pin-Gruppe, Drift generierter Views, ein fehlerhafter Review-Eintrag oder
 ein Hash-Mismatch führt fail-closed zum Abbruch.
+
+Der CRS-View-Synchronizer importiert das Framework-Paket relativ zu seinem
+eingecheckten Skriptpfad. Direkte Resolver-, Candidate- und Publisher-Aufrufe
+funktionieren dadurch ohne vom Caller gesetzten `PYTHONPATH`, auch wenn `--root`
+einen getrennten Datenbaum auswählt. Pläne enthalten begrenzte, escapte
+Diagnosemeldungen für Komponenten und generierte Views. Der kanonische Job gibt
+den Bericht außerdem bei deaktivierter Verarbeitung von Runner-Kommandos aus
+und bewahrt das JSON-/Markdown-Artefakt auch nach einem fehlgeschlagenen Resolver
+oder einer fehlgeschlagenen Review-Validierung auf, sofern der Run nicht
+abgebrochen wird. Die Aufbewahrung der Diagnose erlaubt keine Downstream-Arbeit:
+Ein fehlgeschlagener Resolver lässt den Job weiterhin fehlschlagen und blockiert
+die Veröffentlichung.
 
 Reguläre Dependabot-`github-actions`-Versionsupdates sind mit
 `open-pull-requests-limit: 0` deaktiviert, weil Dependabot nur generierte

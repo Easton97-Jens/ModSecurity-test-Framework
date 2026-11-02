@@ -60,6 +60,15 @@ class SyncCrsContractViewsTests(unittest.TestCase):
                 ".FiveConnectorWithCrsNoMrtsContractTest"
                 ".test_canonical_profile_fixture_and_schema_are_closed"
             )
+        child_env = {
+            "PATH": "/usr/bin:/bin",
+            "PYTHONNOUSERSITE": "1",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "TMPDIR": str(root.parent),
+        }
+        # Reuse the caller's external cache without enabling bytecode writes.
+        if cache_prefix := os.environ.get("PYTHONPYCACHEPREFIX"):
+            child_env["PYTHONPYCACHEPREFIX"] = cache_prefix
         return subprocess.run(
             [sys.executable, "-m", "unittest", suite, "-v"],
             cwd=root,
@@ -67,26 +76,22 @@ class SyncCrsContractViewsTests(unittest.TestCase):
             capture_output=True,
             text=True,
             timeout=120,
-            env={
-                "PATH": "/usr/bin:/bin",
-                "PYTHONNOUSERSITE": "1",
-                "PYTHONDONTWRITEBYTECODE": "1",
-                "TMPDIR": str(root.parent),
-            },
+            env=child_env,
         )
 
     def _run(self, root: Path, mode: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(TOOL), mode, "--root", str(root)],
-            cwd=ROOT,
+            cwd=root,
             check=False,
             capture_output=True,
             text=True,
+            timeout=120,
             env={
                 "PATH": "/usr/bin:/bin",
-                "PYTHONPATH": str(ROOT),
                 "PYTHONSAFEPATH": "1",
                 "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
             },
         )
 
@@ -125,9 +130,11 @@ class SyncCrsContractViewsTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            self.assertEqual(self._run(root, "--check").returncode, 1)
-            self.assertEqual(self._run(root, "--write").returncode, 0)
-            self.assertEqual(self._run(root, "--check").returncode, 0)
+            for mode, expected in (("--check", 1), ("--write", 0), ("--check", 0)):
+                result = self._run(root, mode)
+                self.assertEqual(
+                    result.returncode, expected, result.stdout + result.stderr
+                )
             pins = load_crs_pins(common, root=root)
             for relative in FULL_CRS_SCHEMA_TARGETS:
                 document = json.loads((root / relative).read_text(encoding="utf-8"))

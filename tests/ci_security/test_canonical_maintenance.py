@@ -64,6 +64,63 @@ class FakePyPiClient:
 
 
 class CanonicalMaintenanceTests(unittest.TestCase):
+    def test_plan_markdown_includes_bounded_inert_failure_reasons(self) -> None:
+        unsafe = "<script>bad</script>|`[link](url)\n::error::\x1b[31m" + "x" * 300
+        cause = "ModuleNotFoundError: No module named 'modsecurity_test_framework'"
+        with mock.patch.object(
+            MAINTENANCE.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                [],
+                1,
+                stdout="generator started\n",
+                stderr="Traceback (most recent call last):\n"
+                + "frame details\n" * 30
+                + cause
+                + "\n\n",
+            ),
+        ):
+            failure = MAINTENANCE.generated_view_status(ROOT)[-2]
+        plan = {
+            "maintenance_outcome": "fatal",
+            "scope": {"mode": "all"},
+            "component_results": [
+                {
+                    "scope": "runtime-source",
+                    "component_name": "CRS",
+                    "current": "4.0.0",
+                    "latest_compatible": "",
+                    "latest_upstream": "",
+                    "status": "blocked",
+                    "message": "upstream lookup failed",
+                }
+            ],
+            "safe_updates": [],
+            "manual_reviews": [],
+            "generated_view_status": [
+                failure,
+                {
+                    "name": "crs-contract-views",
+                    "status": "blocked",
+                    "message": unsafe,
+                },
+            ],
+        }
+        plan["plan_sha256"] = hashlib.sha256(
+            MAINTENANCE._canonical_json(plan)
+        ).hexdigest()
+        rendered = MAINTENANCE.render_plan_markdown(plan)
+        self.assertIn("upstream lookup failed", rendered)
+        self.assertIn("ModuleNotFoundError: No module named", rendered)
+        self.assertIn("modsecurity&#95;test&#95;framework", rendered)
+        self.assertIn("&lt;script&gt;bad&lt;/script&gt;", rendered)
+        self.assertIn("&#124;&#96;&#91;link&#93;", rendered)
+        self.assertNotIn("<script>", rendered)
+        self.assertNotIn("\x1b", rendered)
+        self.assertNotIn("x" * 241, rendered)
+        self.assertIn("- Outcome: `fatal`", rendered)
+        self.assertEqual(MAINTENANCE.validate_plan_digest(plan), plan["plan_sha256"])
+
     def test_go_ftw_ignores_drafts_and_keeps_derived_aliases_out_of_updates(
         self,
     ) -> None:
@@ -307,15 +364,22 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             "CI_OSV_LEGACY_BASE_SHA": "a" * 40,
             "CI_OSV_LEGACY_BASE_VERSION": "3.13.7",
             "CI_OSV_PY314_BASE_SHA": "b" * 40,
+            "CI_OSV_PY314_MAINTENANCE_BASE_SHA": "c" * 40,
             "CI_OSV_PY314_BASE_VERSION": "3.14.10",
         }
         result = MAINTENANCE.resolve_osv_compatibility(entries(values))
         self.assertEqual(result["status"], "current")
         self.assertEqual(result["updates"], [])
         self.assertEqual(result["details"]["update_policy"], "manual_only")
-        self.assertEqual(len(result["details"]["baselines"]), 2)
+        self.assertEqual(len(result["details"]["baselines"]), 3)
+        self.assertEqual(
+            result["details"]["baselines"]["3.14-maintenance"],
+            {"sha": "c" * 40, "version": "3.14.10"},
+        )
         for variable, invalid in (
             ("CI_OSV_PY314_BASE_SHA", "A" * 40),
+            ("CI_OSV_PY314_MAINTENANCE_BASE_SHA", "A" * 40),
+            ("CI_OSV_PY314_MAINTENANCE_BASE_SHA", "c" * 39),
             ("CI_OSV_PY314_BASE_VERSION", "3.15.2"),
             ("CI_OSV_LEGACY_BASE_VERSION", "3.14.10"),
             ("CI_OSV_PY314_BASE_VERSION", "3.14.10rc1"),
@@ -563,6 +627,151 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             MAINTENANCE.FRAMEWORK_CONTRACT_CATALOG_PATH,
             MAINTENANCE.ALLOWED_AUTOMATIC_PATHS,
         )
+
+    def test_native_workflow_publisher_outputs_have_exact_transaction_authority(
+        self,
+    ) -> None:
+        updater = MAINTENANCE.load_workflow_tool_updater(ROOT)
+        self.assertEqual(
+            updater.ALLOWED_UPDATE_PATHS - MAINTENANCE.ALLOWED_AUTOMATIC_PATHS,
+            frozenset(),
+        )
+        self.assertTrue(
+            updater.INTEGRATION_READONLY_INPUT_PATHS.isdisjoint(
+                MAINTENANCE.ALLOWED_AUTOMATIC_PATHS
+            )
+        )
+        for neighbor in (
+            ".github/workflows/ci-findings-regressions-foreign.yml",
+            ".github/workflows/ci-findings-regressions.yaml",
+            ".github/workflows/connector-protected-nginx-exact-head.yml",
+        ):
+            with self.subTest(path=neighbor):
+                self.assertNotIn(neighbor, MAINTENANCE.ALLOWED_AUTOMATIC_PATHS)
+                with (
+                    mock.patch.object(
+                        MAINTENANCE, "_git_output", return_value=neighbor + "\n"
+                    ),
+                    mock.patch.object(MAINTENANCE, "_atomic_restore") as restore,
+                    self.assertRaisesRegex(MAINTENANCE.MaintenanceError, "unsafe path"),
+                ):
+                    MAINTENANCE._rollback_allowed_views(ROOT, {})
+                restore.assert_not_called()
+
+    def test_actual_action_pin_projection_covers_the_findings_workflow(self) -> None:
+        generator = MAINTENANCE._load_module(
+            ROOT,
+            "sync-canonical-workflow-pins.py",
+            "canonical_workflow_projection_test",
+        )
+        values = generator.source_common(ROOT)
+        values["CI_ACTION_CHECKOUT_COMMIT"] = "a" * 40
+        errors, outputs = generator.workflow_values(ROOT, values)
+        self.assertEqual(errors, [])
+        paths = {str(path.relative_to(ROOT)) for path, _ in outputs}
+        self.assertIn(".github/workflows/ci-findings-regressions.yml", paths)
+        self.assertEqual(len(paths), 16)
+        self.assertTrue(paths.issubset(MAINTENANCE.ALLOWED_AUTOMATIC_PATHS))
+
+    def test_findings_workflow_projection_is_applied_and_rolled_back_transactionally(
+        self,
+    ) -> None:
+        checker = SimpleNamespace(
+            UpdateChange=lambda **values: SimpleNamespace(**values),
+            parse_common=lambda path: (
+                ["PIN=old"],
+                {"PIN": SimpleNamespace(default="old", line=1)},
+            ),
+            apply_updates=lambda path, lines, changes: path.write_bytes(b"PIN=new\n"),
+        )
+        for outcome in ("success", "write-failure", "check-failure"):
+            with (
+                self.subTest(outcome=outcome),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                for relative in MAINTENANCE.ALLOWED_AUTOMATIC_PATHS:
+                    (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                common = root / "ci/lib/common.sh"
+                workflow = root / ".github/workflows/ci-findings-regressions.yml"
+                for path, body in (
+                    (common, b"PIN=old\n"),
+                    (workflow, b"original workflow\n"),
+                ):
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(body)
+                for args in (
+                    ("init", "--quiet"),
+                    ("add", "."),
+                    (
+                        "-c",
+                        "user.name=Fixture",
+                        "-c",
+                        "user.email=fixture@example.invalid",
+                        "commit",
+                        "--quiet",
+                        "-m",
+                        "trusted base",
+                    ),
+                ):
+                    subprocess.run(
+                        ["git", *args], cwd=root, check=True, capture_output=True
+                    )
+                plan = {
+                    "maintenance_outcome": "safe_updates",
+                    "safe_updates": [{"variable": "PIN", "old": "old", "new": "new"}],
+                    "source_common_sha256": hashlib.sha256(b"PIN=old\n").hexdigest(),
+                    "candidate_common_sha256": hashlib.sha256(b"PIN=new\n").hexdigest(),
+                }
+                plan["plan_sha256"] = hashlib.sha256(
+                    MAINTENANCE._canonical_json(plan)
+                ).hexdigest()
+
+                def generate(_root, *, write):
+                    if write:
+                        workflow.write_bytes(b"updated workflow\n")
+                    blocked = outcome == ("write-failure" if write else "check-failure")
+                    return [
+                        {
+                            "name": "canonical-workflow-pins",
+                            "status": "blocked" if blocked else "current",
+                        }
+                    ]
+
+                with (
+                    mock.patch.object(
+                        MAINTENANCE, "load_runtime_checker", return_value=checker
+                    ),
+                    mock.patch.object(
+                        MAINTENANCE, "generated_view_status", side_effect=generate
+                    ),
+                ):
+                    if outcome == "success":
+                        changed = MAINTENANCE.apply_safe_updates(
+                            root, plan, expected_plan_sha256=plan["plan_sha256"]
+                        )
+                        self.assertEqual(
+                            set(changed),
+                            {
+                                MAINTENANCE.COMMON_SH_PATH,
+                                str(workflow.relative_to(root)),
+                            },
+                        )
+                        self.assertEqual(common.read_bytes(), b"PIN=new\n")
+                        self.assertEqual(workflow.read_bytes(), b"updated workflow\n")
+                    else:
+                        with self.assertRaisesRegex(
+                            MAINTENANCE.MaintenanceError, "generated.view"
+                        ):
+                            MAINTENANCE.apply_safe_updates(
+                                root, plan, expected_plan_sha256=plan["plan_sha256"]
+                            )
+                        self.assertEqual(common.read_bytes(), b"PIN=old\n")
+                        self.assertEqual(workflow.read_bytes(), b"original workflow\n")
+                        self.assertEqual(
+                            MAINTENANCE._git_output(root, "status", "--porcelain=v1"),
+                            "",
+                        )
 
     def test_apply_safe_updates_rolls_back_on_generated_view_failure(self) -> None:
         class ApplyChecker:

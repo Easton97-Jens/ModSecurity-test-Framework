@@ -54,7 +54,7 @@ CI_DEPENDENCY_BUILD_LOCK_SHA256 = (
     "9d3438c190d5c316c7ed93e89a7175f2d6ad296a40e029949ed21fcb4c814fd6"
 )
 OSV_TRUSTED_BASE_INSTALL_SHA256 = (
-    "a6758bc61b61a1e09d6e98f619eb39063e4669873dc06a1b6602aaf5311eed8a"
+    "9dacbf0738ab99bcf1368a3ac533ba2b702f9f4ced0893735effe3732c4bdfaa"
 )
 OSV_WORKFLOW = "ci-security-osv.yml"
 CI_DEPENDENCY_INSTALLER_WORKFLOWS = {
@@ -255,6 +255,7 @@ OSV_LEGACY_BASE_SHA = "f73f8842f45318e2df8aff1d31855eeb7c20a22" + "f"
 OSV_LEGACY_BASE_VERSION = "3.13." + "14"
 OSV_PY314_BASE_SHA = "91145b7ba721bdec4e89af754cf40bf496fd2a08"
 OSV_PY314_BASE_VERSION = "3.14." + "10"
+OSV_PY314_MAINTENANCE_BASE_SHA = "68ca7b411db12ed96ee6208aa792b43e8043470c"
 GITHUB_COMPONENT = r"[A-Za-z0-9_.-]+"
 GITHUB_RELEASE_URL = re.compile(
     rf"^https://github\.com/(?P<owner>{GITHUB_COMPONENT})/"
@@ -329,7 +330,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "canonical-maintenance",
         "Resolve mandatory global and selected runtime scopes",
-    ): "b5df5e0a7c449753d15a77b5ce5cff90b32d2df708a521420273a952a13cdefa",
+    ): "99d1d2f4bd3416cdf82dab590c2dee5bdf1937570a2c4a94fdd91e76ce06a98a",
     (
         "canonical-maintenance",
         "Validate review issue reconciliation without writes",
@@ -971,11 +972,13 @@ OSV_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         f"OSV_LEGACY_BASE_VERSION: {OSV_LEGACY_BASE_VERSION}",
         f"OSV_PY314_BASE_SHA: {OSV_PY314_BASE_SHA}",
         f"OSV_PY314_BASE_VERSION: {OSV_PY314_BASE_VERSION}",
+        f"OSV_PY314_MAINTENANCE_BASE_SHA: {OSV_PY314_MAINTENANCE_BASE_SHA}",
         'test "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA"',
         'version="$OSV_LEGACY_BASE_VERSION"',
         'if [ "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA" ]; then',
         '[ "$version" = "$OSV_LEGACY_BASE_VERSION" ]',
         'elif [ "$BASE_SHA" = "$OSV_PY314_BASE_SHA" ]; then',
+        'elif [ "$BASE_SHA" = "$OSV_PY314_MAINTENANCE_BASE_SHA" ]; then',
         '[ "$version" = "$OSV_PY314_BASE_VERSION" ]',
         '[ -f "$PYTHON_VERSION_FILE" ]',
         '[[ "$version" =~ ^3\\.15\\.(0|[1-9][0-9]*)$ ]]',
@@ -3366,7 +3369,7 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
             ("Validate review issue reconciliation without writes", {"name", "run"}),
             (
                 STEP_RETAIN_CALLER_BOUND_CANONICAL_MAINTENANCE_PLAN,
-                {"name", "uses", "with"},
+                {"name", "if", "uses", "with"},
             ),
         ],
         "candidate": [
@@ -3633,6 +3636,7 @@ def _common_version_plan_artifact_upload_errors(path: Path, job: Any) -> list[st
         != UPLOAD_ARTIFACT.removesuffix("@")
         or not isinstance(with_values, dict)
         or set(with_values) != {"name", "path", "retention-days", "if-no-files-found"}
+        or upload.get("if") != "${{ !cancelled() }}"
         or with_values.get("name") != COMMON_VERSION_PLAN_ARTIFACT_NAME
         or upload_paths != COMMON_VERSION_PLAN_ARTIFACT_UPLOAD_PATHS
         or with_values.get("retention-days") != 1
@@ -4361,6 +4365,7 @@ def osv_trusted_base_environment_errors(
         "OSV_LEGACY_BASE_VERSION": OSV_LEGACY_BASE_VERSION,
         "OSV_PY314_BASE_SHA": OSV_PY314_BASE_SHA,
         "OSV_PY314_BASE_VERSION": OSV_PY314_BASE_VERSION,
+        "OSV_PY314_MAINTENANCE_BASE_SHA": OSV_PY314_MAINTENANCE_BASE_SHA,
         "PYTHON_VERSION_FILE": OSV_TRUSTED_BASE_PYTHON_VERSION_FILE,
     }
     errors: list[str] = []

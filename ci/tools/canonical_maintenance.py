@@ -9,6 +9,7 @@ sources ``common.sh`` and it never performs a GitHub write.
 from __future__ import annotations
 
 import hashlib
+import html
 import importlib.util
 import json
 import os
@@ -129,6 +130,7 @@ ALLOWED_AUTOMATIC_PATHS = frozenset(
             "check-action-versions.yml",
             "check-common-versions.yml",
             "check-python-version.yml",
+            "ci-findings-regressions.yml",
             "ci-security-codeql-pr.yml",
             "ci-security-codeql.yml",
             "ci-security-dependency-review.yml",
@@ -269,6 +271,15 @@ def bounded(value: Any, fallback: str = "") -> str:
     if not isinstance(value, str):
         value = fallback
     return value.replace("\r", " ").replace("\n", " ")[:MAX_TEXT]
+
+
+def _diagnostic_markdown(value: Any) -> str:
+    """Keep bounded diagnostic text inert inside Markdown tables and lists."""
+    text = "".join(char if char.isprintable() else " " for char in bounded(value))
+    text = html.escape(text)
+    for char in "\\`|[]*_~":
+        text = text.replace(char, f"&#{ord(char)};")
+    return text
 
 
 def safe_component_id(value: str) -> str:
@@ -2105,6 +2116,7 @@ def resolve_osv_compatibility(entries: dict[str, Any]) -> dict[str, Any]:
         "CI_OSV_LEGACY_BASE_SHA",
         "CI_OSV_LEGACY_BASE_VERSION",
         "CI_OSV_PY314_BASE_SHA",
+        "CI_OSV_PY314_MAINTENANCE_BASE_SHA",
         "CI_OSV_PY314_BASE_VERSION",
     )
     try:
@@ -2126,6 +2138,15 @@ def resolve_osv_compatibility(entries: dict[str, Any]) -> dict[str, Any]:
                     f"{prefix} OSV compatibility baseline is malformed"
                 )
             baselines[series] = {"sha": sha, "version": version}
+        maintenance_sha = _entry_value(entries, "CI_OSV_PY314_MAINTENANCE_BASE_SHA")
+        if SHA40_RE.fullmatch(maintenance_sha) is None:
+            raise MaintenanceError(
+                "CP314 maintenance OSV compatibility SHA is malformed"
+            )
+        baselines["3.14-maintenance"] = {
+            "sha": maintenance_sha,
+            "version": baselines["3.14"]["version"],
+        }
         return _check_result(
             component_id="ci-osv-compatibility",
             component_name="OSV compatibility baseline",
@@ -2383,11 +2404,18 @@ def generated_view_status(root: Path, *, write: bool = False) -> list[dict[str, 
         result = subprocess.run(
             command, cwd=root, check=False, capture_output=True, text=True
         )
+        output = result.stdout + result.stderr
+        if result.returncode != 0:
+            # Traceback headers can consume the entire bound; keep the cause.
+            failure_lines = (result.stderr.strip() or result.stdout).splitlines()
+            output = next(
+                (line for line in reversed(failure_lines) if line.strip()), ""
+            )
         statuses.append(
             {
                 "name": name,
                 "status": "current" if result.returncode == 0 else "blocked",
-                "message": bounded(result.stdout + result.stderr).strip()
+                "message": bounded(output).strip()
                 or (
                     "Generated view is current."
                     if result.returncode == 0
@@ -2687,18 +2715,19 @@ def render_plan_markdown(plan: dict[str, Any]) -> str:
         "",
         "## Checked components",
         "",
-        "| Scope | Component | Current | Compatible | Upstream | Status |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| Scope | Component | Current | Compatible | Upstream | Status | Reason |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for result in plan.get("component_results", []):
         lines.append(
-            "| {scope} | {name} | `{current}` | `{compatible}` | `{upstream}` | `{status}` |".format(
+            "| {scope} | {name} | `{current}` | `{compatible}` | `{upstream}` | `{status}` | {message} |".format(
                 scope=bounded(result["scope"]),
                 name=bounded(result["component_name"]),
                 current=bounded(result["current"]),
                 compatible=bounded(result["latest_compatible"]),
                 upstream=bounded(result["latest_upstream"]),
                 status=bounded(result["status"]),
+                message=_diagnostic_markdown(result.get("message", "")),
             )
         )
     lines.extend(["", "## Automatic updates", ""])
@@ -2717,7 +2746,10 @@ def render_plan_markdown(plan: dict[str, Any]) -> str:
         lines.append("- None")
     lines.extend(["", "## Generated views", ""])
     for status in plan.get("generated_view_status", []):
-        lines.append(f"- `{status['name']}`: `{status['status']}`")
+        lines.append(
+            f"- `{status['name']}`: `{status['status']}` — "
+            f"{_diagnostic_markdown(status.get('message', ''))}"
+        )
     return "\n".join(lines) + "\n"
 
 

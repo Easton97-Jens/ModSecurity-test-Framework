@@ -231,7 +231,7 @@ and installs only the locally hash-locked PyYAML wheel into the reviewed runtime
 The runtime must be a venv or the verified Actions setup-python prefix. OSV
 retains inline binary bootstrapping only for exact historical base SHA/version
 pairs: `f73f8842f45318e2df8aff1d31855eeb7c20a22f` / `3.13.14` and
-`91145b7ba721bdec4e89af754cf40bf496fd2a08` / `3.14.10`. Current trusted bases
+`91145b7ba721bdec4e89af754cf40bf496fd2a08` and `68ca7b411db12ed96ee6208aa792b43e8043470c` / `3.14.10`. Current trusted bases
 use their checked-out helper; PR-head bootstrap code is never fetched. The
 [tooling guide](security/ci-security-tooling.md) describes provenance, external
 build output, and the custom JSON build lock's OSV coverage limitation.
@@ -339,6 +339,15 @@ write permission and the validated plan; resolver and pull-request jobs remain
 read-only. The publisher creates or updates only the fixed Draft PR and never
 merges or enables auto-merge. A missing global result, incomplete CI pin group,
 generated-view drift, malformed review record, or hash mismatch fails closed.
+
+The CRS view synchronizer imports the Framework package from its own checked-in
+script location. Direct resolver, candidate, and publisher calls therefore work
+without a caller-provided `PYTHONPATH`, including when `--root` selects a separate
+data tree. Plans include bounded, escaped component and generated-view diagnostic
+messages. The canonical job also prints the report with runner-command processing
+disabled and retains the JSON/Markdown artifact after a failed resolver or review
+validation, unless the run is cancelled. Retaining diagnostics does not permit
+downstream work: a failed resolver still fails the job and blocks publication.
 
 Routine Dependabot `github-actions` version updates are disabled with
 `open-pull-requests-limit: 0` because Dependabot can change only generated

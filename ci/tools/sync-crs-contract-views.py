@@ -12,7 +12,12 @@ from functools import partial
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
+
+# Direct script invocation must import this checkout, independent of cwd,
+# PYTHONPATH, and the caller-selected contract data root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from modsecurity_test_framework.support.crs_contract_pins import (
     CrsPins,
