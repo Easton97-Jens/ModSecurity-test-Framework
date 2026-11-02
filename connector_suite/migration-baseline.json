@@ -5,9 +5,9 @@
     "native_preserved_function_count": 69,
     "native_preserved_function_lines": 2011,
     "native_sources": 88,
-    "python_go_source_sets": 636,
+    "python_go_source_sets": 637,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "ab9b73d26691cfaa0287b3d9347d7ebf3d4301081883528fd282da2e79b4c72a"
+    "sha256": "52c728cb6754939650e1ff80d2ea37bc76961036737ea3fae46e73026ab1a3e2"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -1277,8 +1277,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:106",
-      "line": 106,
+      "id": "Connector:connectors/envoy/Makefile:105",
+      "line": 105,
       "make_target": "hostruntime-preflight-envoy",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1288,8 +1288,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:109",
-      "line": 109,
+      "id": "Connector:connectors/envoy/Makefile:108",
+      "line": 108,
       "make_target": "hostruntime-preflight-envoy-ext-authz",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1299,8 +1299,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:112",
-      "line": 112,
+      "id": "Connector:connectors/envoy/Makefile:111",
+      "line": 111,
       "make_target": "hostruntime-preflight-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1310,8 +1310,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:118",
-      "line": 118,
+      "id": "Connector:connectors/envoy/Makefile:117",
+      "line": 117,
       "make_target": "self-test",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1321,8 +1321,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:156",
-      "line": 156,
+      "id": "Connector:connectors/envoy/Makefile:155",
+      "line": 155,
       "make_target": "test-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1332,8 +1332,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:188",
-      "line": 188,
+      "id": "Connector:connectors/envoy/Makefile:186",
+      "line": 186,
       "make_target": "runtime-smoke-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1343,8 +1343,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:201",
-      "line": 201,
+      "id": "Connector:connectors/envoy/Makefile:199",
+      "line": 199,
       "make_target": "transport-cancel-smoke-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1354,8 +1354,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:206",
-      "line": 206,
+      "id": "Connector:connectors/envoy/Makefile:204",
+      "line": 204,
       "make_target": "check-envoy-config",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1365,8 +1365,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:224",
-      "line": 224,
+      "id": "Connector:connectors/envoy/Makefile:222",
+      "line": 222,
       "make_target": "runtime-smoke-envoy",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1376,8 +1376,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:34",
-      "line": 34,
+      "id": "Connector:connectors/envoy/Makefile:33",
+      "line": 33,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1387,8 +1387,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:36",
-      "line": 36,
+      "id": "Connector:connectors/envoy/Makefile:35",
+      "line": 35,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1398,8 +1398,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:40",
-      "line": 40,
+      "id": "Connector:connectors/envoy/Makefile:39",
+      "line": 39,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -3081,8 +3081,8 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/workflows/ci-findings-regressions.yml:158",
-      "line": 158,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:164",
+      "line": 164,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/workflows/ci-findings-regressions.yml",
@@ -3092,8 +3092,8 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/workflows/ci-findings-regressions.yml:178",
-      "line": 178,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:177",
+      "line": 177,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/workflows/ci-findings-regressions.yml",
@@ -3103,8 +3103,41 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/workflows/ci-findings-regressions.yml:192",
-      "line": 192,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:179",
+      "line": 179,
+      "make_target": null,
+      "owner": "Framework",
+      "path": ".github/workflows/ci-findings-regressions.yml",
+      "selection_note": "source caller only; execution and automatic case admission are separate",
+      "source_kind": "ci-workflow",
+      "source_line": "loader = unittest.defaultTestLoader"
+    },
+    {
+      "admission_only": false,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:186",
+      "line": 186,
+      "make_target": null,
+      "owner": "Framework",
+      "path": ".github/workflows/ci-findings-regressions.yml",
+      "selection_note": "source caller only; execution and automatic case admission are separate",
+      "source_kind": "ci-workflow",
+      "source_line": "result = unittest.TextTestRunner(verbosity=2).run(suite)"
+    },
+    {
+      "admission_only": false,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:209",
+      "line": 209,
+      "make_target": null,
+      "owner": "Framework",
+      "path": ".github/workflows/ci-findings-regressions.yml",
+      "selection_note": "source caller only; execution and automatic case admission are separate",
+      "source_kind": "ci-workflow",
+      "source_line": "import unittest"
+    },
+    {
+      "admission_only": false,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:223",
+      "line": 223,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/workflows/ci-findings-regressions.yml",
@@ -3114,8 +3147,8 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/workflows/ci-findings-regressions.yml:193",
-      "line": 193,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:224",
+      "line": 224,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/workflows/ci-findings-regressions.yml",
@@ -3125,8 +3158,8 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/workflows/ci-findings-regressions.yml:92",
-      "line": 92,
+      "id": "Framework:.github/workflows/ci-findings-regressions.yml:98",
+      "line": 98,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/workflows/ci-findings-regressions.yml",
@@ -11114,7 +11147,7 @@
       "actual_callers": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:156",
+        "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11125,7 +11158,7 @@
       "current_caller_ids": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:156",
+        "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11191,7 +11224,7 @@
       "actual_callers": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:156",
+        "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11202,7 +11235,7 @@
       "current_caller_ids": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:156",
+        "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -135121,14 +135154,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:206",
+        "Connector:connectors/envoy/Makefile:204",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:206",
+        "Connector:connectors/envoy/Makefile:204",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
@@ -135193,14 +135226,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:206",
+        "Connector:connectors/envoy/Makefile:204",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:206",
+        "Connector:connectors/envoy/Makefile:204",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
@@ -135403,12 +135436,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -135466,12 +135499,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -135529,12 +135562,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:188",
+        "Connector:connectors/envoy/Makefile:186",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -136268,14 +136301,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:224",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:224",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
@@ -136337,14 +136370,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:224",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:224",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
@@ -157514,7 +157547,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:358"
       ],
       "framework_path": "tests/security_regression/test_apr_util_provenance.py",
@@ -157554,7 +157587,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_ci_root_bootstrap_hardening.py",
       "observed_execution": "not assessed",
@@ -157581,7 +157614,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_common_shell_sonar_contracts.py",
       "observed_execution": "not assessed",
@@ -157626,7 +157659,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_common_version_atomic_provenance.py",
       "observed_execution": "not assessed",
@@ -157645,7 +157678,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_common_version_descriptor_series.py",
       "observed_execution": "not assessed",
@@ -157664,7 +157697,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_common_version_http_client.py",
       "observed_execution": "not assessed",
@@ -157711,7 +157744,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_common_versions_sonar_provenance.py",
       "observed_execution": "not assessed",
@@ -157737,7 +157770,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_connector_smoke_common_hardening.py",
       "observed_execution": "not assessed",
@@ -157775,7 +157808,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:350"
       ],
       "framework_path": "tests/security_regression/test_crs_git_ref_provenance.py",
@@ -157794,7 +157827,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_crs_version_pinning_paths.py",
       "observed_execution": "not assessed",
@@ -157826,7 +157859,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_generate_case_matrix_sonar.py",
       "observed_execution": "not assessed",
@@ -157847,7 +157880,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_generate_connector_work_queue_sonar.py",
       "observed_execution": "not assessed",
@@ -157872,7 +157905,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_generate_phase_work_queue_sonar.py",
       "observed_execution": "not assessed",
@@ -157894,7 +157927,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_generated_report_utils_sonar.py",
       "observed_execution": "not assessed",
@@ -157927,7 +157960,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:362"
       ],
       "framework_path": "tests/security_regression/test_httpd_source_recovery.py",
@@ -157949,7 +157982,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_import_mrts_cases_sonar.py",
       "observed_execution": "not assessed",
@@ -157966,7 +157999,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_materialize_connector_source.py",
       "observed_execution": "not assessed",
@@ -158002,7 +158035,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:354"
       ],
       "framework_path": "tests/security_regression/test_modsecurity_v3_git_ref_provenance.py",
@@ -158030,7 +158063,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_mrts_common_posix_reliability.py",
       "observed_execution": "not assessed",
@@ -158052,7 +158085,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_mrts_common_sonar.py",
       "observed_execution": "not assessed",
@@ -158080,8 +158113,8 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
-        "Framework:.github/workflows/ci-findings-regressions.yml:92"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
+        "Framework:.github/workflows/ci-findings-regressions.yml:98"
       ],
       "framework_path": "tests/security_regression/test_mrts_definition_guard.py",
       "observed_execution": "not assessed",
@@ -158106,7 +158139,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_mrts_import_integrity.py",
       "observed_execution": "not assessed",
@@ -158151,7 +158184,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_mrts_package.py",
       "observed_execution": "not assessed",
@@ -158203,7 +158236,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_mrts_result_integrity.py",
       "observed_execution": "not assessed",
@@ -158220,7 +158253,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_multipart_newline_runtime_difference.py",
       "observed_execution": "not assessed",
@@ -158256,7 +158289,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:366"
       ],
       "framework_path": "tests/security_regression/test_nginx_archive_digest.py",
@@ -158276,7 +158309,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_nginx_release_provenance.py",
       "observed_execution": "not assessed",
@@ -158296,7 +158329,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_no_crs_catalog_maintainability_wave.py",
       "observed_execution": "not assessed",
@@ -158317,7 +158350,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_no_crs_finalize_argument_safety.py",
       "observed_execution": "not assessed",
@@ -158335,7 +158368,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_normalizer_payload_safety.py",
       "observed_execution": "not assessed",
@@ -158361,7 +158394,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_parser_hardening.py",
       "observed_execution": "not assessed",
@@ -158379,7 +158412,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_pcre2_archive_digest.py",
       "observed_execution": "not assessed",
@@ -158403,7 +158436,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_portable_audit_fixture_contract.py",
       "observed_execution": "not assessed",
@@ -158422,7 +158455,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_response_body_promotion_path_safety.py",
       "observed_execution": "not assessed",
@@ -158445,7 +158478,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_runner_core_output_containment.py",
       "observed_execution": "not assessed",
@@ -158480,7 +158513,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:235"
       ],
       "framework_path": "tests/security_regression/test_runtime_component_download.py",
@@ -158509,7 +158542,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:223"
       ],
       "framework_path": "tests/security_regression/test_runtime_component_lock.py",
@@ -158544,7 +158577,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:226"
       ],
       "framework_path": "tests/security_regression/test_runtime_component_sync.py",
@@ -158567,7 +158600,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_runtime_snapshot_sonar.py",
       "observed_execution": "not assessed",
@@ -158597,7 +158630,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_second_remediation.py",
       "observed_execution": "not assessed",
@@ -158617,7 +158650,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_security_data_flow_case_schema.py",
       "observed_execution": "not assessed",
@@ -158636,7 +158669,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_security_regressions.py",
       "observed_execution": "not assessed",
@@ -158670,7 +158703,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_sonar_analysis_contract.py",
       "observed_execution": "not assessed",
@@ -158690,7 +158723,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_sonarcloud_utility_wave_regressions.py",
       "observed_execution": "not assessed",
@@ -158708,7 +158741,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_summarize_results_path_safety.py",
       "observed_execution": "not assessed",
@@ -158731,9 +158764,31 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_synchronized_upstream_security_boundaries.py",
+      "observed_execution": "not assessed",
+      "source_binding_execution_ids": [],
+      "source_load_tests_filter": false
+    },
+    {
+      "archive_declared_selected_definition_ids": [],
+      "archive_source": "framework/tests/security_regression/test_tls_protocol_floor.py",
+      "automatic_selection": "not inferred; source-owned load_tests and the Connector inventory remain authoritative",
+      "definition_ids": [
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_clients_reject_untrusted_certificate",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_clients_reject_wrong_hostname",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_contexts_require_tls12_without_capping_modern_tls",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_legacy_protocols_fail_after_successful_legacy_controls",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_native_client_copy_keeps_a_standalone_verified_context",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_tls12_handshakes_remain_usable",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_tls13_handshakes_remain_usable"
+      ],
+      "direct_caller_ids": [],
+      "discovery_candidate_caller_ids": [
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
+      ],
+      "framework_path": "tests/security_regression/test_tls_protocol_floor.py",
       "observed_execution": "not assessed",
       "source_binding_execution_ids": [],
       "source_load_tests_filter": false
@@ -158752,7 +158807,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_traefik_auth_backend.py",
       "observed_execution": "not assessed",
@@ -158778,7 +158833,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:370"
       ],
       "framework_path": "tests/security_regression/test_traefik_runtime_pin_contract.py",
@@ -158798,7 +158853,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_variable_documentation_assignment_regex.py",
       "observed_execution": "not assessed",
@@ -158838,7 +158893,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:373"
       ],
       "framework_path": "tests/security_regression/test_workflow_action_pins.py",
@@ -158863,7 +158918,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158",
+        "Framework:.github/workflows/ci-findings-regressions.yml:164",
         "Framework:Makefile:308"
       ],
       "framework_path": "tests/security_regression/test_workflow_security_contract.py",
@@ -158888,7 +158943,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_workflow_yaml_resource_limits.py",
       "observed_execution": "not assessed",
@@ -158906,7 +158961,7 @@
       ],
       "direct_caller_ids": [],
       "discovery_candidate_caller_ids": [
-        "Framework:.github/workflows/ci-findings-regressions.yml:158"
+        "Framework:.github/workflows/ci-findings-regressions.yml:164"
       ],
       "framework_path": "tests/security_regression/test_write_case_matrix_security.py",
       "observed_execution": "not assessed",
@@ -165080,7 +165135,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-      "sha256_framework_source": "7a01c955646f30678131003fe431dcc86462dd0f67b552fda607ad17f1ea65e1",
+      "sha256_framework_source": "a4115ab4df7ad5d558ebdbe1104c1041c3313951b35dc413896646f43d4b22bb",
       "sha256_updated_base": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
     },
     {
@@ -165656,7 +165711,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "1aad0a38dae34732da1ac20a33b3181b6a38c2bb584f040d36379aef13c3e537",
-      "sha256_framework_source": "b52d2f0b3ee649dcb7af00a645f813c67213dcc7014245e4dd60e8ce201668f7",
+      "sha256_framework_source": "cc64c390e0ff47655a0a001849bca39bf98f1f357fbea86026135019590ee327",
       "sha256_updated_base": "1aad0a38dae34732da1ac20a33b3181b6a38c2bb584f040d36379aef13c3e537"
     },
     {
@@ -165701,7 +165756,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "6eaa93559745584a2e09af5c5f708e5039677b8f6a845efe745db537a278cc62",
-      "sha256_framework_source": "15593298277f8fc8ee3bdd9dceee3b6fe10020be6091ee69f235e9845f7b1389",
+      "sha256_framework_source": "a7734e91bf83225f13f41d56daf87cf1463ea2dd6ac531a28ebddfa797f53d79",
       "sha256_updated_base": "6eaa93559745584a2e09af5c5f708e5039677b8f6a845efe745db537a278cc62"
     },
     {
@@ -167141,7 +167196,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "ab9b73d26691cfaa0287b3d9347d7ebf3d4301081883528fd282da2e79b4c72a",
+      "sha256_framework_source": "52c728cb6754939650e1ff80d2ea37bc76961036737ea3fae46e73026ab1a3e2",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {
@@ -168734,7 +168789,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "331f86e74214a649d3714e97214bf9f03b16b6d9e033919bf6e5a9c03068e6fd",
-      "sha256_framework_source": "cf17809529f17659ce840f9ba0046cad3c9ae1cb68b02e3d375ac4b264e6783f",
+      "sha256_framework_source": "eec821d565929a88fef079367825c498e1758ebda44fcd2c92a2a1967ecd2b46",
       "sha256_updated_base": "331f86e74214a649d3714e97214bf9f03b16b6d9e033919bf6e5a9c03068e6fd"
     },
     {
@@ -169058,7 +169113,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "76f86905e26c49c05e11981cbce36cbbf21438ffd04f95dcefe48b8fbeb94a47",
-      "sha256_framework_source": "fddcc7deb0651c735fab7ba7959273e3802f3147d75d780a0605b7ebfde27c80",
+      "sha256_framework_source": "5ab8148cccfbededa927b1d9ee69a76d8099a557a796081a5ee4ad0151b497f4",
       "sha256_updated_base": "76f86905e26c49c05e11981cbce36cbbf21438ffd04f95dcefe48b8fbeb94a47"
     },
     {
@@ -169094,7 +169149,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "eeca56f83485e82c4f3da34fcd8a9ba472cfe4494861e1f1a57be56bae7dd881",
-      "sha256_framework_source": "6edb5a23ec22caa57577bd641c0d7d580ca6d6398778ecb5091e7fb8e73be8b8",
+      "sha256_framework_source": "a212e384252296d0ee3b0ca8e176b297945da9a578e8fb1a99fc2d544ad71d4f",
       "sha256_updated_base": "eeca56f83485e82c4f3da34fcd8a9ba472cfe4494861e1f1a57be56bae7dd881"
     },
     {
@@ -171909,7 +171964,7 @@
   "framework_revision": "3a4f2281568139d94fda6b51dc2e07bb8fc06c67",
   "generator": "connector_suite/modsecurity_connector_ci/tools/build-migration-map.py",
   "inputs": {
-    "current_inventory_sha256": "7a01c955646f30678131003fe431dcc86462dd0f67b552fda607ad17f1ea65e1",
+    "current_inventory_sha256": "a4115ab4df7ad5d558ebdbe1104c1041c3313951b35dc413896646f43d4b22bb",
     "initial_inventory_sha256": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
     "source_map_sha256": "efd8ec2d12ab62762d251c3b8ecd85185a3c397b7b0a258ed95fc39e183a71e8",
     "updated_base_inventory_sha256": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
@@ -219415,7 +219470,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -219427,7 +219482,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -219533,7 +219588,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -219545,7 +219600,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -219651,7 +219706,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -219663,7 +219718,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -219769,7 +219824,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -219781,7 +219836,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -219887,7 +219942,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -219899,7 +219954,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -220005,7 +220060,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -220017,7 +220072,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -220241,7 +220296,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -220253,7 +220308,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -220359,7 +220414,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -220371,7 +220426,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -220477,7 +220532,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -220489,7 +220544,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -220595,7 +220650,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -220607,7 +220662,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -220713,7 +220768,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -220725,7 +220780,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"
@@ -220831,7 +220886,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 65,
+            "line": 71,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import validate_output_root"
@@ -220843,7 +220898,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 708,
+            "line": 715,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"

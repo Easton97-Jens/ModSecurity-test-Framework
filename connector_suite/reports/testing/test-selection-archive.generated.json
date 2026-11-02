@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "7a01c955646f30678131003fe431dcc86462dd0f67b552fda607ad17f1ea65e1",
+  "inventory_sha256": "a4115ab4df7ad5d558ebdbe1104c1041c3313951b35dc413896646f43d4b22bb",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7966,
+  "on_demand_definition_count": 7973,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -4932,7 +4932,7 @@
         "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_runtime_uses_an_unambiguous_allow_transaction"
       ],
       "source": "tests/test_envoy_transport_hardening_contract.py",
-      "source_sha256": "cf17809529f17659ce840f9ba0046cad3c9ae1cb68b02e3d375ac4b264e6783f"
+      "source_sha256": "eec821d565929a88fef079367825c498e1758ebda44fcd2c92a2a1967ecd2b46"
     },
     {
       "contains_selected_definitions": [],
@@ -5690,7 +5690,7 @@
         "modsecurity_connector_tests.test_haproxy_htx_transaction_id.HAProxyHTXTransactionIdTest.test_native_128_byte_buffer_limit_applies_to_allow_and_evidence_writers"
       ],
       "source": "tests/test_haproxy_htx_transaction_id.py",
-      "source_sha256": "fddcc7deb0651c735fab7ba7959273e3802f3147d75d780a0605b7ebfde27c80"
+      "source_sha256": "5ab8148cccfbededa927b1d9ee69a76d8099a557a796081a5ee4ad0151b497f4"
     },
     {
       "contains_selected_definitions": [],
@@ -5774,7 +5774,7 @@
         "modsecurity_connector_tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_controller_child_is_explicit_and_fresh"
       ],
       "source": "tests/test_haproxy_i12_companion_host.py",
-      "source_sha256": "6edb5a23ec22caa57577bd641c0d7d580ca6d6398778ecb5091e7fb8e73be8b8"
+      "source_sha256": "a212e384252296d0ee3b0ca8e176b297945da9a578e8fb1a99fc2d544ad71d4f"
     },
     {
       "contains_selected_definitions": [],
@@ -14344,6 +14344,21 @@
       ],
       "source": "framework/tests/security_regression/test_synchronized_upstream_security_boundaries.py",
       "source_sha256": "cdad2d05dee750dc307a7d6956d24a759fd4f8db3666ce895567c91c76956472"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "tests/security_regression/test_tls_protocol_floor.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_contexts_require_tls12_without_capping_modern_tls",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_legacy_protocols_fail_after_successful_legacy_controls",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_tls12_handshakes_remain_usable",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_tls13_handshakes_remain_usable",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_clients_reject_wrong_hostname",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_clients_reject_untrusted_certificate",
+        "modsecurity_test_framework.selftests.security_regression.test_tls_protocol_floor.TLSProtocolFloorTests.test_native_client_copy_keeps_a_standalone_verified_context"
+      ],
+      "source": "framework/tests/security_regression/test_tls_protocol_floor.py",
+      "source_sha256": "be9558558df77370d9aa8f74a84586624144f5544fb031caee4832ce8da08040"
     },
     {
       "contains_selected_definitions": [],

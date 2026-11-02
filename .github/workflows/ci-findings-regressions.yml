@@ -19,6 +19,12 @@ on:
       - "connector_suite/adapters/lighttpd/tests/test_backend_close_harness_contract.py"
       - "modsecurity_test_framework/private_network_test.py"
       - "tests/security_regression/test_traefik_auth_backend.py"
+      - "connector_suite/adapters/haproxy/harness/i12_companion_host.py"
+      - "connector_suite/adapters/haproxy/harness/i12_native_sequences.py"
+      - "connector_suite/modsecurity_connector_tests/test_envoy_transport_hardening_contract.py"
+      - "connector_suite/modsecurity_connector_tests/test_haproxy_htx_transaction_id.py"
+      - "connector_suite/modsecurity_connector_tests/test_haproxy_i12_companion_host.py"
+      - "tests/security_regression/test_tls_protocol_floor.py"
   workflow_dispatch:
 
 permissions:
@@ -157,6 +163,31 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s tests/security_regression \
             -p test_traefik_auth_backend.py -v
+
+      - name: Run actual TLS protocol and verified loopback regressions without skips
+        env:
+          ON_DEMAND_TESTS: "1"
+          I12_TEST_ROOT: /var/tmp/codex/ModSecurity-conector/ci-tls-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$I12_TEST_ROOT"
+          python3 - <<'PY'
+          import sys
+          import unittest
+
+          loader = unittest.defaultTestLoader
+          suite = loader.discover("tests/security_regression", pattern="test_tls_protocol_floor.py")
+          suite.addTests(loader.loadTestsFromNames([
+              "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_probe_requires_verified_loopback_tls_and_root_confined_evidence",
+              "modsecurity_connector_tests.test_haproxy_htx_transaction_id.HAProxyHTXTransactionIdTest.test_probe_requires_verified_loopback_tls_certificate",
+              "modsecurity_connector_tests.test_haproxy_i12_companion_host.CompanionCaptureTests.test_actual_harmless_tls_client_process_records_window_endpoints_and_wait",
+          ]))
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if result.skipped:
+              raise SystemExit("BLOCKED: required TLS regression was skipped")
+          sys.exit(0 if result.wasSuccessful() else 1)
+          PY
 
       - name: Run explicit header and isolated wildcard regressions without skips
         run: |

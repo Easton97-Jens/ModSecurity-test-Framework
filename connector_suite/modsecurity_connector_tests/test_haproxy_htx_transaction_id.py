@@ -22,6 +22,13 @@ HELPER_PATH = (
 HELPER = load_source(HELPER_PATH)
 
 
+def loopback_tls_context(certificate: Path, private_key: Path) -> ssl.SSLContext:
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(certfile=str(certificate), keyfile=str(private_key))
+    return context
+
+
 class _LoopbackTLSHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         body = b"tls-ok\n"
@@ -117,8 +124,7 @@ class HAProxyHTXTransactionIdTest(unittest.TestCase):
                 stderr=subprocess.DEVNULL,
             )
             server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _LoopbackTLSHandler)
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            context.load_cert_chain(certfile=str(certificate), keyfile=str(key))
+            context = loopback_tls_context(certificate, key)
             server.socket = context.wrap_socket(server.socket, server_side=True)
             worker = threading.Thread(target=server.serve_forever, daemon=True)
             worker.start()

@@ -22,7 +22,7 @@ runner = load_source(SOURCE)
 def prepare_component_certificate(root):
     configuration = root / "openssl.cnf"
     configuration.write_text("[req]\ndistinguished_name=dn\nprompt=no\nx509_extensions=ext\n[dn]\nCN=localhost\n[ext]\nsubjectAltName=DNS:localhost\n")
-    argv = ["rtk", "proxy", "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+    argv = ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
             "-keyout", str(root / runner.TLS_KEY), "-out", str(root / runner.TLS_CERT),
             "-days", "1", "-config", str(configuration)]
     result = subprocess.run(argv, capture_output=True, timeout=20)
@@ -31,10 +31,16 @@ def prepare_component_certificate(root):
     return argv
 
 
+def component_tls_context(root):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(root / runner.TLS_CERT, root / runner.TLS_KEY)
+    return context
+
+
 def serve_component_tls(listener, root, errors):
     try:
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(root / runner.TLS_CERT, root / runner.TLS_KEY)
+        context = component_tls_context(root)
         with listener:
             peer, _address = listener.accept()
             peer.settimeout(5)
@@ -447,7 +453,8 @@ class CompanionCaptureTests(unittest.TestCase):
             process = json.loads((root / "client-0.process.json").read_text())
             self.assertEqual(process["schema"], "i12-companion-client-process-v1")
             self.assertEqual(client["schema"], "i12-companion-client-capture-v2")
-            self.assertEqual(process["argv"], [sys.executable, str(SOURCE), "--client-capture", str(root), str(port), "0", "safe"])
+            expected_script = source_path("connectors/haproxy/harness/i12_companion_host.py", root=connector_root())
+            self.assertEqual(process["argv"], [sys.executable, str(expected_script), "--client-capture", str(root), str(port), "0", "safe"])
             self.assertEqual(process["pid"], client["pid"])
             self.assertEqual(process["exit"], 0)
             self.assertIsNone(process["signal"])
