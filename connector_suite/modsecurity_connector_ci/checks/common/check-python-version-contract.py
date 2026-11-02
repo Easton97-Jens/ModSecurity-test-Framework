@@ -43,6 +43,14 @@ CANDIDATE_VERIFIER_COMMAND = (
     f'python3 -P {VERIFIER_PATH} --expected-version "$EXPECTED_VERSION" '
     '--expected-python "$EXPECTED_PYTHON"'
 )
+PROTECTED_BROKER_VERIFIER_JOBS = frozenset({
+    "prepare-manifests", "verify-evidence"
+})
+PROTECTED_BROKER_VERIFIER_COMMAND = (
+    'python3 -I ci/run-trusted-framework.py --tool python-interpreter '
+    '--connector-root "$GITHUB_WORKSPACE" --connector-revision "$GITHUB_SHA" '
+    '-- --version-file .python-version --expected-python "$EXPECTED_PYTHON"'
+)
 # Only the trusted-base Go resolver spans pre/post-migration repository layouts.
 # Exact lines, fixed paths, both interpreter checks and the failure branch are
 # part of this exception; normalization removes only indentation/comments.
@@ -131,12 +139,14 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
         JobIdentity("test-connectors-with-crs-no-mrts.yml", "aggregate-with-crs-no-mrts"),
         JobIdentity("test-nginx-exact-head.yml", "nginx-exact-head"),
         JobIdentity("lint.yml", "scaffold-lint"),
-        JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),
         JobIdentity("open-connectors-smoke.yml", "open-connectors-smoke"),
         JobIdentity("protocol-contract.yml", "nginx-profile-and-client-preflight"),
         JobIdentity("protocol-contract.yml", "protocol-contract"),
         JobIdentity("quick-framework-check.yml", "quick-check"),
         JobIdentity("sonarqube.yml", "analysis"),
+        JobIdentity("sonar-native-security.yml", "sdk"),
+        JobIdentity("sonar-native-security.yml", "native"),
+        JobIdentity("update-submodules.yml", "resolve-submodule-update"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "prepare-manifests"),
         JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "verify-evidence"),
         JobIdentity("test-apache.yml", "apache-autotools-bootstrap"),
@@ -167,6 +177,8 @@ EXPECTED_NORMAL_PYTHON_JOBS = frozenset(
 # inventory of the only approved immutable protected broker calls instead of a
 # broad exception for reusable workflows.
 EXPECTED_IMMUTABLE_REUSABLE_PYTHON_JOBS: Mapping[JobIdentity, str] = {
+    JobIdentity("nginx-root-broker.yml", "immutable-historical-broker"):
+        PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW,
     JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "run-no-crs-broker"):
         PROTECTED_NGINX_BROKER_REUSABLE_WORKFLOW,
     JobIdentity(PROTECTED_NGINX_BROKER_CALLER_WORKFLOW, "run-with-crs-broker"):
@@ -729,6 +741,12 @@ def run_without_verifier_command(
 ) -> str:
     if (identity == TRUSTED_BASE_MIGRATION_JOB and verifier_name == VERIFIER_NAME and
             exact_script(run, TRUSTED_BASE_VERIFIER_COMMAND)):
+        return ""
+    if (identity is not None and
+            identity.workflow == PROTECTED_NGINX_BROKER_CALLER_WORKFLOW and
+            identity.job in PROTECTED_BROKER_VERIFIER_JOBS and
+            verifier_name == VERIFIER_NAME and
+            exact_command(run, PROTECTED_BROKER_VERIFIER_COMMAND)):
         return ""
     return VERIFIER_COMMAND_LINE.sub("", run)
 
@@ -1706,7 +1724,15 @@ def normal_verifier_violations(verifier: Step, identity: JobIdentity | None = No
             "verifier EXPECTED_PYTHON must be exactly "
             "${{ steps.setup-python.outputs.python-path }}"
         )
-    if not (exact_command(verifier.run(), NORMAL_VERIFIER_COMMAND) or
+    protected_broker = (
+        identity is not None
+        and identity.workflow == PROTECTED_NGINX_BROKER_CALLER_WORKFLOW
+        and identity.job in PROTECTED_BROKER_VERIFIER_JOBS
+    )
+    expected_command = (
+        PROTECTED_BROKER_VERIFIER_COMMAND if protected_broker else NORMAL_VERIFIER_COMMAND
+    )
+    if not (exact_command(verifier.run(), expected_command) or
             (identity == TRUSTED_BASE_MIGRATION_JOB and
              exact_script(verifier.run(), TRUSTED_BASE_VERIFIER_COMMAND))):
         errors.append(

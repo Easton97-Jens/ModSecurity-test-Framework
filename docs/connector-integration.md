@@ -38,6 +38,31 @@ logging, connection handling, and configuration merge rules remain
 connector-owned. The Framework does not convert a declared capability into an
 implementation claim.
 
+## Python bootstrap and workflow composition
+
+Connector CI must prove the checked-out Framework revision with a shell-only
+comparison against the Parent Gitlink before executing its interpreter verifier.
+The 18 Framework-owned composite actions then select the Parent's exact Python
+version, run the standard-library interpreter verifier with `python3 -P`, and
+bind the connector context before other Python consumers. An unproven context
+binder cannot bypass this order. The Parent owns the equivalent ordering in its
+native workflow jobs and must consume a Framework revision containing this
+contract before claiming combined CI compatibility.
+
+The static inventory identifies 47 normal Parent jobs, the separate Python
+candidate job, and the explicitly bounded immutable/local/system entries. The
+protected broker's `prepare-manifests` and `verify-evidence` jobs retain the exact
+authenticated `ci/run-trusted-framework.py --tool python-interpreter` verifier;
+a direct invocation does not replace that authentication boundary.
+
+Historical `nginx-root-broker.yml` composition accepts only its six required
+string inputs with exact same-name passthroughs, deny-default permissions,
+`contents: read`, and one immutable nested call at
+`8ae707d72f1a8acb25d239e55e28a73cbc7522b1`. It has no concurrency override.
+Mutation tests reject altered pins, inputs, permissions, nested jobs, and
+bootstrap ordering. These are static workflow/source-contract checks; they do
+not prove a hosted workflow or connector-host runtime.
+
 ## Maintained provenance
 
 The following source facts are intentionally retained here because adapter

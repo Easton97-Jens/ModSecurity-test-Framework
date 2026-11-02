@@ -25,7 +25,20 @@ ACTION = re.compile(
     + r"(?P<path>\.github/actions/(?:connector-ci/[a-z0-9-]+/[a-z0-9-]+|connector-context))"
     r"@(?P<revision>[a-f0-9]{40})\Z"
 )
+HISTORICAL_BROKER_INPUTS = (
+    "caller_manifest_artifact",
+    "parent_head_sha",
+    "framework_sha",
+    "protected_broker_sha",
+    "matrix_variant",
+    "run_id",
+)
 PROTECTED_REUSABLE_WORKFLOWS = {
+    "nginx-root-broker.yml": (
+        "connector-nginx-root-broker-historical.yml",
+        HISTORICAL_BROKER_INPUTS,
+        {"contents": "read"},
+    ),
     "run-trusted-lighttpd-namespace-dispatch.yml": (
         "connector-trusted-lighttpd-namespace.yml",
         ("target", "on_demand"),
@@ -372,10 +385,15 @@ def _validate_protected_triggers(
     text, document, callee, child, input_names, workflow_name
 ):
     """Compare dispatch/call triggers and their full input declarations."""
+    trigger = (
+        "workflow_call"
+        if workflow_name == "nginx-root-broker.yml"
+        else "workflow_dispatch"
+    )
     caller_on, child_on = _field(document, "on"), _field(child, "on")
     if (
         not isinstance(caller_on, MappingNode)
-        or [key.value for key, _ in caller_on.value] != ["workflow_dispatch"]
+        or [key.value for key, _ in caller_on.value] != [trigger]
         or not isinstance(child_on, MappingNode)
         or [key.value for key, _ in child_on.value] != ["workflow_call"]
     ):
@@ -384,8 +402,19 @@ def _validate_protected_triggers(
         )
     caller_value = yaml.load(text, Loader=yaml.BaseLoader)
     child_value = yaml.load(callee, Loader=yaml.BaseLoader)
-    caller_declaration = caller_value["on"]["workflow_dispatch"]
+    caller_declaration = caller_value["on"][trigger]
     child_declaration = child_value["on"]["workflow_call"]
+    if workflow_name == "nginx-root-broker.yml":
+        for name in input_names:
+            declaration = child_declaration.get("inputs", {}).get(name, {})
+            if (
+                set(declaration) != {"description", "required", "type"}
+                or declaration.get("required") != "true"
+                or declaration.get("type") != "string"
+            ):
+                raise WorkflowSourceError(
+                    "historical broker requires its six exact required string inputs"
+                )
     if workflow_name == "run-trusted-lighttpd-namespace-dispatch.yml":
         caller_declaration = _lighttpd_dispatch_declaration(
             caller_declaration, child_declaration
@@ -465,13 +494,11 @@ def _protected_reusable_source(
     )
     callee = read_protected_workflow_source(framework, callee_name)
     child = _document(callee)
-    if {key.value for key, _ in child.value} != {
-        "name",
-        "on",
-        "permissions",
-        "concurrency",
-        "jobs",
-    }:
+    historical = workflow_name == "nginx-root-broker.yml"
+    expected_fields = {"name", "on", "permissions", "jobs"}
+    if not historical:
+        expected_fields.add("concurrency")
+    if {key.value for key, _ in child.value} != expected_fields:
         raise WorkflowSourceError("protected callee has unsupported top-level fields")
     if _scalars(_field(child, "permissions")) != {}:
         raise WorkflowSourceError(
@@ -481,6 +508,25 @@ def _protected_reusable_source(
         text, document, callee, child, input_names, workflow_name
     )
     _validate_protected_jobs(child, permissions)
+    if historical:
+        historical_jobs = _field(child, "jobs")
+        if [key.value for key, _ in historical_jobs.value] != [
+            "immutable-historical-broker"
+        ] or _scalar(historical_jobs.value[0][1], "uses") != HISTORICAL_ROOT_BROKER:
+            raise WorkflowSourceError(
+                "historical broker requires its single fixed immutable nested call"
+            )
+        nested_job = historical_jobs.value[0][1]
+        if (
+            {key.value for key, _ in nested_job.value}
+            != {"permissions", "uses", "with"}
+            or _scalars(_field(nested_job, "permissions")) != permissions
+            or _scalars(_field(nested_job, "with"))
+            != {name: "${{ inputs." + name + " }}" for name in input_names}
+        ):
+            raise WorkflowSourceError(
+                "historical broker nested call must preserve its exact grant and passthroughs"
+            )
     # This view retains real inner IDs for source checks. It does not rename
     # GitHub's actual nested check contexts or authorize workflow execution.
     header = "".join(

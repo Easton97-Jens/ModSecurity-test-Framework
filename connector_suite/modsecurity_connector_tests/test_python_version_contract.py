@@ -150,9 +150,11 @@ class PythonVersionContractTest(unittest.TestCase):
     def write_complete_contract_root(self, root: Path, candidate_override: str | None = None) -> None:
         by_workflow: dict[str, list[str]] = {}
         for identity in sorted(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS):
-            by_workflow.setdefault(identity.workflow, []).append(
-                self.normal_job_block(identity.job)
-            )
+            block = self.normal_job_block(identity.job)
+            if (identity.workflow == CHECKER.PROTECTED_NGINX_BROKER_CALLER_WORKFLOW
+                    and identity.job in CHECKER.PROTECTED_BROKER_VERIFIER_JOBS):
+                block = block.replace(CHECKER.NORMAL_VERIFIER_COMMAND, CHECKER.PROTECTED_BROKER_VERIFIER_COMMAND)
+            by_workflow.setdefault(identity.workflow, []).append(block)
         special = CHECKER.CANDIDATE_VALIDATION_JOB
         by_workflow.setdefault(special.workflow, []).append(
             candidate_override if candidate_override is not None else self.candidate_job_block()
@@ -274,14 +276,62 @@ class PythonVersionContractTest(unittest.TestCase):
         errors = CHECKER.validate_normal_job(jobs[CHECKER.JobIdentity("fixture.yml", "fixture-job")])
         self.assertTrue(any("verifier must invoke" in error for error in errors), errors)
 
+    def test_current_parent_composite_jobs_follow_actual_feature_source_order(self):
+        # Static compatibility evidence: exact Parent caller text and its recorded
+        # immutable pin, inspected against these proposed Framework sources.
+        # No source-trust or runtime-execution claim is made by this projection.
+        revision = load_framework_revision_pins(ROOT)["framework_sha"]
+        checked = 0
+        for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+            source = path.read_text()
+            if "ModSecurity-test-Framework/.github/actions/connector-ci/" not in source:
+                continue
+            composed = workflow_sources.expand_workflow_source(
+                source, framework_root=test_root(), framework_revision=revision,
+                workflow_name=path.name,
+            )
+            with mock.patch.object(CHECKER, "read_connector_workflow", return_value=composed):
+                jobs, errors = CHECKER.parse_jobs(path)
+            self.assertEqual(errors, [])
+            for identity, job in jobs.items():
+                if identity not in CHECKER.EXPECTED_NORMAL_PYTHON_JOBS:
+                    continue
+                with self.subTest(identity=identity):
+                    self.assertEqual(CHECKER.validate_normal_job(job), [])
+                checked += 1
+        self.assertEqual(checked, 18)
+
+    def test_protected_broker_verifier_wrapper_is_exact_and_job_scoped(self):
+        command = CHECKER.PROTECTED_BROKER_VERIFIER_COMMAND
+        for workflow, job_name, run, valid in (
+            ("run-protected-nginx-root-broker.yml", "prepare-manifests", command, True),
+            ("run-protected-nginx-root-broker.yml", "verify-evidence", command, True),
+            ("run-protected-nginx-root-broker.yml", "prepare-manifests", CHECKER.NORMAL_VERIFIER_COMMAND, False),
+            ("run-protected-nginx-root-broker.yml", "verify-evidence", CHECKER.NORMAL_VERIFIER_COMMAND, False),
+            ("run-protected-nginx-root-broker.yml", "other", command, False),
+            ("foreign.yml", "prepare-manifests", command, False),
+            ("run-protected-nginx-root-broker.yml", "prepare-manifests", command.replace("--tool python-interpreter", "--tool connector-context"), False),
+            ("run-protected-nginx-root-broker.yml", "prepare-manifests", command.replace('"$GITHUB_SHA"', '"$UNTRUSTED_SHA"'), False),
+            ("run-protected-nginx-root-broker.yml", "prepare-manifests", command + "; python3 -c pass", False),
+        ):
+            with self.subTest(workflow=workflow, job=job_name, run=run), self.temporary_root() as directory:
+                path = Path(directory) / workflow
+                source = self.normal_job_block(job_name).replace(CHECKER.NORMAL_VERIFIER_COMMAND, run)
+                path.write_text("jobs:\n" + source)
+                jobs, errors = CHECKER.parse_jobs(path)
+                self.assertEqual(errors, [])
+                identity = CHECKER.JobIdentity(workflow, job_name)
+                errors = CHECKER.validate_normal_job(jobs[identity])
+                self.assertEqual(not errors, valid, errors)
+
     def test_expected_inventory_tracks_normal_and_candidate_jobs(self) -> None:
-        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 45)
+        self.assertEqual(len(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS), 47)
         self.assertIn(
             CHECKER.JobIdentity("ci-security-workflow-lint.yml", "apr-util-provenance"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
         )
         self.assertIn(
-            CHECKER.JobIdentity("nginx-root-broker.yml", "trusted-root-smoke"),
+            CHECKER.JobIdentity("sonar-native-security.yml", "sdk"),
             CHECKER.EXPECTED_NORMAL_PYTHON_JOBS,
         )
         for identity in (
@@ -350,6 +400,7 @@ class PythonVersionContractTest(unittest.TestCase):
         self.assertEqual(
             set(CHECKER.EXPECTED_IMMUTABLE_REUSABLE_PYTHON_JOBS),
             {
+                CHECKER.JobIdentity("nginx-root-broker.yml", "immutable-historical-broker"),
                 CHECKER.JobIdentity(
                     "run-protected-nginx-root-broker.yml", "run-no-crs-broker"
                 ),
@@ -758,7 +809,7 @@ printf '%s\\n' 'make quick-check'
             exit_code, payload = self.cli_json_result(root)
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["status"], "valid")
-        self.assertEqual(len(payload["detected_python_jobs"]), 50)
+        self.assertEqual(len(payload["detected_python_jobs"]), 53)
         expected = set(CHECKER.EXPECTED_NORMAL_PYTHON_JOBS)
         expected.add(CHECKER.CANDIDATE_VALIDATION_JOB)
         expected.update(CHECKER.EXPECTED_IMMUTABLE_REUSABLE_PYTHON_JOBS)
