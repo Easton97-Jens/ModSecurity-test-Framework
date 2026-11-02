@@ -183,9 +183,11 @@ def verify_python_candidate(root, base, head):
         rb"(?m)^[ \t]*(?:export[ \t]+)?CI_CANONICAL_PYTHON_VERSION[ \t]*=.*$",
         after[COMMON],
     )
-    pattern = rb'CI_CANONICAL_PYTHON_VERSION=(?:"(3\.15\.(?:0|[1-9][0-9]*))"|(3\.15\.(?:0|[1-9][0-9]*)))'
+    pattern = rb'CI_CANONICAL_PYTHON_VERSION=(?:"(3\.15\.(?:0|[1-9]\d*))"|(3\.15\.(?:0|[1-9]\d*)))'
     assignment = (
-        re.fullmatch(pattern, assignments[0]) if len(assignments) == 1 else None
+        re.fullmatch(pattern, assignments[0], flags=re.ASCII)
+        if len(assignments) == 1
+        else None
     )
     if assignment is None:
         raise ValueError(
