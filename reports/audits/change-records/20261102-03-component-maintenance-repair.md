@@ -46,12 +46,16 @@ of `--root`. Preserve the last nonempty error line for failed generators. Escape
 bounded diagnostic text and print the report between unpredictable runner
 stop/resume markers. Upload the run-and-attempt-bound plan with `!cancelled()`;
 resolver exit codes, digest checks, permissions and downstream gates are retained.
+The security checker requires the exact reviewed resolver-body digest and the
+exact failure-retention condition; removing command guards or changing the
+artifact condition remains a contract violation.
 
 ## Changed files and tests
 
 - `ci/tools/sync-crs-contract-views.py` and its existing real-subprocess tests.
 - `ci/tools/canonical_maintenance.py` and `tests/ci_security/test_canonical_maintenance.py`.
 - `.github/workflows/check-common-versions.yml` and `tests/ci_security/test_unified_common_maintenance_workflow.py`.
+- `ci/checks/security/check-ci-security-contract.py` and `tests/ci_security/test_ci_security_contract.py` bind the reviewed workflow profile and reject altered retention/command guards.
 - `docs/github-actions-workflow-security.md` / `docs/github-actions-workflow-security.de.md` and this record pair.
 
 The import regression removes `PYTHONPATH` and runs from the fixture directory.
@@ -75,6 +79,13 @@ retains their exact host paths.
 
 The existing locked Ruff 0.16.10 binary passed `check --no-cache` and
 `format --check` for all five changed Python files. No tool was installed.
+
+First-head CI exposed the additional exact workflow-profile requirement. After
+updating that profile, the direct CI security checker, 36 existing contract tests,
+and the affected proposed-tool-tree validation test passed. Three additional
+mutations in an existing negative test reject missing or changed artifact
+conditions and a removed command guard. Ruff lint/format passed the two additional
+Python files. Hosted checks must be evaluated at the follow-up commit.
 
 ## Security impact
 

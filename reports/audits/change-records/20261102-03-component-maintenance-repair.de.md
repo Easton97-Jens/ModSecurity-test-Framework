@@ -49,12 +49,16 @@ Fehlerzeile bewahren. Begrenzten Diagnosetext escapen und den Bericht zwischen
 unvorhersehbaren Stop-/Resume-Markern des Runners ausgeben. Den an Run und Attempt
 gebundenen Plan mit `!cancelled()` hochladen; Resolver-Exitcodes, Digest-Prüfungen,
 Berechtigungen und Downstream-Gates bleiben erhalten.
+Der Security-Checker verlangt den exakten geprüften Resolver-Body-Digest und die
+exakte Bedingung zur Fehleraufbewahrung; entfernte Kommandosperren oder geänderte
+Artefaktbedingungen bleiben Vertragsverletzungen.
 
 ## Geänderte Dateien und Tests
 
 - `ci/tools/sync-crs-contract-views.py` und seine bestehenden Tests mit echten Unterprozessen.
 - `ci/tools/canonical_maintenance.py` und `tests/ci_security/test_canonical_maintenance.py`.
 - `.github/workflows/check-common-versions.yml` und `tests/ci_security/test_unified_common_maintenance_workflow.py`.
+- `ci/checks/security/check-ci-security-contract.py` und `tests/ci_security/test_ci_security_contract.py` binden das geprüfte Workflow-Profil und weisen veränderte Aufbewahrungs-/Kommandosperren ab.
 - `docs/github-actions-workflow-security.md` / `docs/github-actions-workflow-security.de.md` und dieses Record-Paar.
 
 Die Importregression entfernt `PYTHONPATH` und läuft aus dem Fixture-Verzeichnis.
@@ -78,6 +82,14 @@ Der lokale Task-Plan bewahrt deren exakte Host-Pfade auf.
 
 Das bestehende gesperrte Ruff-0.16.10-Binary bestand `check --no-cache` und
 `format --check` für alle fünf geänderten Python-Dateien. Es wurde kein Tool installiert.
+
+Die CI am ersten Head zeigte die zusätzliche Anforderung eines exakten
+Workflow-Profils. Nach dessen Aktualisierung bestanden der direkte
+CI-Security-Checker, 36 bestehende Vertragstests und der betroffene Test zur
+Validierung des vorgeschlagenen Tool-Baums. Drei zusätzliche Mutationen in einem
+bestehenden Negativtest weisen fehlende oder geänderte Artefaktbedingungen und
+eine entfernte Kommandosperre ab. Ruff Lint/Format bestand für die zwei weiteren
+Python-Dateien. Hosted-Prüfungen sind am Folgecommit zu bewerten.
 
 ## Sicherheitsauswirkung
 

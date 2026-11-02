@@ -828,6 +828,19 @@ jobs:
                 "            --validate-only",
                 1,
             ),
+            "artifact-skips-failed-resolution": workflow.replace(
+                "        if: ${{ !cancelled() }}\n", "", 1
+            ),
+            "artifact-runs-after-cancellation": workflow.replace(
+                "        if: ${{ !cancelled() }}\n",
+                "        if: ${{ always() }}\n",
+                1,
+            ),
+            "diagnostics-enable-runner-command-injection": workflow.replace(
+                "          printf '::stop-commands::%s\\n' \"$diagnostic_marker\"\n",
+                "",
+                1,
+            ),
             "artifact-name-is-not-caller-bound": workflow.replace(
                 "canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}",
                 "canonical-maintenance-plan-unbound",
