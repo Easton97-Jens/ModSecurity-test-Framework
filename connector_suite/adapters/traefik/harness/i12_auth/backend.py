@@ -35,10 +35,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error(400)
             return
         name = matched.group(1)
+        # Keep admitted destinations within the backend directory as a second
+        # boundary. The separator excludes sibling paths with the same prefix.
+        prefix = os.path.abspath(root) + os.sep
+        request_path = os.path.abspath(root / (name + '.request-body.raw'))
+        response_path = os.path.abspath(root / (name + '.response-body.raw'))
+        if not request_path.startswith(prefix):
+            self.send_error(400)
+            return
+        if not response_path.startswith(prefix):
+            self.send_error(400)
+            return
         length = int(self.headers.get('Content-Length', '0'))
         if not 0 <= length <= 8192:self.send_error(400);return
         body = self.rfile.read(length)
-        (root / (name + '.request-body.raw')).write_bytes(body)
+        Path(request_path).write_bytes(body)
         response = b'i12-response-marker:' + name.encode() + b'\n'
         if name == 'p4-safe':response = b'i12-block-response\n'
         if name == 'large-response':response = b'i12-large-response-' + b'x' * 40000
@@ -56,7 +67,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             'request_body_bytes': len(body), 'request_body_sha256': hashlib.sha256(body).hexdigest(),
             'response_status': 200, 'response_written_bytes': written, 'response_error': error,
             'response_body_sha256': hashlib.sha256(response).hexdigest(), 'finished_ns': time.monotonic_ns()}
-        (root / (name + '.response-body.raw')).write_bytes(response)
+        Path(response_path).write_bytes(response)
         with (root / 'receipts.jsonl').open('a') as stream:stream.write(json.dumps(record) + '\n')
     def log_message(self, *_args):
         return None  # Physical receipts own bounded HTTP evidence.
