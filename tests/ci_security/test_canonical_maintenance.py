@@ -62,6 +62,63 @@ class FakePyPiClient:
 
 
 class CanonicalMaintenanceTests(unittest.TestCase):
+    def test_plan_markdown_includes_bounded_inert_failure_reasons(self) -> None:
+        unsafe = "<script>bad</script>|`[link](url)\n::error::\x1b[31m" + "x" * 300
+        cause = "ModuleNotFoundError: No module named 'modsecurity_test_framework'"
+        with mock.patch.object(
+            MAINTENANCE.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess(
+                [],
+                1,
+                stdout="generator started\n",
+                stderr="Traceback (most recent call last):\n"
+                + "frame details\n" * 30
+                + cause
+                + "\n\n",
+            ),
+        ):
+            failure = MAINTENANCE.generated_view_status(ROOT)[-2]
+        plan = {
+            "maintenance_outcome": "fatal",
+            "scope": {"mode": "all"},
+            "component_results": [
+                {
+                    "scope": "runtime-source",
+                    "component_name": "CRS",
+                    "current": "4.0.0",
+                    "latest_compatible": "",
+                    "latest_upstream": "",
+                    "status": "blocked",
+                    "message": "upstream lookup failed",
+                }
+            ],
+            "safe_updates": [],
+            "manual_reviews": [],
+            "generated_view_status": [
+                failure,
+                {
+                    "name": "crs-contract-views",
+                    "status": "blocked",
+                    "message": unsafe,
+                },
+            ],
+        }
+        plan["plan_sha256"] = hashlib.sha256(
+            MAINTENANCE._canonical_json(plan)
+        ).hexdigest()
+        rendered = MAINTENANCE.render_plan_markdown(plan)
+        self.assertIn("upstream lookup failed", rendered)
+        self.assertIn("ModuleNotFoundError: No module named", rendered)
+        self.assertIn("modsecurity&#95;test&#95;framework", rendered)
+        self.assertIn("&lt;script&gt;bad&lt;/script&gt;", rendered)
+        self.assertIn("&#124;&#96;&#91;link&#93;", rendered)
+        self.assertNotIn("<script>", rendered)
+        self.assertNotIn("\x1b", rendered)
+        self.assertNotIn("x" * 241, rendered)
+        self.assertIn("- Outcome: `fatal`", rendered)
+        self.assertEqual(MAINTENANCE.validate_plan_digest(plan), plan["plan_sha256"])
+
     def test_go_ftw_ignores_drafts_and_keeps_derived_aliases_out_of_updates(
         self,
     ) -> None:
