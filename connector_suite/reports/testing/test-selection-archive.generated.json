@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "a4115ab4df7ad5d558ebdbe1104c1041c3313951b35dc413896646f43d4b22bb",
+  "inventory_sha256": "e0ecdcffe5961eb058b08aa0a13b3124947cba4a0a6db40b8cb224c6b90f1483",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7973,
+  "on_demand_definition_count": 8008,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -5161,6 +5161,9 @@
       "framework_path": "connector_suite/modsecurity_connector_tests/test_framework_workflow_pin_projection.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_all_registered_refs_and_inputs_follow_identity_without_other_byte_changes",
+        "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_early_gate_inventory_is_closed_and_projects_round_trip",
+        "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_early_gate_missing_stale_extra_or_malformed_pin_fails_without_writes",
+        "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_early_gate_proves_selected_action_identity_before_checked_out_verifier",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_stale_symbolic_duplicate_or_missing_reference_rejected_without_writes",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_unregistered_workflow_and_historical_proof_are_untouched",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_trusted_base_reconstruction_rejects_unrelated_bytes_and_index_mode",
@@ -5169,7 +5172,7 @@
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_ci_validation_bridge_rejects_framework_checkout_pin_mismatch"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_framework_workflow_pin_projection.py",
-      "source_sha256": "920a00768f4f6bc9ea193b4ed0701fb51828da80f24740dae61781dd69ee317f"
+      "source_sha256": "bbdd9613646bc9ec4414d0377ebc7977c6c9a4e3c9abd1ace6fceb8e294a7d17"
     },
     {
       "contains_selected_definitions": [],
@@ -9747,6 +9750,8 @@
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_unproven_trusted_base_context_python_never_gains_order_exemption",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_trusted_base_body_cannot_hide_an_unnamed_early_python_execution",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_normal_jobs_still_require_the_one_exact_current_verifier_command",
+        "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_current_parent_composite_jobs_follow_actual_feature_source_order",
+        "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_protected_broker_verifier_wrapper_is_exact_and_job_scoped",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_expected_inventory_tracks_normal_and_candidate_jobs",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_valid_yaml_control_is_accepted",
         "modsecurity_connector_tests.test_python_version_contract.PythonVersionContractTest.test_manual_mapping_parser_preserves_the_narrow_contract_shapes",
@@ -9780,7 +9785,7 @@
         "modsecurity_connector_tests.test_python_version_contract.WorkflowActionPinsTest.test_missing_action_is_rejected"
       ],
       "source": "tests/test_python_version_contract.py",
-      "source_sha256": "e8e63e85add4a36234444f7c755e7f46bbdde0501a0bb119b2836a633aae0a03"
+      "source_sha256": "805787d166045e7f2bd6d640d6ee3fd13362e54bf5419e61f1bceef5d7628734"
     },
     {
       "contains_selected_definitions": [],
@@ -11884,6 +11889,10 @@
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_albedo_zero_minor_transition_is_a_review_with_safe_patch",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_pyyaml_update_is_an_atomic_artifact_platform_digest_tuple",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_node_uses_the_latest_stable_release_across_major_lines",
+        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_reviewed_pyyaml_source_is_current_without_automatic_updates",
+        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_new_source_releases_require_manual_backend_and_artifact_review",
+        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_pyyaml_source_provenance_is_fail_closed",
+        "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_osv_baselines_are_manual_only_and_bound_to_historical_python_lines",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_node_blocks_when_only_prerelease_or_malformed_records_exist",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_dynamic_ci_group_coverage_rejects_an_incomplete_tool_tuple",
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_derived_ci_tool_asset_is_rechecked_after_its_version_change",
@@ -11894,7 +11903,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_ci_tool_provider_transition_is_classified_before_release_lookup"
       ],
       "source": "framework/tests/ci_security/test_canonical_maintenance.py",
-      "source_sha256": "6a7ebabe4998944ec696cf9160ecf3567b55cf6638fc6cbc561edd96e180ec02"
+      "source_sha256": "2f91398c211bbf10f130c2c9c80e87ff062b6e164d1d7673565a522470e28c1d"
     },
     {
       "contains_selected_definitions": [],
@@ -11910,10 +11919,32 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "tests/ci_security/test_ci_dependency_source_build.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_source_temp_rejects_replaceable_ancestor",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_root_owned_sticky_shared_ancestor_is_allowed_but_not_as_base",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_generic_temp_environment_cannot_select_source_build_storage",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_source_temp_admits_private_and_actions_style_directories",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_source_temp_rejects_shared_writes_wrong_owner_links_and_checkout",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_runtime_admits_venv_and_verified_actions_setup_python",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_only_fixed_official_file_urls_are_accepted",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_hash_is_checked_before_file_creation",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_redirect_handler_fails_closed",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_source_archive_rejects_traversal_links_and_devices",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_build_environment_has_no_inherited_credentials_or_python_overrides",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_build_lock_must_be_complete_unique_and_match_source",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_dependency_source_build.SourceDependencyBuildTests.test_no_builder_runs_if_source_verification_fails"
+      ],
+      "source": "framework/tests/ci_security/test_ci_dependency_source_build.py",
+      "source_sha256": "4550ab1f4500d42abc951ed2f454868017c5321b3d5f3730731e3e7b330841b3"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "tests/ci_security/test_ci_security_contract.py",
       "on_demand_definitions": [
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_current_workflows_meet_the_contract",
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_shared_ci_dependency_installer_is_hash_bound_and_required",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_delegated_ci_installer_inputs_are_independently_hash_bound",
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_setup_python_version_file_parsing_accepts_reviewed_values_and_rejects_long_input",
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_lock_has_complete_action_and_tool_provenance",
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_safe_fixture_has_no_trust_boundary_error",
@@ -11950,7 +11981,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_archive_member_validation_rejects_path_escape"
       ],
       "source": "framework/tests/ci_security/test_ci_security_contract.py",
-      "source_sha256": "ffc9abd31668975c2083feac6d4ce69374bdd0762eee35c33e260265b01a93ed"
+      "source_sha256": "5ce262257e5ce2069b082111730681541b1f9853d874f3ef65b962ff2fb3ca7c"
     },
     {
       "contains_selected_definitions": [],
@@ -12044,13 +12075,14 @@
       "framework_path": "tests/ci_security/test_connector_action_pins.py",
       "on_demand_definitions": [
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_all_reviewed_sources_validate_without_connector_checkout",
+        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_renewed_bootstrap_source_contract_rejects_gate_and_order_tampering",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_wrong_action_sha_is_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_coordinated_workflow_and_lock_rewrite_cannot_reauthorize_itself",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_protected_runner_and_permission_changes_are_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_unknown_source_path_cannot_borrow_the_integration_authority"
       ],
       "source": "framework/tests/ci_security/test_connector_action_pins.py",
-      "source_sha256": "993db1d4a8a826d92fba6ec4ad3b5439516e8c6473a3a02d519ee30ec85e410d"
+      "source_sha256": "28d8995763b5ffa30a3d9f61c0808ca80f9dd7166ab9da29210b965622f54107"
     },
     {
       "contains_selected_definitions": [],
@@ -12116,7 +12148,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_five_connector_with_crs_no_mrts_contract.FiveConnectorWorkflowSecurityContractTest.test_workflow_is_a_read_only_portable_contract_gate"
       ],
       "source": "framework/tests/ci_security/test_five_connector_with_crs_no_mrts_contract.py",
-      "source_sha256": "2eff4b68b8b4a57d8ddf93731bf6a6750add4b0f82f5180c837845859b44ee9c"
+      "source_sha256": "7aa23781c2b6c2c69b3f11238aee0cb31c7abf52d9e9c3aa8497fb476ad8b0e7"
     },
     {
       "contains_selected_definitions": [],
@@ -12126,7 +12158,8 @@
         "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_cli_lock_path_is_confined_to_the_framework_root",
         "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_uses_parser_preserves_quotes_and_rejects_malformed_quotes",
         "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_osv_and_scorecard_evidence_contracts_reject_regressions",
-        "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_osv_trusted_base_bootstrap_allows_only_legacy_cp313_transition",
+        "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_osv_dependency_bootstrap_binds_exact_historical_routes",
+        "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_osv_trusted_base_bootstrap_allows_only_pinned_historical_transitions",
         "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_safe_and_unsafe_trust_boundary_fixtures",
         "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_yaml_workflow_and_quoted_mutable_action_are_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_contract_rejects_broad_controls_and_unlocked_container",
@@ -12137,7 +12170,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_fetcher_requires_a_runner_temp_child_without_symlinks"
       ],
       "source": "framework/tests/ci_security/test_framework_ci_security_contract.py",
-      "source_sha256": "73bdc805646660b48621c9aa31557c2b4dd81b0ad4364b31df1775d0d19b0d24"
+      "source_sha256": "919edf7f7eb653667e8f3a10952858d2255d7df1fef5df609980f2179cb2e4db"
     },
     {
       "contains_selected_definitions": [],
@@ -12177,7 +12210,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_python_version_contract.PythonVersionContractTest.test_indirect_make_python_requires_reviewed_setup_and_setup_pin_comment"
       ],
       "source": "framework/tests/ci_security/test_python_version_contract.py",
-      "source_sha256": "a05241719256d08957bc2ca36fa478fc7089de7197fb186c4ae193d874840a69"
+      "source_sha256": "a25a6666ff820b7dfff1e40c2b7b45c8124b74f1fca5b9209afe000f8fbb7f6f"
     },
     {
       "contains_selected_definitions": [],
@@ -12217,6 +12250,8 @@
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_python_pins.CanonicalPythonPinsTest.test_check_passes_and_does_not_write",
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_python_pins.CanonicalPythonPinsTest.test_write_repairs_views_and_is_idempotent",
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_python_pins.CanonicalPythonPinsTest.test_malformed_canonical_digest_is_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_python_pins.CanonicalPythonPinsTest.test_source_artifact_generates_hash_locked_provenance",
+        "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_python_pins.CanonicalPythonPinsTest.test_artifact_version_and_source_platform_must_match",
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_python_pins.CanonicalPythonPinsTest.test_pathological_platform_is_rejected_in_linear_time",
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_python_pins.CanonicalPythonPinsTest.test_duplicate_canonical_assignment_is_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_python_pins.CanonicalPythonPinsTest.test_symlinked_common_source_is_rejected_before_read",
@@ -12229,7 +12264,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_python_pins.CanonicalPythonPinsTest.test_symlinked_generated_parent_is_rejected"
       ],
       "source": "framework/tests/ci_security/test_sync_canonical_python_pins.py",
-      "source_sha256": "5677089cce53d1ef8af38e3d3980edfbb497d156bcdbd443720c02d8c0861865"
+      "source_sha256": "9b554caa9341b8ce93e81f49dbd2e5f0bbfa192abb3680f165c990b19e549a89"
     },
     {
       "contains_selected_definitions": [],
@@ -12249,7 +12284,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_write_rejects_symlinked_generated_output"
       ],
       "source": "framework/tests/ci_security/test_sync_canonical_workflow_pins.py",
-      "source_sha256": "ce22da508c2d790a8416e64f0493d60213f350194ed02d9714eb24c0ecc152e8"
+      "source_sha256": "511b4c3afc52bdb056466349a5cdf5dc150a67e5a78ae7c29d18e3cd470b4d34"
     },
     {
       "contains_selected_definitions": [],
@@ -12291,7 +12326,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_result_summary_covers_required_outcomes"
       ],
       "source": "framework/tests/ci_security/test_unified_common_maintenance_workflow.py",
-      "source_sha256": "22c39989cb2d676d6f1ab08c2e8439639995cb29b01a46330dc86bbbf555e9ae"
+      "source_sha256": "26c2da5c008f039bdd47bea0c7fc9110281f77018393e31f4eb3d4eac48c7900"
     },
     {
       "contains_selected_definitions": [],
@@ -12300,6 +12335,8 @@
         "modsecurity_test_framework.selftests.ci_security.test_update_python_version.UpdatePythonVersionTest.test_check_resolves_update_without_mutating_the_canonical_file",
         "modsecurity_test_framework.selftests.ci_security.test_update_python_version.UpdatePythonVersionTest.test_equal_downgrade_and_missing_stable_results_are_fail_closed",
         "modsecurity_test_framework.selftests.ci_security.test_update_python_version.UpdatePythonVersionTest.test_invalid_current_version_and_metadata_schema_do_not_write",
+        "modsecurity_test_framework.selftests.ci_security.test_update_python_version.UpdatePythonVersionTest.test_only_exact_reviewed_315_versions_are_accepted",
+        "modsecurity_test_framework.selftests.ci_security.test_update_python_version.UpdatePythonVersionTest.test_other_series_and_prereleases_cannot_be_selected",
         "modsecurity_test_framework.selftests.ci_security.test_update_python_version.UpdatePythonVersionTest.test_redirect_network_failure_and_leading_zero_metadata_are_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_update_python_version.UpdatePythonVersionTest.test_ascii_only_version_and_metadata_values_are_enforced",
         "modsecurity_test_framework.selftests.ci_security.test_update_python_version.UpdatePythonVersionTest.test_network_error_classification_preserves_http_ordering",
@@ -12312,7 +12349,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_update_python_version.UpdatePythonVersionTest.test_candidate_file_cli_rejects_a_caller_selected_destination"
       ],
       "source": "framework/tests/ci_security/test_update_python_version.py",
-      "source_sha256": "3eb1dad2ee0713b980d68235917aae608edaf1eaa33a0d27d51e7e7ff6767d20"
+      "source_sha256": "6262f749929d9104ccadd08412bf2ed20a869e8503c33dbd3b987663fc08b0af"
     },
     {
       "contains_selected_definitions": [],
@@ -12383,7 +12420,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_updater_readiness.UpdaterReadinessTests.test_actionlint_only_adds_the_exact_official_runner_label"
       ],
       "source": "framework/tests/ci_security/test_updater_readiness.py",
-      "source_sha256": "5e35916f66c9c3175c546990c62913c44378aa88dabad7a30b1524a9e1b26839"
+      "source_sha256": "ab23a8f0276db43dc9506546b917c6aade38aa4975f7e25da09e58933ce3c826"
     },
     {
       "contains_selected_definitions": [],
@@ -12461,6 +12498,9 @@
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_missing_source_or_incomplete_pin_never_falls_back_to_old_workflow",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_plain_fixture_workflow_stays_independent_of_connector_context",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_static_lint_input_retains_actual_shared_helper_commands",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_historical_broker_preserves_actual_immutable_inner_identity",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_historical_broker_rejects_changed_source_contracts",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_connector_composites_verify_source_before_bootstrapping_python",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_view_contains_actual_inner_jobs_and_parent_trigger",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_wrong_pin_foreign_callee_and_owner_fail_closed",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_wrong_caller_name_is_rejected",
@@ -12474,7 +12514,7 @@
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.CompositeShellcheckAdmissionTests.test_shellcheck_rechecked_before_actionlint_process"
       ],
       "source": "framework/tests/connector_adapter/test_workflow_sources.py",
-      "source_sha256": "3e69ea1f8135c24ad1a0fcc4ffb5ddc2c25a8d1cdf3f96a18fb26485f5af67e3"
+      "source_sha256": "06f6abf08875e00fd7226fda147a61c6e966344639620208dc09d35cd4231bb5"
     },
     {
       "contains_selected_definitions": [],
@@ -13548,6 +13588,8 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_cli_rejects_arbitrary_common_source_before_read",
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_validate_canonical_rejects_environment_default_pin_even_with_attacker_env",
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_active_consumer_scan_rejects_a_copied_current_pin",
+        "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_source_layout_metadata_exemptions_do_not_cover_runtime_installer",
+        "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_osv_314_metadata_requires_stable_line_and_literal_assignments",
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_active_consumer_scan_rejects_copied_identity_fields",
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_production_open_ssl_and_nginx_asset_urls_remain_version_derived",
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_json_accept_header_is_specific_to_github_api",
@@ -13558,7 +13600,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_list_components_and_unknown_component_are_deterministic"
       ],
       "source": "framework/tests/security_regression/test_common_version_atomic_provenance.py",
-      "source_sha256": "36390887d3d5b8d7c2ba2a6089d9b59cd51dfa7ab91634d13a5759321217920e"
+      "source_sha256": "8c6bbd531efb6fd06be17076aaa5172366753f5bc7cc3e9973e31aa0820beee7"
     },
     {
       "contains_selected_definitions": [],
@@ -14287,6 +14329,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.SonarScopeTests.test_root_git_metadata_is_excluded_without_hiding_product_directories",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.SonarSecretBoundaryTests.test_full_checker_rejects_source_revision_bypasses",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.SonarSecretBoundaryTests.test_full_checker_accepts_real_workflow",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.SonarSecretBoundaryTests.test_native_package_bootstrap_rejects_unreviewed_apt_sources",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.SonarSecretBoundaryTests.test_canonical_action_update_requires_matching_source_and_lock",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.SonarSecretBoundaryTests.test_reviewed_same_repository_scanner_is_allowed",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.SonarSecretBoundaryTests.test_mutated_trust_boundaries_are_rejected",
@@ -14305,7 +14348,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.ApprovedSdkPreparationTests.test_symlinked_sdk_run_root_preserves_external_directory"
       ],
       "source": "framework/tests/security_regression/test_sonar_analysis_contract.py",
-      "source_sha256": "14150610c9022ff292cdb4026060d2fefc80b776ae08ba1beada9efab84cce21"
+      "source_sha256": "d7ee2324e87ac048ff78f718b4292dbb4c319f5880f1b76b5d80240f4420476c"
     },
     {
       "contains_selected_definitions": [],

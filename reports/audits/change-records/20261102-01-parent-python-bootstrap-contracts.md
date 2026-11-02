@@ -141,3 +141,5 @@ immutable; composing their interface does not execute them.
 
 Implementation diff and whitespace reviewed; no secrets or raw logs recorded.
 Independent review found no open blocker; hosted checks remain pending before final delivery.
+
+The next hosted Parent head passed the inventory digest boundary, then its NGINX setup/quick-check correctly rejected the derived specialist archive. Regenerated `connector_suite/reports/testing/test-selection-archive.generated.json` with the existing `update-test-archive.py`. Its prior inventory and source digests matched the last archive baseline exactly. Changes describe the new inventory digest, 16 existing source records and one new source record, with 35 additional on-demand definitions. Native sources, Framework case catalogues and extracted native definitions are unchanged. This is declarative availability, not extra automatic selection or execution evidence. The complete native `make check-active-inventory` entrypoint passed for both projections on Python 3.15.2.

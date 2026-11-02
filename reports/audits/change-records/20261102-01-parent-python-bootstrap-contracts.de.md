@@ -150,3 +150,5 @@ komponieren führt sie nicht aus.
 
 Implementierungsdiff und Whitespace geprüft; keine Secrets oder Rohlogs erfasst.
 Unabhängiges Review fand keinen offenen Blocker; gehostete Prüfungen bleiben vor finaler Lieferung offen.
+
+Der nächste gehostete Parent-Commit bestand die Inventar-Digestgrenze; sein NGINX-Setup/Quick-Check verweigerte anschließend korrekt das abgeleitete Spezialistenarchiv. `connector_suite/reports/testing/test-selection-archive.generated.json` wurde mit dem vorhandenen `update-test-archive.py` neu erzeugt. Die vorherigen Inventar- und Quelldigests entsprachen exakt der letzten Archiv-Basis. Die Änderung beschreibt den neuen Inventar-Digest, 16 vorhandene und einen neuen Quelleintrag sowie 35 zusätzliche On-Demand-Definitionen. Native Quellen, Framework-Fallkataloge und extrahierte native Definitionen bleiben unverändert. Dies beschreibt deklarative Verfügbarkeit, keine zusätzliche automatische Auswahl oder Ausführungsevidenz. Der vollständige native Einstieg `make check-active-inventory` bestand mit beiden Ansichten unter Python 3.15.2.
