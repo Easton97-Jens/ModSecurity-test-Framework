@@ -45,6 +45,8 @@ The selected [CodeQL SSL model](https://github.com/github/codeql/blob/6e9f9e3839
 
 The first PR run exposed an existing component-certificate helper dependency on an unavailable `rtk` executable. That subprocess argument list now invokes the installed `openssl` directly, matching the adjacent Envoy/HTX fixture helpers. Local shell verification remains RTK-wrapped; no tool installation or authentication change is introduced. Run 41399496348 at initial head 11b0da7 failed before the actual client-process control; its failure is not counted as a pass. Follow-up head checks must replace that stale result.
 
+The actual client subprocess also enforces the harness's fixed admitted storage root. CI supplies a private, run-specific `I12_TEST_ROOT` beneath that root, created with umask 077, instead of its unrelated runner temporary root. A negative direct invocation with an out-of-boundary directory fails before capture I/O; source path/admission checks are retained. Run 41400064668 at 7b5427f passed the protocol methods but failed this component execution-context requirement; final-head checks must complete the whole step.
+
 ## Commands and results
 
 All procedures use RTK and the Framework-owned interpreter. `FRAMEWORK_ROOT` denotes the task worktree; `RUN_ROOT` denotes the configured external evidence root for run ID `framework-tls-floor-20261102`. Exact invocation details and lifecycle results are retained in its execution plan; no raw logs or certificate private keys are copied here.

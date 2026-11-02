@@ -167,9 +167,11 @@ jobs:
       - name: Run actual TLS protocol and verified loopback regressions without skips
         env:
           ON_DEMAND_TESTS: "1"
-          I12_TEST_ROOT: ${{ runner.temp }}/codeql-boundary-tmp
+          I12_TEST_ROOT: /var/tmp/codex/ModSecurity-conector/ci-tls-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           set -euo pipefail
+          umask 077
+          mkdir -p "$I12_TEST_ROOT"
           python3 - <<'PY'
           import sys
           import unittest
