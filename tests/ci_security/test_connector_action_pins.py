@@ -41,24 +41,35 @@ class ConnectorActionPinsTests(unittest.TestCase):
     def test_renewed_bootstrap_source_contract_rejects_gate_and_order_tampering(self):
         root = self.fixture()
         lock = PINS["load_lock"](ROOT)
-        reviewed = [relative for relative in lock["sources"]
-                    if relative.startswith(".github/actions/connector-ci/")
-                    and "Verify Framework checkout before Python bootstrap" in (root / relative).read_text()]
+        reviewed = [
+            relative
+            for relative in lock["sources"]
+            if relative.startswith(".github/actions/connector-ci/")
+            and "Verify Framework checkout before Python bootstrap"
+            in (root / relative).read_text()
+        ]
         self.assertEqual(len(reviewed), 18)
         for relative in reviewed:
             path = root / relative
             original = path.read_text()
             mutations = (
-                ('test "$actual" = "$committed"', 'true # skip checkout identity'),
-                ('test "$committed" = "$EXPECTED_FRAMEWORK_REVISION"', 'true # skip selected source identity'),
-                ('python-version-file: .python-version', 'python-version: 3.15'),
+                ('test "$actual" = "$committed"', "true # skip checkout identity"),
+                (
+                    'test "$committed" = "$EXPECTED_FRAMEWORK_REVISION"',
+                    "true # skip selected source identity",
+                ),
+                ("python-version-file: .python-version", "python-version: 3.15"),
             )
             for old, new in mutations:
                 with self.subTest(source=relative, mutation=old):
                     self.assertIn(old, original)
                     path.write_text(original.replace(old, new, 1))
-                    self.assertTrue(any("reviewed migration contract" in error
-                                        for error in PINS["validate_source"](root, relative)))
+                    self.assertTrue(
+                        any(
+                            "reviewed migration contract" in error
+                            for error in PINS["validate_source"](root, relative)
+                        )
+                    )
             path.write_text(original)
 
     def test_wrong_action_sha_is_rejected(self):
