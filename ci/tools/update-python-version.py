@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve and safely apply reviewed stable CPython 3.14 patch updates.
+"""Resolve and safely apply reviewed stable CPython 3.15 patch updates.
 
 The updater resolves releases from Python.org and requires the matching build
 in the official actions/python-versions manifest. It does not consume a GitHub token, follow redirects, scrape HTML,
@@ -33,7 +33,7 @@ _RUNNER_SPEC.loader.exec_module(RUNNER_BUILDS)
 
 CANONICAL_SOURCE_FILE = Path("ci/lib/common.sh")
 CANONICAL_ASSIGNMENT = "CI_CANONICAL_PYTHON_VERSION"
-CANDIDATE_FILE_NAME = "framework-python-3.14-candidate"
+CANDIDATE_FILE_NAME = "framework-python-3.15-candidate"
 METADATA_URL = "https://www.python.org/api/v2/downloads/release/"
 METADATA_HOST = "www.python.org"
 METADATA_PATH = "/api/v2/downloads/release/"
@@ -41,7 +41,7 @@ MAX_METADATA_BYTES = 1_000_000
 DEFAULT_TIMEOUT_SECONDS = 20.0
 MAX_TIMEOUT_SECONDS = 60.0
 ASCII_REGEX_FLAGS = re.ASCII
-VERSION_PATTERN = re.compile(r"^3\.14\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS)
+VERSION_PATTERN = re.compile(r"^3\.15\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS)
 CANONICAL_ASSIGNMENT_PREFIX = re.compile(
     rf"^[ \t]*{CANONICAL_ASSIGNMENT}(?:[ \t=]|$)", ASCII_REGEX_FLAGS
 )
@@ -51,8 +51,8 @@ CANONICAL_ASSIGNMENT_LINE = re.compile(
     rf"(?P<suffix>\"[ \t]*(?:#.*)?(?:\r?\n)?$)",
     ASCII_REGEX_FLAGS,
 )
-RELEASE_NAME_PATTERN = re.compile(r"^Python 3\.14\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS)
-LEADING_ZERO_RELEASE_PATTERN = re.compile(r"^Python 3\.14\.0\d+$", ASCII_REGEX_FLAGS)
+RELEASE_NAME_PATTERN = re.compile(r"^Python 3\.15\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS)
+LEADING_ZERO_RELEASE_PATTERN = re.compile(r"^Python 3\.15\.0\d+$", ASCII_REGEX_FLAGS)
 RELEASE_DATE_PATTERN = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$",
     ASCII_REGEX_FLAGS,
@@ -89,7 +89,7 @@ class PythonVersion:
 
     @property
     def text(self) -> str:
-        return f"3.14.{self.patch}"
+        return f"3.15.{self.patch}"
 
     @classmethod
     def parse(cls, value: str) -> "PythonVersion":
@@ -97,7 +97,7 @@ class PythonVersion:
         if match is None:
             raise UpdaterFailure(
                 "invalid_current_version",
-                "the canonical version must be an exact stable 3.14.<numeric patch>",
+                "the canonical version must be an exact stable 3.15.<numeric patch>",
             )
         return cls(patch=int(match.group(1)))
 
@@ -319,8 +319,8 @@ def fetch_release_metadata(
     return [dict(record) for record in parsed]
 
 
-def stable_314_release_patch(record: dict[str, object]) -> int | None:
-    """Return a published stable 3.14 patch after name and flag validation."""
+def stable_315_release_patch(record: dict[str, object]) -> int | None:
+    """Return a published stable 3.15 patch after name and flag validation."""
 
     name = record.get("name")
     if not isinstance(name, str):
@@ -343,10 +343,10 @@ def stable_314_release_patch(record: dict[str, object]) -> int | None:
     return int(match.group(1))
 
 
-def validate_stable_314_release_details(record: dict[str, object], patch: int) -> None:
+def validate_stable_315_release_details(record: dict[str, object], patch: int) -> None:
     """Validate strict metadata fields required for a selected stable release."""
 
-    if record.get("slug") != f"python-314{patch}":
+    if record.get("slug") != f"python-315{patch}":
         raise UpdaterFailure(
             "unsupported_response", "metadata release slug is inconsistent"
         )
@@ -357,15 +357,15 @@ def validate_stable_314_release_details(record: dict[str, object], patch: int) -
         raise UpdaterFailure("unsupported_response", "metadata release date is invalid")
 
 
-def stable_314_releases(records: list[dict[str, object]]) -> dict[int, PythonVersion]:
-    """Select published, non-prerelease stable 3.14 releases from strict records."""
+def stable_315_releases(records: list[dict[str, object]]) -> dict[int, PythonVersion]:
+    """Select published, non-prerelease stable 3.15 releases from strict records."""
 
     releases: dict[int, PythonVersion] = {}
     for record in records:
-        patch = stable_314_release_patch(record)
+        patch = stable_315_release_patch(record)
         if patch is None:
             continue
-        validate_stable_314_release_details(record, patch)
+        validate_stable_315_release_details(record, patch)
         if patch in releases:
             raise UpdaterFailure(
                 "unsupported_response", "metadata contains duplicate stable releases"
@@ -387,17 +387,17 @@ def resolve_update(
     except UpdaterFailure as exc:
         return UpdateResult(exc.status, None, None, exc.message)
     try:
-        releases = stable_314_releases(
+        releases = stable_315_releases(
             fetch_release_metadata(timeout=timeout, opener=opener)
         )
     except UpdaterFailure as exc:
         return UpdateResult(exc.status, current.text, None, exc.message)
     if not releases:
         return UpdateResult(
-            "no_stable_3_14_release",
+            "no_stable_3_15_release",
             current.text,
             None,
-            "metadata contains no published stable CPython 3.14 release",
+            "metadata contains no published stable CPython 3.15 release",
         )
     latest = releases[max(releases)]
     if latest < current:
@@ -421,7 +421,7 @@ def resolve_update(
         "update_available",
         current.text,
         latest.text,
-        "a newer published stable CPython 3.14 patch is available",
+        "a newer published stable CPython 3.15 patch is available",
     )
 
 
@@ -437,7 +437,7 @@ def require_expected_candidate(
             "blocked_metadata",
             result.current,
             result.candidate,
-            "the expected candidate is not an exact stable CPython 3.14 patch",
+            "the expected candidate is not an exact stable CPython 3.15 patch",
         )
     if result.status != "update_available" or result.candidate != expected_version.text:
         return UpdateResult(

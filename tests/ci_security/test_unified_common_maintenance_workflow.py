@@ -97,19 +97,18 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             )
             with self.subTest(job=job_name):
                 self.assertIn("snapshot-validation-inputs", snapshot["run"])
-                self.assertIn(
-                    "--require-hashes -r requirements-ci.lock", snapshot["run"]
-                )
-                self.assertIn("python3 -m pip check", snapshot["run"])
+                commands = [line.strip() for line in snapshot["run"].splitlines()]
+                installer = "bash ci/tools/install-hash-locked-ci-dependencies.sh"
+                self.assertEqual(commands.count(installer), 1)
                 self.assertLess(
-                    snapshot["run"].index("python3 -m pip install"),
-                    snapshot["run"].index("python3 -m pip check"),
-                )
-                self.assertLess(
-                    snapshot["run"].index("python3 -m pip check"),
-                    snapshot["run"].index(
-                        "python3 ci/tools/update-workflow-tools.py "
-                        "snapshot-validation-inputs"
+                    commands.index(installer),
+                    next(
+                        index
+                        for index, command in enumerate(commands)
+                        if command.startswith(
+                            "python3 ci/tools/update-workflow-tools.py "
+                            "snapshot-validation-inputs"
+                        )
                     ),
                 )
                 self.assertLess(
@@ -119,6 +118,24 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
                         for index, step in enumerate(job["steps"])
                         if step["name"]
                         == "Validate and apply caller-bound canonical plan"
+                    ),
+                )
+                apply_index = next(
+                    index
+                    for index, step in enumerate(job["steps"])
+                    if step["name"] == "Validate and apply caller-bound canonical plan"
+                )
+                validation_name = (
+                    "Validate generated workflow-tool candidate"
+                    if job_name == "candidate"
+                    else "Revalidate generated workflow-tool candidate"
+                )
+                self.assertLess(
+                    apply_index,
+                    next(
+                        index
+                        for index, step in enumerate(job["steps"])
+                        if step["name"] == validation_name
                     ),
                 )
 
@@ -251,6 +268,58 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             == "Create or update Draft PR from the full generated allowlist"
         )
         self.assertIn(catalog, create_pr["with"]["add-paths"].splitlines())
+
+    def test_maintenance_test_outputs_have_exactly_three_allowlist_projections(
+        self,
+    ) -> None:
+        outputs = {
+            "connector_suite/config/testing/active-cases.json",
+            "connector_suite/reports/testing/test-selection-archive.generated.json",
+        }
+        controls = next(
+            step
+            for step in self.workflow["jobs"]["candidate"]["steps"]
+            if step["name"] == "Validate candidate path policy and focused controls"
+        )
+        allowed_line = next(
+            line for line in controls["run"].splitlines() if line.startswith("allowed=")
+        )
+        pattern = shlex.split(allowed_line)[0].removeprefix("allowed=")
+        for output in outputs:
+            self.assertIsNotNone(re.fullmatch(pattern, output))
+            self.assertIsNone(re.fullmatch(pattern, output + ".unexpected"))
+        for forbidden in (
+            "connector_suite/config/testing/unreviewed.json",
+            "connector_suite/reports/testing/unreviewed.generated.json",
+            "connector_suite/reports/testing/../test-selection-archive.generated.json",
+        ):
+            self.assertIsNone(re.fullmatch(pattern, forbidden))
+        steps = self.workflow["jobs"]["publish"]["steps"]
+        inspect = next(
+            step
+            for step in steps
+            if step["name"]
+            == "Inspect matching Draft canonical maintenance pull request"
+        )
+        match = re.search(
+            r"const allowedPaths = new Set\(\[([\s\S]*?)\]\);",
+            inspect["with"]["script"],
+        )
+        self.assertIsNotNone(match)
+        assert match is not None
+        inspected_paths = set(re.findall(r'"([^"\n]+)"', match[1]))
+        create = next(
+            step
+            for step in steps
+            if step["name"]
+            == "Create or update Draft PR from the full generated allowlist"
+        )
+        published_paths = set(create["with"]["add-paths"].splitlines())
+        self.assertEqual(inspected_paths, published_paths)
+        self.assertEqual(
+            {path for path in inspected_paths if path.startswith("connector_suite/")},
+            outputs,
+        )
 
     def test_fatal_resolver_plan_is_summarized_before_failure_is_returned(self) -> None:
         resolver = self.workflow["jobs"]["canonical-maintenance"]["steps"][2]["run"]

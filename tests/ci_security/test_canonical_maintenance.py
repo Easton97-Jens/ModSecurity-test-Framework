@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
+from copy import deepcopy
 import importlib.util
 from pathlib import Path
 import subprocess
@@ -54,8 +56,8 @@ class FakeListClient:
 
 
 class FakePyPiClient:
-    def __init__(self, payload: dict[str, object]) -> None:
-        self.payload = payload
+    def __init__(self, payload: Mapping[str, object]) -> None:
+        self.payload = dict(payload)
 
     def get_json(self, _url: str) -> dict[str, object]:
         return self.payload
@@ -275,6 +277,127 @@ class CanonicalMaintenanceTests(unittest.TestCase):
         self.assertEqual(result["details"]["update_policy"], "latest_stable")
         self.assertEqual(reviews, [])
 
+    def source_pyyaml_fixture(
+        self,
+    ) -> tuple[dict[str, str], dict[str, dict[str, list[dict[str, object]]]]]:
+        artifact = "pyyaml-6.0.3.tar.gz"
+        source: dict[str, object] = {
+            "filename": artifact,
+            "packagetype": "sdist",
+            "yanked": False,
+            "digests": {"sha256": "a" * 64},
+            "url": "https://files.pythonhosted.org/packages/aa/bb/pyyaml-6.0.3.tar.gz",
+        }
+        values = {
+            "CI_CANONICAL_PYTHON_VERSION": "3.15.2",
+            "CI_CANONICAL_PYYAML_VERSION": "6.0.3",
+            "CI_CANONICAL_PYYAML_ARTIFACT": artifact,
+            "CI_CANONICAL_PYYAML_PLATFORM": "source-pure-python",
+            "CI_CANONICAL_PYYAML_SHA256": "a" * 64,
+        }
+        return values, {"releases": {"6.0.3": [source]}}
+
+    def test_reviewed_pyyaml_source_is_current_without_automatic_updates(self):
+        values, payload = self.source_pyyaml_fixture()
+        result, reviews = MAINTENANCE.resolve_pyyaml(
+            entries(values), FakePyPiClient(payload)
+        )
+        self.assertEqual(result["status"], "current")
+        self.assertEqual(result["updates"], [])
+        self.assertEqual(result["details"]["update_policy"], "manual_only")
+        self.assertEqual(reviews, [])
+
+    def test_new_source_releases_require_manual_backend_and_artifact_review(self):
+        for candidate in ("6.0.4", "6.1.0", "7.0.0"):
+            with self.subTest(candidate=candidate):
+                values, payload = self.source_pyyaml_fixture()
+                payload["releases"][candidate] = [{"filename": "new-layout.tar.gz"}]
+                result, reviews = MAINTENANCE.resolve_pyyaml(
+                    entries(values), FakePyPiClient(payload)
+                )
+                self.assertEqual(result["status"], "current")
+                self.assertEqual(result["updates"], [])
+                self.assertEqual(result["latest_compatible"], "6.0.3")
+                self.assertEqual(result["latest_upstream"], candidate)
+                self.assertEqual(len(reviews), 1)
+                self.assertEqual(
+                    reviews[0]["review_kind"], "artifact_layout_transition"
+                )
+                self.assertFalse(reviews[0]["automatic_update_also_available"])
+                self.assertIn("build-backend", reviews[0]["reason"])
+
+    def test_pyyaml_source_provenance_is_fail_closed(self):
+        values, payload = self.source_pyyaml_fixture()
+        mutations = (
+            ("filename", "different.tar.gz"),
+            ("packagetype", "bdist_wheel"),
+            ("yanked", True),
+            ("yanked", "false"),
+            ("digests", {"sha256": "b" * 64}),
+            ("url", "https://evil.invalid/pyyaml-6.0.3.tar.gz"),
+        )
+        for field, invalid in mutations:
+            with self.subTest(field=field, invalid=invalid):
+                changed = deepcopy(payload)
+                changed["releases"]["6.0.3"][0][field] = invalid
+                result, reviews = MAINTENANCE.resolve_pyyaml(
+                    entries(values), FakePyPiClient(changed)
+                )
+                self.assertEqual(result["status"], "blocked")
+                self.assertEqual(result["updates"], [])
+                self.assertEqual(reviews, [])
+        for variable, invalid in (
+            ("CI_CANONICAL_PYYAML_PLATFORM", "manylinux_x86_64"),
+            ("CI_CANONICAL_PYTHON_VERSION", "3.14.10"),
+            ("CI_CANONICAL_PYTHON_VERSION", "3.15.1\u0660"),
+            ("CI_CANONICAL_PYYAML_ARTIFACT", "pyyaml-6.0.3.zip"),
+        ):
+            with self.subTest(variable=variable):
+                changed_values = dict(values, **{variable: invalid})
+                result, _ = MAINTENANCE.resolve_pyyaml(
+                    entries(changed_values), FakePyPiClient(payload)
+                )
+                self.assertEqual(result["status"], "blocked")
+
+    def test_osv_baselines_are_manual_only_and_bound_to_historical_python_lines(self):
+        values = {
+            "CI_OSV_LEGACY_BASE_SHA": "a" * 40,
+            "CI_OSV_LEGACY_BASE_VERSION": "3.13.7",
+            "CI_OSV_PY314_BASE_SHA": "b" * 40,
+            "CI_OSV_PY314_MAINTENANCE_BASE_SHA": "c" * 40,
+            "CI_OSV_PY314_TOOLING_BASE_SHA": "d" * 40,
+            "CI_OSV_PY314_BASE_VERSION": "3.14.10",
+        }
+        result = MAINTENANCE.resolve_osv_compatibility(entries(values))
+        self.assertEqual(result["status"], "current")
+        self.assertEqual(result["updates"], [])
+        self.assertEqual(result["details"]["update_policy"], "manual_only")
+        self.assertEqual(len(result["details"]["baselines"]), 4)
+        self.assertEqual(
+            result["details"]["baselines"]["3.14-maintenance"],
+            {"sha": "c" * 40, "version": "3.14.10"},
+        )
+        self.assertEqual(
+            result["details"]["baselines"]["3.14-tooling"],
+            {"sha": "d" * 40, "version": "3.14.10"},
+        )
+        for variable, invalid in (
+            ("CI_OSV_PY314_TOOLING_BASE_SHA", "A" * 40),
+            ("CI_OSV_PY314_TOOLING_BASE_SHA", "d" * 39),
+            ("CI_OSV_PY314_BASE_SHA", "A" * 40),
+            ("CI_OSV_PY314_MAINTENANCE_BASE_SHA", "A" * 40),
+            ("CI_OSV_PY314_MAINTENANCE_BASE_SHA", "c" * 39),
+            ("CI_OSV_PY314_BASE_VERSION", "3.15.2"),
+            ("CI_OSV_LEGACY_BASE_VERSION", "3.14.10"),
+            ("CI_OSV_PY314_BASE_VERSION", "3.14.10rc1"),
+        ):
+            with self.subTest(variable=variable):
+                changed = dict(values, **{variable: invalid})
+                self.assertEqual(
+                    MAINTENANCE.resolve_osv_compatibility(entries(changed))["status"],
+                    "blocked",
+                )
+
     def test_node_blocks_when_only_prerelease_or_malformed_records_exist(self) -> None:
         result, reviews = MAINTENANCE.resolve_node(
             entries({"CI_CANONICAL_NODE_VERSION": "24.19.0"}),
@@ -428,7 +551,9 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             with self.assertRaisesRegex(MAINTENANCE.MaintenanceError, "symlink"):
                 MAINTENANCE.require_root(symlink_root)
 
-    def test_generated_catalog_is_validated_after_crs_views_in_both_modes(self) -> None:
+    def test_maintenance_test_views_follow_catalog_after_crs_views_in_both_modes(
+        self,
+    ) -> None:
         for write in (False, True):
             with (
                 self.subTest(write=write),
@@ -445,19 +570,28 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                             1,
                             stdout="",
                             stderr="framework contract catalog is stale",
-                        )
+                        ),
+                        subprocess.CompletedProcess(
+                            [], 1, stdout="", stderr="maintenance test views are stale"
+                        ),
                     ],
                 ) as run,
             ):
                 statuses = MAINTENANCE.generated_view_status(ROOT, write=write)
             self.assertEqual(
-                [item["name"] for item in statuses][-2:],
-                ["crs-contract-views", "framework-contract-catalog"],
+                [item["name"] for item in statuses][-3:],
+                [
+                    "crs-contract-views",
+                    "framework-contract-catalog",
+                    "maintenance-test-views",
+                ],
             )
+            self.assertEqual(statuses[-2]["status"], "blocked")
+            self.assertIn("catalog is stale", statuses[-2]["message"])
             self.assertEqual(statuses[-1]["status"], "blocked")
-            self.assertIn("catalog is stale", statuses[-1]["message"])
+            self.assertIn("test views are stale", statuses[-1]["message"])
             self.assertEqual(
-                run.call_args_list[-1],
+                run.call_args_list[-2],
                 mock.call(
                     [
                         MAINTENANCE.sys.executable,
@@ -470,6 +604,28 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                     text=True,
                 ),
             )
+            self.assertEqual(
+                run.call_args_list[-1],
+                mock.call(
+                    [
+                        MAINTENANCE.sys.executable,
+                        str(ROOT / "ci/tools/sync-maintenance-test-views.py"),
+                        "--write" if write else "--check",
+                        "--root",
+                        str(ROOT),
+                    ],
+                    cwd=ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                ),
+            )
+        for path in (
+            MAINTENANCE.MAINTENANCE_INVENTORY_PATH,
+            MAINTENANCE.MAINTENANCE_ARCHIVE_PATH,
+        ):
+            self.assertIn(path, MAINTENANCE.GENERATED_VIEW_PATHS)
+            self.assertIn(path, MAINTENANCE.ALLOWED_AUTOMATIC_PATHS)
         self.assertIn(
             MAINTENANCE.FRAMEWORK_CONTRACT_CATALOG_PATH,
             MAINTENANCE.GENERATED_VIEW_PATHS,
@@ -478,6 +634,151 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             MAINTENANCE.FRAMEWORK_CONTRACT_CATALOG_PATH,
             MAINTENANCE.ALLOWED_AUTOMATIC_PATHS,
         )
+
+    def test_native_workflow_publisher_outputs_have_exact_transaction_authority(
+        self,
+    ) -> None:
+        updater = MAINTENANCE.load_workflow_tool_updater(ROOT)
+        self.assertEqual(
+            updater.ALLOWED_UPDATE_PATHS - MAINTENANCE.ALLOWED_AUTOMATIC_PATHS,
+            frozenset(),
+        )
+        self.assertTrue(
+            updater.INTEGRATION_READONLY_INPUT_PATHS.isdisjoint(
+                MAINTENANCE.ALLOWED_AUTOMATIC_PATHS
+            )
+        )
+        for neighbor in (
+            ".github/workflows/ci-findings-regressions-foreign.yml",
+            ".github/workflows/ci-findings-regressions.yaml",
+            ".github/workflows/connector-protected-nginx-exact-head.yml",
+        ):
+            with self.subTest(path=neighbor):
+                self.assertNotIn(neighbor, MAINTENANCE.ALLOWED_AUTOMATIC_PATHS)
+                with (
+                    mock.patch.object(
+                        MAINTENANCE, "_git_output", return_value=neighbor + "\n"
+                    ),
+                    mock.patch.object(MAINTENANCE, "_atomic_restore") as restore,
+                    self.assertRaisesRegex(MAINTENANCE.MaintenanceError, "unsafe path"),
+                ):
+                    MAINTENANCE._rollback_allowed_views(ROOT, {})
+                restore.assert_not_called()
+
+    def test_actual_action_pin_projection_covers_the_findings_workflow(self) -> None:
+        generator = MAINTENANCE._load_module(
+            ROOT,
+            "sync-canonical-workflow-pins.py",
+            "canonical_workflow_projection_test",
+        )
+        values = generator.source_common(ROOT)
+        values["CI_ACTION_CHECKOUT_COMMIT"] = "a" * 40
+        errors, outputs = generator.workflow_values(ROOT, values)
+        self.assertEqual(errors, [])
+        paths = {str(path.relative_to(ROOT)) for path, _ in outputs}
+        self.assertIn(".github/workflows/ci-findings-regressions.yml", paths)
+        self.assertEqual(len(paths), 16)
+        self.assertTrue(paths.issubset(MAINTENANCE.ALLOWED_AUTOMATIC_PATHS))
+
+    def test_findings_workflow_projection_is_applied_and_rolled_back_transactionally(
+        self,
+    ) -> None:
+        checker = SimpleNamespace(
+            UpdateChange=lambda **values: SimpleNamespace(**values),
+            parse_common=lambda path: (
+                ["PIN=old"],
+                {"PIN": SimpleNamespace(default="old", line=1)},
+            ),
+            apply_updates=lambda path, lines, changes: path.write_bytes(b"PIN=new\n"),
+        )
+        for outcome in ("success", "write-failure", "check-failure"):
+            with (
+                self.subTest(outcome=outcome),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                for relative in MAINTENANCE.ALLOWED_AUTOMATIC_PATHS:
+                    (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                common = root / "ci/lib/common.sh"
+                workflow = root / ".github/workflows/ci-findings-regressions.yml"
+                for path, body in (
+                    (common, b"PIN=old\n"),
+                    (workflow, b"original workflow\n"),
+                ):
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(body)
+                for args in (
+                    ("init", "--quiet"),
+                    ("add", "."),
+                    (
+                        "-c",
+                        "user.name=Fixture",
+                        "-c",
+                        "user.email=fixture@example.invalid",
+                        "commit",
+                        "--quiet",
+                        "-m",
+                        "trusted base",
+                    ),
+                ):
+                    subprocess.run(
+                        ["git", *args], cwd=root, check=True, capture_output=True
+                    )
+                plan = {
+                    "maintenance_outcome": "safe_updates",
+                    "safe_updates": [{"variable": "PIN", "old": "old", "new": "new"}],
+                    "source_common_sha256": hashlib.sha256(b"PIN=old\n").hexdigest(),
+                    "candidate_common_sha256": hashlib.sha256(b"PIN=new\n").hexdigest(),
+                }
+                plan["plan_sha256"] = hashlib.sha256(
+                    MAINTENANCE._canonical_json(plan)
+                ).hexdigest()
+
+                def generate(_root, *, write):
+                    if write:
+                        workflow.write_bytes(b"updated workflow\n")
+                    blocked = outcome == ("write-failure" if write else "check-failure")
+                    return [
+                        {
+                            "name": "canonical-workflow-pins",
+                            "status": "blocked" if blocked else "current",
+                        }
+                    ]
+
+                with (
+                    mock.patch.object(
+                        MAINTENANCE, "load_runtime_checker", return_value=checker
+                    ),
+                    mock.patch.object(
+                        MAINTENANCE, "generated_view_status", side_effect=generate
+                    ),
+                ):
+                    if outcome == "success":
+                        changed = MAINTENANCE.apply_safe_updates(
+                            root, plan, expected_plan_sha256=plan["plan_sha256"]
+                        )
+                        self.assertEqual(
+                            set(changed),
+                            {
+                                MAINTENANCE.COMMON_SH_PATH,
+                                str(workflow.relative_to(root)),
+                            },
+                        )
+                        self.assertEqual(common.read_bytes(), b"PIN=new\n")
+                        self.assertEqual(workflow.read_bytes(), b"updated workflow\n")
+                    else:
+                        with self.assertRaisesRegex(
+                            MAINTENANCE.MaintenanceError, "generated.view"
+                        ):
+                            MAINTENANCE.apply_safe_updates(
+                                root, plan, expected_plan_sha256=plan["plan_sha256"]
+                            )
+                        self.assertEqual(common.read_bytes(), b"PIN=old\n")
+                        self.assertEqual(workflow.read_bytes(), b"original workflow\n")
+                        self.assertEqual(
+                            MAINTENANCE._git_output(root, "status", "--porcelain=v1"),
+                            "",
+                        )
 
     def test_apply_safe_updates_rolls_back_on_generated_view_failure(self) -> None:
         class ApplyChecker:
@@ -505,9 +806,20 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             common.write_bytes(b"PIN=old\n")
             catalog = root / MAINTENANCE.FRAMEWORK_CONTRACT_CATALOG_PATH
             catalog.write_bytes(b"original catalog\n")
+            inventory = root / MAINTENANCE.MAINTENANCE_INVENTORY_PATH
+            inventory.write_bytes(b"original inventory\n")
+            archive = root / MAINTENANCE.MAINTENANCE_ARCHIVE_PATH
+            archive.write_bytes(b"original archive\n")
             subprocess.run(["git", "init", "--quiet"], cwd=root, check=True)
             subprocess.run(
-                ["git", "add", "ci/lib/common.sh", str(catalog.relative_to(root))],
+                [
+                    "git",
+                    "add",
+                    "ci/lib/common.sh",
+                    str(catalog.relative_to(root)),
+                    str(inventory.relative_to(root)),
+                    str(archive.relative_to(root)),
+                ],
                 cwd=root,
                 check=True,
             )
@@ -536,10 +848,12 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                 MAINTENANCE._canonical_json(plan)
             ).hexdigest()
 
-            def fail_catalog_generation(_root: Path, *, write: bool):
+            def fail_test_view_generation(_root: Path, *, write: bool):
                 self.assertTrue(write)
                 catalog.write_bytes(b"partially regenerated catalog\n")
-                return [{"name": "framework-contract-catalog", "status": "blocked"}]
+                inventory.write_bytes(b"partially regenerated inventory\n")
+                archive.write_bytes(b"partially regenerated archive\n")
+                return [{"name": "maintenance-test-views", "status": "blocked"}]
 
             with (
                 mock.patch.object(
@@ -548,7 +862,7 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                 mock.patch.object(
                     MAINTENANCE,
                     "generated_view_status",
-                    side_effect=fail_catalog_generation,
+                    side_effect=fail_test_view_generation,
                 ),
             ):
                 with self.assertRaisesRegex(
@@ -561,6 +875,8 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                     )
             self.assertEqual(common.read_bytes(), b"PIN=old\n")
             self.assertEqual(catalog.read_bytes(), b"original catalog\n")
+            self.assertEqual(inventory.read_bytes(), b"original inventory\n")
+            self.assertEqual(archive.read_bytes(), b"original archive\n")
             self.assertEqual(
                 subprocess.run(
                     ["git", "status", "--porcelain=v1"],

@@ -34,7 +34,11 @@ ASSIGNMENT = re.compile(
 )
 VERSION = re.compile(r"\A\d+\.\d+\.\d+\Z", flags=re.ASCII)
 SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
-ARTIFACT = re.compile(r"\Apyyaml-\d+\.\d+\.\d+-[A-Za-z0-9_.-]+\.whl\Z")
+ARTIFACT = re.compile(
+    r"\Apyyaml-(?P<version>\d+\.\d+\.\d+)"
+    r"(?:-[A-Za-z0-9_.-]+\.whl|\.tar\.gz)\Z",
+    flags=re.ASCII,
+)
 # Keep this input bounded and use one character class.  The previous nested
 # repetition could take super-linear time on a long malformed platform value.
 PLATFORM = re.compile(r"\A[A-Za-z0-9_.-]{1,256}\Z", flags=re.ASCII)
@@ -159,11 +163,18 @@ def canonical_values(common: Path, root: Path) -> dict[str, str]:
         raise PinError(
             f"{common}: CI_CANONICAL_PYYAML_SHA256 must be 64 lowercase hex characters"
         )
-    if not ARTIFACT.fullmatch(values[PIN_NAMES[3]]):
+    artifact_match = ARTIFACT.fullmatch(values[PIN_NAMES[3]])
+    if artifact_match is None:
         raise PinError(f"{common}: CI_CANONICAL_PYYAML_ARTIFACT is malformed")
+    if artifact_match.group("version") != values[PIN_NAMES[1]]:
+        raise PinError(f"{common}: PyYAML artifact/version provenance does not match")
     if not PLATFORM.fullmatch(values[PIN_NAMES[4]]):
         raise PinError(f"{common}: CI_CANONICAL_PYYAML_PLATFORM is malformed")
-    expected_platform = values[PIN_NAMES[3]].removesuffix(".whl").split("-", 4)[-1]
+    expected_platform = (
+        "source-pure-python"
+        if values[PIN_NAMES[3]].endswith(".tar.gz")
+        else values[PIN_NAMES[3]].removesuffix(".whl").split("-", 4)[-1]
+    )
     if values[PIN_NAMES[4]] != expected_platform:
         raise PinError(f"{common}: PyYAML artifact/platform provenance does not match")
     return values
@@ -182,11 +193,17 @@ def expected_views(root: Path, values: dict[str, str]) -> dict[Path, bytes]:
             f"{python_path}: expected exactly one newline-terminated stable version"
         )
     requirements = read_utf8(requirements_path, root, requirements_label)
+    requirements = requirements.replace(
+        "# generated, reviewed PyPI view. The hash is the official PyPI digest for:",
+        "# generated, reviewed PyPI view. The hash identifies the artifact above.",
+    )
     lines = requirements.splitlines(keepends=True)
     lines = [
         line
         for line in lines
-        if not line.startswith(("# PyYAML artifact:", "# PyYAML platform:"))
+        if not line.startswith(
+            ("# PyYAML artifact:", "# PyYAML platform:", "# pyyaml-")
+        )
     ]
     provenance = (
         "# PyYAML artifact: " + values["CI_CANONICAL_PYYAML_ARTIFACT"] + "\n"

@@ -57,9 +57,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+          bash ci/tools/install-hash-locked-ci-dependencies.sh
           args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --markdown "$RUNNER_TEMP/canonical-maintenance-plan.md")
           if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
           resolver_exit=0
@@ -220,9 +218,7 @@ jobs:
       - name: Snapshot trusted workflow-tool validation inputs
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+          bash ci/tools/install-hash-locked-ci-dependencies.sh
           python3 ci/tools/update-workflow-tools.py snapshot-validation-inputs \
             --root . \
             --output-dir "$RUNNER_TEMP/canonical-workflow-tool-base"
@@ -253,7 +249,7 @@ jobs:
         id: validate
         run: |
           set -euo pipefail
-          allowed='^(.github/workflows/[^/]+\.yml|ci/lib/common\.sh|ci/provisioning/runtime-(components\.manifest|component-lock)\.json|ci/tooling/security-tools\.lock\.yml|\.python-version|requirements-ci\.lock|docs/(reference/variables|github-actions-workflow-security)(\.de)?\.md|tests/schemas/five-connectors-with-crs-no-mrts/(normalized-event|manifest|receipt)\.schema\.json|tests/cases/security/crs/crs_sqli_anomaly_block\.yaml|modsecurity_test_framework/data/framework-contract-catalog\.json)$'
+          allowed='^(.github/workflows/[^/]+\.yml|ci/lib/common\.sh|ci/provisioning/runtime-(components\.manifest|component-lock)\.json|ci/tooling/security-tools\.lock\.yml|\.python-version|requirements-ci\.lock|docs/(reference/variables|github-actions-workflow-security)(\.de)?\.md|tests/schemas/five-connectors-with-crs-no-mrts/(normalized-event|manifest|receipt)\.schema\.json|tests/cases/security/crs/crs_sqli_anomaly_block\.yaml|modsecurity_test_framework/data/framework-contract-catalog\.json|connector_suite/config/testing/active-cases\.json|connector_suite/reports/testing/test-selection-archive\.generated\.json)$'
           while IFS= read -r path; do [[ "$path" =~ $allowed ]] || { echo "unsafe candidate path: $path" >&2; exit 1; }; done < <(git diff --name-only)
           git diff --check
           bash -n ci/lib/common.sh
@@ -303,9 +299,7 @@ jobs:
       - name: Snapshot trusted workflow-tool validation inputs
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+          bash ci/tools/install-hash-locked-ci-dependencies.sh
           python3 ci/tools/update-workflow-tools.py snapshot-validation-inputs \
             --root . \
             --output-dir "$RUNNER_TEMP/canonical-workflow-tool-base"
@@ -404,6 +398,8 @@ jobs:
               "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
               "tests/cases/security/crs/crs_sqli_anomaly_block.yaml",
               "modsecurity_test_framework/data/framework-contract-catalog.json",
+              "connector_suite/config/testing/active-cases.json",
+              "connector_suite/reports/testing/test-selection-archive.generated.json",
             ]);
             const { owner, repo } = context.repo;
             const defaultBranch = context.payload.repository.default_branch;
@@ -540,6 +536,8 @@ jobs:
             tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json
             tests/cases/security/crs/crs_sqli_anomaly_block.yaml
             modsecurity_test_framework/data/framework-contract-catalog.json
+            connector_suite/config/testing/active-cases.json
+            connector_suite/reports/testing/test-selection-archive.generated.json
 
   result:
     needs:

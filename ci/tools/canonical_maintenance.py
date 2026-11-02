@@ -78,6 +78,11 @@ FRAMEWORK_CONTRACT_CATALOG_PATH = (
     "modsecurity_test_framework/data/framework-contract-catalog.json"
 )
 
+MAINTENANCE_INVENTORY_PATH = "connector_suite/config/testing/active-cases.json"
+MAINTENANCE_ARCHIVE_PATH = (
+    "connector_suite/reports/testing/test-selection-archive.generated.json"
+)
+
 MANDATORY_GLOBAL_SCOPES = (
     "go-ftw",
     "albedo",
@@ -96,6 +101,8 @@ GENERATED_VIEW_PATHS = (
     "docs/reference/variables.md",
     "docs/reference/variables.de.md",
     FRAMEWORK_CONTRACT_CATALOG_PATH,
+    MAINTENANCE_INVENTORY_PATH,
+    MAINTENANCE_ARCHIVE_PATH,
 )
 ALLOWED_AUTOMATIC_PATHS = frozenset(
     {
@@ -114,6 +121,8 @@ ALLOWED_AUTOMATIC_PATHS = frozenset(
         "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
         "tests/cases/security/crs/crs_sqli_anomaly_block.yaml",
         FRAMEWORK_CONTRACT_CATALOG_PATH,
+        MAINTENANCE_INVENTORY_PATH,
+        MAINTENANCE_ARCHIVE_PATH,
     }
     | {
         f".github/workflows/{name}"
@@ -121,6 +130,7 @@ ALLOWED_AUTOMATIC_PATHS = frozenset(
             "check-action-versions.yml",
             "check-common-versions.yml",
             "check-python-version.yml",
+            "ci-findings-regressions.yml",
             "ci-security-codeql-pr.yml",
             "ci-security-codeql.yml",
             "ci-security-dependency-review.yml",
@@ -952,6 +962,19 @@ def resolve_pyyaml(
         if not compatible:
             raise MaintenanceError("PyPI has no compatible PyYAML major line")
         latest_compatible = compatible[-1]
+        if current_platform == "source-pure-python" or current_artifact.endswith(
+            ".tar.gz"
+        ):
+            return resolve_pyyaml_source(
+                current,
+                current_artifact,
+                current_platform,
+                current_digest,
+                python_version,
+                payload,
+                latest_upstream,
+                variables,
+            )
         current_wheel, official_current_digest, official_current_platform = (
             _pyyaml_wheel(
                 _pyyaml_release_records(payload, current), current, python_version
@@ -1050,6 +1073,99 @@ def resolve_pyyaml(
             message=str(exc),
             variables=variables,
         ), []
+
+
+def resolve_pyyaml_source(
+    current: str,
+    artifact: str,
+    platform: str,
+    digest: str,
+    python_version: str,
+    payload: dict[str, Any],
+    latest_upstream: str,
+    variables: list[str],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Verify the reviewed source tuple; never propose automatic source changes."""
+    if (
+        artifact != f"pyyaml-{current}.tar.gz"
+        or platform != "source-pure-python"
+        or re.fullmatch(r"3\.15\.(0|[1-9]\d*)", python_version, flags=re.ASCII) is None
+    ):
+        raise MaintenanceError(
+            "PyYAML source tuple requires the reviewed CPython 3.15 source layout"
+        )
+    records = _pyyaml_release_records(payload, current)
+    sources = [record for record in records if record.get("filename") == artifact]
+    if len(sources) != 1:
+        raise MaintenanceError(
+            "PyPI must contain exactly one canonical PyYAML source archive"
+        )
+    source = sources[0]
+    if source.get("packagetype") != "sdist" or source.get("yanked") is not False:
+        raise MaintenanceError("canonical PyYAML source must be an unyanked sdist")
+    official_digests = source.get("digests")
+    official_digest = (
+        official_digests.get("sha256") if isinstance(official_digests, dict) else None
+    )
+    if official_digest != digest:
+        raise MaintenanceError(
+            "configured PyYAML source digest differs from official PyPI metadata"
+        )
+    url = source.get("url")
+    parsed = urlparse(url) if isinstance(url, str) else None
+    if (
+        parsed is None
+        or parsed.scheme != "https"
+        or parsed.netloc != "files.pythonhosted.org"
+        or parsed.query
+        or parsed.fragment
+        or not parsed.path.startswith("/packages/")
+        or parsed.path.rsplit("/", 1)[-1] != artifact
+    ):
+        raise MaintenanceError("canonical PyYAML source has no official artifact URL")
+    reviews: list[dict[str, Any]] = []
+    if compare_versions(current, latest_upstream) < 0:
+        reviews.append(
+            _review(
+                component_id="pyyaml",
+                component_name="PyYAML",
+                review_kind="artifact_layout_transition",
+                current_identity={
+                    "version": current,
+                    "asset": artifact,
+                    "platform": platform,
+                },
+                candidate_identity={"version": latest_upstream},
+                latest_compatible=current,
+                latest_upstream=latest_upstream,
+                variables=variables,
+                reason_code="python_source_build_requires_review",
+                reason="A newer PyYAML source release requires source, build-backend, build-tool lock and artifact-layout review before execution.",
+                evidence_urls=[PYPI_PYYAML_URL, url],
+                generated_views=(CI_REQUIREMENTS_PATH,),
+                automatic_update_also_available=False,
+            )
+        )
+    return _check_result(
+        component_id="pyyaml",
+        component_name="PyYAML",
+        scope="pyyaml",
+        status="current",
+        message="Canonical PyYAML source provenance is verified; newer source releases require manual build review."
+        if reviews
+        else "Canonical PyYAML source and digest are current.",
+        variables=variables,
+        current=current,
+        latest_compatible=current,
+        latest_upstream=latest_upstream,
+        source=PYPI_PYYAML_URL,
+        updates=[],
+        details={
+            "update_policy": "manual_only",
+            "artifact": artifact,
+            "platform": platform,
+        },
+    ), reviews
 
 
 def resolve_node(
@@ -1996,12 +2112,46 @@ def resolve_workflow_pins(
 
 
 def resolve_osv_compatibility(entries: dict[str, Any]) -> dict[str, Any]:
-    variables = ("CI_OSV_LEGACY_BASE_SHA", "CI_OSV_LEGACY_BASE_VERSION")
+    variables = (
+        "CI_OSV_LEGACY_BASE_SHA",
+        "CI_OSV_LEGACY_BASE_VERSION",
+        "CI_OSV_PY314_BASE_SHA",
+        "CI_OSV_PY314_MAINTENANCE_BASE_SHA",
+        "CI_OSV_PY314_TOOLING_BASE_SHA",
+        "CI_OSV_PY314_BASE_VERSION",
+    )
     try:
-        sha = _entry_value(entries, variables[0])
-        version = _entry_value(entries, variables[1])
-        if SHA40_RE.fullmatch(sha) is None or VERSION_RE.fullmatch(version) is None:
-            raise MaintenanceError("OSV compatibility baseline is malformed")
+        baselines = {}
+        for prefix, series in (
+            ("CI_OSV_LEGACY_BASE", "3.13"),
+            ("CI_OSV_PY314_BASE", "3.14"),
+        ):
+            sha = _entry_value(entries, f"{prefix}_SHA")
+            version = _entry_value(entries, f"{prefix}_VERSION")
+            if (
+                SHA40_RE.fullmatch(sha) is None
+                or re.fullmatch(
+                    re.escape(series) + r"\.(0|[1-9]\d*)", version, flags=re.ASCII
+                )
+                is None
+            ):
+                raise MaintenanceError(
+                    f"{prefix} OSV compatibility baseline is malformed"
+                )
+            baselines[series] = {"sha": sha, "version": version}
+        for variable, label in (
+            ("CI_OSV_PY314_MAINTENANCE_BASE_SHA", "maintenance"),
+            ("CI_OSV_PY314_TOOLING_BASE_SHA", "tooling"),
+        ):
+            sha = _entry_value(entries, variable)
+            if SHA40_RE.fullmatch(sha) is None:
+                raise MaintenanceError(
+                    f"CP314 {label} OSV compatibility SHA is malformed"
+                )
+            baselines[f"3.14-{label}"] = {
+                "sha": sha,
+                "version": baselines["3.14"]["version"],
+            }
         return _check_result(
             component_id="ci-osv-compatibility",
             component_name="OSV compatibility baseline",
@@ -2009,10 +2159,14 @@ def resolve_osv_compatibility(entries: dict[str, Any]) -> dict[str, Any]:
             status="current",
             message="Explicit historical OSV compatibility baseline is structurally valid.",
             variables=variables,
-            current=version,
-            latest_compatible=version,
-            latest_upstream=version,
-            details={"update_policy": "manual_only", "historical_exception": True},
+            current=baselines["3.14"]["version"],
+            latest_compatible=baselines["3.14"]["version"],
+            latest_upstream=baselines["3.14"]["version"],
+            details={
+                "update_policy": "manual_only",
+                "historical_exception": True,
+                "baselines": baselines,
+            },
         )
     except MaintenanceError as exc:
         return _check_result(
@@ -2237,6 +2391,16 @@ def generated_view_status(root: Path, *, write: bool = False) -> list[dict[str, 
                 sys.executable,
                 str(root / "ci/tools/generate-framework-contract-catalog.py"),
                 *([] if write else ["--check"]),
+            ],
+        ),
+        (
+            "maintenance-test-views",
+            [
+                sys.executable,
+                str(root / "ci/tools/sync-maintenance-test-views.py"),
+                mode,
+                "--root",
+                str(root),
             ],
         ),
     )

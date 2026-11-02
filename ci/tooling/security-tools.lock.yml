@@ -216,12 +216,12 @@ tools:
   ruff:
     name: ruff
     repository: astral-sh/ruff
-    version: 0.16.10
-    immutable_commit: 3265ed1f944c98bb4c04d632fbefb1257cdb583d
-    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.10
+    version: 0.17.3
+    immutable_commit: ba65abf8ba7bfbcc059f7fb9712be5ba9cab6abc
+    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.17.3
     asset: ruff-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.10/ruff-x86_64-unknown-linux-gnu.tar.gz
-    sha256: 9567ff1201e2fb3da31ff04c35587d768c66d6cb42dfa84de474e2bfe360b608
+    asset_url: https://github.com/astral-sh/ruff/releases/download/0.17.3/ruff-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 2b0890f5a55900af741f133918c2656919bbf18c2ab7741b4ca8403a90e647a9
     archive_type: tar.gz
     layout: executable
     archive_member: ruff-x86_64-unknown-linux-gnu/ruff

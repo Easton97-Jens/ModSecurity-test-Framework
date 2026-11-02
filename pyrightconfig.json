@@ -10,10 +10,12 @@
     "ci/checks/documentation/check-change-records.py",
     "ci/tools/fetch-security-tool.py",
     "ci/tools/update-workflow-tools.py",
+    "ci/tools/install_hash_locked_ci_dependencies.py",
+    "ci/tools/sync-maintenance-test-views.py",
     "tests/ci_security"
   ],
   "exclude": ["tools/MRTS"],
-  "pythonVersion": "3.14",
+  "pythonVersion": "3.15",
   "typeCheckingMode": "basic",
   "reportMissingImports": "none",
   "reportMissingTypeStubs": "none"

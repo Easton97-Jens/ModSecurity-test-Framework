@@ -36,8 +36,6 @@ IF_NO_FILES_FOUND_ERROR = "if-no-files-found: error"
 SECURITY_EVENTS_WRITE = "security-events: write"
 SECURITY_TOOL_DOWNLOADER = "ci/tools/fetch-security-tool.py"
 HASH_LOCKED_CI_REQUIREMENTS = "--require-hashes -r requirements-ci.lock"
-COMMON_VERSION_PIP_INSTALL_COMMAND = "python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \\"
-COMMON_VERSION_PIP_CHECK_COMMAND = "python3 -m pip check"
 COMMON_VERSION_UPDATER_COMMAND = "python3 ci/tools/update-workflow-tools.py"
 COMMON_VERSION_SNAPSHOT_UPDATER_COMMAND = (
     f"{COMMON_VERSION_UPDATER_COMMAND} snapshot-validation-inputs"
@@ -45,11 +43,24 @@ COMMON_VERSION_SNAPSHOT_UPDATER_COMMAND = (
 CI_DEPENDENCY_INSTALLER = "ci/tools/install-hash-locked-ci-dependencies.sh"
 CI_DEPENDENCY_INSTALLER_COMMAND = f"bash {CI_DEPENDENCY_INSTALLER}"
 CI_DEPENDENCY_INSTALLER_SHA256 = (
-    "36de64833f8dfdda700553c4d816d4baa4f7eb1ca1863940981e6fa154968425"
+    "16b53147d9d724bc407a1c88d6ae5ea2dc5cc3f7ff497848389ede258b33364f"
+)
+CI_DEPENDENCY_SOURCE_INSTALLER = "ci/tools/install_hash_locked_ci_dependencies.py"
+CI_DEPENDENCY_BUILD_LOCK = "ci/pyyaml-build-tools.lock.json"
+CI_DEPENDENCY_SOURCE_INSTALLER_SHA256 = (
+    "0b1316e8ce64803b91944243b7db4339e460b7b512715d1140da7b21b185e8a3"
+)
+CI_DEPENDENCY_BUILD_LOCK_SHA256 = (
+    "9d3438c190d5c316c7ed93e89a7175f2d6ad296a40e029949ed21fcb4c814fd6"
+)
+OSV_TRUSTED_BASE_INSTALL_SHA256 = (
+    "9db6116f3f62bf6b7ba498619cc994320c76f57012fb3ad567df1ce61d39b147"
 )
 OSV_WORKFLOW = "ci-security-osv.yml"
 CI_DEPENDENCY_INSTALLER_WORKFLOWS = {
     "check-action-versions.yml": 1,
+    "check-python-version.yml": 1,
+    "update-submodules.yml": 1,
     OSV_WORKFLOW: 1,
     "ci-security-quality.yml": 1,
     "ci-security-scorecard.yml": 2,
@@ -222,13 +233,19 @@ CANONICAL_PYTHON_VERSION_FILE = ".python-version"
 COMMON_SH_PATH = "ci/lib/common.sh"
 PYTHON_PUBLISHER_SOURCE_FILE = COMMON_SH_PATH
 PYTHON_CANDIDATE_EXPRESSION = "${{ needs.resolve.outputs.candidate }}"
+MAINTENANCE_INVENTORY_PATH = "connector_suite/config/testing/active-cases.json"
+MAINTENANCE_ARCHIVE_PATH = (
+    "connector_suite/reports/testing/test-selection-archive.generated.json"
+)
 PYTHON_PUBLISHER_CHANGED_PATHS = (
-    f"{CANONICAL_PYTHON_VERSION_FILE}\n{PYTHON_PUBLISHER_SOURCE_FILE}"
+    f"{CANONICAL_PYTHON_VERSION_FILE}\n{PYTHON_PUBLISHER_SOURCE_FILE}\n"
+    f"{MAINTENANCE_INVENTORY_PATH}\n{MAINTENANCE_ARCHIVE_PATH}"
 )
 PYTHON_PUBLISHER_ADD_PATHS = (
     f"{PYTHON_PUBLISHER_SOURCE_FILE}\n{CANONICAL_PYTHON_VERSION_FILE}\n"
+    f"{MAINTENANCE_INVENTORY_PATH}\n{MAINTENANCE_ARCHIVE_PATH}\n"
 )
-PYTHON_VERSION_CANDIDATE_FILE = "${{ runner.temp }}/framework-python-3.14-candidate"
+PYTHON_VERSION_CANDIDATE_FILE = "${{ runner.temp }}/framework-python-3.15-candidate"
 PYTHON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-python-version-pr-body.md"
 PYTHON_VERSION_PR_BODY_RUN_PATH = "$RUNNER_TEMP/framework-python-version-pr-body.md"
 OSV_TRUSTED_BASE_PYTHON_VERSION_FILE = (
@@ -236,6 +253,10 @@ OSV_TRUSTED_BASE_PYTHON_VERSION_FILE = (
 )
 OSV_LEGACY_BASE_SHA = "f73f8842f45318e2df8aff1d31855eeb7c20a22" + "f"
 OSV_LEGACY_BASE_VERSION = "3.13." + "14"
+OSV_PY314_BASE_SHA = "91145b7ba721bdec4e89af754cf40bf496fd2a08"
+OSV_PY314_BASE_VERSION = "3.14." + "10"
+OSV_PY314_MAINTENANCE_BASE_SHA = "68ca7b411db12ed96ee6208aa792b43e8043470c"
+OSV_PY314_TOOLING_BASE_SHA = "ff7cae78e085e179950c4b871bbf1d5327c69069"
 GITHUB_COMPONENT = r"[A-Za-z0-9_.-]+"
 GITHUB_RELEASE_URL = re.compile(
     rf"^https://github\.com/(?P<owner>{GITHUB_COMPONENT})/"
@@ -310,7 +331,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "canonical-maintenance",
         "Resolve mandatory global and selected runtime scopes",
-    ): "ec81d9447c1f6754948b7f96e55787b4f562d5bd6b938b867b75dd066b548990",
+    ): "99d1d2f4bd3416cdf82dab590c2dee5bdf1937570a2c4a94fdd91e76ce06a98a",
     (
         "canonical-maintenance",
         "Validate review issue reconciliation without writes",
@@ -334,7 +355,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "candidate",
         STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS,
-    ): "a775f61589efcac0bd020ad6bad908fdf6964827434b670178a1c839849c91d9",
+    ): "01645cff0951f052086b86203389e8d396fb0999189d9950305c721200bcddd3",
     (
         "candidate",
         STEP_VALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE,
@@ -342,7 +363,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "candidate",
         "Validate candidate path policy and focused controls",
-    ): "bc035072434bffb7aef839a7b588f6c72a01a95a091d4a75e1680fd295d72b34",
+    ): "80149f66344eabc36806deb87a57afa3973e2fc8349c33a163591e72500033cc",
     (
         "publish",
         STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN,
@@ -350,7 +371,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "publish",
         STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS,
-    ): "a775f61589efcac0bd020ad6bad908fdf6964827434b670178a1c839849c91d9",
+    ): "01645cff0951f052086b86203389e8d396fb0999189d9950305c721200bcddd3",
     (
         "publish",
         STEP_REVALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE,
@@ -369,7 +390,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     ): "4a8667a3ce2063a78d3d64ca1124014cf19d2ae938f093ccc74a4b2bf45b818b",
 }
 COMMON_VERSION_CANONICAL_PR_STATE_CHECK_SHA256 = (
-    "9c98b92747df13d4d963bb9adb7fa0b151280d638289b7b7751b52fe20951e67"
+    "8526a58695759ae3dd87666082c21df8012b1300712664a33fb61f5b50568ffb"
 )
 COMMON_VERSION_CANONICAL_PR_NATIVE_SUBSET_CHECK_SHA256 = (
     "3a8fef6fd071055fa7913a89efb08b2dd1949215bf52d375a0a8ce04e4638ece"
@@ -377,6 +398,8 @@ COMMON_VERSION_CANONICAL_PR_NATIVE_SUBSET_CHECK_SHA256 = (
 COMMON_VERSION_GENERATED_PATHS = frozenset(
     {
         COMMON_SH_PATH,
+        MAINTENANCE_INVENTORY_PATH,
+        MAINTENANCE_ARCHIVE_PATH,
         CANONICAL_PYTHON_VERSION_FILE,
         "requirements-ci.lock",
         "ci/tooling/security-tools.lock.yml",
@@ -835,11 +858,11 @@ PYTHON_PUBLISHER_WITH_VALUES = {
     },
     STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST: {
         "token": WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
-        "commit-message": "chore: update reviewed CPython 3.14",
-        "title": "chore: update reviewed CPython 3.14",
+        "commit-message": "chore: update reviewed CPython 3.15",
+        "title": "chore: update reviewed CPython 3.15",
         "body-path": PYTHON_VERSION_PR_BODY_FILE,
         "base": "master",
-        "branch": "automation/update-framework-python-314",
+        "branch": "automation/update-framework-python-315",
         "delete-branch": False,
         "draft": True,
         "add-paths": PYTHON_PUBLISHER_ADD_PATHS,
@@ -882,17 +905,17 @@ PYTHON_PUBLISHER_FIELD_VALUES = {
     },
 }
 PYTHON_PUBLISHER_RUN_SHA256 = {
-    STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
+    STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "fe6545f4e446114d01de40c9100e2e15937aa2fdd66317c9c1765a5858c3b433",
     STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION: "c01127376f95819c3abb8f99815aa9877ed4c5fd6ab248f0968feb458bdec033",
-    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "3bd98ace0234bce8be87642f3e7399cc50b1405b7b1cb19612c39e64cdacb594",
-    STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: "55bbd20d483361dcdb598d1100afc54c40b22d31909c143fdf1b8bdeeb531b1d",
+    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "afbb83a632cb0118b152a33782e63aa183bf838e9cd994e89d728f073912c448",
+    STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: "3e79ef3dd576a1b871625b6f81a9516a7b1f644e13262a7c2fd36450b3d6862b",
     STEP_RESTORE_PYTHON_PUBLISHER_BASE: "dd3deb33caa76d77617755ad6ea7d7f64e940dd9114a97586cd035a567a01e54",
-    STEP_APPLY_PYTHON_CANDIDATE: "2ab398b7a68d6124283d52fd2b57510158b5ab089e47f657cd70b3a2a19c5fed",
-    STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY: "d9ded799979e2ad7b3e1100cb33df4524a30233029fb3496b8d5019de472eeee",
+    STEP_APPLY_PYTHON_CANDIDATE: "85a950470290d4193d205cc4e56d66a4b4215ca27d17d03de72f8568073bba37",
+    STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY: "29a005b0b19af7a04018f2c94b1eae862f509b3888f6aeba40eef55984f14e2d",
 }
 PYTHON_PUBLISHER_SCRIPT_SHA256 = {
     STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: (
-        "18cdf3715900c5a7c72eba2ca22afb4e75bfe6365a708f4f63251825f3e0e5d7"
+        "df4affc977f6f928bc62e208e93f1afe81b652754e6b58a1d72bf705bf221583"
     ),
 }
 PYTHON_OUTCOME_JOB_KEYS = frozenset(
@@ -908,7 +931,7 @@ PYTHON_OUTCOME_ENV_VALUES = {
     "CANDIDATE_VALIDATED": "${{ needs.candidate-validate.outputs.candidate_validated }}",
 }
 PYTHON_OUTCOME_RUN_SHA256 = (
-    "7ee08de961161f56f6989d3c02ad2e336c0f4c8d0d70b2522398bd079add3ff5"
+    "9df255398a9683865d09499a7d52ec3cfe6044ae2623e091bf4308bab60c9c90"
 )
 UPDATER_SENSITIVE_KEY = re.compile(r"(?:secret|token)", re.IGNORECASE)
 UPDATER_SENSITIVE_VALUE = re.compile(
@@ -948,12 +971,20 @@ OSV_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         'git show "$BASE_SHA:.python-version" > "$PYTHON_VERSION_FILE"',
         f"OSV_LEGACY_BASE_SHA: {OSV_LEGACY_BASE_SHA}",
         f"OSV_LEGACY_BASE_VERSION: {OSV_LEGACY_BASE_VERSION}",
+        f"OSV_PY314_BASE_SHA: {OSV_PY314_BASE_SHA}",
+        f"OSV_PY314_BASE_VERSION: {OSV_PY314_BASE_VERSION}",
+        f"OSV_PY314_MAINTENANCE_BASE_SHA: {OSV_PY314_MAINTENANCE_BASE_SHA}",
+        f"OSV_PY314_TOOLING_BASE_SHA: {OSV_PY314_TOOLING_BASE_SHA}",
         'test "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA"',
         'version="$OSV_LEGACY_BASE_VERSION"',
         'if [ "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA" ]; then',
         '[ "$version" = "$OSV_LEGACY_BASE_VERSION" ]',
+        'elif [ "$BASE_SHA" = "$OSV_PY314_BASE_SHA" ]; then',
+        'elif [ "$BASE_SHA" = "$OSV_PY314_MAINTENANCE_BASE_SHA" ]; then',
+        'elif [ "$BASE_SHA" = "$OSV_PY314_TOOLING_BASE_SHA" ]; then',
+        '[ "$version" = "$OSV_PY314_BASE_VERSION" ]',
         '[ -f "$PYTHON_VERSION_FILE" ]',
-        '[[ "$version" =~ ^3\\.14\\.(0|[1-9][0-9]*)$ ]]',
+        '[[ "$version" =~ ^3\\.15\\.(0|[1-9][0-9]*)$ ]]',
         'printf \'%s\\n\' "$version" | cmp -s - "$PYTHON_VERSION_FILE"',
         OSV_TRUSTED_BASE_PYTHON_VERSION_FILE,
         'git cat-file -e "$HEAD_SHA:requirements-ci.lock"',
@@ -1637,25 +1668,38 @@ def python_provisioning_errors(path: Path, text: str) -> list[str]:
 
 
 def ci_dependency_installer_errors(root: Path) -> list[str]:
-    """Bind the shared CI dependency bootstrap to its reviewed shell program."""
+    """Bind the shared CI bootstrap, delegated source installer, and build lock."""
 
-    installer = root / CI_DEPENDENCY_INSTALLER
-    if not installer.exists():
-        return [f"{installer}: reviewed CI dependency installer is missing"]
-    if installer.is_symlink() or not installer.is_file():
-        return [
-            f"{installer}: reviewed CI dependency installer must be a regular non-symlink file"
-        ]
-    try:
-        text = installer.read_text(encoding="utf-8")
-    except OSError as exc:
-        return [f"{installer}: unable to read reviewed CI dependency installer: {exc}"]
-    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-    if digest != CI_DEPENDENCY_INSTALLER_SHA256:
-        return [
-            f"{installer}: reviewed CI dependency installer must match the approved SHA-256"
-        ]
-    return []
+    errors: list[str] = []
+    reviewed_files = {
+        CI_DEPENDENCY_INSTALLER: CI_DEPENDENCY_INSTALLER_SHA256,
+        CI_DEPENDENCY_SOURCE_INSTALLER: CI_DEPENDENCY_SOURCE_INSTALLER_SHA256,
+        CI_DEPENDENCY_BUILD_LOCK: CI_DEPENDENCY_BUILD_LOCK_SHA256,
+    }
+    for relative, expected_digest in reviewed_files.items():
+        installer = root / relative
+        if not installer.exists():
+            errors.append(
+                f"{installer}: reviewed CI dependency installer input is missing"
+            )
+            continue
+        if installer.is_symlink() or not installer.is_file():
+            errors.append(
+                f"{installer}: reviewed CI dependency installer input must be a regular non-symlink file"
+            )
+            continue
+        try:
+            digest = hashlib.sha256(installer.read_bytes()).hexdigest()
+        except OSError as exc:
+            errors.append(
+                f"{installer}: unable to read reviewed CI dependency installer input: {exc}"
+            )
+            continue
+        if digest != expected_digest:
+            errors.append(
+                f"{installer}: reviewed CI dependency installer input must match the approved SHA-256"
+            )
+    return errors
 
 
 def ci_dependency_installer_reference_errors(
@@ -2793,7 +2837,7 @@ def submodule_updater_errors(path: Path, text: str, data: dict[str, Any]) -> lis
                 "validate-submodule-update": (
                     CHECKOUT_WITHOUT_SUBMODULES,
                     CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
-                    "--require-hashes -r requirements-ci.lock",
+                    CI_DEPENDENCY_INSTALLER_COMMAND,
                     'git submodule update --init -- "$SUBMODULE_PATH"',
                     'git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"',
                     "quick-check",
@@ -3772,16 +3816,14 @@ def _common_version_snapshot_bootstrap_error(
     """Return a contract error when a snapshot lacks an ordered locked bootstrap."""
 
     lines = [line.strip() for line in snapshot_run.splitlines()]
-    install_index = _first_exact_line_index(lines, COMMON_VERSION_PIP_INSTALL_COMMAND)
-    requirements_index = _first_exact_line_index(lines, HASH_LOCKED_CI_REQUIREMENTS)
-    pip_check_index = _first_exact_line_index(lines, COMMON_VERSION_PIP_CHECK_COMMAND)
+    install_index = _first_exact_line_index(lines, CI_DEPENDENCY_INSTALLER_COMMAND)
     updater_index = _first_prefixed_line_index(
         lines, COMMON_VERSION_SNAPSHOT_UPDATER_COMMAND
     )
-    if not (0 <= install_index < requirements_index < pip_check_index < updater_index):
+    if not (0 <= install_index < updater_index):
         return (
-            f"{path}: {name} snapshot must bootstrap hash-locked CI requirements and "
-            "run pip check before invoking the workflow-tool updater"
+            f"{path}: {name} snapshot must bootstrap hash-locked CI requirements "
+            "through the reviewed helper before invoking the workflow-tool updater"
         )
     return None
 
@@ -4315,6 +4357,47 @@ def forbidden_workflow_snippet_errors(
     ]
 
 
+def osv_trusted_base_environment_errors(
+    path: Path, steps: list[Any], install_step: dict[str, Any]
+) -> list[str]:
+    """Bind both OSV bootstrap steps to the same exact historical identities."""
+
+    expected_env = {
+        "BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "OSV_LEGACY_BASE_SHA": OSV_LEGACY_BASE_SHA,
+        "OSV_LEGACY_BASE_VERSION": OSV_LEGACY_BASE_VERSION,
+        "OSV_PY314_BASE_SHA": OSV_PY314_BASE_SHA,
+        "OSV_PY314_BASE_VERSION": OSV_PY314_BASE_VERSION,
+        "OSV_PY314_MAINTENANCE_BASE_SHA": OSV_PY314_MAINTENANCE_BASE_SHA,
+        "OSV_PY314_TOOLING_BASE_SHA": OSV_PY314_TOOLING_BASE_SHA,
+        "PYTHON_VERSION_FILE": OSV_TRUSTED_BASE_PYTHON_VERSION_FILE,
+    }
+    errors: list[str] = []
+    materialize_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("name") == "Materialize trusted base Python version"
+    ]
+    if len(materialize_steps) != 1:
+        errors.append(
+            f"{path}: OSV must declare exactly one trusted-base Python materialization"
+        )
+    for step in [*materialize_steps, install_step]:
+        environment = step.get("env")
+        if not isinstance(environment, dict) or set(environment) != set(expected_env):
+            errors.append(
+                f"{path}: OSV trusted-base bootstrap must bind exact historical base identities"
+            )
+            continue
+        for key, expected in expected_env.items():
+            if environment.get(key) != expected:
+                errors.append(
+                    f"{path}: OSV trusted-base bootstrap must bind {key}: {expected}"
+                )
+    return errors
+
+
 def osv_trusted_base_bootstrap_errors(path: Path, data: dict[str, Any]) -> list[str]:
     """Keep the trusted-base OSV bootstrap available without PR-head content."""
 
@@ -4340,19 +4423,10 @@ def osv_trusted_base_bootstrap_errors(path: Path, data: dict[str, Any]) -> list[
     run = install_steps[0].get("run")
     if not isinstance(run, str):
         return [f"{path}: OSV trusted-base bootstrap must be a shell string"]
-    errors: list[str] = []
-    if CI_DEPENDENCY_INSTALLER in run:
+    errors = osv_trusted_base_environment_errors(path, steps, install_steps[0])
+    if publisher_body_digest(run) != OSV_TRUSTED_BASE_INSTALL_SHA256:
         errors.append(
-            f"{path}: OSV trusted-base job must retain an inline hash-locked bootstrap"
-        )
-    normalized = " ".join(run.split())
-    if (
-        "python3 -m pip install" not in normalized
-        or HASH_LOCKED_CI_REQUIREMENTS not in normalized
-        or "python3 -m pip check" not in normalized
-    ):
-        errors.append(
-            f"{path}: OSV trusted-base job must install reviewed hash-locked requirements"
+            f"{path}: OSV trusted-base bootstrap must match the reviewed program"
         )
     return errors
 

@@ -57,12 +57,24 @@ REMOTE_USE = re.compile(
 NODE_VERSION_LINE = re.compile(
     r"^(?P<prefix>\s*node-version:\s*)(?P<quote>[\"']?)(?P<value>[^\s#\"']+)(?P=quote)(?P<suffix>\s*(?:#.*)?)$"
 )
-OSV_LEGACY_FIELD_LINES = {
+OSV_COMPATIBILITY_FIELD_LINES = {
     "OSV_LEGACY_BASE_SHA": re.compile(
         r"^(?P<prefix>\s*OSV_LEGACY_BASE_SHA:\s*)(?P<value>[^\s#]+)(?P<suffix>\s*(?:#.*)?)$"
     ),
     "OSV_LEGACY_BASE_VERSION": re.compile(
         r"^(?P<prefix>\s*OSV_LEGACY_BASE_VERSION:\s*)(?P<value>[^\s#]+)(?P<suffix>\s*(?:#.*)?)$"
+    ),
+    "OSV_PY314_BASE_SHA": re.compile(
+        r"^(?P<prefix>\s*OSV_PY314_BASE_SHA:\s*)(?P<value>[^\s#]+)(?P<suffix>\s*(?:#.*)?)$"
+    ),
+    "OSV_PY314_MAINTENANCE_BASE_SHA": re.compile(
+        r"^(?P<prefix>\s*OSV_PY314_MAINTENANCE_BASE_SHA:\s*)(?P<value>[^\s#]+)(?P<suffix>\s*(?:#.*)?)$"
+    ),
+    "OSV_PY314_TOOLING_BASE_SHA": re.compile(
+        r"^(?P<prefix>\s*OSV_PY314_TOOLING_BASE_SHA:\s*)(?P<value>[^\s#]+)(?P<suffix>\s*(?:#.*)?)$"
+    ),
+    "OSV_PY314_BASE_VERSION": re.compile(
+        r"^(?P<prefix>\s*OSV_PY314_BASE_VERSION:\s*)(?P<value>[^\s#]+)(?P<suffix>\s*(?:#.*)?)$"
     ),
 }
 GENERATED_LOCK = "# GENERATED FILE: values are sourced from ci/lib/common.sh; do not edit pin fields manually.\n"
@@ -190,6 +202,10 @@ def canonical_names(source: str | None = None) -> list[str]:
         "CI_CANONICAL_NODE_VERSION",
         "CI_OSV_LEGACY_BASE_SHA",
         "CI_OSV_LEGACY_BASE_VERSION",
+        "CI_OSV_PY314_BASE_SHA",
+        "CI_OSV_PY314_BASE_VERSION",
+        "CI_OSV_PY314_MAINTENANCE_BASE_SHA",
+        "CI_OSV_PY314_TOOLING_BASE_SHA",
     ]
     names += [
         f"CI_ACTION_{suffix}_{field}"
@@ -505,7 +521,7 @@ def _rewrite_osv_line(
     if path.name != "ci-security-osv.yml":
         return None
     bare_line = line.rstrip("\n")
-    for field, field_pattern in OSV_LEGACY_FIELD_LINES.items():
+    for field, field_pattern in OSV_COMPATIBILITY_FIELD_LINES.items():
         match = field_pattern.fullmatch(bare_line)
         if match is None:
             continue
@@ -614,12 +630,20 @@ def workflow_values(
     errors: list[str] = []
     outputs: list[tuple[Path, bytes]] = []
     import runpy
-    integration = runpy.run_path(str(Path(__file__).resolve().parents[1] / "checks/security/connector_action_pins.py"))
+
+    integration = runpy.run_path(
+        str(
+            Path(__file__).resolve().parents[1]
+            / "checks/security/connector_action_pins.py"
+        )
+    )
     for path in sorted((root / ".github/workflows").glob("*.y*ml")):
         validate_managed_path(root, path)
         text = path.read_text(encoding="utf-8")
         if path.name in integration["WORKFLOWS"]:
-            errors.extend(integration["validate_source"](root, str(path.relative_to(root)), text))
+            errors.extend(
+                integration["validate_source"](root, str(path.relative_to(root)), text)
+            )
             continue
         changed_lines: list[str] = []
         osv_fields_seen: set[str] = set()
@@ -635,7 +659,7 @@ def workflow_values(
             outputs.append((path, changed.encode("utf-8")))
         errors.extend(_validate_workflow_actions(root, path, changed, values))
         if path.name == "ci-security-osv.yml":
-            missing = set(OSV_LEGACY_FIELD_LINES) - osv_fields_seen
+            missing = set(OSV_COMPATIBILITY_FIELD_LINES) - osv_fields_seen
             errors.extend(
                 f"{path.relative_to(root)}: missing generated {field} field"
                 for field in sorted(missing)

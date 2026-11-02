@@ -38,6 +38,10 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           OSV_LEGACY_BASE_SHA: f73f8842f45318e2df8aff1d31855eeb7c20a22f
           OSV_LEGACY_BASE_VERSION: 3.13.14
+          OSV_PY314_BASE_SHA: 91145b7ba721bdec4e89af754cf40bf496fd2a08
+          OSV_PY314_BASE_VERSION: 3.14.10
+          OSV_PY314_MAINTENANCE_BASE_SHA: 68ca7b411db12ed96ee6208aa792b43e8043470c
+          OSV_PY314_TOOLING_BASE_SHA: ff7cae78e085e179950c4b871bbf1d5327c69069
           PYTHON_VERSION_FILE: ${{ runner.temp }}/framework-osv-trusted-base-python-version
         run: |
           set -euo pipefail
@@ -71,8 +75,14 @@ jobs:
           version="$(cat "$PYTHON_VERSION_FILE")"
           if [ "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA" ]; then
             [ "$version" = "$OSV_LEGACY_BASE_VERSION" ]
+          elif [ "$BASE_SHA" = "$OSV_PY314_BASE_SHA" ]; then
+            [ "$version" = "$OSV_PY314_BASE_VERSION" ]
+          elif [ "$BASE_SHA" = "$OSV_PY314_MAINTENANCE_BASE_SHA" ]; then
+            [ "$version" = "$OSV_PY314_BASE_VERSION" ]
+          elif [ "$BASE_SHA" = "$OSV_PY314_TOOLING_BASE_SHA" ]; then
+            [ "$version" = "$OSV_PY314_BASE_VERSION" ]
           else
-            [[ "$version" =~ ^3\.14\.(0|[1-9][0-9]*)$ ]]
+            [[ "$version" =~ ^3\.15\.(0|[1-9][0-9]*)$ ]]
           fi
           expected_size=$(( ${#version} + 1 ))
           [ "$(wc -c < "$PYTHON_VERSION_FILE")" -eq "$expected_size" ]
@@ -85,14 +95,30 @@ jobs:
           check-latest: false
 
       - name: Install hash-locked CI dependency
-        # This job deliberately checks out the trusted PR base revision. Keep
-        # its reviewed bootstrap inline: a helper introduced by the untrusted
-        # PR head is unavailable here and must not be fetched into this job.
+        # Historical trusted bases predate the source-build helper. Never fetch
+        # dependency bootstrap code from the untrusted pull request head.
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          OSV_LEGACY_BASE_SHA: f73f8842f45318e2df8aff1d31855eeb7c20a22f
+          OSV_LEGACY_BASE_VERSION: 3.13.14
+          OSV_PY314_BASE_SHA: 91145b7ba721bdec4e89af754cf40bf496fd2a08
+          OSV_PY314_BASE_VERSION: 3.14.10
+          OSV_PY314_MAINTENANCE_BASE_SHA: 68ca7b411db12ed96ee6208aa792b43e8043470c
+          OSV_PY314_TOOLING_BASE_SHA: ff7cae78e085e179950c4b871bbf1d5327c69069
+          PYTHON_VERSION_FILE: ${{ runner.temp }}/framework-osv-trusted-base-python-version
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+          version="$(cat "$PYTHON_VERSION_FILE")"
+          if { [ "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA" ] && [ "$version" = "$OSV_LEGACY_BASE_VERSION" ]; } ||
+             { [ "$BASE_SHA" = "$OSV_PY314_BASE_SHA" ] && [ "$version" = "$OSV_PY314_BASE_VERSION" ]; } ||
+             { [ "$BASE_SHA" = "$OSV_PY314_MAINTENANCE_BASE_SHA" ] && [ "$version" = "$OSV_PY314_BASE_VERSION" ]; } ||
+             { [ "$BASE_SHA" = "$OSV_PY314_TOOLING_BASE_SHA" ] && [ "$version" = "$OSV_PY314_BASE_VERSION" ]; }; then
+            python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+              --require-hashes -r requirements-ci.lock
+            python3 -m pip check
+          else
+            bash ci/tools/install-hash-locked-ci-dependencies.sh
+          fi
 
       - name: Fetch checksum-verified OSV Scanner
         env:

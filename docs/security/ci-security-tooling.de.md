@@ -18,11 +18,12 @@ Dependency-Manifeste als begrenzte Daten. Sein Python-Bootstrap wird einmalig
 als reguläre, nicht symlinkte Datei unter privatem `runner.temp` aus der
 vertrauenswürdigen Basis materialisiert. Eine vorhandene Basis-`.python-version`
 muss ein größenbegrenzter Blob sein und der strikten stabilen
-CPython-3.14-Grammatik entsprechen. Die exakte historische Basis
-`f73f8842f45318e2df8aff1d31855eeb7c20a22f` liegt vor dieser Datei und erhält
-allein den festen Kompatibilitätswert `3.13.14`. Jeder andere CP313-Selektor
-oder eine andere fehlende Basisdatei scheitert geschlossen. Der ausgewählte
-Interpreter passt somit immer zum vom Job installierten vertrauenswürdigen
+CPython-3.15-Grammatik entsprechen. Vier exakte historische Tupel bleiben
+unterstützt: `f73f8842f45318e2df8aff1d31855eeb7c20a22f` liegt vor dieser
+Datei und erhält allein den festen Kompatibilitätswert `3.13.14`;
+`91145b7ba721bdec4e89af754cf40bf496fd2a08` und `68ca7b411db12ed96ee6208aa792b43e8043470c` und `ff7cae78e085e179950c4b871bbf1d5327c69069` muss genau `3.14.10` enthalten.
+Andere CP313-/CP314-Selektoren oder fehlende Basisdateien scheitern geschlossen.
+Der ausgewählte Interpreter passt somit zum vertrauenswürdigen
 Basis-Lock. Sein ausgecheckter Framework-Quellcode und Scanner-Helper stammen
 aus der Basisrevision; der Job liest keinen PR-Head-Python-Selektor, checkt
 keinen PR-Head aus und führt keinen PR-Head-Code aus. Alle Routine-Jobs erhalten
@@ -72,8 +73,8 @@ bleiben artefaktfrei.
 | `ci-security-workflow-lint.yml` | PR, Default-Branch-Push, manuell | Prüfsummenverifiziertes actionlint mit ShellCheck, offline zizmor, Contracts für immutable Pins/Berechtigungen/Checkout, semantische Evidence-Validierung sowie sichere und unsichere Fixtures. |
 | `ci-security-quality.yml` | PR- und Default-Branch-Änderungen am CI-Security-Python-Scope | Prüfsummenverifiziertes Ruff-Lint/-Format und Pyright mit exakt festgelegter Node.js-Runtime. Der Scope umfasst CI-Security- und Change-Record-Checker, Downloader und deren Tests. |
 | `ci-security-secrets.yml` | PR, Zeitplan, manuell | Gitleaks checkt den exakten PR-Head aus und beweist ihn; danach scannt es exakt den Bereich Merge-Base bis Head mit `--redact=100`. Die gesamte Historie ist geplant/manuell advisory, bis Findings triagiert sind. |
-| `ci-security-osv.yml` | Begrenztes nicht privilegiertes `pull_request`; Zeitplan und manuell auf dem Default-Branch | Der PR-Job führt die vertrauenswürdige PR-Basis-SHA aus, holt die nummerierte PR-Referenz ohne Checkout, verifiziert ihre exakte Head-SHA und vergleicht begrenzte `requirements-dev.txt`- und `requirements-ci.lock`-Blobs ohne Remediation. `setup-python` erhält ausschließlich eine private reguläre, nicht symlinkte Versionsdatei aus einem größenbegrenzten Trusted-Base-Blob. Striktes CPython 3.14 ist erforderlich, ausgenommen allein die exakte Basis vor dem Selektor `f73f8842f45318e2df8aff1d31855eeb7c20a22f`; diese wählt allein `3.13.14`. Jeder andere CP313-Selektor oder eine andere fehlende Basisdatei scheitert geschlossen, und kein PR-Head-Python-Selektor, Source oder Workflow-Content wird gelesen oder ausgeführt. Er scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
-| `check-python-version.yml` | Geplant/manuell auf der vertrauenswürdigen `master`-Revision | Ein dreistufiger CPython-Wartungsworkflow löst einen Kandidaten auf, validiert ihn und darf erst danach einen Draft-Review-PR veröffentlichen. Die zwei read-only Stufen verwenden die ausgecheckte vertrauenswürdige Revision und kein Token; die Kandidatvalidierung materialisiert nur den festen Pfad `${{ runner.temp }}/framework-python-3.14-candidate`. Der Publisher ist durch `github.ref == 'refs/heads/master'` und einen validierten Kandidaten begrenzt, löst ihn unabhängig erneut auf, beschränkt die Änderung auf `.python-version` und verwendet den festen Review-Branch `automation/update-framework-python-314`. |
+| `ci-security-osv.yml` | Begrenztes nicht privilegiertes `pull_request`; Zeitplan und manuell auf dem Default-Branch | Der PR-Job führt die vertrauenswürdige PR-Basis-SHA aus, holt die nummerierte PR-Referenz ohne Checkout, verifiziert ihre exakte Head-SHA und vergleicht begrenzte `requirements-dev.txt`- und `requirements-ci.lock`-Blobs ohne Remediation. `setup-python` erhält ausschließlich eine private reguläre, nicht symlinkte Versionsdatei aus einem größenbegrenzten Trusted-Base-Blob. Striktes CPython 3.15 ist erforderlich, ausgenommen allein die exakte Basis vor dem Selektor `f73f8842f45318e2df8aff1d31855eeb7c20a22f`; diese wählt allein `3.13.14`, sowie die exakten Übergangsbasen `91145b7ba721bdec4e89af754cf40bf496fd2a08` und `68ca7b411db12ed96ee6208aa792b43e8043470c` und `ff7cae78e085e179950c4b871bbf1d5327c69069`, die `3.14.10` erfordern. Jeder andere CP313-/CP314-Selektor oder eine andere fehlende Basisdatei scheitert geschlossen, und kein PR-Head-Python-Selektor, Source oder Workflow-Content wird gelesen oder ausgeführt. Er scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
+| `check-python-version.yml` | Geplant/manuell auf der vertrauenswürdigen `master`-Revision | Ein dreistufiger CPython-Wartungsworkflow löst einen Kandidaten auf, validiert ihn und darf erst danach einen Draft-Review-PR veröffentlichen. Die zwei read-only Stufen verwenden die ausgecheckte vertrauenswürdige Revision und kein Token; die Kandidatvalidierung materialisiert nur den festen Pfad `${{ runner.temp }}/framework-python-3.15-candidate`. Der Publisher ist durch `github.ref == 'refs/heads/master'` und einen validierten Kandidaten begrenzt, löst ihn unabhängig erneut auf, beschränkt Änderungen auf die kanonische Zuweisung in `ci/lib/common.sh`, die generierte `.python-version`, das Quelldigestinventar und das abgeleitete Spezialistenarchiv und verwendet den festen Review-Branch `automation/update-framework-python-315`. |
 | `ci-security-codeql-pr.yml` | PR | CodeQL analysiert den exakten PR-Head mit ausschließlich `contents: read`, dem `linked`-Tool-Bundle der gepinnten Action, `upload: never` und `upload-database: false`. Es analysiert GitHub Actions, Python und C/C++ und ignoriert `tools/MRTS/**`; es erhält nie eine Code-Scanning-Write-Berechtigung. |
 | `ci-security-codeql.yml` | Default-Branch-Push, Zeitplan, manuell | Vertrauenswürdiges CodeQL analysiert die exakte `github.sha` mit demselben begrenzten Sprach-Scope und `linked`-Tool-Bundle. Seine eine Job-spezifische `security-events: write`-Berechtigung wird ausschließlich nach Nicht-PR-Ausführung zum Upload von Code-Scanning-SARIF verwendet. Go oder JavaScript/TypeScript werden nicht behauptet; C/C++ verwendet `build-mode: none`, damit der Scan keine Connector- oder MRTS-Abhängigkeiten provisioniert. |
 | `ci-security-scorecard.yml` | PR; Default-Branch-Push, Zeitplan, manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OpenSSF-Scorecard-Binary bewertet den exakten lokalen PR-Checkout ohne GitHub-Token. Das PR-Ergebnis wird JSON-validiert, bleibt aber artefaktfrei. Vertrauenswürdige Default-Branch-Jobs verwenden die exakte `github.sha`, bewahren eine validierte begrenzte JSON-Datei einen Tag auf und bleiben advisory, weil kein Score-Schwellenwert gesetzt ist; Scanner- und JSON-Validierungsfehler sind nicht advisory. SARIF wird nicht hochgeladen. |
@@ -226,12 +227,27 @@ Branch-Push, keinen Merge und keine PR-ausgelöste Ausführung.
 `requirements-ci.lock` ist eine generierte Ansicht der kanonischen CI-Python-
 und PyYAML-Felder in `ci/lib/common.sh`
 (`CI_CANONICAL_PYTHON_VERSION`, `CI_CANONICAL_PYYAML_VERSION` und
-`CI_CANONICAL_PYYAML_SHA256`). Der generierte Lock enthält das exakte CP314-
-Wheel und den offiziellen PyPI-SHA-256; `ci/tools/sync-canonical-python-pins.py
+`CI_CANONICAL_PYYAML_SHA256`). Der generierte Lock enthält das exakte geprüfte
+Artefakt und den offiziellen PyPI-SHA-256; `ci/tools/sync-canonical-python-pins.py
 --check` prüft ihn netzwerkfrei.
-Workflows wählen den exakten überprüften Patch mit `check-latest: false` und
-installieren ihn anschließend mit `--require-hashes`, `--only-binary=:all:`
-und `pip check`. Reguläre Dependabot-`github-actions`-Versions-PRs sind mit
+Workflows wählen den exakten geprüften Patch mit `check-latest: false` und rufen
+`bash ci/tools/install-hash-locked-ci-dependencies.sh` ohne Argumente auf. Das
+Shell-Skript delegiert an den geprüften Standardbibliothek-Installer
+`ci/tools/install_hash_locked_ci_dependencies.py`. Wheel-Pins behalten den
+Hash-gesperrten binären Installationspfad. Der Quellcodepfad für CPython 3.15
+verifiziert vor der Verwendung das offizielle PyYAML-Quellarchiv und die vier
+exakten Wheels für setuptools, wheel, Cython und packaging aus
+`ci/pyyaml-build-tools.lock.json`. Build-Werkzeuge laufen in einer temporären
+virtuellen Umgebung mit bereinigter Umgebung; Build und Installation verwenden
+weder Index noch Abhängigkeitsauflösung. Das Backend baut ein reines Python-Wheel
+ohne LibYAML. Dessen lokal ermittelter SHA-256 wird vor der Runtime-Installation
+gesperrt. Nur PyYAML gelangt in die Runtime-Umgebung; Build-Werkzeuge bleiben
+in der temporären Umgebung. Beide Umgebungen erhalten `pip check`. Das Ziel
+muss eine virtuelle Umgebung oder das gegen `pythonLocation` und die gewählte
+ausführbare Datei verifizierte setup-python-Präfix von GitHub Actions sein.
+Temporäre Build-Dateien sowie erzeugte Wheel-/Hash-Locks bleiben unter externem
+`RUNNER_TEMP` oder `TMPDIR` und werden beim Verlassen entfernt.
+Reguläre Dependabot-`github-actions`-Versions-PRs sind mit
 `open-pull-requests-limit: 0` deaktiviert. `check-common-versions.yml` ist der
 einzige reguläre Publisher für kanonische Action-/Tool-Releases: Er erstellt
 oder aktualisiert genau einen festen Draft-PR mit `common.sh`, dem Lock, den
@@ -242,11 +258,20 @@ gebündelt. Dependabot überwacht weiterhin `pip`; jedes vorgeschlagene Update
 unterliegt dem Lock-/Provenienzreview und dem Immutable-Pin-Contract, und kein
 Workflow behebt Abhängigkeiten automatisch.
 
+Source-Builds benötigen ein explizites `RUNNER_TEMP`-Verzeichnis außerhalb des
+Checkouts. Es muss dem aktuellen Benutzer gehören, darf keine Gruppen-/
+Weltschreibrechte haben und muss einen physischen Pfad mit vertrauenswürdigen
+Vorfahren verwenden; root-eigene gemeinsame Vorfahren mit Sticky-Bit sind
+erlaubt. Generische Werte aus `TMPDIR`, `TMP` und `TEMP` wählen den Build-Root
+nicht aus. Bei lokalem venv-Aufruf ist `RUNNER_TEMP` explizit auf das task-eigene
+externe Verzeichnis zu setzen. Der temporäre Build-Unterordner bleibt privat;
+der Backend-Prozess erhält nur diesen Unterordner als `TMPDIR`.
+
 ## CPython-Baseline und Wartungsvertrag
 
 `.python-version` ist der einzige kanonische Framework-Interpreter-Selektor.
 Sie muss eine reguläre, nicht symlinkte UTF-8-Datei sein, die genau einen mit
-Zeilenumbruch abgeschlossenen stabilen Wert `3.14.<numeric patch>` enthält.
+Zeilenumbruch abgeschlossenen stabilen Wert `3.15.<numeric patch>` enthält.
 Sie erlaubt keinen floating selector, kein wildcard, kein prerelease, keine
 alternative Implementierung und keine zweite Zeile. Jeder aktive
 `actions/setup-python`-Use wählt sie mit `python-version-file: .python-version`
@@ -254,37 +279,61 @@ und `check-latest: false`, mit Ausnahme der zwei separat verifizierten
 Datendateien unten:
 
 - Nur der Job `candidate-validate` in `check-python-version.yml` darf
-  `${{ runner.temp }}/framework-python-3.14-candidate` verwenden. Der Updater
+  `${{ runner.temp }}/framework-python-3.15-candidate` verwenden. Der Updater
   schreibt diesen festen privaten Runner-Pfad erst, nachdem er den erwarteten
   Kandidaten unabhängig nach derselben strikten Grammatik akzeptiert hat; die
   Datei ist regulär und nicht symlinkbar, und kein Aufrufer kontrolliert ihren
   Pfad.
 - Nur der OSV-Job `pull-request-head` darf
   `${{ runner.temp }}/framework-osv-trusted-base-python-version` verwenden. Er
-  materialisiert diesen festen privaten Pfad nach Größen- und Stable-3.14-
-  Validierung aus der vertrauenswürdigen Basis-`.python-version`. Die exakte
-  historische Basis `f73f8842f45318e2df8aff1d31855eeb7c20a22f`, die vor der
-  kanonischen Datei liegt, ist die einzige fail-closed-Kompatibilitätsausnahme
-  und schreibt nur den festen Wert `3.13.14`; eine andere fehlende Basisdatei
-  scheitert. Dies erhält das Basis-Interpreter-/Lock-ABI-Paar und liest nie
-  einen PR-Head-Python-Selektor.
+  materialisiert diesen festen privaten Pfad nach Größen- und Stable-3.15-
+  Validierung aus der vertrauenswürdigen Basis-`.python-version`. Nur die exakte
+  historische Basis `f73f8842f45318e2df8aff1d31855eeb7c20a22f` darf bei fehlender
+  Datei `3.13.14` erzeugen. Die exakte Basis
+  `91145b7ba721bdec4e89af754cf40bf496fd2a08` und `68ca7b411db12ed96ee6208aa792b43e8043470c` und `ff7cae78e085e179950c4b871bbf1d5327c69069` muss `3.14.10` enthalten.
+  Nur diese exakten SHA-/Versionspaare verwenden den binären Inline-Bootstrap.
+  Aktuelle vertrauenswürdige Basen rufen ihren ausgecheckten zentralen Installer
+  auf; sie holen keinen Bootstrap-Code vom PR-Head und verwenden keinen
+  Ersatzpfad bei fehlendem Helper. Dies erhält das vertrauenswürdige
+  Basis-Interpreter-/Lock-Paar.
+
 
 `ci/tools/update-python-version.py` ist der einzige native Updater der Python-
 Baseline. Er bezieht Metadaten nur vom dokumentierten öffentlichen
 Python.org-JSON-Endpunkt, weist Redirects und nicht erkannte Metadaten zurück,
-akzeptiert nur veröffentlichte stabile CPython-3.14-Patch-Releases und schreibt
-keine Repository-Datei außer `.python-version`. Er verwendet weder einen
+akzeptiert nur veröffentlichte stabile CPython-3.15-Patch-Releases und schreibt
+nur den kanonischen Pin in `ci/lib/common.sh`; `.python-version` wird daraus
+neu erzeugt. Er verwendet weder einen
 GitHub-Token noch HTML-Scraping. Der geplante/manuelle Workflow
 `check-python-version.yml` trennt read-only Auflösung von Kandidatvalidierung.
 Sein Publisher löst den Kandidaten unabhängig erneut auf und validiert ihn,
 ist durch `github.ref == 'refs/heads/master'` beschränkt und kann nur einen
-Draft-PR auf `automation/update-framework-python-314` mit
-`.python-version` als einzigem Änderungspfad erstellen oder aktualisieren. Er
+Draft-PR auf `automation/update-framework-python-315` mit
+ausschließlich `ci/lib/common.sh`, dessen generierter Ansicht `.python-version`,
+`connector_suite/config/testing/active-cases.json` und
+`connector_suite/reports/testing/test-selection-archive.generated.json`
+als Änderungspfaden erstellen oder aktualisieren. Er
 merged nicht automatisch und verwendet keinen floating version selector.
 
+`ci/tools/sync-maintenance-test-views.py --root . --write` führt zuerst den
+vorhandenen Inventar-Binding-Generator und danach den Spezialistenarchiv-Generator
+aus; `--check` prüft beide ohne Schreibzugriff. Der kanonische Common-Updater
+führt dies zuletzt aus, ergänzt ausschließlich diese zwei Datenausgaben in
+seinen geschlossenen Publisher-Pfaden und stellt sie beim Fehler mit dem
+bestehenden transaktionalen Rollback wieder her. Der Python-Publisher prüft vier
+exakte Pfade und seine einzelne kanonische Zuweisung. Vor dem Checkout eines
+vorhandenen Draft-Heads liest sein vertrauenswürdiger Helper begrenzte reguläre
+Git-Blobs, erhält Dateimodi und vergleicht beide Metadatendateien bytegenau mit
+der vertrauenswürdigen Basis plus neuem Common-Quelldigest. Jede Auswahl und
+jedes andere Feld bleiben unverändert; das Archiv darf nur seinen Inventar-Digest
+ändern. Git- und geerbter Repository-Kontext werden bereinigt. Ein fehlgeschlagener
+eigenständiger `--write`-Lauf kann teilweise erzeugte Metadaten hinterlassen und
+muss den Job vor Veröffentlichung abbrechen; Common-Maintenance stellt den
+vollständigen Snapshot wieder her.
+
 Die Static-Tool-Baselines folgen demselben Vertrag: `pyproject.toml` deklariert
-Ruff `target-version = "py314"`, und `pyrightconfig.json` deklariert
-`"pythonVersion": "3.14"`. Dies sind Analyse-Baselines, keine Behauptung,
+Ruff `target-version = "py315"`, und `pyrightconfig.json` deklariert
+`"pythonVersion": "3.15"`. Dies sind Analyse-Baselines, keine Behauptung,
 dass ein lokaler oder gehosteter Validierungslauf für
 `CI_CANONICAL_PYTHON_VERSION` abgeschlossen
 ist.
@@ -294,7 +343,12 @@ Python-Requirements-Dateiname, den OSV Scanner direkt akzeptiert. Deshalb
 materialisiert der Workflow den exakten Git-Blob als `requirements-ci.txt` im
 privaten Runner-Temporärspeicher, bevor er ihn scannt. Dies ist ein
 Eingabekompatibilitätsadapter, keine Dependency-Umschreibung,
-Source-Tree-Änderung oder automatische Behebung. `pyproject.toml` enthält
+Source-Tree-Änderung oder automatische Behebung.
+Der benutzerdefinierte JSON-Lock der Build-Werkzeuge wird von OSV Scanner nicht
+automatisch erkannt. Der aktuelle Scan der zwei Manifeste belegt daher keine
+Schwachstellen-Scanabdeckung für die vier Build-Abhängigkeiten. Deren exaktes
+Quellen-/Hash-Review und Installer-Tests sind separate Evidenz und kein OSV-PASS
+für diese Pakete. `pyproject.toml` enthält
 derzeit CI-Tool-Konfiguration statt Projektabhängigkeiten, und das Framework
 besitzt keine Constraints- oder Go-Modul-Verträge. Ein zukünftiger
 Manifesttyp benötigt ein explizites Lock-, Scanner-Scope- und Contract-Update
@@ -342,6 +396,18 @@ Repositorys analysieren die exakt ausgecheckte SHA. Fork-PRs können den Job
 mit Token nicht betreten. `SONAR_TOKEN` steht ausschließlich dem unveränderlich
 gepinnten offiziellen Scanner-Schritt zur Verfügung; Checkout-Credentials
 werden nicht persistiert und der GitHub-Token hat nur `contents: read`.
+Die Installation nativer Analysevoraussetzungen prüft Ubuntu `26.04` /
+`resolute` und einen lesbaren regulären Ubuntu-Archiv-Keyring, bevor sie eine
+feste Deb822-Quelldatei mit Root-Eigentümer schreibt. Sie aktiviert nur das
+offizielle HTTPS-Ubuntu-Archiv (`resolute`, `resolute-updates`,
+`resolute-backports`) und Sicherheitsarchiv (`resolute-security`) mit vorhandenem
+Signaturschlüssel und Standardkomponenten. APT-Indexfehler bleiben durch
+`APT::Update::Error-Mode=any` fatal; alle bisherigen nativen Pakete bleiben
+verpflichtend. Dies repariert Runner mit fehlenden Ubuntu-Indexquellen, ohne
+Repository-Signaturen zu umgehen oder das Quality Gate zu verändern. Lokale
+Profil-/Mutationstests und Syntaxprüfungen belegen keine erfolgreiche gehostete
+Paketinstallation, native Analyse oder ein bestandenes Quality Gate.
+
 Der Offline-Contract prüft die vollständige geprüfte Schrittfolge und Skripttexte; Action-Revisionen folgen der kanonischen Quelle mit passendem generiertem Lock. Zusätzliche Checkouts, Quellenänderungen, Umgebungen und Compiler-Wrapper werden abgelehnt. Der Workflow wartet auf die serverseitige Verarbeitung und das abschließende
 Quality Gate; fehlende Credentials, Scanner-Fehler und fehlgeschlagene Gates
 bleiben Fehler. Vor dem Ersatz der bestehenden GitHub-App-Analyse durch die

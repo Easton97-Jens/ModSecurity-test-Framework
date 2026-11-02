@@ -59,8 +59,8 @@ class FakeResponse:
 
 def stable_record(patch: int, **overrides: object) -> dict[str, object]:
     record: dict[str, object] = {
-        "name": f"Python 3.14.{patch}",
-        "slug": f"python-314{patch}",
+        "name": f"Python 3.15.{patch}",
+        "slug": f"python-315{patch}",
         "is_published": True,
         "pre_release": False,
         "release_date": "2026-06-10T16:00:00Z",
@@ -75,10 +75,10 @@ def response_for(records: list[dict[str, object]]) -> FakeResponse:
 
 class UpdatePythonVersionTest(unittest.TestCase):
     def setUp(self) -> None:
-        filename = "python-3.14.7-linux-26.04-x64.tar.gz"
+        filename = "python-3.15.7-linux-26.04-x64.tar.gz"
         builds = [
             {
-                "version": "3.14.7",
+                "version": "3.15.7",
                 "stable": True,
                 "files": [
                     {
@@ -86,7 +86,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
                         "platform_version": "26.04",
                         "arch": "x64",
                         "filename": filename,
-                        "download_url": "https://github.com/actions/python-versions/releases/download/3.14.7-123/"
+                        "download_url": "https://github.com/actions/python-versions/releases/download/3.15.7-123/"
                         + filename,
                     }
                 ],
@@ -98,7 +98,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
         manifest.start()
         self.addCleanup(manifest.stop)
 
-    def make_root(self, directory: Path, version: str = "3.14.6\n") -> Path:
+    def make_root(self, directory: Path, version: str = "3.15.6\n") -> Path:
         root = directory / "framework"
         (root / "ci/lib").mkdir(parents=True)
         canonical = version.removesuffix("\n")
@@ -118,13 +118,13 @@ class UpdatePythonVersionTest(unittest.TestCase):
             result = UPDATER.resolve_update(root, opener=opener)
 
             self.assertEqual(result.status, "update_available")
-            self.assertEqual(result.current, "3.14.6")
-            self.assertEqual(result.candidate, "3.14.7")
+            self.assertEqual(result.current, "3.15.6")
+            self.assertEqual(result.candidate, "3.15.7")
             self.assertEqual(
-                (root / ".python-version").read_text(encoding="utf-8"), "3.14.6\n"
+                (root / ".python-version").read_text(encoding="utf-8"), "3.15.6\n"
             )
             self.assertIn(
-                'CI_CANONICAL_PYTHON_VERSION="3.14.6"',
+                'CI_CANONICAL_PYTHON_VERSION="3.15.6"',
                 (root / "ci/lib/common.sh").read_text(encoding="utf-8"),
             )
 
@@ -151,8 +151,8 @@ class UpdatePythonVersionTest(unittest.TestCase):
                     opener=lambda _request, _timeout: response_for(
                         [
                             {
-                                "name": "Python 3.14.7rc1",
-                                "slug": "python-3147rc1",
+                                "name": "Python 3.15.7rc1",
+                                "slug": "python-3157rc1",
                                 "is_published": True,
                                 "pre_release": True,
                                 "release_date": "2026-06-10T16:00:00Z",
@@ -160,12 +160,12 @@ class UpdatePythonVersionTest(unittest.TestCase):
                         ]
                     ),
                 ).status,
-                "no_stable_3_14_release",
+                "no_stable_3_15_release",
             )
 
     def test_invalid_current_version_and_metadata_schema_do_not_write(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            root = self.make_root(Path(temporary_directory), "3.14.06\n")
+            root = self.make_root(Path(temporary_directory), "3.15.06\n")
             result = UPDATER.resolve_update(
                 root,
                 opener=lambda _request, _timeout: response_for([stable_record(7)]),
@@ -182,8 +182,51 @@ class UpdatePythonVersionTest(unittest.TestCase):
             )
             self.assertEqual(result.status, "unsupported_response")
             self.assertEqual(
-                (root / ".python-version").read_text(encoding="utf-8"), "3.14.6\n"
+                (root / ".python-version").read_text(encoding="utf-8"), "3.15.6\n"
             )
+
+    def test_only_exact_reviewed_315_versions_are_accepted(self) -> None:
+        self.assertEqual(UPDATER.PythonVersion.parse("3.15.0").text, "3.15.0")
+        self.assertEqual(UPDATER.PythonVersion.parse("3.15.12").patch, 12)
+        for version in (
+            "3.14.7",
+            "3.16.0",
+            "3.15.7rc1",
+            "3.15.7a1",
+            "3.15.7b1",
+            "3.15.07",
+            "3.15",
+            "3.15.7\n",
+            " 3.15.7",
+        ):
+            with self.subTest(version=version):
+                with self.assertRaises(UPDATER.UpdaterFailure):
+                    UPDATER.PythonVersion.parse(version)
+
+    def test_other_series_and_prereleases_cannot_be_selected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = self.make_root(Path(temporary_directory))
+            pin = root / "ci/lib/common.sh"
+            original = pin.read_bytes()
+            for name in (
+                "Python 3.14.99",
+                "Python 3.16.0",
+                "Python 3.15.7rc1",
+                "Python 3.15.7a1",
+                "Python 3.15.7b1",
+                "Python 3.15",
+                "Python 3.15.7 extra",
+            ):
+                with self.subTest(name=name):
+                    result = UPDATER.resolve_update(
+                        root,
+                        opener=lambda _request, _timeout: response_for(
+                            [stable_record(7, name=name)]
+                        ),
+                    )
+                    self.assertEqual(result.status, "no_stable_3_15_release")
+                    self.assertIsNone(result.candidate)
+                    self.assertEqual(pin.read_bytes(), original)
 
     def test_redirect_network_failure_and_leading_zero_metadata_are_rejected(
         self,
@@ -205,8 +248,8 @@ class UpdatePythonVersionTest(unittest.TestCase):
                 UPDATER.resolve_update(root, opener=blocked).status, "blocked_network"
             )
             leading_zero = {
-                "name": "Python 3.14.07",
-                "slug": "python-31407",
+                "name": "Python 3.15.07",
+                "slug": "python-31507",
                 "is_published": True,
                 "pre_release": False,
                 "release_date": "2026-06-10T16:00:00Z",
@@ -220,19 +263,19 @@ class UpdatePythonVersionTest(unittest.TestCase):
 
     def test_ascii_only_version_and_metadata_values_are_enforced(self) -> None:
         with self.assertRaisesRegex(UPDATER.UpdaterFailure, "exact stable"):
-            UPDATER.PythonVersion.parse("3.14.1\u0665")
+            UPDATER.PythonVersion.parse("3.15.1\u0665")
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
             non_ascii_name = stable_record(
-                7, name="Python 3.14.1\u0665", slug="python-3147"
+                7, name="Python 3.15.1\u0665", slug="python-3157"
             )
             self.assertEqual(
                 UPDATER.resolve_update(
                     root,
                     opener=lambda _request, _timeout: response_for([non_ascii_name]),
                 ).status,
-                "no_stable_3_14_release",
+                "no_stable_3_15_release",
             )
             non_ascii_date = stable_record(7, release_date="2026-06-1\u0660T16:00:00Z")
             self.assertEqual(
@@ -302,10 +345,10 @@ class UpdatePythonVersionTest(unittest.TestCase):
             )
             self.assertEqual(
                 (root / "ci/lib/common.sh").read_text(encoding="utf-8"),
-                'CI_CANONICAL_PYTHON_VERSION="3.14.7"\n',
+                'CI_CANONICAL_PYTHON_VERSION="3.15.7"\n',
             )
             self.assertEqual(
-                (root / ".python-version").read_text(encoding="utf-8"), "3.14.6\n"
+                (root / ".python-version").read_text(encoding="utf-8"), "3.15.6\n"
             )
             self.assertEqual(unrelated.read_text(encoding="utf-8"), "unchanged\n")
 
@@ -313,7 +356,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
             directory = Path(temporary_directory)
             outside = directory / "outside-version"
             outside.write_text(
-                'CI_CANONICAL_PYTHON_VERSION="3.14.6"\n', encoding="utf-8"
+                'CI_CANONICAL_PYTHON_VERSION="3.15.6"\n', encoding="utf-8"
             )
             root = directory / "framework"
             (root / "ci/lib").mkdir(parents=True)
@@ -324,7 +367,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
                 UPDATER.atomic_write_canonical_version(root, expected, candidate)
             self.assertEqual(
                 outside.read_text(encoding="utf-8"),
-                'CI_CANONICAL_PYTHON_VERSION="3.14.6"\n',
+                'CI_CANONICAL_PYTHON_VERSION="3.15.6"\n',
             )
 
     def test_duplicate_malformed_and_stale_canonical_sources_are_rejected(self) -> None:
@@ -332,21 +375,21 @@ class UpdatePythonVersionTest(unittest.TestCase):
             root = self.make_root(Path(temporary_directory))
             common = root / "ci/lib/common.sh"
             common.write_text(
-                'CI_CANONICAL_PYTHON_VERSION="3.14.6"\n'
-                'CI_CANONICAL_PYTHON_VERSION="3.14.7"\n',
+                'CI_CANONICAL_PYTHON_VERSION="3.15.6"\n'
+                'CI_CANONICAL_PYTHON_VERSION="3.15.7"\n',
                 encoding="utf-8",
             )
             self.assertEqual(
                 UPDATER.resolve_update(root).status, "invalid_current_version"
             )
 
-            common.write_text("CI_CANONICAL_PYTHON_VERSION=3.14.6\n", encoding="utf-8")
+            common.write_text("CI_CANONICAL_PYTHON_VERSION=3.15.6\n", encoding="utf-8")
             self.assertEqual(
                 UPDATER.resolve_update(root).status, "invalid_current_version"
             )
 
             common.write_text(
-                'CI_CANONICAL_PYTHON_VERSION="3.14.6"\n', encoding="utf-8"
+                'CI_CANONICAL_PYTHON_VERSION="3.15.6"\n', encoding="utf-8"
             )
             UPDATER.atomic_write_canonical_version(
                 root, UPDATER.PythonVersion(6), UPDATER.PythonVersion(7)
@@ -360,12 +403,20 @@ class UpdatePythonVersionTest(unittest.TestCase):
 
     def test_expected_candidate_and_runner_outputs_are_constrained(self) -> None:
         result = UPDATER.UpdateResult(
-            "update_available", "3.14.6", "3.14.7", "fixture candidate"
+            "update_available", "3.15.6", "3.15.7", "fixture candidate"
         )
         self.assertEqual(
-            UPDATER.require_expected_candidate(result, "3.14.8").status,
+            UPDATER.require_expected_candidate(result, "3.15.8").status,
             "blocked_metadata",
         )
+        self.assertEqual(UPDATER.require_expected_candidate(result, "3.15.7"), result)
+        for candidate in ("3.14.7", "3.16.7", "3.15.7rc1", "3.15.07"):
+            with self.subTest(candidate=candidate):
+                self.assertEqual(
+                    UPDATER.require_expected_candidate(result, candidate).status,
+                    "blocked_metadata",
+                )
+        self.assertEqual(UPDATER.CANDIDATE_FILE_NAME, "framework-python-3.15-candidate")
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = Path(temporary_directory)
@@ -384,11 +435,11 @@ class UpdatePythonVersionTest(unittest.TestCase):
             rendered = output.read_text(encoding="ascii")
             self.assertIn("status=update_available", rendered)
             self.assertIn("update_available=true", rendered)
-            self.assertEqual(candidate_file.read_text(encoding="ascii"), "3.14.7\n")
+            self.assertEqual(candidate_file.read_text(encoding="ascii"), "3.15.7\n")
 
             current_output = runner_temp / "current-output"
             current_output.write_text("", encoding="ascii")
-            current = UPDATER.UpdateResult("current", "3.14.7", None, "fixture current")
+            current = UPDATER.UpdateResult("current", "3.15.7", None, "fixture current")
             with patch.dict(
                 os.environ,
                 {"RUNNER_TEMP": str(runner_temp), "GITHUB_OUTPUT": str(current_output)},
@@ -430,7 +481,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
             timeout=UPDATER.DEFAULT_TIMEOUT_SECONDS,
         )
         result = UPDATER.UpdateResult(
-            "update_available", "3.14.6", "3.14.7", "fixture candidate"
+            "update_available", "3.15.6", "3.15.7", "fixture candidate"
         )
         output = io.StringIO()
         with (

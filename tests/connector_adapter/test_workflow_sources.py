@@ -3,6 +3,9 @@ import contextlib
 import io
 import os
 import runpy
+import subprocess
+
+import yaml
 import sys
 import tempfile
 import unittest
@@ -168,6 +171,104 @@ jobs:
         self.assertIn("fromJSON(inputs.caller-matrix).connector", inspected)
         self.assertNotIn("$/.github/actions/connector-context", inspected)
 
+
+    def historical_sources(self):
+        framework = Path(__file__).resolve().parents[2]
+        original = (framework / ".github/workflows/connector-nginx-root-broker-historical.yml").read_text()
+        prefix = original[:original.index("jobs:\n")]
+        caller = prefix + """jobs:
+  framework:
+    permissions:
+      contents: read
+    uses: Easton97-Jens/ModSecurity-test-Framework/.github/workflows/connector-nginx-root-broker-historical.yml@""" + self.revision + """
+    with:
+      caller_manifest_artifact: ${{ inputs.caller_manifest_artifact }}
+      parent_head_sha: ${{ inputs.parent_head_sha }}
+      framework_sha: ${{ inputs.framework_sha }}
+      protected_broker_sha: ${{ inputs.protected_broker_sha }}
+      matrix_variant: ${{ inputs.matrix_variant }}
+      run_id: ${{ inputs.run_id }}
+"""
+        path = self.root / ".github/workflows/connector-nginx-root-broker-historical.yml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(original)
+        return caller, original, path
+
+    def expand_historical(self, caller):
+        return expand_workflow_source(caller, framework_root=self.root,
+                                      framework_revision=self.revision,
+                                      workflow_name="nginx-root-broker.yml")
+
+    def test_historical_broker_preserves_actual_immutable_inner_identity(self):
+        caller, _, _ = self.historical_sources()
+        composed = self.expand_historical(caller)
+        self.assertIn("  immutable-historical-broker:", composed)
+        self.assertIn("8ae707d72f1a8acb25d239e55e28a73cbc7522b1", composed)
+        self.assertIn("  workflow_call:", composed)
+        self.assertNotIn("concurrency:", composed)
+        self.assertNotIn("trusted-root-smoke:", composed)
+
+    def test_historical_broker_rejects_changed_source_contracts(self):
+        caller, original, path = self.historical_sources()
+        mutations = (
+            ("8ae707d72f1a8acb25d239e55e28a73cbc7522b1", "b" * 40),
+            ("immutable-historical-broker:", "invented-local-job:"),
+            ("contents: read", "contents: write"),
+            ("type: string", "type: boolean"),
+            ("required: true", "required: false"),
+            ("${{ inputs.run_id }}", "${{ inputs.parent_head_sha }}"),
+            ("jobs:\n", "concurrency: changed\njobs:\n"),
+            ("    permissions:\n", "    if: false\n    permissions:\n"),
+        )
+        for old, new in mutations:
+            with self.subTest(old=old):
+                self.assertIn(old, original)
+                path.write_text(original.replace(old, new, 1))
+                with self.assertRaises(WorkflowSourceError):
+                    self.expand_historical(caller)
+        path.write_text(original)
+        invalid_trigger = caller.replace("workflow_call:", "workflow_dispatch:", 1)
+        with self.assertRaises(WorkflowSourceError):
+            self.expand_historical(invalid_trigger)
+        invalid_passthrough = caller.replace("${{ inputs.run_id }}", "foreign", 1)
+        with self.assertRaises(WorkflowSourceError):
+            self.expand_historical(invalid_passthrough)
+
+    def test_connector_composites_verify_source_before_bootstrapping_python(self):
+        framework = Path(__file__).resolve().parents[2]
+        checked = 0
+        for path in framework.glob(".github/actions/connector-ci/**/action.yml"):
+            document = yaml.load(path.read_text(), Loader=yaml.BaseLoader)
+            steps = document["runs"]["steps"]
+            setup = [i for i, step in enumerate(steps) if step.get("id") == "setup-python"]
+            if not setup:
+                continue
+            with self.subTest(action=str(path.relative_to(framework))):
+                gate = next(i for i, step in enumerate(steps) if step.get("name") == "Verify Framework checkout before Python bootstrap")
+                verify = next(i for i, step in enumerate(steps) if step.get("name") == "Verify Python interpreter contract")
+                context = next(i for i, step in enumerate(steps) if step.get("uses") == "$/.github/actions/connector-context")
+                self.assertLess(gate, setup[0])
+                self.assertLess(setup[0], verify)
+                self.assertLess(verify, context)
+                script = steps[gate]["run"]
+                self.assertNotIn("python", script)
+                # Execute the gate against independent simulated Git results.
+                git = self.root / "git"
+                git.write_text('#!/bin/sh\ncase "$1" in -C) printf "%s\\n" "$ACTUAL";; *) printf "%s\\n" "$COMMITTED";; esac\n')
+                git.chmod(0o700)
+                for committed, actual, expected, succeeds in (
+                    ("a" * 40, "a" * 40, "a" * 40, True),
+                    ("a" * 40, "b" * 40, "a" * 40, False),
+                    ("a" * 40, "a" * 40, "b" * 40, False),
+                    ("a" * 40, "a" * 40, "invalid", False),
+                ):
+                    env = {**os.environ, "PATH": str(self.root) + os.pathsep + os.environ["PATH"],
+                           "COMMITTED": committed, "ACTUAL": actual,
+                           "EXPECTED_FRAMEWORK_REVISION": expected}
+                    result = subprocess.run(["bash", "-c", script], env=env, capture_output=True)
+                    self.assertEqual(result.returncode == 0, succeeds, result.stderr)
+            checked += 1
+        self.assertEqual(checked, 18)
 
     def protected_sources(self):
         caller = """name: Actual protected caller

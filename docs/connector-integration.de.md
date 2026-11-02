@@ -39,6 +39,34 @@ Interventionsverhalten, Logging, Connection-Handling und
 Konfigurations-Merge-Regeln bleiben Connector-eigen. Das Framework macht aus
 einer deklarierten Capability keinen Implementierungsclaim.
 
+## Python-Bootstrap und Workflow-Komposition
+
+Connector-CI muss vor Ausführung des Interpreter-Verifiers die ausgecheckte
+Framework-Revision allein durch Shell-Vergleich mit dem Parent-Gitlink belegen.
+Die 18 Framework-eigenen Composite-Actions wählen danach die exakte Python-Version
+des Parent, führen den Standardbibliothek-Interpreter-Verifier mit `python3 -P`
+aus und binden vor weiteren Python-Verbrauchern den Connector-Kontext. Ein nicht
+belegter Kontext-Binder darf diese Reihenfolge nicht umgehen. Der Parent besitzt
+die entsprechende Reihenfolge seiner nativen Workflow-Jobs und muss eine
+Framework-Revision mit diesem Vertrag beziehen, bevor kombinierte
+CI-Kompatibilität behauptet wird.
+
+Das statische Inventar unterscheidet 47 normale Parent-Jobs, den separaten
+Python-Kandidatenjob und die ausdrücklich begrenzten unveränderlichen, lokalen
+und Systemeinträge. Die geschützten Broker-Jobs `prepare-manifests` und
+`verify-evidence` behalten den exakten authentifizierten Verifier
+`ci/run-trusted-framework.py --tool python-interpreter`; ein direkter Aufruf
+ersetzt diese Authentifizierungsgrenze nicht.
+
+Die historische Komposition von `nginx-root-broker.yml` akzeptiert nur ihre sechs
+verpflichtenden String-Inputs mit exakter gleichnamiger Weitergabe,
+Deny-Default-Berechtigungen, `contents: read` und einem unveränderlichen
+verschachtelten Aufruf auf `8ae707d72f1a8acb25d239e55e28a73cbc7522b1`. Es gibt kein
+Concurrency-Override. Mutationstests lehnen geänderte Pins, Inputs,
+Berechtigungen, verschachtelte Jobs und Bootstrap-Reihenfolgen ab. Diese
+statischen Workflow-/Source-Vertragsprüfungen belegen weder einen gehosteten
+Workflow noch eine Connector-Host-Runtime.
+
 ## Gepflegte Provenienz
 
 Die folgenden Quellfakten bleiben absichtlich hier erhalten, weil

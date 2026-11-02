@@ -15,6 +15,4 @@ script_dir=$(CDPATH='' cd -- "$(dirname -- "$script_path")" && pwd)
 framework_root=$(CDPATH='' cd -- "$script_dir/../.." && pwd)
 cd "$framework_root"
 
-python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-  --require-hashes -r requirements-ci.lock
-python3 -m pip check
+python3 -I ci/tools/install_hash_locked_ci_dependencies.py

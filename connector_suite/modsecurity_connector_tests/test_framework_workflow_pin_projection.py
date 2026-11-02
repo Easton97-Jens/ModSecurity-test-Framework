@@ -11,6 +11,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import yaml
+
 from modsecurity_test_framework.connector_context import connector_root, test_root, load_source, source_path
 from modsecurity_connector_tests.framework_sha_fixture import set_framework_sha_fixture
 from modsecurity_connector_tests.test_update_framework_versions import CURRENT_CANDIDATE_COMMON
@@ -65,6 +67,91 @@ class FrameworkWorkflowPinProjectionTests(unittest.TestCase):
         self.assertNotEqual(before, self.snapshot())
         self.assertTrue(all(item.original == item.replacement for item in
                             SYNC._render_framework_sha_projection_targets(self.root, NEW)))
+
+    def test_early_gate_inventory_is_closed_and_projects_round_trip(self):
+        expected = {
+            ".github/workflows/lint.yml": 1,
+            ".github/workflows/protocol-contract.yml": 2,
+            ".github/workflows/sonar-native-security.yml": 2,
+            ".github/workflows/sonarqube.yml": 1,
+        }
+        specs = SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS
+        self.assertEqual({spec.relative_path: spec.gate_count for spec in specs if spec.gate_count}, expected)
+        for spec in specs:
+            if spec.syntax != "framework-workflow":
+                continue
+            original = (self.root / spec.relative_path).read_text()
+            with self.subTest(path=spec.relative_path):
+                self.assertEqual(SYNC._render_framework_workflow(spec, original, OLD, OLD), original)
+                proposed = SYNC._render_framework_workflow(spec, original, OLD, NEW)
+                pins = re.findall(r"(?m)^\s*expected_framework=([^\s#]+)", proposed)
+                self.assertEqual(pins, [NEW] * expected.get(spec.relative_path, 0))
+                self.assertEqual(SYNC._render_framework_workflow(spec, proposed, NEW, OLD), original)
+
+    def test_early_gate_missing_stale_extra_or_malformed_pin_fails_without_writes(self):
+        for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS:
+            if not spec.gate_count:
+                continue
+            path = self.root / spec.relative_path
+            original = path.read_text()
+            gate_line = next(line for line in original.splitlines() if "expected_framework=" in line)
+            for name, mutant in (
+                ("stale", original.replace("expected_framework=" + OLD, "expected_framework=" + "c" * 40, 1)),
+                ("missing", original.replace(gate_line + "\n", "", 1)),
+                ("extra", original + gate_line + "\n"),
+                ("symbolic", original.replace("expected_framework=" + OLD, "expected_framework=main", 1)),
+                ("malformed", original.replace("expected_framework=" + OLD, "expected_framework=" + "a" * 39, 1)),
+                ("quoted", original.replace("expected_framework=" + OLD, 'expected_framework="' + OLD + '"', 1)),
+            ):
+                with self.subTest(path=spec.relative_path, mutation=name):
+                    path.write_text(mutant)
+                    before = self.snapshot()
+                    with self.assertRaises(SYNC.SyncError):
+                        SYNC._render_framework_sha_projection_targets(self.root, NEW)
+                    self.assertEqual(before, self.snapshot())
+            path.write_text(original)
+        ungated = next(spec for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS
+                       if spec.relative_path == ".github/workflows/test-common.yml")
+        source = (self.root / ungated.relative_path).read_text()
+        with self.assertRaises(SYNC.SyncError):
+            SYNC._render_framework_workflow(ungated, source + "          expected_framework=" + OLD + "\n", OLD, NEW)
+
+    def test_early_gate_proves_selected_action_identity_before_checked_out_verifier(self):
+        git = Path(self.temporary.name) / "git"
+        git.write_text('#!/bin/sh\ncase "$1" in -C) printf "%s\\n" "$ACTUAL";; *) printf "%s\\n" "$DECLARED";; esac\n')
+        git.chmod(0o700)
+        checked = 0
+        for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS:
+            if not spec.gate_count:
+                continue
+            document = yaml.load((self.root / spec.relative_path).read_text(), Loader=yaml.BaseLoader)
+            for job in document["jobs"].values():
+                steps = job.get("steps", [])
+                gates = [(i, step) for i, step in enumerate(steps)
+                         if step.get("name") == "Authenticate pinned Framework before interpreter verification"]
+                for gate_index, gate in gates:
+                    with self.subTest(path=spec.relative_path, gate=gate_index):
+                        setup = next(i for i, step in enumerate(steps) if step.get("id") == "setup-python")
+                        verifier = next(i for i, step in enumerate(steps) if step.get("name") == "Verify Python interpreter contract")
+                        context_index, context = next((i, step) for i, step in enumerate(steps)
+                                                      if "/.github/actions/connector-context@" in step.get("uses", ""))
+                        self.assertLess(gate_index, setup)
+                        self.assertLess(setup, verifier)
+                        self.assertLess(verifier, context_index)
+                        self.assertEqual(context["uses"].rsplit("@", 1)[1], OLD)
+                        self.assertEqual(context["with"]["framework-revision"], OLD)
+                        self.assertNotIn("python", gate["run"])
+                        for declared, actual, admitted in ((OLD, OLD, True), (NEW, NEW, False),
+                                                           (OLD, NEW, False), (NEW, OLD, False),
+                                                           ("invalid", "invalid", False)):
+                            env = {**os.environ, "PATH": str(git.parent) + os.pathsep + os.environ["PATH"],
+                                   "DECLARED": declared, "ACTUAL": actual}
+                            result = subprocess.run(["bash", "-c", gate["run"] + "\nprintf verifier-admitted\n"],
+                                                    env=env, capture_output=True, text=True)
+                            self.assertEqual(result.returncode == 0, admitted, result.stderr)
+                            self.assertEqual("verifier-admitted" in result.stdout, admitted)
+                    checked += 1
+        self.assertEqual(checked, 6)
 
     def test_stale_symbolic_duplicate_or_missing_reference_rejected_without_writes(self):
         path = self.root / ".github/workflows/test-apache.yml"

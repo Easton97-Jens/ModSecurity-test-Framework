@@ -35,7 +35,7 @@ RUNNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNNER)
 
 
-def manifest(version="3.14.7"):
+def manifest(version="3.15.7"):
     filename = f"python-{version}-linux-26.04-x64.tar.gz"
     return [
         {
@@ -81,10 +81,13 @@ class UpdaterReadinessTests(unittest.TestCase):
             root = Path(temporary)
             (root / "ci/lib").mkdir(parents=True)
             pin = root / "ci/lib/common.sh"
-            pin.write_text('CI_CANONICAL_PYTHON_VERSION="3.14.6"\n')
+            pin.write_text('CI_CANONICAL_PYTHON_VERSION="3.15.6"\n')
             original = pin.read_bytes()
             for builds, status in (
                 ([], "blocked_metadata"),
+                (manifest("3.14.7"), "blocked_metadata"),
+                (manifest("3.16.7"), "blocked_metadata"),
+                (manifest("3.15.7rc1"), "blocked_metadata"),
                 (manifest(), "update_available"),
             ):
                 with (
@@ -112,7 +115,7 @@ class UpdaterReadinessTests(unittest.TestCase):
                 ),
             ):
                 result, _ = MAINTENANCE.resolve_python(
-                    entries({"CI_CANONICAL_PYTHON_VERSION": "3.14.6"}), client
+                    entries({"CI_CANONICAL_PYTHON_VERSION": "3.15.6"}), client
                 )
             self.assertEqual(result["status"], status)
             self.assertEqual(len(result["updates"]), 1 if status == "outdated" else 0)
@@ -122,13 +125,13 @@ class UpdaterReadinessTests(unittest.TestCase):
             ("arch", "arm64"),
             ("platform_version", "22.04"),
             ("download_url", "https://example.invalid/file"),
-            ("filename", "python-3.14.8-linux-26.04-x64.tar.gz"),
+            ("filename", "python-3.15.8-linux-26.04-x64.tar.gz"),
         ):
             with self.subTest(field=field):
                 payload = manifest()
                 payload[0]["files"][0][field] = value
                 with self.assertRaises(ValueError):
-                    RUNNER.require_build(payload, "3.14.7")
+                    RUNNER.require_build(payload, "3.15.7")
 
     def test_manifest_fetch_rejects_redirect_and_oversized_payload(self):
         for response in (
@@ -222,7 +225,7 @@ class UpdaterReadinessTests(unittest.TestCase):
         build["filename"] = build["filename"].replace("26.04", "24.04")
         build["download_url"] = build["download_url"].replace("26.04", "24.04")
         with self.assertRaisesRegex(ValueError, "ubuntu-26.04/x64.*unavailable"):
-            RUNNER.require_build(previous, "3.14.7")
+            RUNNER.require_build(previous, "3.15.7")
 
     def test_actionlint_only_adds_the_exact_official_runner_label(self):
         config = yaml.safe_load((ROOT / ".github/actionlint.yaml").read_text())

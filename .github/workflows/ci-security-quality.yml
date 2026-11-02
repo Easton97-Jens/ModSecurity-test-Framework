@@ -13,6 +13,9 @@ on:
       - "ci/tools/update-python-version.py"
       - "ci/tools/update-workflow-tools.py"
       - "ci/tools/install-hash-locked-ci-dependencies.sh"
+      - "ci/tools/install_hash_locked_ci_dependencies.py"
+      - "ci/tools/sync-maintenance-test-views.py"
+      - "ci/pyyaml-build-tools.lock.json"
       - "ci/lib/common.sh"
       - "ci/tooling/security-tools.lock.yml"
       - "tests/ci_security/**"
@@ -29,6 +32,9 @@ on:
       - "ci/tools/update-python-version.py"
       - "ci/tools/update-workflow-tools.py"
       - "ci/tools/install-hash-locked-ci-dependencies.sh"
+      - "ci/tools/install_hash_locked_ci_dependencies.py"
+      - "ci/tools/sync-maintenance-test-views.py"
+      - "ci/pyyaml-build-tools.lock.json"
       - "ci/lib/common.sh"
       - "ci/tooling/security-tools.lock.yml"
       - "tests/ci_security/**"
@@ -102,7 +108,8 @@ jobs:
             ci/checks/security/osv_report_schema.py \
             ci/checks/documentation/check-change-records.py \
             ci/tools/fetch-security-tool.py ci/tools/update-python-version.py \
-            ci/tools/update-workflow-tools.py tests/ci_security
+            ci/tools/update-workflow-tools.py \
+            ci/tools/install_hash_locked_ci_dependencies.py ci/tools/sync-maintenance-test-views.py tests/ci_security
           "$TOOLS_DIR/ruff" format --check ci/checks/security/check-ci-security-contract.py \
             ci/checks/catalog/five_connectors_with_crs_no_mrts.py \
             ci/tools/run-five-connectors-with-crs-no-mrts.py \
@@ -113,7 +120,8 @@ jobs:
             ci/checks/security/osv_report_schema.py \
             ci/checks/documentation/check-change-records.py \
             ci/tools/fetch-security-tool.py ci/tools/update-python-version.py \
-            ci/tools/update-workflow-tools.py tests/ci_security
+            ci/tools/update-workflow-tools.py \
+            ci/tools/install_hash_locked_ci_dependencies.py ci/tools/sync-maintenance-test-views.py tests/ci_security
 
       - name: Run deterministic Pyright type analysis
         env:

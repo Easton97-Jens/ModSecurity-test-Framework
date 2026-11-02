@@ -7,10 +7,17 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Validate the pinned Framework and explicit connector context
-      uses: $/.github/actions/connector-context
-      with:
-        framework-revision: ${{ inputs.framework-revision }}
+    - name: Verify Framework checkout before Python bootstrap
+      shell: bash
+      env:
+        EXPECTED_FRAMEWORK_REVISION: ${{ inputs.framework-revision }}
+      run: |
+        set -euo pipefail
+        printf '%s\n' "$EXPECTED_FRAMEWORK_REVISION" | grep -Eq '^[a-f0-9]{40}$'
+        committed=$(git rev-parse HEAD:modules/ModSecurity-test-Framework)
+        actual=$(git -C modules/ModSecurity-test-Framework rev-parse HEAD)
+        test "$committed" = "$EXPECTED_FRAMEWORK_REVISION"
+        test "$actual" = "$committed"
     - name: Set up toolchain
       id: setup-python
       uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -22,6 +29,10 @@ runs:
         EXPECTED_PYTHON: ${{ steps.setup-python.outputs.python-path }}
       shell: bash -e {0}
       run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/checks/common/check-python-interpreter-contract.py --version-file .python-version --expected-python "$EXPECTED_PYTHON"
+    - name: Validate the pinned Framework and explicit connector context
+      uses: $/.github/actions/connector-context
+      with:
+        framework-revision: ${{ inputs.framework-revision }}
     - name: Execute Traefik engine service regression contracts
       shell: bash -e {0}
       run: |

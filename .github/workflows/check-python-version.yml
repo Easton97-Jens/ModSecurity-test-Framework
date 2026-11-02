@@ -1,4 +1,4 @@
-name: Resolve reviewed CPython 3.14 updates
+name: Resolve reviewed CPython 3.15 updates
 
 on:
   workflow_dispatch:
@@ -40,7 +40,7 @@ jobs:
           python-version-file: ".python-version"
           check-latest: false
 
-      - name: Resolve latest published stable CPython 3.14 patch
+      - name: Resolve latest published stable CPython 3.15 patch
         id: resolve
         run: |
           set -euo pipefail
@@ -91,7 +91,7 @@ jobs:
       - name: Set up candidate Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version-file: "${{ runner.temp }}/framework-python-3.14-candidate"
+          python-version-file: "${{ runner.temp }}/framework-python-3.15-candidate"
           check-latest: false
 
       - name: Verify candidate runtime and install hash-locked CI dependency
@@ -106,13 +106,11 @@ jobs:
               raise SystemExit(
                   f"candidate mismatch: expected {os.environ['CANDIDATE']}, got {sys.version}"
               )
-          if sys.version_info[:2] != (3, 14):
-              raise SystemExit(f"candidate is not CPython 3.14: {sys.version}")
+          if sys.version_info[:2] != (3, 15):
+              raise SystemExit(f"candidate is not CPython 3.15: {sys.version}")
           PY
           python3 -VV
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+          bash ci/tools/install-hash-locked-ci-dependencies.sh
 
       - name: Validate candidate compatibility and contracts
         id: candidate-validation
@@ -159,11 +157,7 @@ jobs:
           check-latest: false
 
       - name: Install hash-locked CI dependency
-        run: |
-          set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+        run: bash ci/tools/install-hash-locked-ci-dependencies.sh
 
       - name: Verify CPython publisher GitHub App configuration
         env:
@@ -197,9 +191,9 @@ jobs:
         with:
           github-token: ${{ steps.publisher_app_token.outputs.token }}
           script: |
-            const branch = "automation/update-framework-python-314";
-            const title = "chore: update reviewed CPython 3.14";
-            const marker = "<!-- framework-python-314-updater -->";
+            const branch = "automation/update-framework-python-315";
+            const title = "chore: update reviewed CPython 3.15";
+            const marker = "<!-- framework-python-315-updater -->";
             const { owner, repo } = context.repo;
             const defaultBranch = context.payload.repository.default_branch;
             if (defaultBranch !== "master") {
@@ -253,7 +247,7 @@ jobs:
           CANDIDATE: ${{ needs.resolve.outputs.candidate }}
         run: |
           set -euo pipefail
-          UPDATE_BRANCH="automation/update-framework-python-314"
+          UPDATE_BRANCH="automation/update-framework-python-315"
           test "$DEFAULT_BRANCH" = "master"
           git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
           git config --local user.name "github-actions[bot]"
@@ -276,7 +270,7 @@ jobs:
               git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
               git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH"
               changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH")"
-              expected_paths=$'.python-version\nci/lib/common.sh'
+              expected_paths=$'.python-version\nci/lib/common.sh\nconnector_suite/config/testing/active-cases.json\nconnector_suite/reports/testing/test-selection-archive.generated.json'
               test "$changed_paths" = "$expected_paths"
               python3 - "$DEFAULT_BRANCH" "$UPDATE_BRANCH" "$CANDIDATE" <<'PY'
           import re
@@ -284,7 +278,7 @@ jobs:
           import sys
 
           base, head, candidate = sys.argv[1:]
-          version = re.compile(r"^3\.14\.(?:0|[1-9][0-9]*)$", re.ASCII)
+          version = re.compile(r"^3\.15\.(?:0|[1-9][0-9]*)$", re.ASCII)
           if version.fullmatch(candidate) is None:
               raise SystemExit("resolved CPython candidate is malformed")
           revision_range = f"origin/{base}...origin/{head}"
@@ -311,7 +305,7 @@ jobs:
               if line[:1] in {"+", "-"} and not line.startswith(("+++", "---"))
           ]
           assignment = re.compile(
-              r'^CI_CANONICAL_PYTHON_VERSION="3\.14\.(?:0|[1-9][0-9]*)"$',
+              r'^CI_CANONICAL_PYTHON_VERSION="3\.15\.(?:0|[1-9][0-9]*)"$',
               re.ASCII,
           )
           expected = f'CI_CANONICAL_PYTHON_VERSION="{candidate}"'
@@ -327,6 +321,7 @@ jobs:
                   "existing CPython Draft common.sh diff is not the reviewed canonical assignment update"
               )
           PY
+              python3 ci/tools/sync-maintenance-test-views.py --root . --verify-python-candidate
               git diff --check "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH"
               git switch --detach "origin/$UPDATE_BRANCH"
               ;;
@@ -347,10 +342,11 @@ jobs:
           test "$DEFAULT_BRANCH" = "master"
           test -z "$(git branch --show-current)"
           python3 ci/tools/sync-canonical-python-pins.py --check --root .
+          python3 ci/tools/sync-maintenance-test-views.py --check --root .
           python3 ci/checks/security/check-python-version.py
           python3 ci/checks/security/check-ci-security-contract.py
           changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")"
-          expected_paths=$'.python-version\nci/lib/common.sh'
+          expected_paths=$'.python-version\nci/lib/common.sh\nconnector_suite/config/testing/active-cases.json\nconnector_suite/reports/testing/test-selection-archive.generated.json'
           test "$changed_paths" = "$expected_paths"
           git diff --check "origin/$DEFAULT_BRANCH...HEAD"
 
@@ -376,11 +372,13 @@ jobs:
           python3 ci/tools/update-python-version.py --check --expected-candidate "$CANDIDATE"
           python3 ci/tools/update-python-version.py --update --expected-candidate "$CANDIDATE"
           python3 ci/tools/sync-canonical-python-pins.py --write --root .
+          python3 ci/tools/sync-maintenance-test-views.py --write --root .
           python3 ci/tools/sync-canonical-python-pins.py --check --root .
+          python3 ci/tools/sync-maintenance-test-views.py --check --root .
           python3 ci/checks/security/check-python-version.py
           python3 ci/checks/security/check-ci-security-contract.py
           changed_paths="$(git diff --name-only origin/master)"
-          expected_paths=$'.python-version\nci/lib/common.sh'
+          expected_paths=$'.python-version\nci/lib/common.sh\nconnector_suite/config/testing/active-cases.json\nconnector_suite/reports/testing/test-selection-archive.generated.json'
           test "$changed_paths" = "$expected_paths"
           git diff --check origin/master
           test "$(git branch --show-current)" = "master"
@@ -390,34 +388,36 @@ jobs:
           set -euo pipefail
           # shellcheck disable=SC2016
           printf '%s\n' \
-            '<!-- framework-python-314-updater -->' \
+            '<!-- framework-python-315-updater -->' \
             '## English' \
             '' \
-            'This Draft pull request was generated only after a read-only CPython 3.14 candidate validation.' \
+            'This Draft pull request was generated only after a read-only CPython 3.15 candidate validation.' \
             '' \
-            'The publisher independently re-resolved the official Python.org metadata and verified the canonical `ci/lib/common.sh` pin plus its generated `.python-version` view.' \
+            'The publisher independently re-resolved the official Python.org metadata and verified the canonical `ci/lib/common.sh` pin, generated `.python-version`, source digest inventory and derived specialist archive.' \
             '' \
             '## Deutsch' \
             '' \
-            'Dieser Draft Pull Request wurde erst nach einer schreibgeschützten CPython-3.14-Kandidatenvalidierung erzeugt.' \
+            'Dieser Draft Pull Request wurde erst nach einer schreibgeschützten CPython-3.15-Kandidatenvalidierung erzeugt.' \
             '' \
-            'Der Publisher hat die offiziellen Python.org-Metadaten unabhängig erneut aufgelöst und den kanonischen Pin in `ci/lib/common.sh` sowie die daraus generierte Ansicht `.python-version` geprüft.' \
+            'Der Publisher hat die offiziellen Python.org-Metadaten unabhängig erneut aufgelöst und den kanonischen Pin in `ci/lib/common.sh` sowie die generierte Ansicht `.python-version`, das Quelldigestinventar und das abgeleitete Spezialistenarchiv geprüft.' \
             > "$RUNNER_TEMP/framework-python-version-pr-body.md"
 
       - name: Create or update Draft pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.publisher_app_token.outputs.token }}
-          commit-message: "chore: update reviewed CPython 3.14"
-          title: "chore: update reviewed CPython 3.14"
+          commit-message: "chore: update reviewed CPython 3.15"
+          title: "chore: update reviewed CPython 3.15"
           body-path: ${{ runner.temp }}/framework-python-version-pr-body.md
           base: master
-          branch: automation/update-framework-python-314
+          branch: automation/update-framework-python-315
           delete-branch: false
           draft: true
           add-paths: |
             ci/lib/common.sh
             .python-version
+            connector_suite/config/testing/active-cases.json
+            connector_suite/reports/testing/test-selection-archive.generated.json
 
   outcome:
     needs:
@@ -453,26 +453,26 @@ jobs:
               printf '%s\n' \
                 '## CPython maintenance outcome' \
                 '' \
-                'No reviewed CPython 3.14 update is currently available.' \
+                'No reviewed CPython 3.15 update is currently available.' \
                 'No branch, commit, or pull request was created or modified.' \
                 '' \
-                'Derzeit ist keine geprüfte CPython-3.14-Aktualisierung verfügbar.' \
+                'Derzeit ist keine geprüfte CPython-3.15-Aktualisierung verfügbar.' \
                 'Es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.' \
                 >> "$GITHUB_STEP_SUMMARY"
               ;;
             update_available:true)
-              if ! printf '%s\n' "$CANDIDATE" | grep -Eq '^3[.]14[.][0-9]+$' || [ "$CANDIDATE_RESULT" != success ] || [ "$CANDIDATE_VALIDATED" != true ] || [ "$PUBLISHER_RESULT" != success ]; then
+              if ! printf '%s\n' "$CANDIDATE" | grep -Eq '^3[.]15[.][0-9]+$' || [ "$CANDIDATE_RESULT" != success ] || [ "$CANDIDATE_VALIDATED" != true ] || [ "$PUBLISHER_RESULT" != success ]; then
                 echo "::error::CPython update was not fully validated and published" >&2
                 exit 1
               fi
               printf '%s\n' \
                 '## CPython maintenance outcome' \
                 '' \
-                'A reviewed CPython 3.14 update was independently validated and published through the constrained maintenance path.' \
-                'Maintenance branch: automation/update-framework-python-314. The matching Draft pull request was created or updated when a change remained.' \
+                'A reviewed CPython 3.15 update was independently validated and published through the constrained maintenance path.' \
+                'Maintenance branch: automation/update-framework-python-315. The matching Draft pull request was created or updated when a change remained.' \
                 '' \
-                'Eine geprüfte CPython-3.14-Aktualisierung wurde unabhängig validiert und über den eingeschränkten Wartungspfad veröffentlicht.' \
-                'Wartungs-Branch: automation/update-framework-python-314. Der passende Draft Pull Request wurde erstellt oder aktualisiert, sofern eine Änderung verblieb.' \
+                'Eine geprüfte CPython-3.15-Aktualisierung wurde unabhängig validiert und über den eingeschränkten Wartungspfad veröffentlicht.' \
+                'Wartungs-Branch: automation/update-framework-python-315. Der passende Draft Pull Request wurde erstellt oder aktualisiert, sofern eine Änderung verblieb.' \
                 >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)

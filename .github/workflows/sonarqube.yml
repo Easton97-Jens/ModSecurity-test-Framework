@@ -66,7 +66,30 @@ jobs:
       - name: Install native analysis prerequisites
         run: |
           set -euo pipefail
-          sudo apt-get update
+          . /etc/os-release
+          test "$ID" = ubuntu
+          test "$VERSION_ID" = 26.04
+          test "$VERSION_CODENAME" = resolute
+          test -f /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          test ! -L /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          test -r /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          test ! -L /etc/apt/sources.list.d/framework-reviewed-ubuntu.sources
+          sudo tee /etc/apt/sources.list.d/framework-reviewed-ubuntu.sources >/dev/null <<'APT'
+          Types: deb
+          URIs: https://archive.ubuntu.com/ubuntu
+          Suites: resolute resolute-updates resolute-backports
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: https://security.ubuntu.com/ubuntu
+          Suites: resolute-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          APT
+          sudo chown root:root /etc/apt/sources.list.d/framework-reviewed-ubuntu.sources
+          sudo chmod 0644 /etc/apt/sources.list.d/framework-reviewed-ubuntu.sources
+          sudo apt-get -o APT::Update::Error-Mode=any update
           sudo apt-get install --no-install-recommends --yes build-essential apache2-dev autoconf automake libtool pkg-config libpcre2-dev libyajl-dev libcurl4-openssl-dev libxml2-dev liblmdb-dev libssl-dev zlib1g-dev bison flex git
 
       - name: Materialize explicit Product analysis input

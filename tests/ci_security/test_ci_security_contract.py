@@ -75,22 +75,16 @@ class CiSecurityContractTest(unittest.TestCase):
 
         osv_path = ROOT / ".github/workflows/ci-security-osv.yml"
         osv = osv_path.read_text(encoding="utf-8")
-        trusted_base_bootstrap = """run: |
-          set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \\
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check"""
-        unsafe_osv = osv.replace(
-            trusted_base_bootstrap,
-            f"run: {CHECKER.CI_DEPENDENCY_INSTALLER_COMMAND}",
-            1,
+        data = CHECKER.yaml.safe_load(osv)
+        bootstrap = next(
+            step
+            for step in data["jobs"]["pull-request-head"]["steps"]
+            if step.get("name") == CHECKER.STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY
         )
-        self.assertNotEqual(unsafe_osv, osv)
-        errors = CHECKER.osv_scanner_evidence_errors(
-            osv_path, unsafe_osv, CHECKER.yaml.safe_load(unsafe_osv)
-        )
+        bootstrap["run"] = CHECKER.CI_DEPENDENCY_INSTALLER_COMMAND
+        errors = CHECKER.osv_trusted_base_bootstrap_errors(osv_path, data)
         self.assertTrue(
-            any("trusted-base job must retain" in error for error in errors),
+            any("match the reviewed program" in error for error in errors),
             "\n".join(errors),
         )
 
@@ -104,6 +98,33 @@ class CiSecurityContractTest(unittest.TestCase):
             any("approved SHA-256" in error for error in errors), "\n".join(errors)
         )
 
+    def test_delegated_ci_installer_inputs_are_independently_hash_bound(self) -> None:
+        relatives = (
+            CHECKER.CI_DEPENDENCY_INSTALLER,
+            CHECKER.CI_DEPENDENCY_SOURCE_INSTALLER,
+            CHECKER.CI_DEPENDENCY_BUILD_LOCK,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in relatives:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT / relative).read_bytes())
+            self.assertEqual(CHECKER.ci_dependency_installer_errors(root), [])
+            for relative in relatives:
+                with self.subTest(relative=relative):
+                    target = root / relative
+                    original = target.read_bytes()
+                    target.write_bytes(original + b"\n")
+                    errors = CHECKER.ci_dependency_installer_errors(root)
+                    self.assertTrue(
+                        any(
+                            str(target) in error and "approved SHA-256" in error
+                            for error in errors
+                        )
+                    )
+                    target.write_bytes(original)
+
     def test_setup_python_version_file_parsing_accepts_reviewed_values_and_rejects_long_input(
         self,
     ) -> None:
@@ -113,7 +134,7 @@ class CiSecurityContractTest(unittest.TestCase):
             'python-version-file: ".python-version" # canonical\n'
             "check-latest: false\n"
             f"uses: {setup_python}\n"
-            'python-version-file: "${{ runner.temp }}/framework-python-3.14-candidate"\n'
+            'python-version-file: "${{ runner.temp }}/framework-python-3.15-candidate"\n'
             "check-latest: false\n"
         )
         self.assertEqual(
@@ -654,12 +675,12 @@ jobs:
                 1,
             ),
             "unconstrained-branch": workflow.replace(
-                'UPDATE_BRANCH="automation/update-framework-python-314"',
+                'UPDATE_BRANCH="automation/update-framework-python-315"',
                 'UPDATE_BRANCH="master"',
                 1,
             ),
             "missing-draft-marker": workflow.replace(
-                "<!-- framework-python-314-updater -->",
+                "<!-- framework-python-315-updater -->",
                 "<!-- unsafe-python-updater -->",
                 1,
             ),
@@ -674,8 +695,18 @@ jobs:
                 "",
                 1,
             ),
+            "publisher-omits-test-view-write": workflow.replace(
+                "          python3 ci/tools/sync-maintenance-test-views.py --write --root .\n",
+                "",
+                1,
+            ),
+            "publisher-skips-precheckout-metadata-proof": workflow.replace(
+                "--verify-python-candidate", "--check", 1
+            ),
             "publisher-allows-generated-view-only": workflow.replace(
-                "          expected_paths=$'.python-version\\nci/lib/common.sh'\n",
+                "          expected_paths=$'.python-version\\nci/lib/common.sh"
+                "\\nconnector_suite/config/testing/active-cases.json"
+                "\\nconnector_suite/reports/testing/test-selection-archive.generated.json'\n",
                 "          expected_paths='.python-version'\n",
                 1,
             ),
@@ -721,11 +752,11 @@ jobs:
             ),
             "pr-base-equals-maintenance-branch": workflow.replace(
                 "          base: master\n",
-                "          base: automation/update-framework-python-314\n",
+                "          base: automation/update-framework-python-315\n",
                 1,
             ),
             "pr-branch-equals-base": workflow.replace(
-                "          branch: automation/update-framework-python-314\n",
+                "          branch: automation/update-framework-python-315\n",
                 "          branch: master\n",
                 1,
             ),
@@ -898,11 +929,7 @@ jobs:
     def test_unified_common_maintenance_rejects_unprepared_resolvers(self) -> None:
         workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
         workflow = workflow_path.read_text(encoding="utf-8")
-        setup = (
-            "          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \\\n"
-            "            --require-hashes -r requirements-ci.lock\n"
-            "          python3 -m pip check\n"
-        )
+        setup = "          bash ci/tools/install-hash-locked-ci-dependencies.sh\n"
 
         def replace_in_job(
             text: str, job: str, next_job: str, old: str, new: str
@@ -934,47 +961,38 @@ jobs:
         )
         for job, next_job in next_jobs.items():
             variants = {
-                "omits-hash-locked-install": replace_in_job(
+                "passes-unreviewed-helper-arguments": replace_in_job(
                     workflow,
                     job,
                     next_job,
                     setup,
-                    setup.replace("--require-hashes", "--no-deps"),
+                    setup.replace("dependencies.sh", "dependencies.sh --no-deps"),
                 ),
-                "omits-pip-check": replace_in_job(
+                "omits-reviewed-helper": replace_in_job(
                     workflow,
                     job,
                     next_job,
                     setup,
-                    setup.replace("          python3 -m pip check\n", ""),
+                    "",
                 ),
                 "comments-out-bootstrap": replace_in_job(
                     workflow,
                     job,
                     next_job,
                     setup,
-                    setup.replace(
-                        "          python3 -m pip install",
-                        "          # python3 -m pip install",
-                        1,
-                    ).replace(
-                        "          python3 -m pip check\n",
-                        "          # python3 -m pip check\n",
-                        1,
-                    ),
+                    setup.replace("          bash", "          # bash", 1),
                 ),
                 "echoes-bootstrap": replace_in_job(
                     workflow,
                     job,
                     next_job,
                     setup,
-                    "          printf '%s\\n' 'python3 -m pip install --require-hashes -r requirements-ci.lock'\n"
-                    "          printf '%s\\n' 'python3 -m pip check'\n",
+                    "          printf '%s\\n' 'bash ci/tools/install-hash-locked-ci-dependencies.sh'\n",
                 ),
             }
             expected_errors: dict[str, tuple[str, ...]] = {
-                "omits-hash-locked-install": (),
-                "omits-pip-check": (),
+                "passes-unreviewed-helper-arguments": (),
+                "omits-reviewed-helper": (),
                 "comments-out-bootstrap": (),
                 "echoes-bootstrap": (),
             }
@@ -1118,15 +1136,8 @@ jobs:
                 "|| { echo 'review-issue App configuration is required' >&2; exit 1; }\n"
             ),
             "candidate": (
-                "          allowed='^(.github/workflows/[^/]+\\.yml|ci/lib/common\\.sh|"
-                "ci/provisioning/runtime-(components\\.manifest|component-lock)\\.json|"
-                "ci/tooling/security-tools\\.lock\\.yml|\\.python-version|"
-                "requirements-ci\\.lock|docs/(reference/variables|"
-                "github-actions-workflow-security)(\\.de)?\\.md|tests/schemas/"
-                "five-connectors-with-crs-no-mrts/(normalized-event|manifest|receipt)"
-                "\\.schema\\.json|tests/cases/security/crs/"
-                "crs_sqli_anomaly_block\\.yaml|modsecurity_test_framework/data/"
-                "framework-contract-catalog\\.json)$'\n"
+                "          python3 -m py_compile ci/tools/canonical_maintenance.py "
+                "ci/tools/resolve-canonical-maintenance.py\n"
             ),
             "publish": (
                 '          [[ -n "$PUBLISHER_CLIENT_ID" && -n "$PUBLISHER_PRIVATE_KEY" ]] '
