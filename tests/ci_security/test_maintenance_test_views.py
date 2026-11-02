@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location(
     "maintenance_test_views", ROOT / "ci/tools/sync-maintenance-test-views.py"
 )
+if spec is None or spec.loader is None:
+    raise RuntimeError("cannot load the trusted maintenance test-view helper")
 TOOL = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(TOOL)
 

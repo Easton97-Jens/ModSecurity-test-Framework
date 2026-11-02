@@ -184,3 +184,5 @@ reale Metadaten-Erzeugung, schreibgeschützte Prüfung und vollständige native
 Inventar-/Archivzulassung bestanden. Das finale Archiv erhält 8.021 On-Demand-
 Definitionen; diese sind von 2.686 auswählbaren Katalogfällen und den unveränderten
 100 automatischen Standardfällen zu unterscheiden.
+
+Die gehostete Qualitätsprüfung fand drei Typfehler wegen optionaler Imports im neuen Test-Fixture-Loader. Eine explizite Laufzeitprüfung verwirft nun fehlende Modulspezifikation oder Loader vor dem Import; zwölf Helper-Tests und vollständiges Ruff-Lint/Format bestanden erneut. Lokales Pyright bleibt ohne Node nicht ausführbar; das neue gehostete Ergebnis muss dies belegen. Der Archiv-Quelldigest wurde über denselben nativen Helper erneuert.

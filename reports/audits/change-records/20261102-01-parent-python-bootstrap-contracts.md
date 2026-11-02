@@ -172,3 +172,5 @@ for byte; this does not assert an upstream release. Final real metadata write
 and read-only checks passed, as did complete native inventory/archive admission.
 The final archive retains 8,021 on-demand definitions; this is distinct from
 2,686 selectable catalog cases and the unchanged 100 automatic default cases.
+
+Hosted final-head quality checking found three optional-import typing errors in the new test fixture loader. An explicit runtime guard now rejects a missing module specification or loader before import; the 12 helper tests and full-file Ruff lint/format passed again. Local Pyright remains unavailable because Node is absent; the fresh hosted check must establish its result. The archive source digest was regenerated through the same native helper.

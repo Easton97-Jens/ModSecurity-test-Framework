@@ -12190,7 +12190,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_maintenance_test_views.MaintenanceTestViewsTests.test_check_rejects_drift_without_any_write_or_archive_generation"
       ],
       "source": "framework/tests/ci_security/test_maintenance_test_views.py",
-      "source_sha256": "cc7ed39d42827bbefcddf756aa1eb4bc71c7c15de9160b6bae89b7470c2041f5"
+      "source_sha256": "e4e730a6044c96489a4709930a509c89b093de147a825e7fca7003f562205b84"
     },
     {
       "contains_selected_definitions": [],
