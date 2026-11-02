@@ -127,6 +127,23 @@ Coverage-Taskroot. Diese reine Testreparatur stellt die geschützte Runtime-Zula
 nicht wieder her. Der neue Inkompatibilitätsfall ist explizit On-Demand;
 die 100 Standardfälle bleiben unverändert.
 
+Gehostetes SonarCloud-Feedback zu PR159 an624de56a meldete python:S3776 für
+`child_file_has_witness` (kognitive Komplexität16, maximal15). Ausschließlich
+die bestehende physische/logische Inventar-Dateinamenzuordnung wird in
+`is_inventory_source` ausgelagert; Regular-File-, Branch- und Witness-Guards
+sowie Auswertungsreihenfolge bleiben erhalten. Dieselben42 Coverage-/Evidence-
+Regressionen bestanden vor und nach der Folgekorrektur. Nachweise:
+Task `framework/sonar-S3776-before.log` und `framework/sonar-S3776-after.log`.
+Die gehostete Analyse des neuen Commits bleibt eine eigene Prüfung; lokale
+Tests behaupten keine Schließung des gehosteten Befunds.
+
+Parent440-CI bestätigte außerdem, dass Framework156 `ci/lib/common.sh` von
+Python3.14.8 auf3.14.10 änderte, ohne seine geprüfte Quellbindung zu erneuern.
+Genau eine von528 Bindungen weicht an91145 ab. Der bestehende Generator für
+geprüfte Bindungen berücksichtigt diese Korrektur in diesem PR; Quellzulassung
+bleibt aktiv. Parent darf erst nach genehmigter Integration den tatsächlichen
+Framework-Merge-Commit übernehmen.
+
 ## Sicherheitsauswirkung
 
 Keine Behebung einer Produktschwachstelle wird behauptet. Bestehende

@@ -123,6 +123,21 @@ Evidence: `broker-fixture-validation.json` and `broker-final.log` under the task
 coverage root. This test-only repair does not restore protected runtime admission.
 The new incompatibility case is explicit on-demand; the default 100 cases remain unchanged.
 
+Hosted SonarCloud feedback on PR159 at624de56a reported python:S3776 for
+`child_file_has_witness` (cognitive complexity16, maximum15). Extract only the
+existing physical/logical inventory filename matching into `is_inventory_source`;
+regular-file, branch and witness guards and evaluation order are preserved.
+The same42 coverage/evidence regressions passed before and after this follow-up.
+Evidence: task `framework/sonar-S3776-before.log` and
+`framework/sonar-S3776-after.log`. Hosted analysis of the new commit is a
+separate check; these local tests do not claim closure of the hosted finding.
+
+Parent440 CI also confirmed that Framework156 updated `ci/lib/common.sh` from
+Python3.14.8 to3.14.10 without updating its reviewed source binding. Exactly one
+of528 bindings drifts at91145. The existing reviewed-binding generator in this
+PR includes that correction; source admission remains enforced. Parent must
+consume the actual Framework merge commit only after authorized integration.
+
 ## Security impact
 
 No product vulnerability remediation is claimed. Existing evidence-input safety

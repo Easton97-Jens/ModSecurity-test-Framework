@@ -204,6 +204,18 @@ def read_python_coverage_data(path: Path):
     return data
 
 
+def is_inventory_source(filename: str) -> bool:
+    """Match the measured inventory source in its reviewed physical or logical form."""
+    source = Path(filename)
+    if source.is_absolute():
+        if source == source_path(ACTIVE_INVENTORY_SOURCE, root=ROOT):
+            return True
+        if not source.is_relative_to(ROOT):
+            return False
+        source = source.relative_to(ROOT)
+    return source.as_posix() == ACTIVE_INVENTORY_SOURCE
+
+
 def child_file_has_witness(path: Path, witness: int) -> bool:
     if path.is_symlink() or not path.is_file():
         raise ValueError("Python coverage input must be a regular parallel data file")
@@ -211,14 +223,7 @@ def child_file_has_witness(path: Path, witness: int) -> bool:
     if not data.has_arcs():
         raise ValueError("offline subprocess coverage must retain branch observations")
     for filename in data.measured_files():
-        source = Path(filename)
-        if source.is_absolute():
-            if source == source_path(ACTIVE_INVENTORY_SOURCE, root=ROOT):
-                return witness in (data.lines(filename) or [])
-            if not source.is_relative_to(ROOT):
-                continue
-            source = source.relative_to(ROOT)
-        if source.as_posix() == ACTIVE_INVENTORY_SOURCE:
+        if is_inventory_source(filename):
             return witness in (data.lines(filename) or [])
     return False
 
