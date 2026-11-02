@@ -141,6 +141,8 @@ PROPOSED_VALIDATION_INPUT_PATHS = frozenset(
         *INTEGRATION_READONLY_INPUT_PATHS,
         COMMON_SH_PATH,
         "ci/tools/install-hash-locked-ci-dependencies.sh",
+        "ci/tools/install_hash_locked_ci_dependencies.py",
+        "ci/pyyaml-build-tools.lock.json",
     }
 )
 WORKFLOW_UPDATE_PATHS = tuple(

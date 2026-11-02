@@ -249,7 +249,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         entries = parse_entries(
             "\n".join(
                 (
-                    assignment("AWS_LC_REPOSITORY", f"https://github.com/{repository}.git"),
+                    assignment(
+                        "AWS_LC_REPOSITORY", f"https://github.com/{repository}.git"
+                    ),
                     assignment("AWS_LC_TAG", tag),
                     assignment("AWS_LC_COMMIT", commit),
                 )
@@ -258,7 +260,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         base = f"https://api.github.com/repos/{repository}"
         client = FixtureClient(
             json_responses={
-                f"{base}/git/ref/tags/{tag}": {"object": {"type": "commit", "sha": commit}},
+                f"{base}/git/ref/tags/{tag}": {
+                    "object": {"type": "commit", "sha": commit}
+                },
                 f"{base}/releases?per_page=100": [
                     {"tag_name": tag, "draft": False, "prerelease": False},
                 ],
@@ -273,7 +277,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         attacker_entries = parse_entries(
             "\n".join(
                 (
-                    assignment("AWS_LC_REPOSITORY", "https://github.com/attacker/repo.git"),
+                    assignment(
+                        "AWS_LC_REPOSITORY", "https://github.com/attacker/repo.git"
+                    ),
                     assignment("AWS_LC_TAG", tag),
                     assignment("AWS_LC_COMMIT", commit),
                 )
@@ -290,7 +296,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         entries["AWS_LC_COMMIT"] = dataclasses.replace(
             entries["AWS_LC_COMMIT"], default="not-a-commit", resolved="not-a-commit"
         )
-        invalid = CHECKER.resolve_component_definition(definition, entries, FixtureClient())
+        invalid = CHECKER.resolve_component_definition(
+            definition, entries, FixtureClient()
+        )
         self.assertEqual(CHECKER.STATUS_BLOCKED, invalid.status)
 
     def test_special_component_resolution_precedes_standard_dispatch(self):
@@ -315,7 +323,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                     patch.object(
                         CHECKER,
                         "resolve_standard_component_definition",
-                        side_effect=AssertionError("special resolver used standard dispatch"),
+                        side_effect=AssertionError(
+                            "special resolver used standard dispatch"
+                        ),
                     ),
                     patch.object(
                         CHECKER, resolver_name, return_value=expected
@@ -676,6 +686,14 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         )
         self.assertIn("CI_OSV_LEGACY_BASE_SHA", CHECKER.CI_CANONICAL_PIN_VARIABLES)
         self.assertIn("CI_OSV_LEGACY_BASE_VERSION", CHECKER.CI_CANONICAL_PIN_VARIABLES)
+        self.assertIn(
+            "CI_CANONICAL_PYYAML_ARTIFACT", CHECKER.CI_CANONICAL_PIN_VARIABLES
+        )
+        self.assertNotIn(
+            "CI_CANONICAL_PYYAML_WHEEL", CHECKER.CI_CANONICAL_PIN_VARIABLES
+        )
+        self.assertIn("CI_OSV_PY314_BASE_SHA", CHECKER.CI_CANONICAL_PIN_VARIABLES)
+        self.assertIn("CI_OSV_PY314_BASE_VERSION", CHECKER.CI_CANONICAL_PIN_VARIABLES)
         self.assertTrue(
             CHECKER.GIT_COMMIT_SHA1_RE.fullmatch(
                 entries["CI_OSV_LEGACY_BASE_SHA"].resolved
@@ -800,6 +818,50 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             self.assertEqual(
                 CHECKER.active_consumer_pin_literals(common, root), findings
             )
+
+    def test_source_layout_metadata_exemptions_do_not_cover_runtime_installer(self):
+        with tempfile.TemporaryDirectory(prefix="source-layout-consumer-") as temporary:
+            root = Path(temporary)
+            common = root / "ci/lib/common.sh"
+            common.parent.mkdir(parents=True)
+            common.write_text('CI_CANONICAL_PYYAML_PLATFORM="source-pure-python"\n')
+            tools = root / "ci/tools"
+            tools.mkdir()
+            for name in (
+                "canonical_maintenance.py",
+                "sync-canonical-python-pins.py",
+                "install_hash_locked_ci_dependencies.py",
+                "another_validator.py",
+            ):
+                (tools / name).write_text('PLATFORM="source-pure-python"\n')
+            self.assertEqual(
+                CHECKER.active_consumer_pin_literals(common, root),
+                [
+                    "ci/tools/another_validator.py:1: CI_CANONICAL_PYYAML_PLATFORM=source-pure-python",
+                    "ci/tools/install_hash_locked_ci_dependencies.py:1: CI_CANONICAL_PYYAML_PLATFORM=source-pure-python",
+                ],
+            )
+
+    def test_osv_314_metadata_requires_stable_line_and_literal_assignments(self):
+        lines, _ = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
+        for replacement in (
+            'CI_OSV_PY314_BASE_VERSION="3.15.2"',
+            'CI_OSV_PY314_BASE_VERSION="3.14.10rc1"',
+            'CI_OSV_PY314_BASE_VERSION="${OVERRIDE:-3.14.10}"',
+        ):
+            with self.subTest(replacement=replacement):
+                changed = [
+                    replacement
+                    if line.startswith("CI_OSV_PY314_BASE_VERSION=")
+                    else line
+                    for line in lines
+                ]
+                errors = CHECKER.canonical_contract_errors(
+                    changed, CHECKER.parse_common_lines(changed)
+                )
+                self.assertTrue(
+                    any("CI_OSV_PY314_BASE_VERSION" in error for error in errors)
+                )
 
     def test_active_consumer_scan_rejects_copied_identity_fields(self):
         with tempfile.TemporaryDirectory(

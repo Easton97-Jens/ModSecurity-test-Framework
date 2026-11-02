@@ -31,7 +31,7 @@ write permission. No such behavior was removed by this hardening work.
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, filtered `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; it runs read-only with no persisted checkout credential. |
 | `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `actions/download-artifact`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | workflow and native publisher token `contents: read`; only the short-lived, repository-limited App token has `contents`, `pull-requests`, `workflows`: write | The trusted canonical job resolves one SHA-256-bound plan and retains it for one day. Before applying it, candidate and publisher snapshot the fixed native workflow-tool input surface below `RUNNER_TEMP`; afterwards both derive the exact tool candidate, verify its digest, release assets, and isolated proposed tree. The publisher compares that digest across jobs and accepts only one exact, scoped Draft PR branch; an existing branch must also match the native base-derived files byte-for-byte. |
-| `check-python-version.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | workflow default `permissions: {}`; only resolver, candidate-validator, and publisher receive built-in `contents: read`; the repository-limited App token has only `contents`, `pull-requests`: write | Resolver and candidate jobs are read-only. The default-branch publisher independently re-resolves one stable candidate, verifies exactly one fixed Draft branch/PR and changes only `.python-version`; it never merges. A final read-only outcome job makes only the exact no-update state green. |
+| `check-python-version.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | workflow default `permissions: {}`; only resolver, candidate-validator, and publisher receive built-in `contents: read`; the repository-limited App token has only `contents`, `pull-requests`: write | Resolver and candidate jobs are read-only. The default-branch publisher independently re-resolves one stable candidate, verifies exactly one fixed Draft branch/PR and changes only the canonical Python assignment in `ci/lib/common.sh` and generated `.python-version`; it never merges. A final read-only outcome job makes only the exact no-update state green. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, schedule | `actions/github-script` | workflow default `contents: read`; cleanup job effective `actions: write` | Scheduled/manual trusted-maintainer workflow; its job can delete repository artifacts only. |
 | `five-connectors-with-crs-no-mrts-contract.yml` | filtered `push`, filtered `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; this read-only gate installs only the hash-locked `requirements-ci.lock` dependency, then validates the portable closed fixture, CRS-provenance, and evidence contract—never a connector-host runtime result. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source and its development dependencies are untrusted; no write permission, secret, persisted credential, or submodule is configured. |
@@ -148,8 +148,8 @@ and normal Git push steps, verifies an existing Draft branch changes only
 The
 contract rejects an explicit token/secret reference at workflow level or in any
 reader job and binds the write-capable publisher profiles exactly. The Python publisher independently
-re-resolves the candidate, allows only `.python-version` in both the checked
-diff and `add-paths`, fixes the automation branch, sets `draft: true`, and
+re-resolves the candidate, allows only `ci/lib/common.sh` and its generated `.python-version` in both the checked
+diff and `add-paths`, with the source diff restricted to the Python assignment, fixes the automation branch, sets `draft: true`, and
 rejects merge or auto-merge shell commands in the source contract. GitHub
 permissions are job-scoped rather than step-scoped: narrowing an environment
 variable reduces direct shell exposure but does not turn a write-capable trusted
@@ -213,13 +213,26 @@ outcome; digest, inventory, and publisher gates remain fail-closed.
 For an update, the workflow-tool resolver emits canonical candidate Base64 and
 SHA-256 identity. The validator and publisher independently validate that exact
 identity, and the publisher requires a non-empty reviewed change before it can
-apply it. CPython independently re-resolves the fixed `3.14.x` candidate
+apply it. CPython independently re-resolves the fixed `3.15.x` candidate
 before updating. Each publisher validates a single matching Draft branch and
 open PR: fixed branch/title, Draft state, marker, `master` base, and the
-approved path scope. CPython permits only `.python-version`; workflow tools
+approved path scope. CPython permits only its canonical assignment in `ci/lib/common.sh` and the
+generated `.python-version` view; workflow tools
 retain their existing allowlist. Neither publisher force-pushes, targets the
 default branch directly, enables auto-merge, nor masks cleanup/publishing
 errors.
+
+CI dependency consumers invoke the central installer without arguments. For
+CPython 3.15 it verifies the official PyYAML source archive and four hash-locked
+build-tool wheels, builds without LibYAML in an isolated disposable environment,
+and installs only the locally hash-locked PyYAML wheel into the reviewed runtime.
+The runtime must be a venv or the verified Actions setup-python prefix. OSV
+retains inline binary bootstrapping only for exact historical base SHA/version
+pairs: `f73f8842f45318e2df8aff1d31855eeb7c20a22f` / `3.13.14` and
+`91145b7ba721bdec4e89af754cf40bf496fd2a08` / `3.14.10`. Current trusted bases
+use their checked-out helper; PR-head bootstrap code is never fetched. The
+[tooling guide](security/ci-security-tooling.md) describes provenance, external
+build output, and the custom JSON build lock's OSV coverage limitation.
 
 The shared App configuration uses
 `vars.WORKFLOW_UPDATER_APP_CLIENT_ID` and

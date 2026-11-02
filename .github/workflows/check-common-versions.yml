@@ -57,9 +57,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+          bash ci/tools/install-hash-locked-ci-dependencies.sh
           args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --markdown "$RUNNER_TEMP/canonical-maintenance-plan.md")
           if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
           resolver_exit=0
@@ -214,9 +212,7 @@ jobs:
       - name: Snapshot trusted workflow-tool validation inputs
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+          bash ci/tools/install-hash-locked-ci-dependencies.sh
           python3 ci/tools/update-workflow-tools.py snapshot-validation-inputs \
             --root . \
             --output-dir "$RUNNER_TEMP/canonical-workflow-tool-base"
@@ -297,9 +293,7 @@ jobs:
       - name: Snapshot trusted workflow-tool validation inputs
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+          bash ci/tools/install-hash-locked-ci-dependencies.sh
           python3 ci/tools/update-workflow-tools.py snapshot-validation-inputs \
             --root . \
             --output-dir "$RUNNER_TEMP/canonical-workflow-tool-base"

@@ -109,6 +109,48 @@ class CanonicalPythonPinsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("64 lowercase hex", result.stderr)
 
+    def test_source_artifact_generates_hash_locked_provenance(self) -> None:
+        root = self.make_root()
+        common = root / "ci/lib/common.sh"
+        common.write_text(
+            COMMON.replace("3.14.6", "3.15.2")
+            .replace(
+                "pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+                "pyyaml-6.0.3.tar.gz",
+            )
+            .replace(
+                "manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64",
+                "source-pure-python",
+            )
+            .replace(
+                "c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5",
+                "d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f",
+            )
+        )
+        result = self.run_tool(root, "--write")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        requirements = (root / "requirements-ci.lock").read_text()
+        self.assertIn("# PyYAML artifact: pyyaml-6.0.3.tar.gz", requirements)
+        self.assertIn("# PyYAML platform: source-pure-python", requirements)
+        self.assertIn("--hash=sha256:d7662337", requirements)
+        self.assertEqual((root / ".python-version").read_text(), "3.15.2\n")
+        self.assertEqual(self.run_tool(root, "--check").returncode, 0)
+
+    def test_artifact_version_and_source_platform_must_match(self) -> None:
+        for invalid in (
+            COMMON.replace("pyyaml-6.0.3-", "pyyaml-6.0.2-"),
+            COMMON.replace(
+                "pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+                "pyyaml-6.0.3.tar.gz",
+            ),
+        ):
+            with self.subTest(invalid=invalid):
+                root = self.make_root()
+                (root / "ci/lib/common.sh").write_text(invalid)
+                result = self.run_tool(root, "--check")
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("provenance does not match", result.stderr)
+
     def test_pathological_platform_is_rejected_in_linear_time(self) -> None:
         root = self.make_root()
         common = root / "ci/lib/common.sh"
