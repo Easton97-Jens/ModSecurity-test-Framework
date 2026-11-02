@@ -333,6 +333,17 @@ Default-branch pushes, manual runs and same-repository pull requests analyze
 the exact checked-out SHA. Fork PRs cannot enter the token-bearing job.
 `SONAR_TOKEN` exists only on the immutable official scanner step; checkout
 credentials are not persisted and the GitHub token has only `contents: read`.
+Native analysis prerequisite installation verifies Ubuntu `26.04` / `resolute`
+and a readable regular Ubuntu archive keyring before writing a fixed root-owned
+Deb822 source file. It enables only the official HTTPS Ubuntu archive
+(`resolute`, `resolute-updates`, `resolute-backports`) and security archive
+(`resolute-security`) with the existing signing key and standard components.
+APT index errors remain fatal through `APT::Update::Error-Mode=any`; all existing
+native packages remain required. This repairs runners with missing Ubuntu index
+sources without bypassing repository signatures or changing the Quality Gate.
+Local profile/mutation and syntax checks do not establish a successful hosted
+package installation, native analysis, or Quality Gate.
+
 The offline contract validates the complete reviewed step sequence and script bodies; Action revisions follow the canonical source and matching generated lock. Extra checkouts, source-changing commands, environments and compiler wrappers are rejected. The workflow waits for server-side processing and the terminal Quality Gate;
 missing credentials, scanner errors and failed gates remain failures.
 Automatic analysis must be disabled for this project before CLI analysis can

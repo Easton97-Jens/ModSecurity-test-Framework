@@ -369,6 +369,18 @@ Repositorys analysieren die exakt ausgecheckte SHA. Fork-PRs können den Job
 mit Token nicht betreten. `SONAR_TOKEN` steht ausschließlich dem unveränderlich
 gepinnten offiziellen Scanner-Schritt zur Verfügung; Checkout-Credentials
 werden nicht persistiert und der GitHub-Token hat nur `contents: read`.
+Die Installation nativer Analysevoraussetzungen prüft Ubuntu `26.04` /
+`resolute` und einen lesbaren regulären Ubuntu-Archiv-Keyring, bevor sie eine
+feste Deb822-Quelldatei mit Root-Eigentümer schreibt. Sie aktiviert nur das
+offizielle HTTPS-Ubuntu-Archiv (`resolute`, `resolute-updates`,
+`resolute-backports`) und Sicherheitsarchiv (`resolute-security`) mit vorhandenem
+Signaturschlüssel und Standardkomponenten. APT-Indexfehler bleiben durch
+`APT::Update::Error-Mode=any` fatal; alle bisherigen nativen Pakete bleiben
+verpflichtend. Dies repariert Runner mit fehlenden Ubuntu-Indexquellen, ohne
+Repository-Signaturen zu umgehen oder das Quality Gate zu verändern. Lokale
+Profil-/Mutationstests und Syntaxprüfungen belegen keine erfolgreiche gehostete
+Paketinstallation, native Analyse oder ein bestandenes Quality Gate.
+
 Der Offline-Contract prüft die vollständige geprüfte Schrittfolge und Skripttexte; Action-Revisionen folgen der kanonischen Quelle mit passendem generiertem Lock. Zusätzliche Checkouts, Quellenänderungen, Umgebungen und Compiler-Wrapper werden abgelehnt. Der Workflow wartet auf die serverseitige Verarbeitung und das abschließende
 Quality Gate; fehlende Credentials, Scanner-Fehler und fehlgeschlagene Gates
 bleiben Fehler. Vor dem Ersatz der bestehenden GitHub-App-Analyse durch die

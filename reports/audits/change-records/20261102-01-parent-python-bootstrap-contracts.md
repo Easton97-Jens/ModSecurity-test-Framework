@@ -9,7 +9,7 @@
 | Change ID | 20261102-01-parent-python-bootstrap-contracts |
 | UTC date | 2026-11-02 |
 | Framework base revision | `91145b7ba721bdec4e89af754cf40bf496fd2a08` |
-| Issue or pull request | Requested repair of Parent runs `41412784227` and `41412832386`; PR not created at record time |
+| Issue or pull request | Requested repair of Parent runs `41412784227` and `41412832386`; Framework PR #158; initial record preceded PR creation |
 
 ## Motivation and problem statement
 
@@ -73,6 +73,28 @@ Additional regression work updates `connector_suite/modsecurity_connector_tests/
 
 Hosted scaffold validation identified the immutable connector-source contract as an additional affected owner. Renewed exactly the 18 reviewed composite SHA entries in `ci/tooling/connector-actions.lock.json` and its aggregate in `ci/checks/security/connector_action_pins.py` from a deterministic external script after authenticating the prior contract. This maintained snapshot has no checked-in generator. Action records, source registry, authority and six unaffected sources are unchanged. Native `rtk make check-canonical-common-pins PYTHON="$FRAMEWORK_PYTHON"` and six `tests.ci_security.test_connector_action_pins` tests passed, including tampered early identity/checkout/selector checks across all 18 composites.
 
+Hosted PR #158 Sonar job `125190844829` subsequently failed prerequisite
+installation because its index update loaded only the Microsoft Ubuntu 26.04
+source. The reviewed repair in `.github/workflows/sonarqube.yml` checks the exact
+Ubuntu 26.04/resolute host and existing regular/readable signing key, writes a
+fixed root-owned official HTTPS Ubuntu archive/security Deb822 source, and makes
+any index-update error fatal. The complete existing package list, signatures,
+source/secret confinement, native scope and Quality Gate remain enforced. The
+exact `sonar_pr_secret_allowed` program profile is updated; twelve negative
+mutations reject foreign origins/suites/keyrings, unsigned options, host/index
+bypasses and dropped dependencies. No local APT or system configuration was
+changed. The paired tooling guide explains this provisioning boundary.
+
+With the explicit Framework Python 3.15 task venv, `rtk bypass env
+TMPDIR=$BUILD_EVIDENCE/contracts/tmp
+PYTHONPYCACHEPREFIX=$BUILD_EVIDENCE/contracts/pycache "$FRAMEWORK_PYTHON315" -m
+unittest tests.security_regression.test_sonar_analysis_contract -q` passed 20
+tests. `$BUILD_EVIDENCE` and `$FRAMEWORK_PYTHON315` are portable aliases recorded
+in the local plan. The Sonar workflow passed the full workflow checker,
+Actionlint, parsed-run `bash -n`, Ruff lint for the two changed Python files,
+and `git diff --check`. These checks did not execute APT or establish a hosted
+analysis result; the repaired head still requires a fresh hosted Sonar run.
+
 ## Security impact
 
 This repairs bootstrap/source-contract correctness while retaining immutable
@@ -90,7 +112,8 @@ update is established by this record.
 
 ## Checks not run
 
-Hosted CI and Sonar have not run for this uncommitted patch. Connector runtime
+The latest hosted Sonar attempt failed at APT provisioning; the repaired
+workflow has not yet been rerun on a hosted runner. Connector runtime
 matrices are outside this workflow-contract change. Full default inventory was
 not expanded or weakened.
 

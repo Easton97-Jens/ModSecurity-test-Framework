@@ -101,6 +101,34 @@ class SonarSecretBoundaryTests(unittest.TestCase):
         self.assertEqual(CHECKER.validate_pins(path), [])
         self.assertEqual(CHECKER.validate_permissions(path, document), [])
 
+    def test_native_package_bootstrap_rejects_unreviewed_apt_sources(self):
+        original = valid_document()
+        for name, before, after in (
+            ("foreign archive", "https://archive.ubuntu.com/ubuntu", "https://mirror.invalid/ubuntu"),
+            ("foreign security archive", "https://security.ubuntu.com/ubuntu", "https://mirror.invalid/security"),
+            ("unreviewed suite", "Suites: resolute resolute-updates resolute-backports", "Suites: devel"),
+            ("unreviewed security suite", "Suites: resolute-security", "Suites: noble-security"),
+            ("foreign signing key", "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg", "Signed-By: /unreviewed/keyring.gpg"),
+            ("unsigned source", "Types: deb", "Types: deb\nTrusted: yes"),
+            ("unauthenticated install", "apt-get install", "apt-get --allow-unauthenticated install"),
+            ("ignored index failure", "-o APT::Update::Error-Mode=any ", ""),
+            ("wrong host release", 'test "$VERSION_ID" = 26.04', 'test "$VERSION_ID" = 24.04'),
+            ("commented host check", 'test "$VERSION_CODENAME" = resolute', '# test "$VERSION_CODENAME" = resolute'),
+            ("missing keyring check", "test -r /usr/share/keyrings/ubuntu-archive-keyring.gpg\n", ""),
+            ("omitted native dependency", " liblmdb-dev", ""),
+        ):
+            with self.subTest(name=name):
+                document = deepcopy(original)
+                step = next(
+                    step for step in document["jobs"]["sonarqube"]["steps"]
+                    if step["name"] == "Install native analysis prerequisites"
+                )
+                changed = step["run"].replace(before, after, 1)
+                self.assertNotEqual(changed, step["run"])
+                step["run"] = changed
+                self.assertFalse(CHECKER.sonar_pr_secret_allowed(Path("sonarqube.yml"), document))
+                self.assertTrue(CHECKER.validate_permissions(Path("sonarqube.yml"), document))
+
     def test_canonical_action_update_requires_matching_source_and_lock(self):
         document = valid_document()
         with tempfile.TemporaryDirectory() as temporary:
