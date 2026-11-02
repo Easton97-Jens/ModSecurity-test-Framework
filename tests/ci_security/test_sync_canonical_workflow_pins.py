@@ -193,18 +193,27 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
             (workflow_dir / "ci-security-osv.yml").write_text(
                 "jobs:\n  pull-request-head:\n    steps:\n      - env:\n"
                 "          OSV_LEGACY_BASE_SHA: " + "0" * 40 + "\n"
-                "          OSV_LEGACY_BASE_VERSION: 0.0.0\n",
+                "          OSV_LEGACY_BASE_VERSION: 0.0.0\n"
+                "          OSV_PY314_BASE_SHA: " + "0" * 40 + "\n"
+                "          OSV_PY314_BASE_VERSION: 0.0.0\n"
+                "      - env:\n"
+                "          OSV_PY314_BASE_SHA: " + "0" * 40 + "\n"
+                "          OSV_PY314_BASE_VERSION: 0.0.0\n",
                 encoding="utf-8",
             )
             values = {
                 "CI_OSV_LEGACY_BASE_SHA": "a" * 40,
                 "CI_OSV_LEGACY_BASE_VERSION": "3.13.14",
+                "CI_OSV_PY314_BASE_SHA": "b" * 40,
+                "CI_OSV_PY314_BASE_VERSION": "3.14.10",
             }
             errors, outputs = MODULE.workflow_values(root, values)
             self.assertEqual(errors, [])
             output = outputs[0][1].decode()
             self.assertIn("OSV_LEGACY_BASE_SHA: " + "a" * 40, output)
             self.assertIn("OSV_LEGACY_BASE_VERSION: 3.13.14", output)
+            self.assertEqual(output.count("OSV_PY314_BASE_SHA: " + "b" * 40), 2)
+            self.assertEqual(output.count("OSV_PY314_BASE_VERSION: 3.14.10"), 2)
 
     def test_write_validates_unknown_action_before_writing_generated_drift(
         self,

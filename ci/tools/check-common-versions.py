@@ -157,6 +157,10 @@ NON_CONSUMER_METADATA_PATHS = frozenset(
     {
         "ci/checks/catalog/five_connectors_with_crs_no_mrts.py",
         "ci/checks/security/check-github-actions-workflows.py",
+        # These validate the source-layout label against canonical provenance;
+        # neither acquires nor executes a PyYAML artifact.
+        "ci/tools/canonical_maintenance.py",
+        "ci/tools/sync-canonical-python-pins.py",
     }
 )
 ACTIVE_CONSUMER_ROOTS = ("ci", "src", ".github")
@@ -266,11 +270,13 @@ CI_CANONICAL_PIN_VARIABLES = (
     "CI_CANONICAL_PYTHON_VERSION",
     "CI_CANONICAL_PYYAML_VERSION",
     "CI_CANONICAL_PYYAML_SHA256",
-    "CI_CANONICAL_PYYAML_WHEEL",
+    "CI_CANONICAL_PYYAML_ARTIFACT",
     "CI_CANONICAL_PYYAML_PLATFORM",
     "CI_CANONICAL_NODE_VERSION",
     "CI_OSV_LEGACY_BASE_SHA",
     "CI_OSV_LEGACY_BASE_VERSION",
+    "CI_OSV_PY314_BASE_SHA",
+    "CI_OSV_PY314_BASE_VERSION",
     *tuple(
         f"CI_ACTION_{suffix}_{field}"
         for suffix in (
@@ -300,13 +306,6 @@ CI_CANONICAL_PIN_VARIABLES = (
         )
         for field in ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")
     ),
-)
-# The legacy tuple above is retained for compatibility with older imports, but
-# its generated projections are intentionally replaced by the artifact name
-# used by the live common.sh contract.  Action and security-tool groups are
-# extended from parsed prefixes below rather than relying on this snapshot.
-CI_CANONICAL_PIN_VARIABLES = tuple(
-    name for name in CI_CANONICAL_PIN_VARIABLES if name != "CI_CANONICAL_PYYAML_WHEEL"
 )
 CI_CANONICAL_REQUIRED_FIELDS = {
     "PYTHON": frozenset({"VERSION"}),
@@ -1351,7 +1350,10 @@ def _canonical_registry_errors() -> list[str]:
                 errors.append(
                     f"{definition.name} repository identity hash requires a canonical repository marker"
                 )
-            if re.fullmatch(r"[0-9a-f]{64}", definition.repository_identity_sha256) is None:
+            if (
+                re.fullmatch(r"[0-9a-f]{64}", definition.repository_identity_sha256)
+                is None
+            ):
                 errors.append(
                     f"{definition.name} repository identity hash must be a lowercase SHA-256 value"
                 )
@@ -1420,14 +1422,24 @@ def _canonical_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
             + ", ".join(environment_defaults)
         )
 
-    osv_sha = entries.get("CI_OSV_LEGACY_BASE_SHA")
-    if osv_sha and not GIT_COMMIT_SHA1_RE.fullmatch(osv_sha.resolved):
-        errors.append(
-            "CI_OSV_LEGACY_BASE_SHA must be a lowercase 40-character commit SHA"
-        )
-    osv_version = entries.get("CI_OSV_LEGACY_BASE_VERSION")
-    if osv_version and not SAFE_VERSION_RE.fullmatch(osv_version.resolved):
-        errors.append("CI_OSV_LEGACY_BASE_VERSION must be a numeric dotted version")
+    for prefix, series in (
+        ("CI_OSV_LEGACY_BASE", "3.13"),
+        ("CI_OSV_PY314_BASE", "3.14"),
+    ):
+        osv_sha = entries.get(f"{prefix}_SHA")
+        if osv_sha and (
+            osv_sha.style != "literal-assignment"
+            or not GIT_COMMIT_SHA1_RE.fullmatch(osv_sha.default)
+        ):
+            errors.append(f"{prefix}_SHA must be a lowercase 40-character commit SHA")
+        osv_version = entries.get(f"{prefix}_VERSION")
+        if osv_version and (
+            osv_version.style != "literal-assignment"
+            or not re.fullmatch(
+                re.escape(series) + r"\.(0|[1-9][0-9]*)", osv_version.default
+            )
+        ):
+            errors.append(f"{prefix}_VERSION must be an exact stable {series} patch")
 
     unresolved = sorted(
         item.name for item in entries.values() if item.tracked and "$" in item.resolved
@@ -1594,14 +1606,19 @@ def _connector_integration_authority(root: Path) -> tuple[frozenset[str], list[s
         return frozenset(), []
     helper_path = SCRIPT_DIR.parent / "checks/security/connector_action_pins.py"
     try:
-        spec = importlib.util.spec_from_file_location("_common_versions_connector_authority", helper_path)
+        spec = importlib.util.spec_from_file_location(
+            "_common_versions_connector_authority", helper_path
+        )
         if spec is None or spec.loader is None:
             raise ValueError("cannot load the maintained Connector authority validator")
         helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(helper)
         lock = helper.load_lock(root)
-        findings = [finding for relative in sorted(lock["sources"])
-                    for finding in helper.validate_source(root, relative)]
+        findings = [
+            finding
+            for relative in sorted(lock["sources"])
+            for finding in helper.validate_source(root, relative)
+        ]
         return frozenset({helper.LOCK, *lock["sources"]}), findings
     except (OSError, ValueError, TypeError) as error:
         return frozenset(), [f"{lock_path}: connector integration contract: {error}"]
@@ -3285,14 +3302,18 @@ def resolve_github_file_sha256(
     except binascii.Error as exc:
         raise UpstreamUnknown("GitHub rule-file content is invalid base64") from exc
     if len(content) != declared_size:
-        raise UpstreamUnknown("GitHub rule-file content length does not match its metadata")
+        raise UpstreamUnknown(
+            "GitHub rule-file content length does not match its metadata"
+        )
     blob_sha = payload.get("sha")
     expected_blob_sha = hashlib.sha1(
         f"blob {len(content)}\0".encode("ascii") + content,
         usedforsecurity=False,
     ).hexdigest()
     if blob_sha != expected_blob_sha:
-        raise UpstreamUnknown("GitHub rule-file blob identity does not match its content")
+        raise UpstreamUnknown(
+            "GitHub rule-file blob identity does not match its content"
+        )
     return hashlib.sha256(content).hexdigest()
 
 
@@ -3365,9 +3386,7 @@ def check_manual_git_provenance(
     latest_tag = require_stable_github_release(
         latest_release, repository, definition.tag_pattern
     )
-    latest_commit = resolve_github_peeled_commit(
-        client, repository, latest_tag
-    )
+    latest_commit = resolve_github_peeled_commit(client, repository, latest_tag)
     comparison = compare_versions(current_tag, latest_tag)
     if comparison > 0:
         return ComponentResult(
@@ -3585,9 +3604,7 @@ def check_crs_release_provenance(
             variables=list(base_definition.variables),
         )
     repository = cast(str, definition.github_repository)
-    if not repository_identity_matches_hash(
-        repository, CRS_APPROVED_REPOSITORY_SHA256
-    ):
+    if not repository_identity_matches_hash(repository, CRS_APPROVED_REPOSITORY_SHA256):
         return ComponentResult(
             component=base_definition.name,
             status=STATUS_UNKNOWN,
@@ -3610,11 +3627,14 @@ def check_crs_release_provenance(
     result = check_automatic_git_provenance(definition, entries, client)
     if result.status not in {STATUS_CURRENT, STATUS_OUTDATED}:
         return result
-    commit_key = "latest_peeled_commit" if result.status == STATUS_OUTDATED else "peeled_commit"
+    commit_key = (
+        "latest_peeled_commit" if result.status == STATUS_OUTDATED else "peeled_commit"
+    )
     resolved_commit = result.details.get(commit_key)
-    if not isinstance(resolved_commit, str) or GIT_COMMIT_SHA1_RE.fullmatch(
-        resolved_commit
-    ) is None:
+    if (
+        not isinstance(resolved_commit, str)
+        or GIT_COMMIT_SHA1_RE.fullmatch(resolved_commit) is None
+    ):
         raise UpstreamError("CRS provenance result has no immutable checked commit")
     rule_sha256 = resolve_github_file_sha256(
         client, repository, resolved_commit, CRS_RULE_FILE
@@ -4122,7 +4142,9 @@ def add_github_release_url_updates(
     """Add literal GitHub asset aliases without expanding safe shell templates."""
 
     repository = cast(str, definition.github_repository)
-    identity_variable = definition.release_tag_variable or definition.version_variable or ""
+    identity_variable = (
+        definition.release_tag_variable or definition.version_variable or ""
+    )
     asset_url = expected_github_asset_url(repository, latest_tag, latest_asset_name)
     if definition.name not in GITHUB_RELEASES_SOURCE_COMPONENTS | {NGINX_COMPONENT}:
         add_non_template_release_update(

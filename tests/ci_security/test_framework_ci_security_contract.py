@@ -157,8 +157,22 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
             ),
             "\n".join(legacy_version_errors),
         )
+        for token, replacement in (
+            (
+                f"OSV_PY314_BASE_SHA: {CHECKER.OSV_PY314_BASE_SHA}",
+                f"OSV_PY314_BASE_SHA: {'0' * 40}",
+            ),
+            ("OSV_PY314_BASE_VERSION: 3.14.10", "OSV_PY314_BASE_VERSION: 3.14.9"),
+        ):
+            with self.subTest(transition_token=token):
+                changed_transition = osv_text.replace(token, replacement, 1)
+                self.assertNotEqual(changed_transition, osv_text)
+                errors = CHECKER.scanner_evidence_errors(osv_path, changed_transition)
+                self.assertTrue(
+                    any(token in error for error in errors), "\n".join(errors)
+                )
         old_major_python_bootstrap = osv_text.replace(
-            '[[ "$version" =~ ^3\\.14\\.(0|[1-9][0-9]*)$ ]]',
+            '[[ "$version" =~ ^3\\.15\\.(0|[1-9][0-9]*)$ ]]',
             '[[ "$version" =~ ^3\\.13\\.(0|[1-9][0-9]*)$ ]]',
             1,
         )
@@ -224,7 +238,74 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         self.assertTrue(any("artifact-free" in error for error in scorecard_errors))
         self.assertTrue(any("retention-days: 1" in error for error in scorecard_errors))
 
-    def test_osv_trusted_base_bootstrap_allows_only_legacy_cp313_transition(
+    def test_osv_dependency_bootstrap_binds_exact_historical_routes(self) -> None:
+        path = ROOT / ".github/workflows/ci-security-osv.yml"
+        workflow = CHECKER.yaml.safe_load(path.read_text(encoding="utf-8"))
+        steps = workflow["jobs"]["pull-request-head"]["steps"]
+        step = next(
+            step
+            for step in steps
+            if step.get("name") == CHECKER.STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY
+        )
+        run = step["run"]
+        for old, new in (
+            ('[ "$version" = "$OSV_PY314_BASE_VERSION" ]', "true"),
+            ('[ "$BASE_SHA" = "$OSV_PY314_BASE_SHA" ]', "true"),
+            (CHECKER.CI_DEPENDENCY_INSTALLER_COMMAND, "true"),
+        ):
+            with self.subTest(mutation=old):
+                changed = run.replace(old, new, 1)
+                self.assertNotEqual(changed, run)
+                step["run"] = changed
+                self.assertTrue(
+                    CHECKER.osv_trusted_base_bootstrap_errors(path, workflow)
+                )
+        step["run"] = run
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            helper = root / CHECKER.CI_DEPENDENCY_INSTALLER
+            helper.parent.mkdir(parents=True)
+            helper.write_text("printf '%s\\n' helper\n", encoding="utf-8")
+            python = root / "python3"
+            python.write_text("#!/bin/sh\nprintf '%s\\n' \"$*\"\n", encoding="utf-8")
+            python.chmod(0o755)
+            version_file = root / "version"
+            cases = (
+                (CHECKER.OSV_LEGACY_BASE_SHA, CHECKER.OSV_LEGACY_BASE_VERSION, False),
+                (CHECKER.OSV_PY314_BASE_SHA, CHECKER.OSV_PY314_BASE_VERSION, False),
+                ("0" * 40, "3.15.0", True),
+                ("0" * 40, CHECKER.OSV_PY314_BASE_VERSION, True),
+                (CHECKER.OSV_PY314_BASE_SHA, "3.14.9", True),
+            )
+            for sha, version, uses_helper in cases:
+                with self.subTest(sha=sha, version=version):
+                    version_file.write_text(version + "\n", encoding="utf-8")
+                    environment = {
+                        **os.environ,
+                        **step["env"],
+                        "BASE_SHA": sha,
+                        "PYTHON_VERSION_FILE": str(version_file),
+                        "PATH": f"{root}{os.pathsep}{os.environ['PATH']}",
+                    }
+                    result = subprocess.run(
+                        ["bash", "-c", run],
+                        cwd=root,
+                        env=environment,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    if uses_helper:
+                        self.assertEqual(result.stdout, "helper\n")
+                    else:
+                        self.assertIn(
+                            "--require-hashes -r requirements-ci.lock", result.stdout
+                        )
+                        self.assertIn("-m pip check", result.stdout)
+                        self.assertNotIn("helper", result.stdout)
+
+    def test_osv_trusted_base_bootstrap_allows_only_pinned_historical_transitions(
         self,
     ) -> None:
         workflow_text = (ROOT / ".github/workflows/ci-security-osv.yml").read_text(
@@ -269,7 +350,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                             ;;
                           -s)
                             [ "$3" = "$BASE_SHA:.python-version" ]
-                            printf '%s\\n' 8
+                            printf '%s\\n' "${#FAKE_BASE_VERSION}"
                             ;;
                           *)
                             exit 1
@@ -278,11 +359,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                         ;;
                       show)
                         [ "$2" = "$BASE_SHA:.python-version" ]
-                        if [ "$BASE_SHA" = "$FAKE_CP314_BASE_SHA" ]; then
-                          printf '%s\\n' 3.14.6
-                        else
-                          printf '%s\\n' 3.13.14
-                        fi
+                        printf '%s\\n' "$FAKE_BASE_VERSION"
                         ;;
                       *)
                         exit 1
@@ -296,16 +373,23 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
             cases = (
                 (CHECKER.OSV_LEGACY_BASE_SHA, True, "3.13.14"),
                 ("2" * 40, False, None),
-                ("3" * 40, True, "3.14.6"),
+                (CHECKER.OSV_PY314_BASE_SHA, True, "3.14.10"),
+                ("3" * 40, False, "3.14.10"),
+                ("3" * 40, True, "3.15.0"),
+                (CHECKER.OSV_PY314_BASE_SHA, False, "3.14.9"),
             )
-            for base_sha, expected_success, expected_version in cases:
-                version_file = temporary_root / f"python-version-{base_sha[:8]}"
+            for index, (base_sha, expected_success, expected_version) in enumerate(
+                cases
+            ):
+                version_file = temporary_root / f"python-version-{index}-{base_sha[:8]}"
                 environment = {
                     **os.environ,
                     "BASE_SHA": base_sha,
                     "OSV_LEGACY_BASE_SHA": CHECKER.OSV_LEGACY_BASE_SHA,
                     "OSV_LEGACY_BASE_VERSION": CHECKER.OSV_LEGACY_BASE_VERSION,
-                    "FAKE_CP314_BASE_SHA": "3" * 40,
+                    "OSV_PY314_BASE_SHA": CHECKER.OSV_PY314_BASE_SHA,
+                    "OSV_PY314_BASE_VERSION": CHECKER.OSV_PY314_BASE_VERSION,
+                    "FAKE_BASE_VERSION": expected_version or "3.13.14",
                     "PYTHON_VERSION_FILE": str(version_file),
                     "PATH": f"{temporary_root}{os.pathsep}{os.environ['PATH']}",
                 }

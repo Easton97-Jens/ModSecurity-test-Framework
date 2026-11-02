@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the Framework's canonical CPython 3.14 workflow contract."""
+"""Validate the Framework's canonical CPython 3.15 workflow contract."""
 
 from __future__ import annotations
 
@@ -20,12 +20,12 @@ from common_canonical_pins import canonical_action, load_canonical_ci_pins
 
 
 CANONICAL_VERSION_FILE = ".python-version"
-CANONICAL_VERSION_VALUE = re.compile(r"^3\.14\.(0|[1-9](?a:\d)*)\n$")
+CANONICAL_VERSION_VALUE = re.compile(r"^3\.15\.(0|[1-9](?a:\d)*)\n$")
 WORKFLOW_SUFFIXES = {".yml", ".yaml"}
 CANDIDATE_WORKFLOW = "check-python-version.yml"
 CANDIDATE_WORKFLOW_PATH = Path(".github/workflows") / CANDIDATE_WORKFLOW
 CANDIDATE_JOB = "candidate-validate"
-CANDIDATE_VERSION_FILE = "${{ runner.temp }}/framework-python-3.14-candidate"
+CANDIDATE_VERSION_FILE = "${{ runner.temp }}/framework-python-3.15-candidate"
 OSV_WORKFLOW = "ci-security-osv.yml"
 OSV_WORKFLOW_PATH = Path(".github/workflows") / OSV_WORKFLOW
 OSV_PR_HEAD_JOB = "pull-request-head"
@@ -38,8 +38,8 @@ SETUP_PYTHON_LINE = re.compile(
     r"(?P<sha>[0-9a-f]{40})['\"]?\s+#\s*(?P<release>v[0-9]+(?:\.[0-9]+){1,3})\s*$"
 )
 PYTHON_VERSION_KEY = re.compile(r"^\s*python-version\s*:", re.MULTILINE)
-HARDCODED_314 = re.compile(
-    r"(?<![0-9A-Za-z_.-])3\.14\.(?:(?a:\d+)|x|\*)(?![0-9A-Za-z_.-])"
+HARDCODED_315 = re.compile(
+    r"(?<![0-9A-Za-z_.-])3\.15\.(?:(?a:\d+)|x|\*)(?![0-9A-Za-z_.-])"
 )
 PYTHON_COMMAND = re.compile(
     r"(?<![0-9A-Za-z_.-])(?:python(?:3(?:\.(?a:\d+))?)?|pytest|ruff|pyright|mypy|tox|nox)(?![0-9A-Za-z_.-])"
@@ -94,7 +94,7 @@ def canonical_version_errors(root: Path) -> list[str]:
     if CANONICAL_VERSION_VALUE.fullmatch(content) is None:
         return [
             f"{path}: {CANONICAL_VERSION_FILE} must contain exactly one stable "
-            "3.14.<numeric patch> newline-terminated value"
+            "3.15.<numeric patch> newline-terminated value"
         ]
     return []
 
@@ -164,9 +164,9 @@ def hardcoded_version_errors(path: Path, text: str) -> list[str]:
         errors.append(
             f"{path}: python-version is forbidden; use {CANONICAL_VERSION_FILE} instead"
         )
-    if HARDCODED_314.search(text):
+    if HARDCODED_315.search(text):
         errors.append(
-            f"{path}: hard-coded CPython 3.14 patch values are forbidden in workflows"
+            f"{path}: hard-coded CPython 3.15 patch values are forbidden in workflows"
         )
     return errors
 

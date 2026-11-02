@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
+from copy import deepcopy
 import importlib.util
 from pathlib import Path
 import subprocess
@@ -54,8 +56,8 @@ class FakeListClient:
 
 
 class FakePyPiClient:
-    def __init__(self, payload: dict[str, object]) -> None:
-        self.payload = payload
+    def __init__(self, payload: Mapping[str, object]) -> None:
+        self.payload = dict(payload)
 
     def get_json(self, _url: str) -> dict[str, object]:
         return self.payload
@@ -217,6 +219,112 @@ class CanonicalMaintenanceTests(unittest.TestCase):
         )
         self.assertEqual(result["details"]["update_policy"], "latest_stable")
         self.assertEqual(reviews, [])
+
+    def source_pyyaml_fixture(
+        self,
+    ) -> tuple[dict[str, str], dict[str, dict[str, list[dict[str, object]]]]]:
+        artifact = "pyyaml-6.0.3.tar.gz"
+        source: dict[str, object] = {
+            "filename": artifact,
+            "packagetype": "sdist",
+            "yanked": False,
+            "digests": {"sha256": "a" * 64},
+            "url": "https://files.pythonhosted.org/packages/aa/bb/pyyaml-6.0.3.tar.gz",
+        }
+        values = {
+            "CI_CANONICAL_PYTHON_VERSION": "3.15.2",
+            "CI_CANONICAL_PYYAML_VERSION": "6.0.3",
+            "CI_CANONICAL_PYYAML_ARTIFACT": artifact,
+            "CI_CANONICAL_PYYAML_PLATFORM": "source-pure-python",
+            "CI_CANONICAL_PYYAML_SHA256": "a" * 64,
+        }
+        return values, {"releases": {"6.0.3": [source]}}
+
+    def test_reviewed_pyyaml_source_is_current_without_automatic_updates(self):
+        values, payload = self.source_pyyaml_fixture()
+        result, reviews = MAINTENANCE.resolve_pyyaml(
+            entries(values), FakePyPiClient(payload)
+        )
+        self.assertEqual(result["status"], "current")
+        self.assertEqual(result["updates"], [])
+        self.assertEqual(result["details"]["update_policy"], "manual_only")
+        self.assertEqual(reviews, [])
+
+    def test_new_source_releases_require_manual_backend_and_artifact_review(self):
+        for candidate in ("6.0.4", "6.1.0", "7.0.0"):
+            with self.subTest(candidate=candidate):
+                values, payload = self.source_pyyaml_fixture()
+                payload["releases"][candidate] = [{"filename": "new-layout.tar.gz"}]
+                result, reviews = MAINTENANCE.resolve_pyyaml(
+                    entries(values), FakePyPiClient(payload)
+                )
+                self.assertEqual(result["status"], "current")
+                self.assertEqual(result["updates"], [])
+                self.assertEqual(result["latest_compatible"], "6.0.3")
+                self.assertEqual(result["latest_upstream"], candidate)
+                self.assertEqual(len(reviews), 1)
+                self.assertEqual(
+                    reviews[0]["review_kind"], "artifact_layout_transition"
+                )
+                self.assertFalse(reviews[0]["automatic_update_also_available"])
+                self.assertIn("build-backend", reviews[0]["reason"])
+
+    def test_pyyaml_source_provenance_is_fail_closed(self):
+        values, payload = self.source_pyyaml_fixture()
+        mutations = (
+            ("filename", "different.tar.gz"),
+            ("packagetype", "bdist_wheel"),
+            ("yanked", True),
+            ("yanked", "false"),
+            ("digests", {"sha256": "b" * 64}),
+            ("url", "https://evil.invalid/pyyaml-6.0.3.tar.gz"),
+        )
+        for field, invalid in mutations:
+            with self.subTest(field=field, invalid=invalid):
+                changed = deepcopy(payload)
+                changed["releases"]["6.0.3"][0][field] = invalid
+                result, reviews = MAINTENANCE.resolve_pyyaml(
+                    entries(values), FakePyPiClient(changed)
+                )
+                self.assertEqual(result["status"], "blocked")
+                self.assertEqual(result["updates"], [])
+                self.assertEqual(reviews, [])
+        for variable, invalid in (
+            ("CI_CANONICAL_PYYAML_PLATFORM", "manylinux_x86_64"),
+            ("CI_CANONICAL_PYTHON_VERSION", "3.14.10"),
+            ("CI_CANONICAL_PYYAML_ARTIFACT", "pyyaml-6.0.3.zip"),
+        ):
+            with self.subTest(variable=variable):
+                changed_values = dict(values, **{variable: invalid})
+                result, _ = MAINTENANCE.resolve_pyyaml(
+                    entries(changed_values), FakePyPiClient(payload)
+                )
+                self.assertEqual(result["status"], "blocked")
+
+    def test_osv_baselines_are_manual_only_and_bound_to_historical_python_lines(self):
+        values = {
+            "CI_OSV_LEGACY_BASE_SHA": "a" * 40,
+            "CI_OSV_LEGACY_BASE_VERSION": "3.13.7",
+            "CI_OSV_PY314_BASE_SHA": "b" * 40,
+            "CI_OSV_PY314_BASE_VERSION": "3.14.10",
+        }
+        result = MAINTENANCE.resolve_osv_compatibility(entries(values))
+        self.assertEqual(result["status"], "current")
+        self.assertEqual(result["updates"], [])
+        self.assertEqual(result["details"]["update_policy"], "manual_only")
+        self.assertEqual(len(result["details"]["baselines"]), 2)
+        for variable, invalid in (
+            ("CI_OSV_PY314_BASE_SHA", "A" * 40),
+            ("CI_OSV_PY314_BASE_VERSION", "3.15.2"),
+            ("CI_OSV_LEGACY_BASE_VERSION", "3.14.10"),
+            ("CI_OSV_PY314_BASE_VERSION", "3.14.10rc1"),
+        ):
+            with self.subTest(variable=variable):
+                changed = dict(values, **{variable: invalid})
+                self.assertEqual(
+                    MAINTENANCE.resolve_osv_compatibility(entries(changed))["status"],
+                    "blocked",
+                )
 
     def test_node_blocks_when_only_prerelease_or_malformed_records_exist(self) -> None:
         result, reviews = MAINTENANCE.resolve_node(
