@@ -172,8 +172,14 @@ def client_tls_terminal(report, cancel):
     return "close_notify"
 
 
-def capture_client_transport(root, front, fixture, request, response, report):
+def client_tls_context(root):
     context = ssl.create_default_context(cafile=str(root / TLS_CERT))
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
+
+
+def capture_client_transport(root, front, fixture, request, response, report):
+    context = client_tls_context(root)
     report["transport_stage"] = "connect"
     with socket.create_connection(("127.0.0.1", front), timeout=5) as connection:
         report.update(connection_local=socket_endpoint(connection, "getsockname"),

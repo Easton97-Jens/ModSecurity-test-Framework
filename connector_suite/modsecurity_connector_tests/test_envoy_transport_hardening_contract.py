@@ -49,10 +49,16 @@ def create_loopback_tls_material(root: Path) -> tuple[Path, Path]:
     return certificate, private_key
 
 
+def loopback_tls_context(certificate: Path, private_key: Path) -> ssl.SSLContext:
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(certfile=certificate, keyfile=private_key)
+    return context
+
+
 def configure_loopback_tls(server: http.server.ThreadingHTTPServer, root: Path) -> Path:
     certificate, private_key = create_loopback_tls_material(root)
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(certfile=certificate, keyfile=private_key)
+    context = loopback_tls_context(certificate, private_key)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return certificate
 

@@ -122,11 +122,17 @@ def reject_independent_surplus(pending, same_socket):
         raise ValueError("unexpected bytes after independently closed response")
 
 
+def client_tls_context(root):
+    context = ssl.create_default_context(cafile=str(root / "tls.crt"))
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
+
+
 def drive(name, root=Path("/task"), contract=None):
     if contract is None:
         contract = json.loads(Path("/mnt/fixtures/case-contract.json").read_text())
     same_socket = contract["same_tls_socket_required"] and name == "main"
-    context = ssl.create_default_context(cafile=str(root / "tls.crt"))
+    context = client_tls_context(root)
     expected = contract["sequence"] if name == "main" else [
         {"index": 0, "path": "/i12-neighbor", "smoke": "allow", "status": 200,
          "body_bytes": 8, "body_sha256": sha(b"healthy\n")}]
