@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from copy import deepcopy
 import importlib.util
 from pathlib import Path
@@ -55,8 +56,8 @@ class FakeListClient:
 
 
 class FakePyPiClient:
-    def __init__(self, payload: dict[str, object]) -> None:
-        self.payload = payload
+    def __init__(self, payload: Mapping[str, object]) -> None:
+        self.payload = dict(payload)
 
     def get_json(self, _url: str) -> dict[str, object]:
         return self.payload
@@ -219,9 +220,12 @@ class CanonicalMaintenanceTests(unittest.TestCase):
         self.assertEqual(result["details"]["update_policy"], "latest_stable")
         self.assertEqual(reviews, [])
 
-    def source_pyyaml_fixture(self):
-        source = {
-            "filename": "pyyaml-6.0.3.tar.gz",
+    def source_pyyaml_fixture(
+        self,
+    ) -> tuple[dict[str, str], dict[str, dict[str, list[dict[str, object]]]]]:
+        artifact = "pyyaml-6.0.3.tar.gz"
+        source: dict[str, object] = {
+            "filename": artifact,
             "packagetype": "sdist",
             "yanked": False,
             "digests": {"sha256": "a" * 64},
@@ -230,7 +234,7 @@ class CanonicalMaintenanceTests(unittest.TestCase):
         values = {
             "CI_CANONICAL_PYTHON_VERSION": "3.15.2",
             "CI_CANONICAL_PYYAML_VERSION": "6.0.3",
-            "CI_CANONICAL_PYYAML_ARTIFACT": source["filename"],
+            "CI_CANONICAL_PYYAML_ARTIFACT": artifact,
             "CI_CANONICAL_PYYAML_PLATFORM": "source-pure-python",
             "CI_CANONICAL_PYYAML_SHA256": "a" * 64,
         }

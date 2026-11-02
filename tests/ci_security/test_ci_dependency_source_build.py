@@ -9,6 +9,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 from unittest.mock import patch
 
 
@@ -85,7 +86,7 @@ class SourceDependencyBuildTests(unittest.TestCase):
     def test_hash_is_checked_before_file_creation(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            opener = unittest.mock.Mock()
+            opener = mock.Mock()
             opener.open.return_value = Response(b"unverified source")
             with patch.object(INSTALLER.request, "build_opener", return_value=opener):
                 with self.assertRaisesRegex(INSTALLER.InstallError, "SHA-256 mismatch"):

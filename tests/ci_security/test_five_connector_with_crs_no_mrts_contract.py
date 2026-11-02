@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import copy
 import contextlib
 import hashlib
@@ -1702,11 +1703,101 @@ class FiveConnectorWorkflowSecurityContractTest(unittest.TestCase):
         self.assertIn("run: bash ci/tools/install-hash-locked-ci-dependencies.sh", text)
         installer = CI_DEPENDENCY_INSTALLER_PATH.read_text(encoding="utf-8")
         self.assertIn("set -euo pipefail", installer)
-        self.assertIn("--disable-pip-version-check", installer)
-        self.assertIn("--no-input", installer)
-        self.assertIn("--only-binary=:all:", installer)
-        self.assertIn("--require-hashes -r requirements-ci.lock", installer)
-        self.assertIn("python3 -m pip check", installer)
+        self.assertIn("if (( $# != 0 )); then", installer)
+        self.assertEqual(
+            installer.splitlines()[-1],
+            "python3 -I ci/tools/install_hash_locked_ci_dependencies.py",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            python_stub = Path(directory) / "python3"
+            python_stub.write_text(
+                "#!/bin/sh\nprintf '%s\\n' \"$@\"\n", encoding="utf-8"
+            )
+            python_stub.chmod(0o755)
+            environment = {**os.environ, "PATH": f"{directory}{os.pathsep}{os.defpath}"}
+            for arguments, expected_status in (([], 0), (["unexpected"], 2)):
+                with self.subTest(installer_arguments=arguments):
+                    result = subprocess.run(
+                        ["bash", str(CI_DEPENDENCY_INSTALLER_PATH), *arguments],
+                        env=environment,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, expected_status, result.stderr)
+                    self.assertEqual(
+                        result.stdout,
+                        ""
+                        if arguments
+                        else "-I\nci/tools/install_hash_locked_ci_dependencies.py\n",
+                    )
+        source = ROOT / "ci/tools/install_hash_locked_ci_dependencies.py"
+        program = ast.parse(source.read_text(encoding="utf-8"))
+        commands = [
+            tuple(
+                element.value
+                for element in call.args[0].elts
+                if isinstance(element, ast.Constant) and isinstance(element.value, str)
+            )
+            for call in ast.walk(program)
+            if isinstance(call, ast.Call)
+            and ast.unparse(call.func) in {"run", "subprocess.run"}
+            and call.args
+            and isinstance(call.args[0], ast.List)
+        ]
+        legacy_flags = (
+            "-I",
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--no-input",
+            "--only-binary=:all:",
+            "--require-hashes",
+            "-r",
+        )
+        self.assertIn(legacy_flags, commands)
+        self.assertIn(
+            (
+                "-I",
+                "-m",
+                "pip",
+                "install",
+                "--no-index",
+                "--no-deps",
+                "--only-binary=:all:",
+                "--require-hashes",
+                "-r",
+            ),
+            commands,
+        )
+        self.assertIn(
+            (
+                "-I",
+                "-m",
+                "pip",
+                "install",
+                "--no-index",
+                "--no-deps",
+                "--require-hashes",
+                "-r",
+            ),
+            commands,
+        )
+        self.assertGreaterEqual(commands.count(("-I", "-m", "pip", "check")), 3)
+        spec = importlib.util.spec_from_file_location("portable_ci_installer", source)
+        assert spec is not None and spec.loader is not None
+        dependency_installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(dependency_installer)
+        with mock.patch.dict(os.environ, {"GITHUB_TOKEN": "must-not-be-inherited"}):
+            environment = dependency_installer.clean_environment(Path("build"))
+        self.assertEqual(environment["PIP_NO_INDEX"], "1")
+        self.assertEqual(environment["PIP_NO_INPUT"], "1")
+        self.assertEqual(environment["PIP_CONFIG_FILE"], os.devnull)
+        self.assertEqual(environment["PYTHONNOUSERSITE"], "1")
+        self.assertEqual(environment["PYTHONSAFEPATH"], "1")
+        self.assertEqual(environment["PYYAML_FORCE_LIBYAML"], "0")
+        self.assertNotIn("GITHUB_TOKEN", environment)
         self.assertEqual(text.count('"requirements-ci.lock"'), 2)
         self.assertIn("ci/checks/catalog/five_connectors_with_crs_no_mrts.py", text)
         self.assertEqual(

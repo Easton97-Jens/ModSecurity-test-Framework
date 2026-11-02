@@ -93,19 +93,18 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             )
             with self.subTest(job=job_name):
                 self.assertIn("snapshot-validation-inputs", snapshot["run"])
-                self.assertIn(
-                    "--require-hashes -r requirements-ci.lock", snapshot["run"]
-                )
-                self.assertIn("python3 -m pip check", snapshot["run"])
+                commands = [line.strip() for line in snapshot["run"].splitlines()]
+                installer = "bash ci/tools/install-hash-locked-ci-dependencies.sh"
+                self.assertEqual(commands.count(installer), 1)
                 self.assertLess(
-                    snapshot["run"].index("python3 -m pip install"),
-                    snapshot["run"].index("python3 -m pip check"),
-                )
-                self.assertLess(
-                    snapshot["run"].index("python3 -m pip check"),
-                    snapshot["run"].index(
-                        "python3 ci/tools/update-workflow-tools.py "
-                        "snapshot-validation-inputs"
+                    commands.index(installer),
+                    next(
+                        index
+                        for index, command in enumerate(commands)
+                        if command.startswith(
+                            "python3 ci/tools/update-workflow-tools.py "
+                            "snapshot-validation-inputs"
+                        )
                     ),
                 )
                 self.assertLess(
@@ -115,6 +114,24 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
                         for index, step in enumerate(job["steps"])
                         if step["name"]
                         == "Validate and apply caller-bound canonical plan"
+                    ),
+                )
+                apply_index = next(
+                    index
+                    for index, step in enumerate(job["steps"])
+                    if step["name"] == "Validate and apply caller-bound canonical plan"
+                )
+                validation_name = (
+                    "Validate generated workflow-tool candidate"
+                    if job_name == "candidate"
+                    else "Revalidate generated workflow-tool candidate"
+                )
+                self.assertLess(
+                    apply_index,
+                    next(
+                        index
+                        for index, step in enumerate(job["steps"])
+                        if step["name"] == validation_name
                     ),
                 )
 

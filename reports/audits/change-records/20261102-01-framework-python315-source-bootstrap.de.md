@@ -102,6 +102,8 @@ Ausführungsplan. Befehle liefen im Framework-Worktree.
 
 Zusätzliche Koordinator-Prüfungen bestanden auf echtem Python 3.15.2: 72 Vertrags-/Generatortests, 16 Canonical-Maintenance-Tests, native Python-/Workflow-Pin-/Berechtigungsprüfungen, Actionlint für fünf geänderte Workflows und Ruff-Lint/-Format über 19 geänderte Python-Dateien. Unabhängiges Source-Build-Review fand keinen Blocker bei Helper-SHA `cf25436ad89407c416b64635924f8eecd1cb9d66d40faa7776ab7a433aa591ea`. Build-Werkzeuglizenzen geprüft: PyYAML/setuptools/wheel MIT, Cython Apache-2.0, packaging Apache-2.0 OR BSD-2-Clause.
 
+Gehostetes CPython-3.15.2-Setup, geprüfter Source-Build, Pure-Wheel-Installation und Pip-Prüfungen bestanden; der gehostete Wheel-SHA entsprach beiden lokalen Builds. Erste CI zeigte alte Inline-Installationsannahmen und fünf Typisierungs-/Importfehler in Tests. Folgekorrekturen prüfen echte argumentlose Delegation und ausführbare Helper-Kontrollen und erhalten Installation-vor-Snapshot/Anwendung/Validierung. Die 27 betroffenen Workflow-/CRS-Tests und 24 typisierten Builder-/Maintenance-Tests bestanden auf 3.15; Runtime-Helper und Security-Gates wurden nicht abgeschwächt.
+
 ## Sicherheitsauswirkung
 
 Es wird keine Schwachstellenbehebung behauptet. Die Migration erhält
@@ -127,6 +129,8 @@ des Koordinators; die vier lokalen Dokumentationsprüfungen bestanden. Connector
 Framework-Änderung nicht erforderlich.
 
 Lokales Pyright war mangels installiertem Node-Executable nicht ausführbar; der unverändert gepinnte gehostete Node-/Pyright-Pfad bleibt erforderlich. Ein optionales vollständiges Provenienz-Regressionsmodul zeigte einen bestehenden ModSecurity-Release-Listen-Fixture-Widerspruch außerhalb dieser Python-Migration; seine neuen Source-/OSV-Grenzfälle bestanden separat.
+
+Lokale vollständige CI-Security-Discovery führte 348 Tests aus: Zwei Fehler entstanden am unveränderten FIFO-Child-Startup-Readiness-Limit, direkt und über die verschachtelte CRS-Suite; der Child wies die FIFO trotzdem ab. Ein gezielter Wiederholungslauf dieses unveränderten FIFO-Falls bestand. Die 27 betroffenen Workflow-/CRS-Tests hatten bereits separat bestanden. Diese Timing-Grenze bleibt ausdrücklich dokumentiert; Timeout- und Ablehnungsanforderungen wurden nicht gelockert. Frische gehostete Prüfungen bleiben erforderlich.
 
 ## Einschränkungen und Restrisiko
 

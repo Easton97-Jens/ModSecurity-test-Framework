@@ -95,6 +95,8 @@ in the local execution plan. Commands below ran from the Framework worktree.
 
 Additional coordinator checks passed on actual Python 3.15.2: 72 contract/generator tests, 16 canonical-maintenance tests, native Python/workflow pin/permission checks, five changed-workflow Actionlint checks, and Ruff lint/format across 19 changed Python files. Independent source-build review found no blocker at helper SHA `cf25436ad89407c416b64635924f8eecd1cb9d66d40faa7776ab7a433aa591ea`. Build-tool licences reviewed: PyYAML/setuptools/wheel MIT, Cython Apache-2.0, packaging Apache-2.0 OR BSD-2-Clause.
 
+Hosted CPython 3.15.2 setup, verified source build, pure-wheel installation and pip checks succeeded; the hosted wheel SHA matched both local builds. Initial CI exposed old inline-install expectations and five test typing/import errors. Follow-up regression updates check actual no-argument delegation and executable helper controls while retaining installation-before-snapshot/apply/validation ordering. The 27 affected workflow/CRS tests and 24 typed builder/maintenance tests passed on 3.15; no runtime helper or security gate was weakened.
+
 ## Security impact
 
 No vulnerability-remediation claim is made. The migration retains immutable
@@ -120,6 +122,8 @@ results are recorded; the four local documentation checks passed. No connector
 runtime suite or MRTS execution was required by this Framework change.
 
 Local Pyright execution was unavailable because no Node executable is installed; the unchanged pinned hosted Node/Pyright path remains required. An optional full provenance regression module exposed an existing ModSecurity release-list fixture mismatch outside this Python migration; its new source/OSV boundary cases passed separately.
+
+The local complete CI-security discovery ran 348 tests: two failures came from the unchanged FIFO child-startup readiness limit, directly and through the nested CRS suite; the child still rejected the FIFO. A focused rerun of that unchanged FIFO case passed. The 27 affected workflow/CRS tests had already passed separately. This timing limitation is retained explicitly; timeout and rejection requirements were not relaxed. Fresh hosted checks remain required.
 
 ## Limitations and residual risk
 
