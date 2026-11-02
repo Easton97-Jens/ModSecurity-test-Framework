@@ -209,7 +209,7 @@ class EvidenceInputSecurityTests(unittest.TestCase):
                     source.symlink_to(victim)
                 return real_open(path, flags, *args, **kwargs)
 
-            with mock.patch("evidence_inputs.os.open", side_effect=replace_on_open):
+            with mock.patch("modsecurity_connector_ci.lib.evidence_inputs.os.open", side_effect=replace_on_open):
                 with self.assertRaises(OSError):
                     inputs.read_bytes(source)
             self.assertTrue(replaced)
@@ -284,7 +284,7 @@ class EvidenceInputSecurityTests(unittest.TestCase):
             self.assertEqual(absent_proof, proof)
 
     def test_full_nginx_generator_metadata_cannot_reopen_intermediate_symlink(self) -> None:
-        self.enterContext(mock.patch("report_path_safety.SAFE_ROOTS", set()))
+        self.enterContext(mock.patch("modsecurity_connector_ci.lib.report_path_safety.SAFE_ROOTS", set()))
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             build = root / "build"
@@ -365,7 +365,8 @@ class EvidenceInputSecurityTests(unittest.TestCase):
             self.assertNotIn(str(attacker_claim), approved)
             self.assertEqual(command[command.index("--cache-root") + 1], str(cache))
             # Execute the emitted postprocess contract with the real updater.
-            command[1] = str(source_path('ci/evidence/reports/update-runtime-reports.py', root=ROOT))
+            script_index = 2 if command[1] == '-P' else 1
+            command[script_index] = str(source_path('ci/evidence/reports/update-runtime-reports.py', root=ROOT))
             command[command.index("--connector-root") + 1] = str(ROOT)
             result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True,
                                     env=dict(os.environ, SUPPRESS_FULL_RUN_EVIDENCE_SIDE_EFFECTS="1"))

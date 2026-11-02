@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -31,6 +32,35 @@ def setUpModule():
 
 
 class AuthCaptureControls(unittest.TestCase):
+    def test_split_checkout_resolves_framework_registry_before_capture(self):
+        """Exercise location wiring without exporting or admitting a capture."""
+        registry_root = source_path('ci/runtime/lifecycle/i12', root=ROOT)
+        self.assertTrue(registry_root.is_relative_to(test_root()))
+        self.assertNotEqual(registry_root, ROOT / 'ci/runtime/lifecycle/i12')
+        real_load = PREPARE.load
+        apply = mock.Mock()
+        export = mock.Mock(side_effect=lambda _repository, destination: destination.mkdir())
+
+        def load(path, name):
+            if name == 'i12_source_export':
+                return SimpleNamespace(export=export)
+            if name == 'i12_current_capture':
+                return SimpleNamespace(apply=apply)
+            return real_load(path, name)
+
+        with tempfile.TemporaryDirectory(prefix='i12-auth-split-', dir=fixture_storage()) as temporary:
+            output = Path(temporary)
+            with mock.patch.object(PREPARE, 'load', side_effect=load):
+                source = PREPARE.stage_source(ROOT, output)
+            central, registry, profile, captured_source = apply.call_args.args
+            self.assertEqual(registry.root, registry_root)
+            self.assertEqual(registry.repository, ROOT)
+            self.assertEqual(central.HERE, registry_root)
+            self.assertEqual(profile, 'traefik-forwardauth')
+            self.assertEqual(captured_source, source)
+            export.assert_called_once_with(ROOT, source)
+            self.assertFalse((source / 'i12-source-application-receipt.json').exists())
+
     def test_eof_and_status_do_not_qualify_truncated_client_bytes(self):
         self.assertFalse(REVIEW.framing(b'')['complete'])
         self.assertFalse(REVIEW.framing(b'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nab')['complete'])

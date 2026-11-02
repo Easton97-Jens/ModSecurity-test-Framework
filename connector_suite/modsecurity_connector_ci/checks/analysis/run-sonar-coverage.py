@@ -6,7 +6,7 @@ claim that every existing test executes. Test ownership and coverage are separat
 """
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
 
 import argparse
 import ast
@@ -110,7 +110,7 @@ def validate_python_report(path: Path) -> int:
         raise ValueError("Python coverage has no measured execution")
     for entry in classes:
         filename = Path(entry.attrib["filename"])
-        if filename.is_absolute() or ".." in filename.parts or not source_path(filename, root=ROOT).is_file():
+        if filename.is_absolute() or ".." in filename.parts or not (ROOT / filename).is_file():
             raise ValueError(f"Python coverage path is not a repository file: {filename}")
     return len(classes)
 
@@ -121,7 +121,7 @@ def publish_python_report(output: Path, env: dict[str, str]) -> dict[str, object
     coverage = [sys.executable, "-m", "coverage"]
     run([*coverage, "combine", "--append", "--keep", f"--rcfile={RCFILE}"], env=env)
     report = output / "python.xml"
-    run([*coverage, "xml", "--keep-combined", f"--rcfile={RCFILE}", "-o", str(report)], env=env)
+    run([*coverage, "xml", "--keep-combined", f"--rcfile={RCFILE}", f"--omit={test_root()}/*", "-o", str(report)], env=env)
     source_files = validate_python_report(report)
     # subprocess collection can add an empty Cobertura source element. Every
     # filename above was checked against the project root, so one explicit '.'
@@ -144,7 +144,7 @@ def admitted_offline_inventory():
     if not inventory.offline_case_ids:
         raise ValueError("coverage requires explicitly admitted offline Python cases")
     selected = module.select_executions(
-        inventory, case_ids=inventory.offline_case_ids, on_demand=True
+        inventory, groups=("offline-unit",), on_demand=True
     )
     return inventory, selected
 
@@ -173,10 +173,11 @@ def offline_command(selected: tuple[dict, ...], output: Path, env: dict[str, str
     child_env.pop("COVERAGE_PROCESS_CONFIG", None)
     command = [sys.executable]
     if measured:
-        command.extend(["-m", "coverage", "run", f"--rcfile={RCFILE}", "--parallel-mode"])
+        command.extend(["-m", "coverage", "run", f"--rcfile={RCFILE}", "--parallel-mode",
+                        f"--source={ROOT},{source_path(ACTIVE_INVENTORY_SOURCE, root=ROOT).parent}"])
     else:
         child_env.pop("COVERAGE_FILE", None)
-    command.extend(["ci/tools/run-active-tests.py", "--on-demand", "--strict-skips", "--output-root", str(output)])
+    command.extend([str(source_path("ci/tools/run-active-tests.py", root=ROOT)), "--profile", "sonar-coverage", "--on-demand", "--strict-skips", "--output-root", str(output)])
     for execution in selected:
         command.extend(["--execution", execution["id"]])
     return command, child_env
@@ -203,6 +204,18 @@ def read_python_coverage_data(path: Path):
     return data
 
 
+def is_inventory_source(filename: str) -> bool:
+    """Match the measured inventory source in its reviewed physical or logical form."""
+    source = Path(filename)
+    if source.is_absolute():
+        if source == source_path(ACTIVE_INVENTORY_SOURCE, root=ROOT):
+            return True
+        if not source.is_relative_to(ROOT):
+            return False
+        source = source.relative_to(ROOT)
+    return source.as_posix() == ACTIVE_INVENTORY_SOURCE
+
+
 def child_file_has_witness(path: Path, witness: int) -> bool:
     if path.is_symlink() or not path.is_file():
         raise ValueError("Python coverage input must be a regular parallel data file")
@@ -210,12 +223,7 @@ def child_file_has_witness(path: Path, witness: int) -> bool:
     if not data.has_arcs():
         raise ValueError("offline subprocess coverage must retain branch observations")
     for filename in data.measured_files():
-        source = Path(filename)
-        if source.is_absolute():
-            if source == source_path(ACTIVE_INVENTORY_SOURCE, root=ROOT):
-                return witness in (data.lines(filename) or [])
-            source = source.relative_to(ROOT)
-        if source.as_posix() == ACTIVE_INVENTORY_SOURCE:
+        if is_inventory_source(filename):
             return witness in (data.lines(filename) or [])
     return False
 
@@ -322,7 +330,7 @@ def python_coverage(output: Path, env: dict[str, str]) -> dict[str, object]:
     env["COVERAGE_FILE"] = str(output / "python.data")
     coverage = [sys.executable, "-m", "coverage"]
     run([*coverage, "run", f"--rcfile={RCFILE}", "--parallel-mode",
-         "ci/checks/analysis/check-sonar-scope.py"], env=env)
+         str(source_path("ci/checks/analysis/check-sonar-scope.py", root=ROOT))], env=env)
     # The caller explicitly opted into this specialist assessment. Scope its
     # module-discovery opt-in to this unittest child only;
     # the scope CLI, report writers and other producers retain the original env.
@@ -359,18 +367,29 @@ def go_coverage(output: Path, env: dict[str, str]) -> dict[str, object]:
     reports = {}
     for name, (relative, names) in GO_TESTS.items():
         module = ROOT / relative
+        # Preserved same-package tests are Framework-owned. The existing
+        # specialist overlay supplies them without writing into Parent.
+        overlay_output = output / (name + "-tests")
+        overlay_output.mkdir(mode=0o700)
+        overlay_env = dict(env, ON_DEMAND_TESTS="1")
+        overlay = Path(run([
+            sys.executable, str(source_path("ci/tools/run-active-tests.py", root=ROOT)),
+            "--profile", "sonar-coverage", "--on-demand", "--emit-go-overlay", relative,
+            "--output-root", str(overlay_output),
+        ], env=overlay_env).strip().splitlines()[-1])
         pattern = "^(" + "|".join(re.escape(name) for name in names) + ")$"
-        listing = run(["go", "test", "-mod=readonly", "-list", pattern, GO_PACKAGE_PATTERN], cwd=module, env=env)
+        listing = run(["go", "test", "-mod=readonly", f"-overlay={overlay}", "-list", pattern, GO_PACKAGE_PATTERN], cwd=module, env=env)
         missing = set(names) - set(listing.splitlines())
         if missing:
             raise ValueError(f"selected Go tests are missing in {relative}: {sorted(missing)}")
         report = output / f"{name}.out"
-        run(["go", "test", "-mod=readonly", "-count=1", "-timeout=120s", "-run", pattern,
+        run(["go", "test", "-mod=readonly", f"-overlay={overlay}", "-count=1", "-timeout=120s", "-run", pattern,
              f"-coverpkg={GO_PACKAGE_PATTERN}", f"-coverprofile={report}", GO_PACKAGE_PATTERN], cwd=module, env=env)
         if len(report.read_text(encoding="utf-8").splitlines()) < 2:
             raise ValueError(f"Go coverage is empty: {relative}")
         run(["go", "tool", "cover", f"-func={report}"], cwd=module, env=env)
-        reports[name] = {"report": str(report), "selectors": list(names), "packages": GO_PACKAGE_PATTERN}
+        reports[name] = {"report": str(report), "selectors": list(names), "packages": GO_PACKAGE_PATTERN,
+                         "test_sources": str(overlay.parent / "go-overlay-sources.json")}
     return reports
 
 
@@ -378,7 +397,7 @@ def native_coverage(output: Path, env: dict[str, str]) -> dict[str, object]:
     build = output / "build"
     env.update(BUILD_ROOT=str(build), VERIFIED_RUN_ROOT=str(output / "runtime"),
                MSCONNECTOR_CFLAGS="-std=c17 -Wall -Wextra -Werror --coverage -O0")
-    run(["sh", "ci/checks/common/check-common-helpers.sh"], env=env)
+    run(["sh", str(source_path("ci/checks/common/check-common-helpers.sh", root=ROOT))], env=env)
     gcov = output / "gcov"
     gcov.mkdir()
     objects = sorted((build / "common-helper-smoke").glob("*.gcda"))
