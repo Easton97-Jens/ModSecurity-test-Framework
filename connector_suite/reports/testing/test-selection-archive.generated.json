@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "fc007bdea733980700a74609acb41e5332977516b19f2f6e2823ecb5860557fd",
+  "inventory_sha256": "7a01c955646f30678131003fe431dcc86462dd0f67b552fda607ad17f1ea65e1",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7965,
+  "on_demand_definition_count": 7966,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -11509,7 +11509,7 @@
         "modsecurity_connector_tests.test_trusted_lighttpd_runtime_supervisor.TrustedLighttpdRuntimeSupervisorTest.test_early_process_identity_failure_cleanup_helper_terminates_the_live_child"
       ],
       "source": "tests/test_trusted_lighttpd_runtime_supervisor.py",
-      "source_sha256": "c99f13b983f997ee2a498ef24864cb03fca042be8cb2a6b16be723f4ede7e420"
+      "source_sha256": "8e9db599b520798f2e8e42042a21e5233ebd6cd28408d31cb81542b1115113c3"
     },
     {
       "contains_selected_definitions": [],
@@ -14353,10 +14353,11 @@
         "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_literal_traversal_leaves_real_outside_artifacts_unchanged",
         "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_raw_parser_rejects_normalized_targets_without_continue",
         "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_all_catalog_cases_preserve_artifacts_receipts_and_responses",
+        "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_non_catalog_canonical_names_preserve_artifacts",
         "modsecurity_test_framework.selftests.security_regression.test_traefik_auth_backend.BackendTargetTests.test_loopback_rejects_unread_body_and_preserves_valid_wire"
       ],
       "source": "framework/tests/security_regression/test_traefik_auth_backend.py",
-      "source_sha256": "acaaa4293e394c0222ef5706106e880d3ddfd9141855fd9ba83445c80078f081"
+      "source_sha256": "f38a9f1e9de5cd189fd301b3b69f4c720132648770b436e0aaa12422d70e8687"
     },
     {
       "contains_selected_definitions": [],

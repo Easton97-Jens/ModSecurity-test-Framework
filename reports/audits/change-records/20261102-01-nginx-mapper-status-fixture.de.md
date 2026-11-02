@@ -9,7 +9,7 @@
 | Change ID | 20261102-01-nginx-mapper-status-fixture |
 | UTC date | 2026-11-02 |
 | Framework base revision | `bc08ee7ca413012da189902b8b9c61c98151e76b` |
-| Issue or pull request | Eigener Framework-PR für externen Connector-PR #348 vorbereitet; kein Merge autorisiert |
+| Issue or pull request | Framework-PR #153; externer Connector-PR #348; separat autorisierten Integrationsstand unten beachten |
 
 ## Motivation und Problemstellung
 
@@ -170,3 +170,45 @@ Unabhängiges EN/DE-Review bestätigt Parität. Ein zunächst als laufende Sessi
 gespeichertes Receipt einer beendeten Methode wurde um den beobachteten terminalen
 Exit0 ergänzt; kein Rerun oder erfundener Status. Hosted-Prüfungen und finaler
 Parent-Pin bleiben getrennte Lieferevidenz.
+
+### Separat autorisierter Integrationsstand
+
+Vorstehende Vorbereitungsergebnisse und Mergeverbot gehören zum ursprünglichen
+Korrekturauftrag. Der aktuelle Benutzer autorisiert separat die reguläre
+Integration von Framework #153, danach Repinning und Integration von Connector
+#348, nur nach frischen Prüfungen am exakten Head. Squash ist die einzige
+aktivierte Mergeart. Direkter Master-Push, Force-Push, administrativer Bypass,
+abgeschwächte Prüfungen, MRTS-Änderungen und die separate Integration von
+Connector #436 sind nicht autorisiert.
+
+Framework-master ist auf `2a723ef05c85f8eaa85299826a9ec8f41c373736`
+(#152) vorgerückt. Dessen unabhängige Traefik-/Lighttpd-CodeQL-Korrekturen und
+Lighttpd-Source-Binding bleiben durch normalen additiven Basis-Merge erhalten.
+Der einzige Inhaltskonflikt lag im generierten Migrationsbaseline; auch das
+Archiv wurde neu generiert. Natives `update-inventory-bindings.py --check`
+bestand ohne Inventaränderung. Native Archiv-/Map-Generatoren endeten mit
+100/80 Standardfällen/-ausführungen, 2586/1140 On-Demand und 1993 erhaltenen IDs.
+Keine manuelle Digest- oder Selektoränderung. Fixture sowie alle fünf
+Methoden-/Probe-Bodies bleiben gegenüber der Korrektur unverändert.
+
+Integrations-Run-ID: `nginx-mapper-integration-20261102`. Framework-eigenen
+Interpreter und expliziten externen Kontext oben mit externer Connector-Quelle
+`b93f2fb2113824e200b41a87ad90918e1eb98e8f` und frisch aufgelösten Revisionen
+verwenden. Frische Methodenprüfungen am eingecheckten Head in beiden
+V3-Konfigurationen, angrenzende Verträge, Generatoren/Archiv/Bindings,
+Dokumentation/Secrets, CI/CodeQL/Sonar einschließlich Issues/Hotspots,
+Repository-Regeln und Post-Merge-Baum-/Masterprüfungen bleiben verpflichtend.
+Beobachtete Receipts und exakte finale/Merge-SHAs werden extern und in
+PR-Metadaten erhalten. Kein altes PASS wird auf neue Revisionen oder
+Live-Protokollqualifikation übertragen. MRTS unverändert; keine
+Branch-/Worktree-/Evidenzlöschung angefordert.
+
+Frische Vorbereitungsprüfungen nach Basisauflösung bestanden: alle fünf Methoden
+in beiden V3-Modi (14 beobachtete Probe-Rückgaben und zehn benannte Unterfälle
+je Modus; keine Skips), elf angrenzende Methoden (28.133s), Generator-Check-Modi,
+100-Fälle-Admission, Dokumentation (360 Sprachpaare, 2167 Pfade), vier kanonische
+Pinprüfungen und redigierter Gitleaks auf dem finalen Sechs-Pfade-Diff. Eine
+erste Recordprüfung lehnte die neue Zwischenstandsüberschrift auf Ebene zwei
+ab; ausschließlich deren Ebene an die vorhandene Unterüberschriftenkonvention
+anzupassen stellte den unveränderten Checker zufrieden. Exakte eingecheckte
+Heads und Post-Merge-Gates brauchen weiterhin separate frische Liefereceipts.

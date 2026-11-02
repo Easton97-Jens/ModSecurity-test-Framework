@@ -9,7 +9,7 @@
 | Change ID | 20261102-01-nginx-mapper-status-fixture |
 | UTC date | 2026-11-02 |
 | Framework base revision | `bc08ee7ca413012da189902b8b9c61c98151e76b` |
-| Issue or pull request | Own Framework PR prepared for external Connector PR #348; no merge authorized |
+| Issue or pull request | Framework PR #153; external Connector PR #348; see the separately authorized integration checkpoint below |
 
 ## Motivation and problem statement
 
@@ -169,3 +169,40 @@ Independent EN/DE review confirmed parity. The initially retained running-sessio
 receipt for one completed method was supplemented with its observed terminal
 exit0; no rerun or fabricated status. Hosted checks and the final Parent pin
 remain separate delivery evidence.
+
+### Separately authorized integration checkpoint
+
+The preceding preparation results and no-merge restriction belong to the
+original repair task. The current user separately authorizes regular integration
+of Framework #153, then repinning and integrating Connector #348, only after
+fresh exact-head checks. Squash is the only enabled repository merge method.
+No direct master push, force push, administrative bypass, weakened check, MRTS
+modification or separate Connector #436 integration is authorized.
+
+Framework master advanced to `2a723ef05c85f8eaa85299826a9ec8f41c373736`
+(#152). Its independent Traefik/Lighttpd CodeQL corrections and Lighttpd source
+binding are preserved through a normal additive base merge. The only content
+conflict was the generated migration baseline; the archive was regenerated too.
+Native `update-inventory-bindings.py --check` passed without an inventory edit.
+Native archive/map generators completed: 100/80 standard cases/executions,
+2586/1140 on-demand and 1993 preserved IDs. No manual digest or selector change.
+The fixture and all five method/probe bodies remain unchanged from the fix.
+
+Integration run ID: `nginx-mapper-integration-20261102`. Use the Framework-owned
+interpreter and explicit external context above, selecting external Connector
+source `b93f2fb2113824e200b41a87ad90918e1eb98e8f` and freshly resolved revisions.
+Fresh committed-head methods in both V3 configurations, adjacent contracts,
+generators/archive/bindings, documentation/secrets, CI/CodeQL/Sonar including
+issues/hotspots, repository rules and post-merge tree/master checks remain
+mandatory. Observed receipts and exact final/merge SHAs are retained externally
+and in PR metadata. No old PASS is transferred to a new revision or live protocol
+qualification. MRTS is unchanged; no branch/worktree/evidence deletion requested.
+
+Fresh preparation checks after base resolution passed: all five methods in both
+V3 modes (14 observed probe returns and ten named subcases per mode; no skips),
+eleven adjacent methods (28.133s), generator check modes, 100-case admission,
+documentation (360 language pairs, 2167 paths), four canonical pin checks and
+redacted Gitleaks on the six-path final diff. An initial record check rejected
+the new level-two checkpoint heading; changing only its heading level to the
+existing subheading convention restored the unchanged checker. Exact committed
+heads and post-merge gates still require their separate fresh delivery receipts.

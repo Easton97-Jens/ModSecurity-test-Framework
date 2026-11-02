@@ -55,7 +55,12 @@ class ProbeHandler(http.server.BaseHTTPRequestHandler):
         )
         self.send_response(status)
         self.send_header("Content-Length", "0")
-        self.send_header("X-Msconnector-Host-Transaction-Id", transaction_id)
+        # Keep the admission guard above and defend the serialization boundary
+        # too; every admitted or generated identifier is unchanged here.
+        self.send_header(
+            "X-Msconnector-Host-Transaction-Id",
+            transaction_id.replace("\r", "").replace("\n", ""),
+        )
         self.end_headers()
 
     def log_message(self, _format: str, *_arguments: object) -> None:
@@ -339,24 +344,37 @@ class TrustedLighttpdRuntimeSupervisorTest(unittest.TestCase):
             thread.join(timeout=5)
             server.server_close()
 
+    def transaction_header_response(self, server: http.server.ThreadingHTTPServer, value: bytes) -> bytes:
+        with socket.create_connection(("127.0.0.1", server.server_port), timeout=2) as client:
+            client.sendall(
+                b"OPTIONS / HTTP/1.0\r\nHost: localhost\r\n"
+                b"X-Modsec-Transaction-Id: " + value + b"\r\n\r\n"
+            )
+            response = bytearray()
+            while chunk := client.recv(4096):
+                response.extend(chunk)
+                self.assertLess(len(response), 16384)
+        return bytes(response)
+
     def test_probe_handler_rejects_folded_and_control_transaction_headers(self) -> None:
         server, thread = self.running_server()
         try:
             ProbeHandler.reflect_transaction = True
-            for value in (b"lighttpd-1\r\n folded", b"lighttpd-1\x01control", b"lighttpd-1\x7fcontrol"):
+            for value in (
+                b"lighttpd-1\r\n folded", b"lighttpd-1\x01control", b"lighttpd-1\x7fcontrol",
+                b"", b"a" * 129, b"lighttpd-1\x80control",
+            ):
                 with self.subTest(value=value):
-                    with socket.create_connection(("127.0.0.1", server.server_port), timeout=2) as client:
-                        client.sendall(
-                            b"OPTIONS / HTTP/1.0\r\nHost: localhost\r\n"
-                            b"X-Modsec-Transaction-Id: " + value + b"\r\n\r\n"
-                        )
-                        response = bytearray()
-                        while chunk := client.recv(4096):
-                            response.extend(chunk)
-                            self.assertLess(len(response), 16384)
-                    self.assertTrue(response.startswith(b"HTTP/1.0 400 "), bytes(response))
+                    response = self.transaction_header_response(server, value)
+                    self.assertTrue(response.startswith(b"HTTP/1.0 400 "), response)
                     self.assertNotIn(b"X-Msconnector-Host-Transaction-Id:", response)
-                    self.assertNotIn(value, response)
+                    if value:
+                        self.assertNotIn(value, response)
+            for value in (b"a", b"Az09._:-", b"a" * 120 + b"Az09._:-"):
+                with self.subTest(valid=value):
+                    response = self.transaction_header_response(server, value)
+                    self.assertTrue(response.startswith(b"HTTP/1.0 200 "), response)
+                    self.assertIn(b"X-Msconnector-Host-Transaction-Id: " + value + b"\r\n", response)
         finally:
             server.shutdown()
             thread.join(timeout=5)
