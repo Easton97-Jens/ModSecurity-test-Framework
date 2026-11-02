@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8034,
+  "on_demand_definition_count": 8037,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -12158,7 +12158,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_five_connector_with_crs_no_mrts_contract.FiveConnectorWorkflowSecurityContractTest.test_workflow_is_a_read_only_portable_contract_gate"
       ],
       "source": "framework/tests/ci_security/test_five_connector_with_crs_no_mrts_contract.py",
-      "source_sha256": "7aa23781c2b6c2c69b3f11238aee0cb31c7abf52d9e9c3aa8497fb476ad8b0e7"
+      "source_sha256": "9b2b2b61b9ae2badcf25100f41204f07633f4b33f04b288fcd8dd8090ad6717d"
     },
     {
       "contains_selected_definitions": [],
@@ -12357,10 +12357,13 @@
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_canonical_publisher_is_the_only_routine_action_version_updater",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_node_major_candidate_runs_literal_pin_pyright_quality_gate",
         "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_publisher_token_is_exactly_scoped_for_allowlisted_workflow_updates",
-        "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_result_summary_covers_required_outcomes"
+        "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.UnifiedCommonMaintenanceWorkflowTests.test_result_summary_covers_required_outcomes",
+        "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.CanonicalActionPinAssertionTests.test_legitimate_canonical_commit_updates_are_accepted",
+        "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.CanonicalActionPinAssertionTests.test_unreviewed_workflow_references_are_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_unified_common_maintenance_workflow.CanonicalActionPinAssertionTests.test_invalid_canonical_identity_or_commit_is_rejected"
       ],
       "source": "framework/tests/ci_security/test_unified_common_maintenance_workflow.py",
-      "source_sha256": "4433ac6059e9f5eec18098c69fc24111cc972965232dc42d09dfb66da33d698c"
+      "source_sha256": "bd2455f57da88d6a83abedd842d4e6d20481f9ad9a5d291320dcacd9005c94e4"
     },
     {
       "contains_selected_definitions": [],

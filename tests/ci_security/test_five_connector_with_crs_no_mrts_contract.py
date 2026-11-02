@@ -21,7 +21,10 @@ import unittest
 from typing import Callable
 from unittest import mock
 
+import yaml
+
 from ci.tools.crs_contract_pins import load_crs_pins
+from tests.ci_security.workflow_contract_test_support import assert_canonical_action_pin
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -1826,7 +1829,14 @@ class FiveConnectorWorkflowSecurityContractTest(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, text)
-        self.assertIn("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", text)
-        self.assertIn(
-            "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97", text
-        )
+        steps = yaml.safe_load(text)["jobs"]["portable-contract"]["steps"]
+        for name, suffix, repository in (
+            ("Checkout exact revision", "CHECKOUT", "actions/checkout"),
+            ("Set up reviewed Python", "SETUP_PYTHON", "actions/setup-python"),
+        ):
+            with self.subTest(step=name):
+                selected = [step for step in steps if step.get("name") == name]
+                self.assertEqual(len(selected), 1)
+                assert_canonical_action_pin(
+                    self, ROOT, selected[0].get("uses"), suffix, repository
+                )
