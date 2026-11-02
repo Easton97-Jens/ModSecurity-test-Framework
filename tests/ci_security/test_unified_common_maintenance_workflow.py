@@ -11,6 +11,8 @@ import unittest
 
 import yaml
 
+from tests.ci_security.workflow_contract_test_support import assert_canonical_action_pin
+
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/check-common-versions.yml"
@@ -433,9 +435,12 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertEqual(len(uploads), 1)
         upload = uploads[0]
         self.assertEqual(upload["if"], "${{ !cancelled() }}")
-        self.assertEqual(
+        assert_canonical_action_pin(
+            self,
+            ROOT,
             upload["uses"],
-            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            "UPLOAD_ARTIFACT",
+            "actions/upload-artifact",
         )
         self.assertEqual(
             upload["with"]["name"],
@@ -460,9 +465,12 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
                 == "Download caller-bound canonical maintenance plan"
             ]
             self.assertEqual(len(downloads), 1, job_name)
-            self.assertEqual(
+            assert_canonical_action_pin(
+                self,
+                ROOT,
                 downloads[0]["uses"],
-                "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+                "DOWNLOAD_ARTIFACT",
+                "actions/download-artifact",
             )
             self.assertEqual(downloads[0]["with"]["name"], expected_artifact)
             self.assertEqual(downloads[0]["with"]["path"], expected_directory)
@@ -603,6 +611,72 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
     def test_result_summary_covers_required_outcomes(self) -> None:
         for label in ("Safe updates", "Reviews", "Issues", "Draft PR", "Fatal"):
             self.assertIn(label, self.text)
+
+
+class CanonicalActionPinAssertionTests(unittest.TestCase):
+    REPOSITORY = "actions/setup-python"
+    COMMIT = "5fda3b95a4ea91299a34e894583c3862153e4b97"
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.common = self.root / "ci/lib/common.sh"
+        self.common.parent.mkdir(parents=True)
+        self._write_pins(self.REPOSITORY, self.COMMIT)
+
+    def _write_pins(self, repository: str | None, commit: str | None) -> None:
+        values = {"REPOSITORY": repository, "COMMIT": commit}
+        self.common.write_text(
+            "".join(
+                f'CI_ACTION_SETUP_PYTHON_{suffix}="{value}"\n'
+                for suffix, value in values.items()
+                if value is not None
+            ),
+            encoding="utf-8",
+        )
+
+    def _assert_pin(self, uses: object) -> None:
+        assert_canonical_action_pin(
+            self, self.root, uses, "SETUP_PYTHON", self.REPOSITORY
+        )
+
+    def test_legitimate_canonical_commit_updates_are_accepted(self) -> None:
+        for commit in (self.COMMIT, "6d4fd22b20465ccc0f7354476588e8df7c9ca0e0"):
+            with self.subTest(commit=commit):
+                self._write_pins(self.REPOSITORY, commit)
+                self._assert_pin(f"{self.REPOSITORY}@{commit}")
+
+    def test_unreviewed_workflow_references_are_rejected(self) -> None:
+        for uses in (
+            f"{self.REPOSITORY}@v7",
+            f"{self.REPOSITORY}@{self.COMMIT[:12]}",
+            f"{self.REPOSITORY}@{'g' * 40}",
+            f"{self.REPOSITORY}@{'b' * 40}",
+            f"foreign/setup-python@{self.COMMIT}",
+            f"{self.REPOSITORY}/nested@{self.COMMIT}",
+            f"{self.REPOSITORY}@{self.COMMIT.upper()}",
+            f"{self.REPOSITORY}@{self.COMMIT}\n",
+            None,
+        ):
+            with self.subTest(uses=uses), self.assertRaises(AssertionError):
+                self._assert_pin(uses)
+
+    def test_invalid_canonical_identity_or_commit_is_rejected(self) -> None:
+        for repository, commit in (
+            (None, self.COMMIT),
+            (self.REPOSITORY, None),
+            (self.REPOSITORY, ""),
+            (self.REPOSITORY, "v7"),
+            (self.REPOSITORY, self.COMMIT[:12]),
+            (self.REPOSITORY, "g" * 40),
+            (self.REPOSITORY, self.COMMIT.upper()),
+            ("foreign/setup-python", self.COMMIT),
+        ):
+            with self.subTest(repository=repository, commit=commit):
+                self._write_pins(repository, commit)
+                with self.assertRaises(AssertionError):
+                    self._assert_pin(f"{repository}@{commit}")
 
 
 if __name__ == "__main__":
