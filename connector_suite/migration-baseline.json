@@ -7,7 +7,7 @@
     "native_sources": 88,
     "python_go_source_sets": 636,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "bbfbbee4a5637078a83eb524bb4f19e7c3e04586c3da63117868afa3b031ad95"
+    "sha256": "ab9b73d26691cfaa0287b3d9347d7ebf3d4301081883528fd282da2e79b4c72a"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -1277,8 +1277,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:105",
-      "line": 105,
+      "id": "Connector:connectors/envoy/Makefile:106",
+      "line": 106,
       "make_target": "hostruntime-preflight-envoy",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1288,8 +1288,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:108",
-      "line": 108,
+      "id": "Connector:connectors/envoy/Makefile:109",
+      "line": 109,
       "make_target": "hostruntime-preflight-envoy-ext-authz",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1299,8 +1299,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:111",
-      "line": 111,
+      "id": "Connector:connectors/envoy/Makefile:112",
+      "line": 112,
       "make_target": "hostruntime-preflight-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1310,8 +1310,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:117",
-      "line": 117,
+      "id": "Connector:connectors/envoy/Makefile:118",
+      "line": 118,
       "make_target": "self-test",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1321,8 +1321,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:155",
-      "line": 155,
+      "id": "Connector:connectors/envoy/Makefile:156",
+      "line": 156,
       "make_target": "test-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1332,8 +1332,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:186",
-      "line": 186,
+      "id": "Connector:connectors/envoy/Makefile:188",
+      "line": 188,
       "make_target": "runtime-smoke-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1343,8 +1343,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:199",
-      "line": 199,
+      "id": "Connector:connectors/envoy/Makefile:201",
+      "line": 201,
       "make_target": "transport-cancel-smoke-envoy-ext-proc",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1354,8 +1354,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:204",
-      "line": 204,
+      "id": "Connector:connectors/envoy/Makefile:206",
+      "line": 206,
       "make_target": "check-envoy-config",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1365,8 +1365,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:222",
-      "line": 222,
+      "id": "Connector:connectors/envoy/Makefile:224",
+      "line": 224,
       "make_target": "runtime-smoke-envoy",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1376,8 +1376,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:33",
-      "line": 33,
+      "id": "Connector:connectors/envoy/Makefile:34",
+      "line": 34,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1387,8 +1387,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:35",
-      "line": 35,
+      "id": "Connector:connectors/envoy/Makefile:36",
+      "line": 36,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -1398,8 +1398,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:connectors/envoy/Makefile:39",
-      "line": 39,
+      "id": "Connector:connectors/envoy/Makefile:40",
+      "line": 40,
       "make_target": null,
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -11114,7 +11114,7 @@
       "actual_callers": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:155",
+        "Connector:connectors/envoy/Makefile:156",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11125,7 +11125,7 @@
       "current_caller_ids": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:155",
+        "Connector:connectors/envoy/Makefile:156",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11191,7 +11191,7 @@
       "actual_callers": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:155",
+        "Connector:connectors/envoy/Makefile:156",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -11202,7 +11202,7 @@
       "current_caller_ids": [
         "Connector:.github/workflows/update-go-version.yml:419",
         "Connector:.github/workflows/update-go-version.yml:420",
-        "Connector:connectors/envoy/Makefile:155",
+        "Connector:connectors/envoy/Makefile:156",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
         "Framework:connector_suite/connector.mk:1597",
@@ -135121,14 +135121,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:204",
+        "Connector:connectors/envoy/Makefile:206",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:204",
+        "Connector:connectors/envoy/Makefile:206",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
@@ -135193,14 +135193,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:204",
+        "Connector:connectors/envoy/Makefile:206",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:204",
+        "Connector:connectors/envoy/Makefile:206",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1258",
         "Framework:connector_suite/connector.mk:720",
@@ -135403,12 +135403,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -135466,12 +135466,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -135529,12 +135529,12 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:186",
+        "Connector:connectors/envoy/Makefile:188",
         "Framework:connector_suite/connector.mk:727",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
@@ -136268,14 +136268,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:222",
+        "Connector:connectors/envoy/Makefile:224",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:222",
+        "Connector:connectors/envoy/Makefile:224",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
@@ -136337,14 +136337,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:222",
+        "Connector:connectors/envoy/Makefile:224",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:932"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:222",
+        "Connector:connectors/envoy/Makefile:224",
         "Framework:connector_suite/connector.mk:1085",
         "Framework:connector_suite/connector.mk:1272",
         "Framework:connector_suite/connector.mk:720",
@@ -167141,7 +167141,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "bbfbbee4a5637078a83eb524bb4f19e7c3e04586c3da63117868afa3b031ad95",
+      "sha256_framework_source": "ab9b73d26691cfaa0287b3d9347d7ebf3d4301081883528fd282da2e79b4c72a",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {
@@ -170633,7 +170633,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "94bdb1af13e64dfa6b29be7cc440fbb89533458e4d5d8f13d80f0bcb54df1e49",
-      "sha256_framework_source": "4350ed15602a0c1a4383094f513082618676702250706dd83a641b53ea8bbeb3",
+      "sha256_framework_source": "ba9bcf739acbe96567367bb4a7275d14543731badc10e9af59f6e15a86db999f",
       "sha256_updated_base": "94bdb1af13e64dfa6b29be7cc440fbb89533458e4d5d8f13d80f0bcb54df1e49"
     },
     {

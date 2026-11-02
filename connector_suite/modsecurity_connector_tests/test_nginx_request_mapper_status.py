@@ -13,10 +13,12 @@ from modsecurity_connector_tests.c_source_contract import function_definition
 ROOT = connector_root()
 MAPPER = source_path('connectors/nginx/src/ngx_http_modsecurity_mapper.c', root=ROOT)
 ACCESS = source_path('connectors/nginx/src/ngx_http_modsecurity_access.c', root=ROOT)
+COMMON = source_path('connectors/nginx/src/ngx_http_modsecurity_common.h', root=ROOT)
 PREAMBLE = r'''
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "msconnector/request_mapper_contract.h"
 #include "msconnector/request_helpers.h"
 #include "msconnector/headers.h"
@@ -29,14 +31,22 @@ typedef struct { ngx_str_t key, value; } ngx_table_elt_t;
 typedef struct list_part_s { void *elts; unsigned nelts; struct list_part_s *next; } ngx_list_part_t;
 typedef struct { ngx_list_part_t part; } ngx_list_t;
 typedef struct { ngx_str_t addr_text; void *sockaddr, *local_sockaddr, *log; } ngx_connection_t;
-typedef struct { ngx_pool_t *pool; struct { ngx_list_t headers; } headers_in;
+typedef struct { ngx_pool_t *pool; struct { ngx_list_t headers; ngx_table_elt_t *host; } headers_in;
                  ngx_str_t method_name, unparsed_uri, http_protocol;
-                 ngx_connection_t *connection; unsigned http_version; } ngx_http_request_t;
+                 ngx_connection_t *connection; unsigned http_version;
+                 u_char *host_start, *host_end; } ngx_http_request_t;
 enum { NGX_OK=0, NGX_LOG_ERR=4, NGX_HTTP_BAD_REQUEST=400, NGX_HTTP_INTERNAL_SERVER_ERROR=500,
        NGX_HTTP_VERSION_9=9, NGX_HTTP_VERSION_10=10, NGX_HTTP_VERSION_11=11, NGX_SOCKADDR_STRLEN=64 };
 #define ngx_memcpy memcpy
 #define ngx_strlen strlen
 #define ngx_strncmp(left,right,size) strncmp((const char *)(left),(const char *)(right),size)
+#define ngx_strncasecmp(left,right,size) strncasecmp((const char *)(left),(const char *)(right),size)
+#define ngx_inline inline
+#define ngx_null_string {0,NULL}
+#ifndef NGX_HTTP_V3
+#define NGX_HTTP_V3 1
+#endif
+#define NGX_HTTP_VERSION_30 3000
 static int fault_mode, allocation_fail, allocations;
 static size_t selected_header_limit = 1024;
 static void *allocated[32];
@@ -80,8 +90,8 @@ int main(int argc, char **argv) {
         headers[i].value=(ngx_str_t){9,(u_char *)"localhost"};
     }
     ngx_pool_t pool={0}; ngx_connection_t connection={{9,(u_char *)"127.0.0.1"},NULL,NULL,NULL};
-    ngx_http_request_t request={&pool,{{{headers,header_count,NULL}}},
-        {4,(u_char *)"POST"},{1,(u_char *)"/"},{8,(u_char *)"HTTP/1.1"},&connection,11};
+    ngx_http_request_t request={&pool,{{{headers,header_count,NULL}},NULL},
+        {4,(u_char *)"POST"},{1,(u_char *)"/"},{8,(u_char *)"HTTP/1.1"},&connection,11,NULL,NULL};
     int result=ngx_http_modsecurity_validate_common_request_mapper(&request);
     printf("{\"result\":%d,\"allocations\":%d}\n",result,allocations);
     for (int i=0;i<allocations && i<32;++i) free(allocated[i]);
@@ -111,7 +121,16 @@ class NginxRequestMapperStatusTests(unittest.TestCase):
                    "ngx_http_modsecurity_count_list_headers", "ngx_http_modsecurity_copy_headers",
                    "ngx_http_modsecurity_request_hostname", "ngx_http_modsecurity_map_request")
         # Keep the real signatures: the extractor starts at each function's own line.
-        fragments = []
+        common = COMMON.read_text()
+        # These header definitions put the return type on the preceding line.
+        # Extract the real iterator before its HTTP/3 authority caller; retain
+        # the caller's conditional branches rather than substituting a stub.
+        fragments = [
+            "static ngx_inline ngx_table_elt_t *\n" + function_definition(
+                common, "ngx_http_modsecurity_next_header"),
+            "static ngx_inline ngx_str_t\n" + function_definition(
+                common, "ngx_http_modsecurity_http3_authority"),
+        ]
         for name in helpers:
             definition = function_definition(source, name)
             if definition.startswith(name + "("):

@@ -8767,7 +8767,7 @@
         "modsecurity_connector_tests.test_nginx_request_mapper_status.NginxRequestMapperStatusTests.test_zero_header_limit_preserves_existing_contract"
       ],
       "source": "tests/test_nginx_request_mapper_status.py",
-      "source_sha256": "4350ed15602a0c1a4383094f513082618676702250706dd83a641b53ea8bbeb3"
+      "source_sha256": "ba9bcf739acbe96567367bb4a7275d14543731badc10e9af59f6e15a86db999f"
     },
     {
       "contains_selected_definitions": [
