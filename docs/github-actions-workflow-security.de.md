@@ -248,7 +248,7 @@ Umgebung und installiert nur das lokal Hash-gesperrte PyYAML-Wheel in die
 geprüfte Runtime. Diese muss eine venv oder das verifizierte Actions-setup-python-
 Präfix sein. OSV behält den binären Inline-Bootstrap nur für exakte historische
 Basis-SHA-/Versionspaare: `f73f8842f45318e2df8aff1d31855eeb7c20a22f` / `3.13.14`
-und `91145b7ba721bdec4e89af754cf40bf496fd2a08` und `68ca7b411db12ed96ee6208aa792b43e8043470c` / `3.14.10`. Aktuelle
+und `91145b7ba721bdec4e89af754cf40bf496fd2a08` und `68ca7b411db12ed96ee6208aa792b43e8043470c` und `ff7cae78e085e179950c4b871bbf1d5327c69069` / `3.14.10`. Aktuelle
 vertrauenswürdige Basen verwenden ihren ausgecheckten Helper; Bootstrap-Code
 vom PR-Head wird nie geholt. Der [Tooling-Leitfaden](security/ci-security-tooling.de.md)
 beschreibt Provenienz, externe Build-Ausgabe und die begrenzte OSV-Abdeckung des

@@ -197,10 +197,12 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 "          OSV_PY314_BASE_SHA: " + "0" * 40 + "\n"
                 "          OSV_PY314_BASE_VERSION: 0.0.0\n"
                 "          OSV_PY314_MAINTENANCE_BASE_SHA: " + "0" * 40 + "\n"
+                "          OSV_PY314_TOOLING_BASE_SHA: " + "0" * 40 + "\n"
                 "      - env:\n"
                 "          OSV_PY314_BASE_SHA: " + "0" * 40 + "\n"
                 "          OSV_PY314_BASE_VERSION: 0.0.0\n"
-                "          OSV_PY314_MAINTENANCE_BASE_SHA: " + "0" * 40 + "\n",
+                "          OSV_PY314_MAINTENANCE_BASE_SHA: " + "0" * 40 + "\n"
+                "          OSV_PY314_TOOLING_BASE_SHA: " + "0" * 40 + "\n",
                 encoding="utf-8",
             )
             values = {
@@ -209,6 +211,7 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 "CI_OSV_PY314_BASE_SHA": "b" * 40,
                 "CI_OSV_PY314_BASE_VERSION": "3.14.10",
                 "CI_OSV_PY314_MAINTENANCE_BASE_SHA": "c" * 40,
+                "CI_OSV_PY314_TOOLING_BASE_SHA": "d" * 40,
             }
             errors, outputs = MODULE.workflow_values(root, values)
             self.assertEqual(errors, [])
@@ -220,6 +223,7 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
             self.assertEqual(
                 output.count("OSV_PY314_MAINTENANCE_BASE_SHA: " + "c" * 40), 2
             )
+            self.assertEqual(output.count("OSV_PY314_TOOLING_BASE_SHA: " + "d" * 40), 2)
 
     def test_write_validates_unknown_action_before_writing_generated_drift(
         self,

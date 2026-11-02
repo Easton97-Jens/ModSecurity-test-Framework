@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "6a0e348db48820eb163df1e3ef5bcf8cbad77be627f216fdd4ece8e50d2d3ab9",
+  "inventory_sha256": "089e5eca93be2dd73196dbeb4f272ef4be649944f769498eb8ce9dd86b4ccf2b",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -11913,7 +11913,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_canonical_maintenance.CanonicalMaintenanceTests.test_ci_tool_provider_transition_is_classified_before_release_lookup"
       ],
       "source": "framework/tests/ci_security/test_canonical_maintenance.py",
-      "source_sha256": "0f2c1df745f8546500eb6e1ab34a33740971abd67bf3b0c74b2bd1b3de93b12b"
+      "source_sha256": "049bc1d4978c5f4adf684d463d59b17a174b3f65b112735a5cb85dafbb016864"
     },
     {
       "contains_selected_definitions": [],
@@ -12180,7 +12180,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_framework_ci_security_contract.FrameworkCiSecurityContractTest.test_fetcher_requires_a_runner_temp_child_without_symlinks"
       ],
       "source": "framework/tests/ci_security/test_framework_ci_security_contract.py",
-      "source_sha256": "928652f4104cb0b4e8513abf5789162907839e342ee6af1a9a61b8ebaba13bde"
+      "source_sha256": "c9b02c8dc57664e3484794b0534ab3bd7c3ed44f50a3499f7bb8dc9c3ca16e25"
     },
     {
       "contains_selected_definitions": [],
@@ -12316,7 +12316,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_write_rejects_symlinked_generated_output"
       ],
       "source": "framework/tests/ci_security/test_sync_canonical_workflow_pins.py",
-      "source_sha256": "033a52c3528477d95e8c8fc6dc2c012f4fff915b181ef1f10f9bb552a4b64517"
+      "source_sha256": "345630c875959ba2106c57df94d8fa2fcde5c6b9df074ced22ed8edfb1d8d8ca"
     },
     {
       "contains_selected_definitions": [],
@@ -13634,7 +13634,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_common_version_atomic_provenance.CommonVersionAtomicProvenanceTests.test_list_components_and_unknown_component_are_deterministic"
       ],
       "source": "framework/tests/security_regression/test_common_version_atomic_provenance.py",
-      "source_sha256": "022f9e19f14d9a103802d6aab3ad4efd000e7cb3b706b437b7fd5573724e4649"
+      "source_sha256": "5fc18a9d2c1e46c3b41e64826f3b19ab0bbd296452abdc3186214d2ee9d70f68"
     },
     {
       "contains_selected_definitions": [],

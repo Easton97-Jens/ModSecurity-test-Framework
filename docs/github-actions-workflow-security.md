@@ -231,7 +231,7 @@ and installs only the locally hash-locked PyYAML wheel into the reviewed runtime
 The runtime must be a venv or the verified Actions setup-python prefix. OSV
 retains inline binary bootstrapping only for exact historical base SHA/version
 pairs: `f73f8842f45318e2df8aff1d31855eeb7c20a22f` / `3.13.14` and
-`91145b7ba721bdec4e89af754cf40bf496fd2a08` and `68ca7b411db12ed96ee6208aa792b43e8043470c` / `3.14.10`. Current trusted bases
+`91145b7ba721bdec4e89af754cf40bf496fd2a08` and `68ca7b411db12ed96ee6208aa792b43e8043470c` and `ff7cae78e085e179950c4b871bbf1d5327c69069` / `3.14.10`. Current trusted bases
 use their checked-out helper; PR-head bootstrap code is never fetched. The
 [tooling guide](security/ci-security-tooling.md) describes provenance, external
 build output, and the custom JSON build lock's OSV coverage limitation.

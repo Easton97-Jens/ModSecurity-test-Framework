@@ -167,6 +167,10 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                 f"OSV_PY314_MAINTENANCE_BASE_SHA: {CHECKER.OSV_PY314_MAINTENANCE_BASE_SHA}",
                 f"OSV_PY314_MAINTENANCE_BASE_SHA: {'0' * 40}",
             ),
+            (
+                f"OSV_PY314_TOOLING_BASE_SHA: {CHECKER.OSV_PY314_TOOLING_BASE_SHA}",
+                f"OSV_PY314_TOOLING_BASE_SHA: {'0' * 40}",
+            ),
         ):
             with self.subTest(transition_token=token):
                 changed_transition = osv_text.replace(token, replacement, 1)
@@ -282,6 +286,12 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                     CHECKER.OSV_PY314_BASE_VERSION,
                     False,
                 ),
+                (
+                    CHECKER.OSV_PY314_TOOLING_BASE_SHA,
+                    CHECKER.OSV_PY314_BASE_VERSION,
+                    False,
+                ),
+                (CHECKER.OSV_PY314_TOOLING_BASE_SHA, "3.14.11", True),
                 ("0" * 40, "3.15.0", True),
                 ("0" * 40, CHECKER.OSV_PY314_BASE_VERSION, True),
                 (CHECKER.OSV_PY314_BASE_SHA, "3.14.9", True),
@@ -353,6 +363,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                             fi
                             [ "$3" = "$BASE_SHA:.python-version" ]
                             [ "$BASE_SHA" != "$OSV_LEGACY_BASE_SHA" ]
+                            [ "$FAKE_SELECTOR_PRESENT" = true ]
                             ;;
                           -t)
                             [ "$3" = "$BASE_SHA:.python-version" ]
@@ -388,6 +399,13 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                 (CHECKER.OSV_PY314_MAINTENANCE_BASE_SHA, False, "3.14.9"),
                 (CHECKER.OSV_PY314_MAINTENANCE_BASE_SHA, False, "3.14.11"),
                 (CHECKER.OSV_PY314_MAINTENANCE_BASE_SHA, False, "3.14.10rc1"),
+                (CHECKER.OSV_PY314_TOOLING_BASE_SHA, True, "3.14.10"),
+                (CHECKER.OSV_PY314_TOOLING_BASE_SHA, False, "3.14.9"),
+                (CHECKER.OSV_PY314_TOOLING_BASE_SHA, False, "3.14.11"),
+                (CHECKER.OSV_PY314_TOOLING_BASE_SHA, False, "3.14.10rc1"),
+                (CHECKER.OSV_PY314_TOOLING_BASE_SHA, False, None),
+                (CHECKER.OSV_PY314_MAINTENANCE_BASE_SHA, False, None),
+                (CHECKER.OSV_PY314_BASE_SHA, False, None),
                 ("3" * 40, False, "3.14.10"),
                 ("ea442cf90861ddc6d555e67352d053d4ad95f731", False, "3.14.10"),
                 ("3" * 40, True, "3.15.0"),
@@ -405,6 +423,10 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                     "OSV_PY314_BASE_SHA": CHECKER.OSV_PY314_BASE_SHA,
                     "OSV_PY314_BASE_VERSION": CHECKER.OSV_PY314_BASE_VERSION,
                     "OSV_PY314_MAINTENANCE_BASE_SHA": CHECKER.OSV_PY314_MAINTENANCE_BASE_SHA,
+                    "OSV_PY314_TOOLING_BASE_SHA": CHECKER.OSV_PY314_TOOLING_BASE_SHA,
+                    "FAKE_SELECTOR_PRESENT": "true"
+                    if expected_version is not None
+                    else "false",
                     "FAKE_BASE_VERSION": expected_version or "3.13.14",
                     "PYTHON_VERSION_FILE": str(version_file),
                     "PATH": f"{temporary_root}{os.pathsep}{os.environ['PATH']}",

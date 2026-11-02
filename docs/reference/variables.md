@@ -406,6 +406,11 @@ Only the original CP313 tuple may synthesize an absent selector. Every CP314
 exception requires its base `.python-version` blob; another SHA, newer patch,
 or prerelease is rejected rather than selecting bootstrap code from the head.
 
+`CI_OSV_PY314_TOOLING_BASE_SHA` additionally binds the immutable PR snapshot
+base `ff7cae78e085e179950c4b871bbf1d5327c69069` to that same exact `3.14.10`
+version. It preserves the published maintenance-base tuple; no existing
+exception is replaced and a missing CP314 selector still fails closed.
+
 ## Additional documented inputs and placeholders
 
 The values below appear in focused build, import, testing, or historical

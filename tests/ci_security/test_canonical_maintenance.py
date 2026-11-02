@@ -365,18 +365,25 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             "CI_OSV_LEGACY_BASE_VERSION": "3.13.7",
             "CI_OSV_PY314_BASE_SHA": "b" * 40,
             "CI_OSV_PY314_MAINTENANCE_BASE_SHA": "c" * 40,
+            "CI_OSV_PY314_TOOLING_BASE_SHA": "d" * 40,
             "CI_OSV_PY314_BASE_VERSION": "3.14.10",
         }
         result = MAINTENANCE.resolve_osv_compatibility(entries(values))
         self.assertEqual(result["status"], "current")
         self.assertEqual(result["updates"], [])
         self.assertEqual(result["details"]["update_policy"], "manual_only")
-        self.assertEqual(len(result["details"]["baselines"]), 3)
+        self.assertEqual(len(result["details"]["baselines"]), 4)
         self.assertEqual(
             result["details"]["baselines"]["3.14-maintenance"],
             {"sha": "c" * 40, "version": "3.14.10"},
         )
+        self.assertEqual(
+            result["details"]["baselines"]["3.14-tooling"],
+            {"sha": "d" * 40, "version": "3.14.10"},
+        )
         for variable, invalid in (
+            ("CI_OSV_PY314_TOOLING_BASE_SHA", "A" * 40),
+            ("CI_OSV_PY314_TOOLING_BASE_SHA", "d" * 39),
             ("CI_OSV_PY314_BASE_SHA", "A" * 40),
             ("CI_OSV_PY314_MAINTENANCE_BASE_SHA", "A" * 40),
             ("CI_OSV_PY314_MAINTENANCE_BASE_SHA", "c" * 39),

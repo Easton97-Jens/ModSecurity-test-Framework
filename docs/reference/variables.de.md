@@ -428,6 +428,12 @@ ersetzen. Jede CP314-Ausnahme benötigt ihren Basis-`.python-version`-Blob;
 eine andere SHA, neuere Patchversion oder Vorabversion wird abgelehnt, statt
 Bootstrap-Code vom Head auszuwählen.
 
+`CI_OSV_PY314_TOOLING_BASE_SHA` bindet zusätzlich die unveränderliche PR-Snapshot-
+Basis `ff7cae78e085e179950c4b871bbf1d5327c69069` an dieselbe exakte Version
+`3.14.10`. Das veröffentlichte Maintenance-Basis-Tupel bleibt erhalten; keine
+bestehende Ausnahme wird ersetzt, und ein fehlender CP314-Selektor scheitert
+weiterhin geschlossen.
+
 ## Weitere dokumentierte Eingaben und Platzhalter
 
 Die folgenden Werte erscheinen in fokussierten Build-, Import-, Test- oder

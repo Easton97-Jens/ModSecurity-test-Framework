@@ -63,7 +63,7 @@ Locks bleiben im externen Runner-/Build-Temporärspeicher und werden beim
 Verlassen entfernt. Historische Wheel-Installationen bleiben unterstützt.
 
 OSV erhält ausschließlich `f73f8842f45318e2df8aff1d31855eeb7c20a22f` / `3.13.14`
-und `91145b7ba721bdec4e89af754cf40bf496fd2a08` / `3.14.10` und `68ca7b411db12ed96ee6208aa792b43e8043470c` / `3.14.10`. Nur das erste Tupel
+und `91145b7ba721bdec4e89af754cf40bf496fd2a08` / `3.14.10` und `68ca7b411db12ed96ee6208aa792b43e8043470c` / `3.14.10` und `ff7cae78e085e179950c4b871bbf1d5327c69069` / `3.14.10`. Nur das erste Tupel
 darf eine fehlende Datei ersetzen. Andere Basen benötigen strikt 3.15 und ihren
 ausgecheckten zentralen Helper; fehlende Helper lösen keinen Ersatzpfad aus.
 Beide historischen Env-Zuordnungen und das bedingte Programm sind reviewgebunden.

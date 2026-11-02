@@ -54,7 +54,7 @@ CI_DEPENDENCY_BUILD_LOCK_SHA256 = (
     "9d3438c190d5c316c7ed93e89a7175f2d6ad296a40e029949ed21fcb4c814fd6"
 )
 OSV_TRUSTED_BASE_INSTALL_SHA256 = (
-    "9dacbf0738ab99bcf1368a3ac533ba2b702f9f4ced0893735effe3732c4bdfaa"
+    "9db6116f3f62bf6b7ba498619cc994320c76f57012fb3ad567df1ce61d39b147"
 )
 OSV_WORKFLOW = "ci-security-osv.yml"
 CI_DEPENDENCY_INSTALLER_WORKFLOWS = {
@@ -256,6 +256,7 @@ OSV_LEGACY_BASE_VERSION = "3.13." + "14"
 OSV_PY314_BASE_SHA = "91145b7ba721bdec4e89af754cf40bf496fd2a08"
 OSV_PY314_BASE_VERSION = "3.14." + "10"
 OSV_PY314_MAINTENANCE_BASE_SHA = "68ca7b411db12ed96ee6208aa792b43e8043470c"
+OSV_PY314_TOOLING_BASE_SHA = "ff7cae78e085e179950c4b871bbf1d5327c69069"
 GITHUB_COMPONENT = r"[A-Za-z0-9_.-]+"
 GITHUB_RELEASE_URL = re.compile(
     rf"^https://github\.com/(?P<owner>{GITHUB_COMPONENT})/"
@@ -973,12 +974,14 @@ OSV_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         f"OSV_PY314_BASE_SHA: {OSV_PY314_BASE_SHA}",
         f"OSV_PY314_BASE_VERSION: {OSV_PY314_BASE_VERSION}",
         f"OSV_PY314_MAINTENANCE_BASE_SHA: {OSV_PY314_MAINTENANCE_BASE_SHA}",
+        f"OSV_PY314_TOOLING_BASE_SHA: {OSV_PY314_TOOLING_BASE_SHA}",
         'test "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA"',
         'version="$OSV_LEGACY_BASE_VERSION"',
         'if [ "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA" ]; then',
         '[ "$version" = "$OSV_LEGACY_BASE_VERSION" ]',
         'elif [ "$BASE_SHA" = "$OSV_PY314_BASE_SHA" ]; then',
         'elif [ "$BASE_SHA" = "$OSV_PY314_MAINTENANCE_BASE_SHA" ]; then',
+        'elif [ "$BASE_SHA" = "$OSV_PY314_TOOLING_BASE_SHA" ]; then',
         '[ "$version" = "$OSV_PY314_BASE_VERSION" ]',
         '[ -f "$PYTHON_VERSION_FILE" ]',
         '[[ "$version" =~ ^3\\.15\\.(0|[1-9][0-9]*)$ ]]',
@@ -4366,6 +4369,7 @@ def osv_trusted_base_environment_errors(
         "OSV_PY314_BASE_SHA": OSV_PY314_BASE_SHA,
         "OSV_PY314_BASE_VERSION": OSV_PY314_BASE_VERSION,
         "OSV_PY314_MAINTENANCE_BASE_SHA": OSV_PY314_MAINTENANCE_BASE_SHA,
+        "OSV_PY314_TOOLING_BASE_SHA": OSV_PY314_TOOLING_BASE_SHA,
         "PYTHON_VERSION_FILE": OSV_TRUSTED_BASE_PYTHON_VERSION_FILE,
     }
     errors: list[str] = []

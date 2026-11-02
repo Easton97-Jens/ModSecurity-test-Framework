@@ -696,6 +696,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         self.assertIn(
             "CI_OSV_PY314_MAINTENANCE_BASE_SHA", CHECKER.CI_CANONICAL_PIN_VARIABLES
         )
+        self.assertIn(
+            "CI_OSV_PY314_TOOLING_BASE_SHA", CHECKER.CI_CANONICAL_PIN_VARIABLES
+        )
         self.assertIn("CI_OSV_PY314_BASE_VERSION", CHECKER.CI_CANONICAL_PIN_VARIABLES)
         self.assertTrue(
             CHECKER.GIT_COMMIT_SHA1_RE.fullmatch(

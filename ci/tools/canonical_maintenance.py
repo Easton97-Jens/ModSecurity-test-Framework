@@ -2117,6 +2117,7 @@ def resolve_osv_compatibility(entries: dict[str, Any]) -> dict[str, Any]:
         "CI_OSV_LEGACY_BASE_VERSION",
         "CI_OSV_PY314_BASE_SHA",
         "CI_OSV_PY314_MAINTENANCE_BASE_SHA",
+        "CI_OSV_PY314_TOOLING_BASE_SHA",
         "CI_OSV_PY314_BASE_VERSION",
     )
     try:
@@ -2138,15 +2139,19 @@ def resolve_osv_compatibility(entries: dict[str, Any]) -> dict[str, Any]:
                     f"{prefix} OSV compatibility baseline is malformed"
                 )
             baselines[series] = {"sha": sha, "version": version}
-        maintenance_sha = _entry_value(entries, "CI_OSV_PY314_MAINTENANCE_BASE_SHA")
-        if SHA40_RE.fullmatch(maintenance_sha) is None:
-            raise MaintenanceError(
-                "CP314 maintenance OSV compatibility SHA is malformed"
-            )
-        baselines["3.14-maintenance"] = {
-            "sha": maintenance_sha,
-            "version": baselines["3.14"]["version"],
-        }
+        for variable, label in (
+            ("CI_OSV_PY314_MAINTENANCE_BASE_SHA", "maintenance"),
+            ("CI_OSV_PY314_TOOLING_BASE_SHA", "tooling"),
+        ):
+            sha = _entry_value(entries, variable)
+            if SHA40_RE.fullmatch(sha) is None:
+                raise MaintenanceError(
+                    f"CP314 {label} OSV compatibility SHA is malformed"
+                )
+            baselines[f"3.14-{label}"] = {
+                "sha": sha,
+                "version": baselines["3.14"]["version"],
+            }
         return _check_result(
             component_id="ci-osv-compatibility",
             component_name="OSV compatibility baseline",

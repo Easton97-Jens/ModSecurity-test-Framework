@@ -278,6 +278,7 @@ CI_CANONICAL_PIN_VARIABLES = (
     "CI_OSV_LEGACY_BASE_VERSION",
     "CI_OSV_PY314_BASE_SHA",
     "CI_OSV_PY314_MAINTENANCE_BASE_SHA",
+    "CI_OSV_PY314_TOOLING_BASE_SHA",
     "CI_OSV_PY314_BASE_VERSION",
     *tuple(
         f"CI_ACTION_{suffix}_{field}"
@@ -1428,6 +1429,7 @@ def _canonical_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
         ("CI_OSV_LEGACY_BASE", "3.13"),
         ("CI_OSV_PY314_BASE", "3.14"),
         ("CI_OSV_PY314_MAINTENANCE_BASE", "3.14"),
+        ("CI_OSV_PY314_TOOLING_BASE", "3.14"),
     ):
         osv_sha = entries.get(f"{prefix}_SHA")
         if osv_sha and (
