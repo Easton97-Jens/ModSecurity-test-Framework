@@ -4,7 +4,7 @@ Uses central traefik-forwardauth observation deltas on exact current product
 sources before explicit fixture-only relocations. Every output byte is bound;
 source export is not PASS.
 """
-from modsecurity_test_framework.connector_context import load_source
+from modsecurity_test_framework.connector_context import load_source, source_path
 import argparse
 import ast
 import hashlib
@@ -64,7 +64,7 @@ def stage_source(repository, output):
     exporter = load(repository / 'connectors/traefik/harness/i12/source_export.py', 'i12_source_export')
     source = output / 'source'
     exporter.export(repository, source)
-    capture_root = repository / 'ci/runtime/lifecycle/i12'
+    capture_root = source_path('ci/runtime/lifecycle/i12', root=repository)
     central = load(capture_root / 'capture_sources.py', 'i12_central_capture')
     registry = central.Registry(capture_root, repository)
     adapter = load(repository / 'connectors/traefik/harness/i12/current_capture.py',
@@ -133,7 +133,7 @@ def prepare(repository, output, leg='traefik-forwardauth-request', cases=None):
     driver = replace(driver, "'selected_case_count':1,'neighbor_health_probe_count':1", "'selected_case_count':"+str(len(cases)-1)+",'neighbor_health_probe_count':1")
     driver = replace(driver, "'selected_case_count':1,'neighbor_count':1", "'selected_case_count':"+str(len(cases)-1)+",'neighbor_count':1")
     ast.parse(driver);(fixture / 'driver.py').write_text(driver)
-    receipt = {'central_variant':'traefik-forwardauth','central_manifest_sha256':sha(repository/'ci/runtime/lifecycle/i12/manifest.json'),
+    receipt = {'central_variant':'traefik-forwardauth','central_manifest_sha256':sha(source_path('ci/runtime/lifecycle/i12/manifest.json', root=repository)),
         'source_application_receipt_sha256':sha(source/'i12-source-application-receipt.json'),
         'source_files':{str(p.relative_to(source)):sha(p) for p in source.rglob('*') if p.is_file()},
         'fixture_files':{p.name:sha(p) for p in fixture.iterdir()},

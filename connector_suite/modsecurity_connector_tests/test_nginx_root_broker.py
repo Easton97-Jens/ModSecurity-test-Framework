@@ -31,6 +31,13 @@ BROKER_SHA = "a" * 40
 PARENT_SHA = "b" * 40
 FRAMEWORK_SHA = "c" * 40
 
+# Exact inert bytes from the final inline Parent caller before delegation.
+# Source commit f5523da040bd6325b369269ada074be6ba069c4f; live wrappers are separate.
+HISTORICAL_CALLER_PATH = Path(__file__).parent / "fixtures/nginx_root_broker/caller-f5523da.yml.fixture"
+HISTORICAL_CALLER_SHA256 = "d34b01b67d9f88552353186a3c78605b6d99d827541479207efe174bc994b341"
+HISTORICAL_BROKER_SHA = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
+HISTORICAL_FRAMEWORK_SHA = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
+
 
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -1320,30 +1327,42 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             with self.assertRaisesRegex(BROKER.BrokerError, "single-link regular"):
                 BROKER.open_regular_no_follow(fifo, "FIFO evidence")
 
+    def test_current_delegated_caller_is_rejected_by_the_inline_broker_contract(self) -> None:
+        raw = source_path(".github/workflows/run-protected-nginx-root-broker.yml", root=ROOT).read_bytes()
+        document = BROKER.parse_restricted_caller_workflow_yaml(raw)
+        self.assertEqual(set(document["jobs"]), {"framework"})
+        with self.assertRaisesRegex(BROKER.BrokerError, "top-level has an unexpected key set"):
+            BROKER.validate_caller_workflow_document(
+                document,
+                broker_sha="8ae707d72f1a8acb25d239e55e28a73cbc7522b1",
+                framework_sha="99a7985c1be92a2297b1b59208f64df6768f2cbf",
+            )
+
     def test_caller_yaml_contract_accepts_the_exact_two_immutable_broker_jobs(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), HISTORICAL_CALLER_SHA256)
 
         document = BROKER.parse_restricted_caller_workflow_yaml(raw)
 
         BROKER.validate_caller_workflow_document(
             document,
-            broker_sha="8ae707d72f1a8acb25d239e55e28a73cbc7522b1",
-            framework_sha="99a7985c1be92a2297b1b59208f64df6768f2cbf",
+            broker_sha=HISTORICAL_BROKER_SHA,
+            framework_sha=HISTORICAL_FRAMEWORK_SHA,
         )
 
     def test_caller_yaml_contract_accepts_uniform_ubuntu26_runners(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
         document = BROKER.parse_restricted_caller_workflow_yaml(raw)
         for name in ("prepare-manifests", "verify-evidence", "result"):
             document["jobs"][name]["runs-on"] = "ubuntu-26.04"
         BROKER.validate_caller_workflow_document(
             document,
-            broker_sha="8ae707d72f1a8acb25d239e55e28a73cbc7522b1",
-            framework_sha="99a7985c1be92a2297b1b59208f64df6768f2cbf",
+            broker_sha=HISTORICAL_BROKER_SHA,
+            framework_sha=HISTORICAL_FRAMEWORK_SHA,
         )
 
     def test_caller_yaml_contract_rejects_mixed_runner_modes(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
         names = ("prepare-manifests", "verify-evidence", "result")
         for uniform, differing in (("ubuntu-latest", "ubuntu-26.04"), ("ubuntu-26.04", "ubuntu-latest")):
             for changed_job in names:
@@ -1355,12 +1374,12 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                     with self.assertRaisesRegex(BROKER.BrokerError, "uniform runner mode"):
                         BROKER.validate_caller_workflow_document(
                             document,
-                            broker_sha="8ae707d72f1a8acb25d239e55e28a73cbc7522b1",
-                            framework_sha="99a7985c1be92a2297b1b59208f64df6768f2cbf",
+                            broker_sha=HISTORICAL_BROKER_SHA,
+                            framework_sha=HISTORICAL_FRAMEWORK_SHA,
                         )
 
     def test_caller_yaml_contract_rejects_unknown_and_structured_runners(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
         for name in ("prepare-manifests", "verify-evidence", "result"):
             for runner in ("ubuntu-24.04", "self-hosted", ["self-hosted", "linux"], ["ubuntu-26.04"]):
                 with self.subTest(job=name, runner=runner):
@@ -1369,8 +1388,8 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                     with self.assertRaisesRegex(BROKER.BrokerError, "unexpected runner"):
                         BROKER.validate_caller_workflow_document(
                             document,
-                            broker_sha="8ae707d72f1a8acb25d239e55e28a73cbc7522b1",
-                            framework_sha="99a7985c1be92a2297b1b59208f64df6768f2cbf",
+                            broker_sha=HISTORICAL_BROKER_SHA,
+                            framework_sha=HISTORICAL_FRAMEWORK_SHA,
                         )
 
     def test_broker_workflow_uses_ubuntu26_runner(self) -> None:
@@ -1379,11 +1398,11 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
         self.assertNotIn("runs-on: ubuntu-latest", workflow)
 
     def test_caller_yaml_contract_rejects_pin_job_variant_permission_and_secret_mutations(self) -> None:
-        text = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_text(
+        text = HISTORICAL_CALLER_PATH.read_text(
             encoding="utf-8"
         )
-        broker_sha = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
-        framework_sha = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
+        broker_sha = HISTORICAL_BROKER_SHA
+        framework_sha = HISTORICAL_FRAMEWORK_SHA
         extra_broker_job = "\n".join(
             (
                 "  run-extra-broker:",
@@ -1445,9 +1464,9 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                     )
 
     def test_caller_yaml_contract_rejects_top_level_and_unprivileged_job_mutations(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
-        broker_sha = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
-        framework_sha = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
+        broker_sha = HISTORICAL_BROKER_SHA
+        framework_sha = HISTORICAL_FRAMEWORK_SHA
 
         def add_extra_trigger(document: dict[str, object]) -> None:
             document["on"]["push"] = {}
@@ -1494,9 +1513,9 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                     )
 
     def test_caller_yaml_contract_rejects_any_weakened_reusable_job_gate(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
-        broker_sha = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
-        framework_sha = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
+        broker_sha = HISTORICAL_BROKER_SHA
+        framework_sha = HISTORICAL_FRAMEWORK_SHA
         required_terms = (
             "github.event_name == 'workflow_dispatch'",
             "github.repository == 'Easton97-Jens/ModSecurity-conector'",
@@ -1521,9 +1540,9 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                         )
 
     def test_caller_yaml_contract_rejects_a_constant_true_reusable_job_gate(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
-        broker_sha = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
-        framework_sha = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
+        broker_sha = HISTORICAL_BROKER_SHA
+        framework_sha = HISTORICAL_FRAMEWORK_SHA
         document = BROKER.parse_restricted_caller_workflow_yaml(raw)
         document["jobs"]["run-no-crs-broker"]["if"] = "true"
 
@@ -1535,9 +1554,9 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             )
 
     def test_caller_yaml_contract_preserves_block_scalar_hash_data(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
-        broker_sha = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
-        framework_sha = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
+        broker_sha = HISTORICAL_BROKER_SHA
+        framework_sha = HISTORICAL_FRAMEWORK_SHA
         documented = BROKER.parse_restricted_caller_workflow_yaml(b"# ordinary YAML comment\n" + raw)
         BROKER.validate_caller_workflow_document(
             documented,
@@ -1574,7 +1593,7 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
         self.assertEqual(document, {"permissions": {}})
 
     def test_caller_top_level_permissions_remain_exactly_deny_default(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
         self.assertIn(b"permissions: {}\n", raw)
         for permissions in (
             b"permissions:\n  contents: read\n",
@@ -1587,8 +1606,8 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 with self.assertRaisesRegex(BROKER.BrokerError, "exactly deny-default"):
                     BROKER.validate_caller_workflow_document(
                         document,
-                        broker_sha="8ae707d72f1a8acb25d239e55e28a73cbc7522b1",
-                        framework_sha="99a7985c1be92a2297b1b59208f64df6768f2cbf",
+                        broker_sha=HISTORICAL_BROKER_SHA,
+                        framework_sha=HISTORICAL_FRAMEWORK_SHA,
                     )
 
     def test_restricted_caller_yaml_parser_rejects_indirection_duplicates_and_unsafe_encoding(self) -> None:
@@ -1813,9 +1832,9 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
         return self.git_fixture(repository, "rev-parse", "HEAD").decode("ascii").strip()
 
     def test_caller_workflow_uses_the_committed_blob_not_a_mutable_worktree_copy(self) -> None:
-        raw = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
-        broker_sha = "8ae707d72f1a8acb25d239e55e28a73cbc7522b1"
-        framework_sha = "99a7985c1be92a2297b1b59208f64df6768f2cbf"
+        raw = HISTORICAL_CALLER_PATH.read_bytes()
+        broker_sha = HISTORICAL_BROKER_SHA
+        framework_sha = HISTORICAL_FRAMEWORK_SHA
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-git-") as temporary:
             repository = Path(temporary) / "broker-src"
             repository.mkdir()
@@ -1833,9 +1852,9 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
                 )
 
     def test_caller_workflow_real_git_object_rejections_are_fail_closed(self) -> None:
-        valid = (source_path('.github/workflows/run-protected-nginx-root-broker.yml', root=ROOT)).read_bytes()
+        valid = HISTORICAL_CALLER_PATH.read_bytes()
         mutable_pin = valid.replace(
-            b"@8ae707d72f1a8acb25d239e55e28a73cbc7522b1",
+            ("@" + HISTORICAL_BROKER_SHA).encode("ascii"),
             b"@master",
         )
         fixtures = {
@@ -1873,8 +1892,8 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             with self.assertRaisesRegex(BROKER.BrokerError, "immutable protected broker SHA"):
                 BROKER.validate_caller_workflow_document(
                     document,
-                    broker_sha="8ae707d72f1a8acb25d239e55e28a73cbc7522b1",
-                    framework_sha="99a7985c1be92a2297b1b59208f64df6768f2cbf",
+                    broker_sha=HISTORICAL_BROKER_SHA,
+                    framework_sha=HISTORICAL_FRAMEWORK_SHA,
                 )
 
         with tempfile.TemporaryDirectory(prefix="nginx-root-broker-git-") as temporary:

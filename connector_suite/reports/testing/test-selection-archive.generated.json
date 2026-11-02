@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "a4115ab4df7ad5d558ebdbe1104c1041c3313951b35dc413896646f43d4b22bb",
+  "inventory_sha256": "faa2a664e7b978ca249f15e2a9cbb11104105d4cdf6c44f47554ea45c28aa584",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7973,
+  "on_demand_definition_count": 7979,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -5005,7 +5005,7 @@
         "modsecurity_connector_tests.test_evidence_input_security.EvidenceInputSecurityTests.test_component_postprocess_approves_configured_leaf_not_manifest_claim"
       ],
       "source": "tests/test_evidence_input_security.py",
-      "source_sha256": "e9aeb1fc729ff4aa757dbe3e11b35dd4ae37d409bd456481d6d5ba027991b9f3"
+      "source_sha256": "803b407c4f9f0f9bd9979ae85bb2e38b8027105b0c7e8ece2a1862a96fdd45f3"
     },
     {
       "contains_selected_definitions": [],
@@ -8844,6 +8844,7 @@
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_worker_writable_log_layout_is_exact_and_log_files_stay_fail_closed",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_cleanup_removes_worker_layout_after_failed_config_test",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_projection_rejects_symlink_or_special_inputs_before_copy",
+        "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_current_delegated_caller_is_rejected_by_the_inline_broker_contract",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_accepts_the_exact_two_immutable_broker_jobs",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_accepts_uniform_ubuntu26_runners",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_mixed_runner_modes",
@@ -8866,7 +8867,7 @@
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_workflow_real_git_object_rejections_are_fail_closed"
       ],
       "source": "tests/test_nginx_root_broker.py",
-      "source_sha256": "cecf68ef7c4fec04e5f9c04a6807af01a0c7aceb7d3be613afd3ffcc3000bf7b"
+      "source_sha256": "a94ae2785f73f8b670c9d6a2477f0b331ce72cfb41ddfa43af79e01bcecb0043"
     },
     {
       "contains_selected_definitions": [],
@@ -10554,10 +10555,13 @@
       "framework_path": "connector_suite/modsecurity_connector_tests/test_sonar_coverage.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_accepts_a_measured_repository_file",
+        "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_migrated_framework_source_is_not_parent_coverage",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_rejects_external_paths_even_with_execution_counts",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_rejects_a_report_without_actual_execution",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_rejects_stale_report_directory_before_starting_tests",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_native_notes_without_execution_counters_are_not_coverage",
+        "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_go_coverage_supplies_reviewed_overlay_to_listing_and_measurement",
+        "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_offline_admission_retains_units_without_discovering_other_specialists",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_normal_offline_python_stays_in_measured_partition",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_timing_offline_python_stays_in_unmeasured_partition",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_offline_measurement_rejects_native_selection",
@@ -10565,6 +10569,7 @@
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_measured_command_uses_master_rcfile_and_exact_inventory_selector",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_subprocess_audit_rejects_data_that_only_imported_the_parent_module",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_subprocess_audit_accepts_a_distinct_file_with_actual_child_body_observation",
+        "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_child_witness_ignores_unrelated_framework_sources",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_child_witness_copy_survives_raw_combine_cleanup_with_exact_bytes",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_child_witness_retention_rejects_a_symlink_source",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_timing_stage_rejects_unexpected_parallel_coverage_data",
@@ -10573,7 +10578,7 @@
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_finalization_rejects_other_revision_before_combining_data"
       ],
       "source": "tests/test_sonar_coverage.py",
-      "source_sha256": "afa555ccda5ad467d497876cf9954a4bffaba045a29b7a15a1683b77f235b53d"
+      "source_sha256": "7b96bc9997fdb250d2b472c36b3aff5d97deff900f2256c50e9f0b745e0ac5ff"
     },
     {
       "contains_selected_definitions": [],
@@ -10862,6 +10867,7 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_traefik_i12_auth.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_traefik_i12_auth.AuthCaptureControls.test_split_checkout_resolves_framework_registry_before_capture",
         "modsecurity_connector_tests.test_traefik_i12_auth.AuthCaptureControls.test_eof_and_status_do_not_qualify_truncated_client_bytes",
         "modsecurity_connector_tests.test_traefik_i12_auth.AuthCaptureControls.test_changed_capture_boundary_is_rejected",
         "modsecurity_connector_tests.test_traefik_i12_auth.AuthCaptureControls.test_output_must_be_fresh_and_external",
@@ -10870,7 +10876,7 @@
         "modsecurity_connector_tests.test_traefik_i12_auth.AuthCaptureControls.test_central_capture_is_bound_without_host_execution"
       ],
       "source": "tests/test_traefik_i12_auth.py",
-      "source_sha256": "140855d0a2ac215d6f359f4f34a3a28b436f527aee3a063612b92aac052614fb"
+      "source_sha256": "cdd85bfdbb3da8d3e93a441a6ce37b43f54c859f4bdeaa78d1f2bb8253d8d19e"
     },
     {
       "contains_selected_definitions": [],
@@ -12620,7 +12626,7 @@
         "modsecurity_test_framework.selftests.no_crs.test_configtest_artifacts.ConfigtestArtifactsTest.test_generic_event_mode_does_not_erase_explicit_configuration_host"
       ],
       "source": "framework/tests/no_crs/test_configtest_artifacts.py",
-      "source_sha256": "b4eb84ab3fec0ed59e140323f51d9f73b818914adcfce9e8a923099f51705078"
+      "source_sha256": "801c7816f5881563ae3bd381cfbd96cb4ca4cf52cf1575b9977d708b0393aadb"
     },
     {
       "contains_selected_definitions": [],

@@ -4,10 +4,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib.util
+import multiprocessing
 import os
 from pathlib import Path
-import subprocess
-import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -23,6 +22,18 @@ assert RECEIPT_SPEC
 assert RECEIPT_SPEC.loader
 receipt_unit = importlib.util.module_from_spec(RECEIPT_SPEC)
 RECEIPT_SPEC.loader.exec_module(receipt_unit)
+
+
+def observe_fifo(connection, leaf: Path) -> None:
+    """Run only the observation in a child inheriting the already loaded contract."""
+    try:
+        contract.configtest_file_observation(leaf, 8)
+    except contract.ContractError as error:
+        connection.send(str(error))
+    else:
+        connection.send(None)
+    finally:
+        connection.close()
 
 
 def unit_bundle(root: Path) -> dict[str, object]:
@@ -106,13 +117,27 @@ class ConfigtestArtifactsTest(unittest.TestCase):
     def test_fifo_leaf_is_rejected_without_waiting_for_a_writer(self) -> None:
         leaf = self.root / 'fifo-control'
         os.mkfifo(leaf)
-        code = ('import importlib.util, pathlib; '
-                f's=importlib.util.spec_from_file_location("fifo_contract", {str(ROOT / "ci/checks/catalog/no_crs_baseline.py")!r}); '
-                'm=importlib.util.module_from_spec(s); s.loader.exec_module(m); '
-                f'm.configtest_file_observation(pathlib.Path({str(leaf)!r}), 8)')
-        process = subprocess.run([sys.executable, '-c', code], capture_output=True, timeout=2, check=False)
-        self.assertNotEqual(process.returncode, 0)
-        self.assertIn(b'not bounded/regular', process.stderr)
+        # mkfifo is POSIX-only already. Fork keeps interpreter/import/cache
+        # startup outside the operation watchdog, including a cold external
+        # PYTHONPYCACHEPREFIX. A broken blocking open still times out in 2s.
+        context = multiprocessing.get_context('fork')
+        receiver, sender = context.Pipe(duplex=False)
+        process = context.Process(target=observe_fifo, args=(sender, leaf))
+        try:
+            process.start()
+            sender.close()
+            process.join(timeout=2)
+            self.assertFalse(process.is_alive(), 'FIFO observation waited for a writer')
+            self.assertEqual(process.exitcode, 0)
+            self.assertTrue(receiver.poll(), 'FIFO observation returned no result')
+            self.assertIn('not bounded/regular', receiver.recv())
+        finally:
+            if process.is_alive():
+                process.terminate()
+                process.join()
+            process.close()
+            receiver.close()
+            sender.close()
 
     def test_secure_copy_enforces_its_bound_not_only_a_prior_stat(self) -> None:
         source = self.root / 'bounded-copy-input'
