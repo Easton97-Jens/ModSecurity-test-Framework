@@ -867,9 +867,9 @@ NGINX_HANDOFF_PATHS = (
 )
 
 
-def render_nginx_handoffs(root: Path, values: dict[str, str]) -> dict[Path, str]:
+def _nginx_handoff_fields(values: dict[str, str]) -> dict[str, str]:
     tag = values["NGINX_RELEASE_TAG"]
-    fields = {
+    return {
         "SOURCE_MODE": values["NGINX_SOURCE_MODE"],
         "SOURCE_REPOSITORY": values["NGINX_SOURCE_REPO_URL"],
         "RELEASE_TAG": tag,
@@ -878,45 +878,71 @@ def render_nginx_handoffs(root: Path, values: dict[str, str]) -> dict[Path, str]
         "ARCHIVE_SHA256": values["NGINX_SHA256"].lower(),
         "VERSION_READBACK": "nginx/" + tag.removeprefix("release-"),
     }
+
+
+def _nginx_action_names(fields: dict[str, str]) -> dict[str, str]:
+    return {
+        "NGINX_SOURCE_MODE": fields["SOURCE_MODE"],
+        "NGINX_SOURCE_REPO_URL": fields["SOURCE_REPOSITORY"],
+        "NGINX_RELEASE_TAG": fields["RELEASE_TAG"],
+        "NGINX_SOURCE_GIT_REF": fields["RELEASE_TAG"],
+        "NGINX_RELEASE_ASSET_NAME": fields["RELEASE_ASSET_NAME"],
+        "NGINX_SHA256": fields["ARCHIVE_SHA256"],
+    }
+
+
+def _nginx_runtime_names(relative: str, fields: dict[str, str]) -> dict[str, str]:
+    version = fields["RELEASE_TAG"].removeprefix("release-")
+    if relative.endswith("nginx_exact_head_result_collector.py"):
+        return {"NGINX_VERSION": version, "NGINX_SOURCE_DIGEST": fields["ARCHIVE_SHA256"]}
+    names = {"EXPECTED_NGINX_VERSION": version}
+    if relative.endswith("write-nginx-functional-a-evidence.py"):
+        return names
+    digest_name = (
+        "EXPECTED_NGINX_SOURCE_SHA256"
+        if relative.endswith("protected_nginx_exact_head_builder.py")
+        else "EXPECTED_NGINX_SOURCE_DIGEST"
+    )
+    names[digest_name] = fields["ARCHIVE_SHA256"]
+    return names
+
+
+def _nginx_python_names(relative: str, fields: dict[str, str]) -> dict[str, str]:
+    if "/runtime/" in relative:
+        return _nginx_runtime_names(relative, fields)
+    provisioning = "/provisioning/" in relative
+    prefix = "NGINX_PINNED_" if provisioning else "CANONICAL_NGINX_"
+    names = {prefix + name: value for name, value in fields.items()}
+    if provisioning:
+        names[prefix + "RELEASE_ASSET_SHA256"] = names.pop(prefix + "ARCHIVE_SHA256")
+    return names
+
+
+def _replace_nginx_handoff(
+    text: str, relative: str, name: str, value: str, *, yaml: bool
+) -> str:
+    if yaml:
+        pattern = rf"(?m)^([ \t]*{name}:)[^\r\n]*$"
+        replacement = r"\g<1> " + value
+    else:
+        pattern = rf'(?m)^{name} = "[^"\r\n]*"$'
+        replacement = name + ' = "' + value + '"'
+    text, count = re.subn(pattern, replacement, text)
+    if count != 1:
+        raise SyncError(f"{relative}:{name} requires one literal handoff")
+    return text
+
+
+def render_nginx_handoffs(root: Path, values: dict[str, str]) -> dict[Path, str]:
+    fields = _nginx_handoff_fields(values)
     rendered = {}
     for relative in NGINX_HANDOFF_PATHS:
         path = require_regular(root / relative, root, "ordinary NGINX handoff")
         text = _read_trusted_text(path, "ordinary NGINX handoff")
-        if relative.endswith("action.yml"):
-            names = {"NGINX_" + name: value for name, value in fields.items()
-                     if name not in {"VERSION_READBACK", "SOURCE_REPOSITORY", "SOURCE_REF", "ARCHIVE_SHA256"}}
-            names.update(NGINX_SOURCE_REPO_URL=fields["SOURCE_REPOSITORY"],
-                         NGINX_SOURCE_GIT_REF=tag, NGINX_SHA256=fields["ARCHIVE_SHA256"])
-            for name, value in names.items():
-                pattern = rf"(?m)^([ \t]*{name}:)[^\r\n]*$"
-                text, count = re.subn(pattern, lambda match: match[1] + " " + value, text)
-                if count != 1:
-                    raise SyncError(f"{relative}:{name} requires one literal handoff")
-        elif "/runtime/" in relative:
-            version = tag.removeprefix("release-")
-            if relative.endswith("nginx_exact_head_result_collector.py"):
-                names = {"NGINX_VERSION": version, "NGINX_SOURCE_DIGEST": fields["ARCHIVE_SHA256"]}
-            else:
-                names = {"EXPECTED_NGINX_VERSION": version}
-                if not relative.endswith("write-nginx-functional-a-evidence.py"):
-                    digest_name = ("EXPECTED_NGINX_SOURCE_SHA256" if relative.endswith("protected_nginx_exact_head_builder.py")
-                                   else "EXPECTED_NGINX_SOURCE_DIGEST")
-                    names[digest_name] = fields["ARCHIVE_SHA256"]
-            for name, value in names.items():
-                text, count = re.subn(rf'(?m)^{name} = "[^"\r\n]*"$',
-                                     lambda _match: name + ' = "' + value + '"', text)
-                if count != 1:
-                    raise SyncError(f"{relative}:{name} requires one literal handoff")
-        else:
-            prefix = "NGINX_PINNED_" if "/provisioning/" in relative else "CANONICAL_NGINX_"
-            names = {prefix + name: value for name, value in fields.items()}
-            if "/provisioning/" in relative:
-                names[prefix + "RELEASE_ASSET_SHA256"] = names.pop(prefix + "ARCHIVE_SHA256")
-            for name, value in names.items():
-                pattern = rf'(?m)^{name} = "[^"\r\n]*"$'
-                text, count = re.subn(pattern, lambda _match: name + ' = "' + value + '"', text)
-                if count != 1:
-                    raise SyncError(f"{relative}:{name} requires one literal handoff")
+        yaml = relative.endswith("action.yml")
+        names = _nginx_action_names(fields) if yaml else _nginx_python_names(relative, fields)
+        for name, value in names.items():
+            text = _replace_nginx_handoff(text, relative, name, value, yaml=yaml)
         rendered[path] = text
     return rendered
 
