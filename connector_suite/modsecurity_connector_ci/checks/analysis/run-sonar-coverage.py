@@ -343,6 +343,26 @@ def python_coverage(output: Path, env: dict[str, str]) -> dict[str, object]:
     return result
 
 
+def framework_source_state(env: dict[str, str]) -> dict[str, object]:
+    """Bind reusable measurement sources to their actual separate checkout."""
+    return {
+        "revision": run(["git", "rev-parse", "HEAD"], cwd=test_root(), env=env).strip(),
+        "uncommitted_changes": bool(run(
+            ["git", "status", "--porcelain", "--untracked-files=all"], cwd=test_root(), env=env)),
+    }
+
+
+def require_framework_pair(recorded: object, current: dict[str, object], *, allow_dirty: bool) -> None:
+    if not isinstance(recorded, dict) or recorded.get("revision") != current["revision"]:
+        raise ValueError("Framework coverage revision does not match the actual test checkout")
+    if type(recorded.get("uncommitted_changes")) is not bool:
+        raise ValueError("Framework coverage source state is missing")
+    if recorded["uncommitted_changes"] != current["uncommitted_changes"]:
+        raise ValueError("Framework coverage source state changed")
+    if recorded["uncommitted_changes"] and not allow_dirty:
+        raise ValueError("Framework coverage was produced from uncommitted changes")
+
+
 def finalize_python(output_root: Path, env: dict[str, str], revision: str,
                     *, allow_dirty: bool = False) -> dict[str, object]:
     """Only combine CLI-integration coverage from the same completed revision."""
@@ -353,6 +373,7 @@ def finalize_python(output_root: Path, env: dict[str, str], revision: str,
             raise ValueError(f"{language} coverage revision does not match the checkout")
         if manifest.get("uncommitted_changes") and not allow_dirty:
             raise ValueError(f"{language} coverage was produced from uncommitted changes")
+        require_framework_pair(manifest.get("framework"), framework_source_state(env), allow_dirty=allow_dirty)
         if language == "python":
             offline = manifest.get("coverage", {}).get("offline_python")
     result = publish_python_report(output_root / "python", env)
@@ -473,7 +494,10 @@ def main() -> int:
         status = run(["git", "status", "--porcelain", "--untracked-files=normal"], env=env)
         if status and not args.allow_dirty:
             raise ValueError("clean checkout required for revision-bound reports; use --allow-dirty only for local development")
+        framework = framework_source_state(env)
+        require_framework_pair(framework, framework, allow_dirty=args.allow_dirty)
         result = {"revision": revision, "uncommitted_changes": bool(status), "language": args.language,
+                  "framework": framework,
                   "evidence_layer": "selected real test coverage; runtime and analyzer import not implied"}
         with tempfile.TemporaryDirectory(prefix="scov-", dir=temp_root) as temporary:
             env["TMPDIR"] = temporary
@@ -483,6 +507,7 @@ def main() -> int:
             raise ValueError("checkout revision changed while tests ran")
         if run(["git", "status", "--porcelain", "--untracked-files=normal"], env=env) != status:
             raise ValueError("checkout files changed while tests ran")
+        require_framework_pair(framework, framework_source_state(env), allow_dirty=args.allow_dirty)
         (output / "manifest.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     except (OSError, ValueError, ET.ParseError, subprocess.CalledProcessError) as exc:
         if isinstance(exc, subprocess.CalledProcessError):

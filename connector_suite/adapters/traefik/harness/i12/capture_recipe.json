@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "parent_revision": "11fab78a5447f75cb254ddf963eca770fa04ba04",
+  "framework_base_revision": "bb6c7580208a05c17d6d6674571731b6a71028cb",
+  "historical_objects": [
+    {
+      "identity": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+      "logical_path": "ci/runtime/lifecycle/native-lifecycle-sdk.cpp",
+      "repository": "parent",
+      "path": "ci/runtime/lifecycle/native-lifecycle-sdk.cpp",
+      "revision": "cdc1acaf8c2d75c02afe06ae846128d7840de515"
+    },
+    {
+      "identity": "659fd30b4bbdf8a6d861c0dd8c2280b2640a831569265cb0937167979b7db5a5",
+      "logical_path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "repository": "parent",
+      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c",
+      "revision": "d94a7a38b90bc56b828d70f7df8794e12fd21e10"
+    },
+    {
+      "identity": "6ed39a758ad9ca2eab430aecd8b6508d81f2b45962e1b453456fe829e73e8c35",
+      "logical_path": "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+      "repository": "parent",
+      "path": "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+      "revision": "91722137fb344a241f368d3203c0081bb6869a5b"
+    },
+    {
+      "identity": "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a",
+      "logical_path": "connectors/apache/src/mod_security3.c",
+      "repository": "parent",
+      "path": "connectors/apache/src/mod_security3.c",
+      "revision": "d94a7a38b90bc56b828d70f7df8794e12fd21e10"
+    },
+    {
+      "identity": "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd",
+      "logical_path": "connectors/apache/src/msc_filters.c",
+      "repository": "parent",
+      "path": "connectors/apache/src/msc_filters.c",
+      "revision": "d94a7a38b90bc56b828d70f7df8794e12fd21e10"
+    },
+    {
+      "identity": "d5db95d86019dec786bef0e0f9f31e6c90a0b967aeb8230fcaf7865ec2bc6d2d",
+      "logical_path": "connectors/apache/src/msc_utils.c",
+      "repository": "parent",
+      "path": "connectors/apache/src/msc_utils.c",
+      "revision": "0e6fc8b44655ffe3b6471ce702cd96b2b7db9cd4"
+    },
+    {
+      "identity": "ef076d44ed96893c0b7cee5eb7bb6745ba1a8afc35909df81cf24c1159e6cfb3",
+      "logical_path": "connectors/traefik/native_middleware/middleware.go",
+      "repository": "parent",
+      "path": "connectors/traefik/native_middleware/middleware.go",
+      "revision": "f5523da040bd6325b369269ada074be6ba069c4f"
+    },
+    {
+      "identity": "b796f66c9fc6b7375ccc80866fa1922d24e9bc0d5dcd4773fca620618b807b90",
+      "logical_path": "connectors/traefik/native_middleware/engine_uds.go",
+      "repository": "parent",
+      "path": "connectors/traefik/native_middleware/engine_uds.go",
+      "revision": "f5523da040bd6325b369269ada074be6ba069c4f"
+    },
+    {
+      "identity": "787fe848ac64f0757bd9e1a27e5707c538e75393f394527569250dc42cd820f1",
+      "logical_path": "connectors/envoy/build/build_ext_proc.sh",
+      "repository": "parent",
+      "path": "connectors/envoy/build/build_ext_proc.sh",
+      "revision": "0e6fc8b44655ffe3b6471ce702cd96b2b7db9cd4"
+    },
+    {
+      "identity": "d9029dce4e013c34252b3b77f2311e278cf8add2c301650d2dc0434bae5ea726",
+      "logical_path": "connectors/envoy/ext_proc/internal/processor/processor.go",
+      "repository": "parent",
+      "path": "connectors/envoy/ext_proc/internal/processor/processor.go",
+      "revision": "f5523da040bd6325b369269ada074be6ba069c4f"
+    }
+  ],
+  "historical_targets": {
+    "traefik-native": {
+      "connectors/traefik/native_middleware/middleware.go": {
+        "before_sha256": "ef076d44ed96893c0b7cee5eb7bb6745ba1a8afc35909df81cf24c1159e6cfb3",
+        "sha256": "9fe94ab4b558969602ebaa18b6e3acc3ed68611ef59502d2328be125ea3d7b9e",
+        "mode": 420
+      },
+      "connectors/traefik/native_middleware/engine_uds.go": {
+        "before_sha256": "b796f66c9fc6b7375ccc80866fa1922d24e9bc0d5dcd4773fca620618b807b90",
+        "sha256": "0757b6c39e47390a1daf4aa750f3f3b5dacab6ed3c36f656ba73302f7d964269",
+        "mode": 420
+      },
+      "connectors/traefik/native_middleware/i12_observer.go": {
+        "before_sha256": null,
+        "sha256": "6f2e18bf5441d96dc94d35004401cc4d93bed4ec85b1c70c36bc6b67c7a8606b",
+        "mode": 420
+      },
+      "common/runtime/msconnector_runtime.c": {
+        "before_sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
+        "sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
+        "mode": 420
+      },
+      "common/runtime/http_authorization_service.c": {
+        "before_sha256": "7f1544f1f36042c68359c7caed7d5dc4ce8cc77d44282debdc3955ea725a5e9c",
+        "sha256": "7f1544f1f36042c68359c7caed7d5dc4ce8cc77d44282debdc3955ea725a5e9c",
+        "mode": 420
+      },
+      "ci/runtime/lifecycle/native-lifecycle-observer.c": {
+        "before_sha256": "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6",
+        "sha256": "a4ce3e2513bc3a9300781873119c256fe12f384427d4a4bb3b49578afd6a1df8",
+        "mode": 420,
+        "current_before_sha256": "5038d0068cef52f7cf4f2013355cf1b828648061993dd89c51d14f5439cfe387"
+      },
+      "ci/runtime/lifecycle/native-lifecycle-observer.h": {
+        "before_sha256": "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
+        "sha256": "5818303be9b9ed113d5b02605c223a77b45b2d587c409636bd4dd2c185ed2508",
+        "mode": 420,
+        "current_before_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
+      },
+      "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": {
+        "before_sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+        "sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+        "mode": 420
+      }
+    },
+    "traefik-forwardauth": {
+      "connectors/traefik/response_observer/observer.go": {
+        "before_sha256": "445dcfd6c296c442d8b1593e4bc1106077900b0c745cf1b79beb0d3ead555580",
+        "sha256": "9d7227d022124633176962efcd9b5c04a6e329292cab527419244be70abbc75d",
+        "mode": 420
+      },
+      "connectors/traefik/response_observer/i12_observer.go": {
+        "before_sha256": null,
+        "sha256": "3bf9fd72594ffad9acb0e6de088d576b9d6fb5636f2ccfe5d4566cd0567cc34d",
+        "mode": 420
+      },
+      "connectors/traefik/response_observer/i12_observer_test.go": {
+        "before_sha256": null,
+        "sha256": "745e95fca95af1c6be0c6b46a5da7ba2a9a58533362251d8dc488db21be4c9a9",
+        "mode": 420
+      },
+      "common/runtime/msconnector_runtime.c": {
+        "before_sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
+        "sha256": "0e2484f610347462c315f30ac65b4227a1cdb8fb0f4a2f8f9535ce406c44ec63",
+        "mode": 420
+      },
+      "common/runtime/http_authorization_service.c": {
+        "before_sha256": "7f1544f1f36042c68359c7caed7d5dc4ce8cc77d44282debdc3955ea725a5e9c",
+        "sha256": "64b124e36358f0341446aa56aecf987d44f1cfe7f213d247412ffd368174d588",
+        "mode": 420
+      },
+      "ci/runtime/lifecycle/native-lifecycle-observer.c": {
+        "before_sha256": "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6",
+        "sha256": "52aba91c92a8d1a3b1f2b4acf50db6acb103d6d0cd63c45a0e75bcf5fa8553e6",
+        "mode": 420,
+        "current_before_sha256": "5038d0068cef52f7cf4f2013355cf1b828648061993dd89c51d14f5439cfe387"
+      },
+      "ci/runtime/lifecycle/native-lifecycle-observer.h": {
+        "before_sha256": "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
+        "sha256": "5a34307b4d52927f36573fcf1caf4f63e3e0ce7adffc522e462128148bec7060",
+        "mode": 420,
+        "current_before_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
+      },
+      "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": {
+        "before_sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+        "sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+        "mode": 420
+      }
+    }
+  },
+  "current_inputs": {
+    "ci/runtime/lifecycle/native-lifecycle-observer.c": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740",
+    "ci/runtime/lifecycle/native-lifecycle-observer.h": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+    "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e",
+    "common/runtime/http_authorization_service.c": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277",
+    "common/runtime/msconnector_runtime.c": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155",
+    "connectors/traefik/native_middleware/engine_uds.go": "1e88c98c3eca5068cb04459c4af03e8d108bed1a55f5590455e32bee4c1d3ecd",
+    "connectors/traefik/native_middleware/middleware.go": "e3fabbc772c3b5206878a717a428308bcf89ce01851fd360aec0e7995dae7885",
+    "connectors/traefik/response_observer/observer.go": "46c4d054f788cc9bd339bc721b6330a5342a6f2d30acb4f6be7bb0318646ded3",
+    "connectors/traefik/response_observer/provenance.go": "00dd6d359a56c1bfbdb85376477b7aad9cff3a129756845b8fa5ac799aa616e5"
+  },
+  "expected_outputs": {
+    "traefik-native": {
+      "connectors/traefik/native_middleware/middleware.go": "d46e6d6c74213083d40d6bd137f80695c420f249ea064d99ccab0bb8c6c3dfae",
+      "connectors/traefik/native_middleware/engine_uds.go": "6d086345229d4bd9188f79b48848b29b011c60165daf4335e857872efdbf45b6",
+      "common/runtime/msconnector_runtime.c": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155",
+      "common/runtime/http_authorization_service.c": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277",
+      "ci/runtime/lifecycle/native-lifecycle-observer.c": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740",
+      "ci/runtime/lifecycle/native-lifecycle-observer.h": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+      "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e"
+    },
+    "traefik-forwardauth": {
+      "connectors/traefik/response_observer/observer.go": "f66ca34e7ffe10bff64ea8a50b8aaa64d07c5d74136afc966b2f11c2ab20f31b",
+      "common/runtime/msconnector_runtime.c": "cf64d39977590f7ed18ad738e81ca30bba834c3cdb3c199f8a398b9caca9aa13",
+      "common/runtime/http_authorization_service.c": "7b99fe0cd68b28067078ece60353881a9eccd3f3bbc9fe340d6228d5481b666d",
+      "ci/runtime/lifecycle/native-lifecycle-observer.c": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740",
+      "ci/runtime/lifecycle/native-lifecycle-observer.h": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+      "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e",
+      "connectors/traefik/response_observer/provenance.go": "742392a091b9748febd09e49fd3dda4b26ccee6b67a29e6dc20a2aeaa05aac55"
+    }
+  },
+  "rationale": {
+    "common/runtime/msconnector_runtime.c": "completion member relocation only in historical anchor model; current product byte spans preserved",
+    "connectors/traefik/native_middleware/middleware.go": "commitErr declaration and current commit callback are anchor model only; current failure/incomplete-response guards preserved",
+    "framework_helpers": "current observer/header/SDK adopted byte-identically; historical omissions must not remove snapshot, finalize, ABI or admission guards"
+  }
+}

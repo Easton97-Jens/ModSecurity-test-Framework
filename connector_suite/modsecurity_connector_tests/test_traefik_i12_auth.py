@@ -1,5 +1,5 @@
 """Controls for the Traefik-only forwardAuth host capture producer."""
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source, framework_revision
 import ast
 import importlib.util
 import json
@@ -109,6 +109,9 @@ class AuthCaptureControls(unittest.TestCase):
             self.assertIn('maxResponseBodySize: 32768',driver)
             self.assertIn('maxBodySize: 4096',driver)
             self.assertIn('MSCONNECTOR_LIFECYCLE_FD',driver)
+            self.assertIn("'-pthread','-I',SOURCE,'-I',SOURCE/'common/include'", driver)
+            self.assertEqual(applied['framework_revision'], framework_revision())
+            self.assertEqual(len(applied['framework_source_sha256']), 3)
             self.assertIn('authorization-relay',driver)
             replacements=[node for node in ast.walk(ast.parse(driver)) if isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and node.func.attr=='replace' and node.args and isinstance(node.args[0],ast.Constant) and node.args[0].value=='\n  middlewares:\n']
             self.assertEqual(len(replacements),1)

@@ -4,6 +4,14 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 : "${FRAMEWORK_ROOT:?FRAMEWORK_ROOT is required}"
+case "${NGINX_DOWNSTREAM_PROTOCOL:-http1}" in
+    h2|h3)
+        # These operations own their TLS listener and exact request evidence.
+        # H1-only operations remain unexecuted; their rows cannot borrow this
+        # protocol run or manufacture a full-lifecycle qualification.
+        exec "${PYTHON:-python3}" "$SCRIPT_DIR/run-selected-nginx-protocol-cases.py"
+        ;;
+esac
 host_rc=0
 sh "$FRAMEWORK_ROOT/ci/runtime/run-nginx-smoke.sh" || host_rc=$?
 config_rc=0

@@ -22,12 +22,22 @@
       "patch_sha256": "8331e35a09fb106730ddf657670273e6f7d4dc565ef4be4b807300e413239f66"
     },
     "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc": {
-      "kind": "repository",
-      "path": "ci/runtime/lifecycle/native-lifecycle-sdk.cpp"
+      "kind": "text_lines",
+      "file": "objects/text/89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "cdc1acaf8c2d75c02afe06ae846128d7840de515",
+        "path": "ci/runtime/lifecycle/native-lifecycle-sdk.cpp"
+      }
     },
     "659fd30b4bbdf8a6d861c0dd8c2280b2640a831569265cb0937167979b7db5a5": {
-      "kind": "repository",
-      "path": "connectors/nginx/src/ngx_http_modsecurity_module.c"
+      "kind": "text_lines",
+      "file": "objects/text/659fd30b4bbdf8a6d861c0dd8c2280b2640a831569265cb0937167979b7db5a5-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "d94a7a38b90bc56b828d70f7df8794e12fd21e10",
+        "path": "connectors/nginx/src/ngx_http_modsecurity_module.c"
+      }
     },
     "59458c1db6ef9d5dfdd0c8470b3af7418de99916806e48ee4e139bdfa5304384": {
       "kind": "delta",
@@ -46,8 +56,13 @@
       "patch_sha256": "1b295ff561636dfd10e697be9c06455deffeefef5eb5d203a600d1fdd8f9fe78"
     },
     "6ed39a758ad9ca2eab430aecd8b6508d81f2b45962e1b453456fe829e73e8c35": {
-      "kind": "repository",
-      "path": "connectors/nginx/src/ngx_http_modsecurity_body_filter.c"
+      "kind": "text_lines",
+      "file": "objects/text/6ed39a758ad9ca2eab430aecd8b6508d81f2b45962e1b453456fe829e73e8c35-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "91722137fb344a241f368d3203c0081bb6869a5b",
+        "path": "connectors/nginx/src/ngx_http_modsecurity_body_filter.c"
+      }
     },
     "de2336df1459fbd36fd10431edaa167cc8008212209c25a669281481c953c3ae": {
       "kind": "delta",
@@ -306,8 +321,13 @@
       "file": "objects/text/a9685aeb63fc6c5faf67db43501f16ff89d0021a32a52450ed629a046003c7ce-native-fixture-control.c.lines.json"
     },
     "8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a": {
-      "kind": "repository",
-      "path": "connectors/apache/src/mod_security3.c"
+      "kind": "text_lines",
+      "file": "objects/text/8ff78a6cfc18b34e78dbe491e3e3576f54e61b6665cea285113ac9150980698a-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "d94a7a38b90bc56b828d70f7df8794e12fd21e10",
+        "path": "connectors/apache/src/mod_security3.c"
+      }
     },
     "d1c205e8c7d8e61519dd81d94044ed214527d454583b6dcb7ce5b218e5c3630d": {
       "kind": "delta",
@@ -316,8 +336,13 @@
       "patch_sha256": "9fa5107ec8662b97e457d417a365125b16c2c262af50cce074e5a7c748329b6d"
     },
     "1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd": {
-      "kind": "repository",
-      "path": "connectors/apache/src/msc_filters.c"
+      "kind": "text_lines",
+      "file": "objects/text/1eb1e9261fb89e12e7a2094e9d0a856759932714223455508cd657fbbed1a5cd-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "d94a7a38b90bc56b828d70f7df8794e12fd21e10",
+        "path": "connectors/apache/src/msc_filters.c"
+      }
     },
     "cde4ce37873134bd9a60d3ec6d6130346bdb5e8cfd2989ab055e68ffd85cf5d4": {
       "kind": "delta",
@@ -326,8 +351,13 @@
       "patch_sha256": "b4a5df20f02d8f702ac2b63e5dc8a21e5a309927f9c3f6cc6e5726b34304b235"
     },
     "d5db95d86019dec786bef0e0f9f31e6c90a0b967aeb8230fcaf7865ec2bc6d2d": {
-      "kind": "repository",
-      "path": "connectors/apache/src/msc_utils.c"
+      "kind": "text_lines",
+      "file": "objects/text/d5db95d86019dec786bef0e0f9f31e6c90a0b967aeb8230fcaf7865ec2bc6d2d-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "0e6fc8b44655ffe3b6471ce702cd96b2b7db9cd4",
+        "path": "connectors/apache/src/msc_utils.c"
+      }
     },
     "1a9e3e8a4dbc62e9ce3abf7b9ea251f81755b79ea3502c3dd7d835038d99bbae": {
       "kind": "delta",
@@ -494,8 +524,13 @@
       "file": "objects/text/dc77deb435da8c3204cc13982f2910a10d5aa53bdb17f6d8fd2d9d6bace2acb2-cxx-wrapper.sh.lines.json"
     },
     "ef076d44ed96893c0b7cee5eb7bb6745ba1a8afc35909df81cf24c1159e6cfb3": {
-      "kind": "repository",
-      "path": "connectors/traefik/native_middleware/middleware.go"
+      "kind": "text_lines",
+      "file": "objects/text/ef076d44ed96893c0b7cee5eb7bb6745ba1a8afc35909df81cf24c1159e6cfb3-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "f5523da040bd6325b369269ada074be6ba069c4f",
+        "path": "connectors/traefik/native_middleware/middleware.go"
+      }
     },
     "9fe94ab4b558969602ebaa18b6e3acc3ed68611ef59502d2328be125ea3d7b9e": {
       "kind": "delta",
@@ -504,8 +539,13 @@
       "patch_sha256": "b1d3a2efff31c29d19a7af80c2b49fd8d23f3a00ad92e6d2db2f3c86934c8eea"
     },
     "b796f66c9fc6b7375ccc80866fa1922d24e9bc0d5dcd4773fca620618b807b90": {
-      "kind": "repository",
-      "path": "connectors/traefik/native_middleware/engine_uds.go"
+      "kind": "text_lines",
+      "file": "objects/text/b796f66c9fc6b7375ccc80866fa1922d24e9bc0d5dcd4773fca620618b807b90-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "f5523da040bd6325b369269ada074be6ba069c4f",
+        "path": "connectors/traefik/native_middleware/engine_uds.go"
+      }
     },
     "0757b6c39e47390a1daf4aa750f3f3b5dacab6ed3c36f656ba73302f7d964269": {
       "kind": "delta",
@@ -634,8 +674,13 @@
       "patch_sha256": "5c051aed0c1060174dd9bbb40afbef30f23890f7be9215cba2109dfefeaa278c"
     },
     "787fe848ac64f0757bd9e1a27e5707c538e75393f394527569250dc42cd820f1": {
-      "kind": "repository",
-      "path": "connectors/envoy/build/build_ext_proc.sh"
+      "kind": "text_lines",
+      "file": "objects/text/787fe848ac64f0757bd9e1a27e5707c538e75393f394527569250dc42cd820f1-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "0e6fc8b44655ffe3b6471ce702cd96b2b7db9cd4",
+        "path": "connectors/envoy/build/build_ext_proc.sh"
+      }
     },
     "49ef28fc0b369fb64368a164175ae8bcc3d6f2eb29eb67746737ffe5fc9a3b0b": {
       "kind": "delta",
@@ -694,8 +739,13 @@
       "patch_sha256": "3d3bf23fbb8289fc13c3ee9d5518585051a5383c61258f0c1dc5f958ee7d558d"
     },
     "d9029dce4e013c34252b3b77f2311e278cf8add2c301650d2dc0434bae5ea726": {
-      "kind": "repository",
-      "path": "connectors/envoy/ext_proc/internal/processor/processor.go"
+      "kind": "text_lines",
+      "file": "objects/text/d9029dce4e013c34252b3b77f2311e278cf8add2c301650d2dc0434bae5ea726-historical.lines.json",
+      "historical_git": {
+        "repository": "parent",
+        "revision": "f5523da040bd6325b369269ada074be6ba069c4f",
+        "path": "connectors/envoy/ext_proc/internal/processor/processor.go"
+      }
     },
     "6c8461d73cd43b2a789ca69a2477c0e1f2440b3346bd27ad9bccc469d48b1762": {
       "kind": "delta",
@@ -724,6 +774,80 @@
     "99d9206e12afcc7bea684da1a6d6fc08a32be282984d81300476312c875f230f": {
       "kind": "text_lines",
       "file": "objects/text/99d9206e12afcc7bea684da1a6d6fc08a32be282984d81300476312c875f230f-candidate-admission-v5.py.lines.json"
+    },
+    "e3fabbc772c3b5206878a717a428308bcf89ce01851fd360aec0e7995dae7885": {
+      "kind": "repository",
+      "path": "connectors/traefik/native_middleware/middleware.go"
+    },
+    "d46e6d6c74213083d40d6bd137f80695c420f249ea064d99ccab0bb8c6c3dfae": {
+      "kind": "delta",
+      "base": "e3fabbc772c3b5206878a717a428308bcf89ce01851fd360aec0e7995dae7885",
+      "patch": "objects/deltas/e33fce0a5b6436a1b2d8b671069c8b1349207c4f9d40d17baf5ddc6c4a3bb9c2-middleware.go.patch.lines.json",
+      "patch_kind": "text_lines",
+      "patch_sha256": "e33fce0a5b6436a1b2d8b671069c8b1349207c4f9d40d17baf5ddc6c4a3bb9c2"
+    },
+    "1e88c98c3eca5068cb04459c4af03e8d108bed1a55f5590455e32bee4c1d3ecd": {
+      "kind": "repository",
+      "path": "connectors/traefik/native_middleware/engine_uds.go"
+    },
+    "6d086345229d4bd9188f79b48848b29b011c60165daf4335e857872efdbf45b6": {
+      "kind": "delta",
+      "base": "1e88c98c3eca5068cb04459c4af03e8d108bed1a55f5590455e32bee4c1d3ecd",
+      "patch": "objects/deltas/80483628d25d8e81377e3c941c8c76491b40861ce49bf978a9c8cf2542afbb3c-engine_uds.go.patch.lines.json",
+      "patch_kind": "text_lines",
+      "patch_sha256": "80483628d25d8e81377e3c941c8c76491b40861ce49bf978a9c8cf2542afbb3c"
+    },
+    "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155": {
+      "kind": "repository",
+      "path": "common/runtime/msconnector_runtime.c"
+    },
+    "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277": {
+      "kind": "repository",
+      "path": "common/runtime/http_authorization_service.c"
+    },
+    "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740": {
+      "kind": "repository",
+      "path": "ci/runtime/lifecycle/native-lifecycle-observer.c"
+    },
+    "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e": {
+      "kind": "repository",
+      "path": "ci/runtime/lifecycle/native-lifecycle-sdk.cpp"
+    },
+    "46c4d054f788cc9bd339bc721b6330a5342a6f2d30acb4f6be7bb0318646ded3": {
+      "kind": "repository",
+      "path": "connectors/traefik/response_observer/observer.go"
+    },
+    "f66ca34e7ffe10bff64ea8a50b8aaa64d07c5d74136afc966b2f11c2ab20f31b": {
+      "kind": "delta",
+      "base": "46c4d054f788cc9bd339bc721b6330a5342a6f2d30acb4f6be7bb0318646ded3",
+      "patch": "objects/deltas/80344c8f4eb69659bd08f8cbdd9253268afbf1380847306d6d501b35678cc03c-observer.go.patch.lines.json",
+      "patch_kind": "text_lines",
+      "patch_sha256": "80344c8f4eb69659bd08f8cbdd9253268afbf1380847306d6d501b35678cc03c"
+    },
+    "cf64d39977590f7ed18ad738e81ca30bba834c3cdb3c199f8a398b9caca9aa13": {
+      "kind": "delta",
+      "base": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155",
+      "patch": "objects/deltas/cde826540e1f2e8e04a5454876168ee5831a2e332cbbc3a0e15d0899e0a68263-msconnector_runtime.c.patch.lines.json",
+      "patch_kind": "text_lines",
+      "patch_sha256": "cde826540e1f2e8e04a5454876168ee5831a2e332cbbc3a0e15d0899e0a68263"
+    },
+    "7b99fe0cd68b28067078ece60353881a9eccd3f3bbc9fe340d6228d5481b666d": {
+      "kind": "delta",
+      "base": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277",
+      "patch": "objects/deltas/e6e379a438c866da470b4dbad204314b61de9ea1069678b4fac8637324035d69-http_authorization_service.c.patch.lines.json",
+      "patch_kind": "text_lines",
+      "patch_sha256": "e6e379a438c866da470b4dbad204314b61de9ea1069678b4fac8637324035d69"
+    },
+    "00dd6d359a56c1bfbdb85376477b7aad9cff3a129756845b8fa5ac799aa616e5": {
+      "kind": "repository",
+      "path": "connectors/traefik/response_observer/provenance.go"
+    },
+    "742392a091b9748febd09e49fd3dda4b26ccee6b67a29e6dc20a2aeaa05aac55": {
+      "kind": "delta",
+      "base": "00dd6d359a56c1bfbdb85376477b7aad9cff3a129756845b8fa5ac799aa616e5",
+      "patch": "objects/deltas/5cc95a26c03dbcbcae7b4b75fd3ac2f97844847be3ad545e98dbc9ee6e434408-provenance.go.patch.lines.json",
+      "patch_kind": "text_lines",
+      "patch_sha256": "5cc95a26c03dbcbcae7b4b75fd3ac2f97844847be3ad545e98dbc9ee6e434408"
     }
   },
   "profiles": {
@@ -2026,13 +2150,13 @@
     "traefik-native": {
       "source_targets": {
         "connectors/traefik/native_middleware/middleware.go": {
-          "before_sha256": "ef076d44ed96893c0b7cee5eb7bb6745ba1a8afc35909df81cf24c1159e6cfb3",
-          "sha256": "9fe94ab4b558969602ebaa18b6e3acc3ed68611ef59502d2328be125ea3d7b9e",
+          "before_sha256": "e3fabbc772c3b5206878a717a428308bcf89ce01851fd360aec0e7995dae7885",
+          "sha256": "d46e6d6c74213083d40d6bd137f80695c420f249ea064d99ccab0bb8c6c3dfae",
           "mode": 420
         },
         "connectors/traefik/native_middleware/engine_uds.go": {
-          "before_sha256": "b796f66c9fc6b7375ccc80866fa1922d24e9bc0d5dcd4773fca620618b807b90",
-          "sha256": "0757b6c39e47390a1daf4aa750f3f3b5dacab6ed3c36f656ba73302f7d964269",
+          "before_sha256": "1e88c98c3eca5068cb04459c4af03e8d108bed1a55f5590455e32bee4c1d3ecd",
+          "sha256": "6d086345229d4bd9188f79b48848b29b011c60165daf4335e857872efdbf45b6",
           "mode": 420
         },
         "connectors/traefik/native_middleware/i12_observer.go": {
@@ -2041,31 +2165,32 @@
           "mode": 420
         },
         "common/runtime/msconnector_runtime.c": {
-          "before_sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
-          "sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
+          "before_sha256": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155",
+          "sha256": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155",
           "mode": 420
         },
         "common/runtime/http_authorization_service.c": {
-          "before_sha256": "7f1544f1f36042c68359c7caed7d5dc4ce8cc77d44282debdc3955ea725a5e9c",
-          "sha256": "7f1544f1f36042c68359c7caed7d5dc4ce8cc77d44282debdc3955ea725a5e9c",
+          "before_sha256": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277",
+          "sha256": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277",
           "mode": 420
         },
         "ci/runtime/lifecycle/native-lifecycle-observer.c": {
-          "before_sha256": "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6",
-          "sha256": "a4ce3e2513bc3a9300781873119c256fe12f384427d4a4bb3b49578afd6a1df8",
+          "before_sha256": null,
+          "sha256": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740",
           "mode": 420,
-          "current_before_sha256": "5038d0068cef52f7cf4f2013355cf1b828648061993dd89c51d14f5439cfe387"
+          "framework_input_sha256": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740"
         },
         "ci/runtime/lifecycle/native-lifecycle-observer.h": {
-          "before_sha256": "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
-          "sha256": "5818303be9b9ed113d5b02605c223a77b45b2d587c409636bd4dd2c185ed2508",
+          "before_sha256": null,
+          "sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
           "mode": 420,
-          "current_before_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
+          "framework_input_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
         },
         "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": {
-          "before_sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
-          "sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
-          "mode": 420
+          "before_sha256": null,
+          "sha256": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e",
+          "mode": 420,
+          "framework_input_sha256": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e"
         }
       },
       "capture_files": {
@@ -2186,13 +2311,15 @@
         },
         "relocation": "Exact retained templates contain pinned external paths. Root must explicitly bind paths and guards for a new portable runner; no execution or replay is implied.",
         "build_boundary": "Exact test-source variants; native targets/ABI/toolchain must be independently selected and checked. Source integration does not rebuild or qualify historical images."
-      }
+      },
+      "required_source_identity_format": "i12-disposable-source-copy-v2",
+      "current_capture_recipe_sha256": "d71fdad682c1a5ccfc21a27991ae7929ec4c56b38532c6090866ed38fee7f51b"
     },
     "traefik-forwardauth": {
       "source_targets": {
         "connectors/traefik/response_observer/observer.go": {
-          "before_sha256": "445dcfd6c296c442d8b1593e4bc1106077900b0c745cf1b79beb0d3ead555580",
-          "sha256": "9d7227d022124633176962efcd9b5c04a6e329292cab527419244be70abbc75d",
+          "before_sha256": "46c4d054f788cc9bd339bc721b6330a5342a6f2d30acb4f6be7bb0318646ded3",
+          "sha256": "f66ca34e7ffe10bff64ea8a50b8aaa64d07c5d74136afc966b2f11c2ab20f31b",
           "mode": 420
         },
         "connectors/traefik/response_observer/i12_observer.go": {
@@ -2206,30 +2333,36 @@
           "mode": 420
         },
         "common/runtime/msconnector_runtime.c": {
-          "before_sha256": "0fa85f5658be96a25204adf489b2e18149a5f826b5ed528e55ec7b2ffe410aa4",
-          "sha256": "0e2484f610347462c315f30ac65b4227a1cdb8fb0f4a2f8f9535ce406c44ec63",
+          "before_sha256": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155",
+          "sha256": "cf64d39977590f7ed18ad738e81ca30bba834c3cdb3c199f8a398b9caca9aa13",
           "mode": 420
         },
         "common/runtime/http_authorization_service.c": {
-          "before_sha256": "7f1544f1f36042c68359c7caed7d5dc4ce8cc77d44282debdc3955ea725a5e9c",
-          "sha256": "64b124e36358f0341446aa56aecf987d44f1cfe7f213d247412ffd368174d588",
+          "before_sha256": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277",
+          "sha256": "7b99fe0cd68b28067078ece60353881a9eccd3f3bbc9fe340d6228d5481b666d",
           "mode": 420
         },
         "ci/runtime/lifecycle/native-lifecycle-observer.c": {
-          "before_sha256": "ad8e5e36a17e746cf202c685dbb529fc09717f5c25441b713fa369420aa55ac6",
-          "sha256": "52aba91c92a8d1a3b1f2b4acf50db6acb103d6d0cd63c45a0e75bcf5fa8553e6",
+          "before_sha256": null,
+          "sha256": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740",
           "mode": 420,
-          "current_before_sha256": "5038d0068cef52f7cf4f2013355cf1b828648061993dd89c51d14f5439cfe387"
+          "framework_input_sha256": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740"
         },
         "ci/runtime/lifecycle/native-lifecycle-observer.h": {
-          "before_sha256": "f9f63b62ba8efc555dc20e673cc02251d5ab6c2ab17d8f5efa760d0d97146dcd",
-          "sha256": "5a34307b4d52927f36573fcf1caf4f63e3e0ce7adffc522e462128148bec7060",
+          "before_sha256": null,
+          "sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
           "mode": 420,
-          "current_before_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
+          "framework_input_sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
         },
         "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": {
-          "before_sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
-          "sha256": "89ff282b7287ab30a4194bc06c04835f104b8037442e89b35a68fd1253dcfcfc",
+          "before_sha256": null,
+          "sha256": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e",
+          "mode": 420,
+          "framework_input_sha256": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e"
+        },
+        "connectors/traefik/response_observer/provenance.go": {
+          "before_sha256": "00dd6d359a56c1bfbdb85376477b7aad9cff3a129756845b8fa5ac799aa616e5",
+          "sha256": "742392a091b9748febd09e49fd3dda4b26ccee6b67a29e6dc20a2aeaa05aac55",
           "mode": 420
         }
       },
@@ -2335,7 +2468,9 @@
         },
         "relocation": "Exact retained templates contain pinned external paths. Root must explicitly bind paths and guards for a new portable runner; no execution or replay is implied.",
         "build_boundary": "Exact test-source variants; native targets/ABI/toolchain must be independently selected and checked. Source integration does not rebuild or qualify historical images."
-      }
+      },
+      "required_source_identity_format": "i12-disposable-source-copy-v2",
+      "current_capture_recipe_sha256": "d71fdad682c1a5ccfc21a27991ae7929ec4c56b38532c6090866ed38fee7f51b"
     },
     "envoy": {
       "source_targets": {

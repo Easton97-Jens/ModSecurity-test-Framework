@@ -270,14 +270,17 @@ class SonarCoverageTests(unittest.TestCase):
     def test_finalization_retains_completed_offline_measurement_evidence(self) -> None:
         offline = {"inventory_sha256": "c" * 64, "measured": {"execution_ids": ["offline.fixture"]},
                    "unmeasured_timing": None, "child_data_files": ["python.data.child"]}
+        framework = {"revision": "b" * 40, "uncommitted_changes": False}
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for language in ("python", "go", "native"):
                 (root / language).mkdir()
                 record = {"revision": "a" * 40, "uncommitted_changes": False,
+                          "framework": framework,
                           "coverage": {"offline_python": offline} if language == "python" else {}}
                 (root / language / "manifest.json").write_text(json.dumps(record), encoding="utf-8")
-            with mock.patch.object(COVERAGE, "publish_python_report", return_value={"report": "python.xml"}):
+            with (mock.patch.object(COVERAGE, "publish_python_report", return_value={"report": "python.xml"}),
+                  mock.patch.object(COVERAGE, "framework_source_state", return_value=framework)):
                 result = COVERAGE.finalize_python(root, {}, "a" * 40)
         self.assertEqual(result["offline_python"], offline)
 
@@ -294,6 +297,23 @@ class SonarCoverageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "revision does not match"):
                     COVERAGE.finalize_python(root, {}, "b" * 40)
             publish.assert_not_called()
+
+    def test_finalization_rejects_other_or_unbound_framework_before_combining(self) -> None:
+        current = {"revision": "b" * 40, "uncommitted_changes": False}
+        for recorded in (None, {"revision": "c" * 40, "uncommitted_changes": False},
+                         {"revision": "b" * 40, "uncommitted_changes": True}):
+            with self.subTest(recorded=recorded), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for language in ("python", "go", "native"):
+                    (root / language).mkdir()
+                    record = {"revision": "a" * 40, "uncommitted_changes": False,
+                              "framework": recorded}
+                    (root / language / "manifest.json").write_text(json.dumps(record), encoding="utf-8")
+                with (mock.patch.object(COVERAGE, "framework_source_state", return_value=current),
+                      mock.patch.object(COVERAGE, "publish_python_report") as publish):
+                    with self.assertRaisesRegex(ValueError, "Framework"):
+                        COVERAGE.finalize_python(root, {}, "a" * 40)
+                publish.assert_not_called()
 
 
 # Parent discovery remains inventory-bound; only an explicit selected Master

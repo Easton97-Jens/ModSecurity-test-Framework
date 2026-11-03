@@ -1327,8 +1327,10 @@ class TrustedNginxRootBrokerTest(unittest.TestCase):
             with self.assertRaisesRegex(BROKER.BrokerError, "single-link regular"):
                 BROKER.open_regular_no_follow(fifo, "FIFO evidence")
 
-    def test_current_delegated_caller_is_rejected_by_the_inline_broker_contract(self) -> None:
-        raw = source_path(".github/workflows/run-protected-nginx-root-broker.yml", root=ROOT).read_bytes()
+    def test_historical_delegated_caller_is_rejected_by_the_inline_broker_contract(self) -> None:
+        raw = (Path(__file__).parent / "fixtures/nginx_root_broker/caller-delegated-11fab78.yml.fixture").read_bytes()
+        self.assertEqual(hashlib.sha256(raw).hexdigest(),
+                         "ef7cc66b33d1aaef2ba30610a68fe3c0c6359194c69878fea757d0cd07d98743")
         document = BROKER.parse_restricted_caller_workflow_yaml(raw)
         self.assertEqual(set(document["jobs"]), {"framework"})
         with self.assertRaisesRegex(BROKER.BrokerError, "top-level has an unexpected key set"):

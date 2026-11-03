@@ -44,6 +44,7 @@ def _render_fixture_workflows(root, framework_sha):
         r"(?m)^([ \t]*(?:-[ \t]+)?uses:[ \t]+Easton97-Jens/ModSecurity-test-Framework/[^\s@]+@)[^\s#]+",
         r"(?m)^([ \t]*framework-revision:[ \t]+)(?!\$\{\{)[^\s#]+",
         r"(?m)^([ \t]*expected_framework=)[^\s#]+",
+        r"(?m)^(# framework-caller-revision: )[^\s#]+",
     )
     for workflow in sorted((root / ".github/workflows").glob("*.yml")):
         if workflow.is_symlink():

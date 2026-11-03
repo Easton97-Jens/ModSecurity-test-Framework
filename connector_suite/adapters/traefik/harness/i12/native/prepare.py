@@ -141,9 +141,7 @@ def refresh_capture_source(repo, source, registry, overlays):
     exporter_path = source_path('connectors/traefik/harness/i12') / 'source_export.py'
     exporter = load_source(exporter_path)
     snapshot = exporter.export(repo, source)
-    central = importlib.util.module_from_spec(importlib.util.spec_from_file_location(
-        'i12_capture_apply', registry.root / 'capture_sources.py'))
-    central.__spec__.loader.exec_module(central)
+    central = load_source(registry.root / 'capture_sources.py')
     adapter = load_source(source_path('connectors/traefik/harness/i12') / 'current_capture.py')
     receipt = adapter.apply(central, registry, 'traefik-native', source)
     for relative, before in receipt['actual_before_sha256'].items():
@@ -173,7 +171,7 @@ def prepare(repo, historical, output, private_toolchain):
     toolchain_inventory = validate_private_toolchain(private_toolchain)
     output.mkdir(parents=True, mode=0o700)
     source, fixtures = output / 'source', output / 'fixtures'
-    capture_root = repo / 'ci/runtime/lifecycle/i12'
+    capture_root = source_path('ci/runtime/lifecycle/i12', root=repo)
     module = load_source(capture_root / 'capture_sources.py')
     registry = module.Registry(capture_root, repo)
     profile = registry.manifest['profiles']['traefik-native']
@@ -182,6 +180,8 @@ def prepare(repo, historical, output, private_toolchain):
     revision = json.loads((source / '.i12-source-export-manifest.json').read_text())['source_revision']
     stage_fixtures(fixtures, profile, registry)
     driver = (fixtures / 'driver.py').read_text()
+    driver = replace_once(driver, "'-I', SOURCE / 'common/include'",
+        "'-I', SOURCE, '-I', SOURCE / 'common/include'")
     driver = replace_once(driver, "RUN = 'tf-i12-eos-20261014'", "RUN = 'tf-i12-native-20261015'")
     driver = replace_once(driver, "'delivery_base': '02754040bced960cfc1857416cd7101bb3116ef4'", "'delivery_base': " + repr(revision))
     driver = replace_once(driver, "'product_base': 'a9d48bb58aa948aea7d79e20cdf09d3f239b7808'", "'product_base': " + repr(revision))

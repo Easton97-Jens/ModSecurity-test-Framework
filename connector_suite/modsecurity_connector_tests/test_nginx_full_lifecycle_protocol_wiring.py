@@ -72,10 +72,24 @@ class NginxFullLifecycleProtocolWiringTest(unittest.TestCase):
                     "state": "implemented_not_asserted", "reason": "plan-only protocol fixture",
                 }
             capability_path.write_text(json.dumps(capabilities), encoding="utf-8")
+            for relative in ("connectors/lighttpd/lighttpd-version.contract",
+                             "connectors/haproxy/htx-overlay/version-contract.json"):
+                version_contract = connector_root / relative
+                version_contract.parent.mkdir(parents=True)
+                version_contract.write_bytes((ROOT / relative).read_bytes())
+            # Context validation deliberately requires an actual product Git
+            # checkout and its exact HEAD; fixtures obey that same contract.
+            (connector_root / "common/include").mkdir(parents=True)
+            for arguments in (["init", "--quiet"], ["add", "connectors"],
+                              ["-c", "user.name=Protocol fixture", "-c", "user.email=fixture@example.invalid",
+                               "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Protocol fixture"]):
+                subprocess.run(["git", "-C", str(connector_root), *arguments], check=True,
+                               capture_output=True, text=True)
+        revision = subprocess.check_output(["git", "-C", str(connector_root), "rev-parse", "HEAD"], text=True).strip()
         invocation = self.root / "invocation"
         environment.update(
             {
-                "CONNECTOR_ROOT": str(connector_root), "FRAMEWORK_ROOT": str(FRAMEWORK),
+                "CONNECTOR_ROOT": str(connector_root), "CONNECTOR_REVISION": revision, "FRAMEWORK_ROOT": str(FRAMEWORK),
                 "VERIFIED_RUN_ROOT": str(invocation), "BUILD_ROOT": str(invocation / "build"),
                 "VERIFIED_EVIDENCE_ROOT": str(invocation / "evidence"),
                 "EVIDENCE_ROOT": str(invocation / "evidence/no-crs-evidence"),
@@ -141,26 +155,26 @@ class NginxFullLifecycleProtocolWiringTest(unittest.TestCase):
         for case in protocol_cases:
             self.assertEqual(selections[case["case_id"]]["selection_status"], "NOT_APPLICABLE", case["case_id"])
 
-    def test_explicit_h2_reaches_selection_but_missing_executors_block_init(self) -> None:
-        self.assert_protocol_requires_executors("h2", "h1-h2", "protocol_h2_negotiated")
+    def test_explicit_h2_reaches_init_with_native_protocol_executor(self) -> None:
+        self.assert_protocol_executor("h2", "h1-h2", "protocol_h2_negotiated")
 
-    def test_explicit_h3_reaches_selection_but_missing_executors_block_init(self) -> None:
-        self.assert_protocol_requires_executors("h3", "h1-h2-h3-quic", "protocol_h3_negotiated")
+    def test_explicit_h3_reaches_init_with_native_protocol_executor(self) -> None:
+        self.assert_protocol_executor("h3", "h1-h2-h3-quic", "protocol_h3_negotiated")
 
-    def assert_protocol_requires_executors(self, protocol: str, profile: str, required_case: str) -> None:
+    def assert_protocol_executor(self, protocol: str, profile: str, required_case: str) -> None:
         result = self.invoke(
             variables={"NGINX_DOWNSTREAM_PROTOCOL": protocol, "NGINX_PROTOCOL_PROFILE": profile},
             fixture_capabilities=True,
         )
-        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-        self.assertIn(required_case + ": selected NGX case has no ", result.stderr)
-        self.assertNotIn(f"Error {INIT_STOP}", result.stderr)
+        plan = self.assert_native_plan(result, protocol)
+        selected = next(case for case in plan["cases"] if case["case_id"] == required_case)
+        self.assertEqual(selected["selection_status"], "SELECTED")
+        self.assertEqual(selected["derived_invocation"]["operation"], "native_protocol")
         calls = [json.loads(line) for line in self.calls.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual([call["argv"][1] for call in calls], ["select"])
+        self.assertEqual([call["argv"][1] for call in calls], ["select", "init"])
         argv = calls[0]["argv"]
         self.assertEqual(argv[argv.index("--downstream-protocol") + 1], protocol)
         self.assertEqual(calls[0]["downstream"], protocol)
-        self.assertFalse((self.root / "invocation/evidence/no-crs-evidence/nginx/protocol-wiring").exists())
 
     def test_overpromoted_capabilities_do_not_invent_execution_descriptors(self) -> None:
         result = self.invoke(fixture_capabilities=True, overpromote_capabilities=True)

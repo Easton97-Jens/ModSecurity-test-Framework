@@ -109,3 +109,51 @@ Quellrevision und Instrumentierungs-Hashes. Reine Fixture-Änderungen,
 einschließlich nicht committeter Abnahme-Producer, benötigen separate explizite
 Hashes; sie erben niemals eine Identität committeter Quellen. Die Vorbereitung
 startet keinen Host und belegt keine Runtime-Qualifikation.
+
+Die aktuellen Traefik-Varianten verwenden `../i12/capture_recipe.json` als geprüfte
+Regenerierungsquelle. Sie bindet aktuelle Produkt-/Hilfsquelldateien und unabhängig
+festgelegte Beobachtungsausgaben. `../i12/regenerate_capture.py` regeneriert die
+zentralen Ziele, exakte kontextgebundene Deltas, `capture_contract.json` und die
+Adapterversiegelung. `--check` vergleicht alle erzeugten Bytes ohne Schreibzugriff:
+
+Die kontextgebundenen Patches verwenden inerte JSON-Zeilendaten
+(`patch_kind=text_lines`). Ihre Hashes binden die exakten dekodierten
+Unified-Patchbytes einschließlich Whitespace und Kontextankern. Die Registry
+prüft diese Bytes vor exakter Anwendung.
+
+Der versiegelte Version2-Vertrag speichert Profilintegrität als Liste `profile_digests`
+mit expliziten Feldern `profile` und `sha256`. Jeder Digest bleibt der SHA256
+des kanonischen Registryprofils. Die Zulassung verwirft zusätzliche/fehlende
+Datensatzfelder, doppelte/unbekannte/fehlende Profile und ungültige Digests mit
+64kleinen Hexzeichen. Die Profilmenge umfasst exakt Native und forwardAuth;
+Profilnamen sind von Digestfeldnamen getrennt. Produkteingaben,
+Ausgaben und Anker sind von dieser Metadatendarstellung unabhängig.
+Die Zulassung verlangt die Ganzzahlversion2 und weist boolesche Werte, alte
+Versionen oder eine fehlende Version ab. Das Profilnamen-Mapping aus Version1
+wird nicht mehr zugelassen.
+
+```sh
+rtk bypass "$FRAMEWORK_PYTHON" -P -B "$TEST_ROOT/connector_suite/adapters/traefik/harness/i12/regenerate_capture.py" --check
+```
+
+Die Regenerierung benötigt die gewählten Checkouts und die im Rezept benannten
+historischen Parent-Gitobjekte. Sie führt weder Fetch, Installation noch Hoststart
+aus. Vor einer beabsichtigten Quellaktualisierung Quelländerungen,
+Beobachtungsanker und Ausgabebytes prüfen, bevor die Eingabe-/Ausgabebindungen
+geändert werden. Danach den Befehl ohne `--check` ausführen und den generierten
+Diff prüfen. Die Runtime-Memberverschiebung und native Commit-Fehlererfassung
+werden ausschließlich im historischen Abgleichmodell angepasst. Das aktuelle
+Produkt bleibt einschließlich vertrauenswürdiger Provenienz, Abbruch-Cleanup
+und Guards für unvollständige Antworten erhalten.
+
+Migrierte Framework-Dateien für Observer, Header und SDK fehlen im Parent-Export.
+Sie werden getrennt hashgebunden und bytegleich aus dem ausgewählten Framework
+übernommen; aktuelle Snapshot-/Finalize- und SDK-ABI-Guards bleiben erhalten.
+Anwendungsbeleg und Framework-Revision führen ihre Hashes getrennt; sie werden
+keine Einträge im Inventar committeter Parent-Dateien. Der generierte
+Compileraufruf enthält die Quellwurzel für logisch wurzelrelative Includes.
+Veraltete repositorygebundene Registryobjekte bleiben als bytegleiche inerte
+JSON-Zeilendaten mit ursprünglicher Git-Provenienz erhalten; die globale
+Registryprüfung bleibt aktiv. Diese historischen Bytes autorisieren keinen
+Rollback aktueller Produktquellen. Request- und Companion-Vorbereitung verlangen
+weiterhin getrennte frische Ausgaben und belegen keinen Hostlauf.
