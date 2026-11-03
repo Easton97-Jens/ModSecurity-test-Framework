@@ -341,10 +341,10 @@ APR_SHA256_URL="$APR_SOURCE_URL.sha256"
 # at column zero so the common-version resolver can update the version and
 # digest atomically without evaluating shell code.
 ci_apr_util_set_canonical_tuple() {
-APR_UTIL_VERSION="1.6.5"
+APR_UTIL_VERSION="1.6.6"
 APR_UTIL_ARCHIVE_NAME="apr-util-$APR_UTIL_VERSION.tar.bz2"
 APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/$APR_UTIL_ARCHIVE_NAME"
-APR_UTIL_SHA256="96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"
+APR_UTIL_SHA256="aa77dd25f036731b7246abbfbebe6cc813b42799b62c874bc82bd4e1f90f2918"
 APR_UTIL_SHA256_URL="$APR_UTIL_SOURCE_URL.sha256"
 }
 
