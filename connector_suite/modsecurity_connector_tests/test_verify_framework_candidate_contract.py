@@ -56,10 +56,10 @@ MODSECURITY_V3_RELEASE_TAG="v3.0.16"
 CANDIDATE_COMMON = GENERIC_SOURCE_COMMON + """\
 NGINX_SOURCE_MODE="github-release"
 NGINX_SOURCE_REPO_URL="https://github.com/nginx/nginx"
-NGINX_RELEASE_TAG="release-1.31.6"
+NGINX_RELEASE_TAG="release-1.31.8"
 NGINX_SOURCE_GIT_REF="$NGINX_RELEASE_TAG"
 NGINX_RELEASE_ASSET_NAME="nginx-${NGINX_RELEASE_TAG#release-}.tar.gz"
-NGINX_SHA256="974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"
+NGINX_SHA256="0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1"
 OPENSSL_SHA256="736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8"
 CI_SECURITY_TOOL_OSV_SCANNER_COMMIT="e840a6e8adb14b7777c78e26cfbf6e2abc1d1fc6"
 CI_SECURITY_TOOL_RUFF_COMMIT="62914c4b9b79a9e5004374a9c482ad2ed69290e1"
@@ -124,13 +124,13 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         self.assertEqual(before, self.parent_bytes())
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
-            "release-1.31.6",
+            "release-1.31.8",
         )
 
     def test_current_parent_contract_matches_the_candidate_without_writing(self) -> None:
         before = self.parent_bytes()
         values = VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
-        self.assertEqual(values["release_tag"], "release-1.31.6")
+        self.assertEqual(values["release_tag"], "release-1.31.8")
         self.assertEqual(before, self.parent_bytes())
         protected_workflow = (
             self.root / "modules/ModSecurity-test-Framework/connector_suite/workflows/nginx-root-broker.historical.yml"
@@ -148,14 +148,14 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         self.common.write_bytes(framework_common.read_bytes())
         before = self.parent_bytes()
         values = VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
-        self.assertEqual(values["release_tag"], "release-1.31.6")
+        self.assertEqual(values["release_tag"], "release-1.31.8")
         self.assertEqual(before, self.parent_bytes())
 
     def test_new_shell_structure_is_not_blocked_by_a_fixed_digest(self) -> None:
         self.write_common(CANDIDATE_COMMON + "\nfuture_helper() { :; }\n")
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
-            "release-1.31.6",
+            "release-1.31.8",
         )
 
     def test_current_parent_projection_can_be_checked_before_candidate_projection(
@@ -169,7 +169,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             self.common,
             expected_parent_framework_sha=CURRENT_PARENT_FRAMEWORK_SHA,
         )
-        self.assertEqual(values["release_tag"], "release-1.31.6")
+        self.assertEqual(values["release_tag"], "release-1.31.8")
         self.assertEqual(before, self.parent_bytes())
         with self.assertRaisesRegex(VERIFIER.ContractError, "expected Parent Framework SHA"):
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)
@@ -184,7 +184,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
-            "release-1.31.6",
+            "release-1.31.8",
         )
 
     def test_registered_modsecurity_v3_tuple_can_change_without_structure_review(self) -> None:
@@ -202,7 +202,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
         )
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
-            "release-1.31.6",
+            "release-1.31.8",
         )
 
     def test_unsafe_registered_source_rhs_fails_before_parent_projection(self) -> None:
@@ -230,7 +230,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
 
     def test_unreviewed_nginx_data_change_fails_the_parent_handoff(self) -> None:
         self.common.write_text(
-            CANDIDATE_COMMON.replace("release-1.31.6", "release-1.31.7"),
+            CANDIDATE_COMMON.replace("release-1.31.8", "release-1.31.7"),
             encoding="utf-8",
         )
         with self.assertRaisesRegex(VERIFIER.ContractError, "unprotected NGINX handoff mismatch"):
@@ -256,7 +256,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                 self.write_common(CANDIDATE_COMMON.replace(expected, replacement))
                 self.assertEqual(
                     VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["release_tag"],
-                    "release-1.31.6",
+                    "release-1.31.8",
                 )
 
     def test_stale_framework_sha_fails_closed_without_parent_writes(self) -> None:
@@ -282,8 +282,8 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
                 self.assertEqual(before, self.parent_bytes())
 
     def test_valid_but_stale_nginx_candidate_fails_closed_without_parent_writes(self) -> None:
-        stale = CANDIDATE_COMMON.replace("release-1.31.6", "release-1.31.4").replace(
-            "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
+        stale = CANDIDATE_COMMON.replace("release-1.31.8", "release-1.31.4").replace(
+            "0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1",
             "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3",
         )
         self.write_common(stale)
@@ -295,7 +295,7 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
     def test_malformed_candidate_checksum_fails_before_parent_projection(self) -> None:
         self.write_common(
             CANDIDATE_COMMON.replace(
-                "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
+                "0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1",
                 "0" * 63,
             )
         )
@@ -411,36 +411,36 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
 
     def test_safe_framework_parameter_reads_and_bare_exports_are_accepted(self) -> None:
         safe_common = CANDIDATE_COMMON.replace(
-            'NGINX_SHA256="974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"\n',
+            'NGINX_SHA256="0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1"\n',
             'if [ "${NGINX_SHA256+x}" = x ]; then\n'
             '    NGINX_SHA256_WAS_SET=1\n'
             "fi\n"
             'NGINX_SHA256_REQUESTED="${NGINX_SHA256-}"\n'
-            'NGINX_SHA256="974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"\n',
+            'NGINX_SHA256="0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1"\n',
         ) + "export NGINX_SOURCE_MODE NGINX_SHA256\n"
         self.write_common(safe_common)
         self.assertEqual(
             VERIFIER.verify_contract(self.root, CANDIDATE_SHA, self.common)["archive_sha256"],
-            "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
+            "0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1",
         )
 
     def test_each_unprotected_handoff_layer_rejects_a_representative_drift(self) -> None:
         cases = (
             (
                 ".github/workflows/test-nginx-exact-head.yml",
-                "NGINX_RELEASE_ASSET_NAME: nginx-1.31.6.tar.gz",
+                "NGINX_RELEASE_ASSET_NAME: nginx-1.31.8.tar.gz",
                 "NGINX_RELEASE_ASSET_NAME: nginx-1.31.4.tar.gz",
                 "NGINX_RELEASE_ASSET_NAME",
             ),
             (
                 ".github/workflows/test-full-smoke-sequential.yml",
-                "NGINX_SOURCE_GIT_REF: release-1.31.6",
+                "NGINX_SOURCE_GIT_REF: release-1.31.8",
                 "NGINX_SOURCE_GIT_REF: release-1.31.4",
                 "NGINX_SOURCE_GIT_REF",
             ),
             (
                 "ci/checks/evidence/check-runtime-producer-readiness.py",
-                'CANONICAL_NGINX_ARCHIVE_SHA256 = "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1"',
+                'CANONICAL_NGINX_ARCHIVE_SHA256 = "0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1"',
                 'CANONICAL_NGINX_ARCHIVE_SHA256 = "e6f20b644a17a643f059ae6467a1971fe2811587d025e071068753a1f1e3b3c3"',
                 "CANONICAL_NGINX_ARCHIVE_SHA256",
             ),
@@ -524,6 +524,127 @@ class VerifyFrameworkCandidateContractTests(unittest.TestCase):
             2,
         )
 
+
+
+class VerifyFrameworkCandidateGitContextTests(unittest.TestCase):
+    """Exercise real raw wrappers and immutable objects without context imports."""
+
+    def setUp(self):
+        import os
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name) / "parent"
+        self.framework = self.root / "modules/ModSecurity-test-Framework"
+        self.framework.mkdir(parents=True)
+        self.environment = dict(os.environ, GIT_CONFIG_NOSYSTEM="1")
+        for key in tuple(self.environment):
+            if key.startswith("GIT_") and key != "GIT_CONFIG_NOSYSTEM":
+                self.environment.pop(key)
+        self.environment.update(GIT_AUTHOR_NAME="Fixture", GIT_AUTHOR_EMAIL="fixture@example.invalid",
+                                GIT_COMMITTER_NAME="Fixture", GIT_COMMITTER_EMAIL="fixture@example.invalid")
+        self.git(self.framework, "init", "-q")
+        self.git(self.root, "init", "-q")
+        self.old = self.commit_framework("1.31.6", "a" * 64)
+        self.new = self.commit_framework("1.31.8", "b" * 64)
+        self.git(self.root, "update-index", "--add", "--cacheinfo", "160000," + self.old + ",modules/ModSecurity-test-Framework")
+        self.git(self.root, "commit", "-qm", "trusted baseline")
+        self.common = self.root / "candidate-common.sh"
+        self.select(self.old, "1.31.6", "a" * 64)
+
+    def git(self, root, *arguments):
+        import subprocess
+        return subprocess.run(["git", "--no-replace-objects", "-c", "core.hooksPath=/dev/null",
+                               "-C", str(root), *arguments], env=self.environment,
+                              check=True, capture_output=True, text=True).stdout.strip()
+
+    def write(self, root, relative, text):
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    def commit_framework(self, version, digest):
+        # Only the old committed gitlink's parser may execute. A candidate parser
+        # and candidate package initializer must never run during projection.
+        parser = (test_root() / "modsecurity_test_framework/workflow_sources.py").read_text()
+        self.write(self.framework, "modsecurity_test_framework/workflow_sources.py",
+                   parser if version == "1.31.6" else "raise AssertionError('candidate parser executed')\n")
+        self.write(self.framework, "modsecurity_test_framework/__init__.py", "raise AssertionError('candidate imported')\n")
+        values = {"source_mode": "github-release", "source_repository": "https://github.com/nginx/nginx",
+                  "release_tag": "release-" + version, "source_ref": "release-" + version,
+                  "release_asset_name": "nginx-" + version + ".tar.gz", "archive_sha256": digest,
+                  "version_readback": "nginx/" + version}
+        mapping = {}
+        for relative in (VERIFIER.RUNTIME_COMPONENTS_PATH, VERIFIER.RUNTIME_PRODUCER_READINESS_PATH):
+            mapped = "connector_suite/" + relative
+            mapping[relative] = mapped
+            fields = [p for p in VERIFIER.PARENT_NGINX_PROJECTIONS if p.relative_path == relative]
+            self.write(self.framework, mapped, "".join(p.name + ' = "' + values[p.value_name] + '"\n' for p in fields))
+        self.write(self.framework, "connector_suite/source-map.json", json.dumps({"paths": mapping}))
+        yaml_names = {p.name: values[p.value_name] for p in VERIFIER.PARENT_NGINX_PROJECTIONS
+                      if p.relative_path == VERIFIER.NGINX_EXACT_HEAD_WORKFLOW_PATH}
+        yaml_names["NGINX_REQUIRE_PINNED_PROVENANCE"] = "1"
+        action = "name: Fixture\ndescription: Fixture\ninputs:\n  framework-revision:\n    required: true\nruns:\n  using: composite\n  steps:\n    - shell: bash\n      env:\n"
+        action += "".join("        " + name + ': "' + value + '"\n' for name, value in yaml_names.items())
+        continuation = " " + chr(92) + "\n"
+        action += "      run: |\n        env" + continuation
+        action += "".join('          ' + name + '="$' + name + '"' + continuation
+                          for name in yaml_names)
+        action += "          true\n"
+        self.write(self.framework, ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml", action)
+        self.git(self.framework, "add", ".")
+        self.git(self.framework, "commit", "-qm", version)
+        return self.git(self.framework, "rev-parse", "HEAD")
+
+    def select(self, revision, version, digest):
+        lock = {"schema_version": 1, "framework_sha": revision, "mrts_sha": "c" * 40,
+                "python_version": "3.15.0", "go_version": "1.26.0"}
+        self.write(self.root, "ci/tooling/project-versions.lock.json", json.dumps(lock))
+        wrapper = ("name: Fixture\non: pull_request\npermissions: {}\njobs:\n  nginx-exact-head:\n"
+                   "    runs-on: ubuntu-26.04\n    steps:\n      - uses: Easton97-Jens/ModSecurity-test-Framework/"
+                   ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head@" + revision + "\n"
+                   "        with:\n          framework-revision: " + revision + "\n")
+        self.write(self.root, VERIFIER.NGINX_EXACT_HEAD_WORKFLOW_PATH, wrapper)
+        values = VERIFIER.parse_candidate_nginx_handoff(self._common(version, digest))
+        self.write(self.root, VERIFIER.NGINX_FULL_SMOKE_WORKFLOW_PATH,
+                   "".join(p.name + ': "' + values[p.value_name] + '"\n' for p in VERIFIER.PARENT_NGINX_PROJECTIONS
+                           if p.relative_path == VERIFIER.NGINX_FULL_SMOKE_WORKFLOW_PATH)
+                   + 'NGINX_REQUIRE_PINNED_PROVENANCE: "1"\n')
+
+    def _common(self, version, digest):
+        self.common.write_text(CANDIDATE_COMMON.replace("1.31.8", version).replace(
+            "0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1", digest))
+        return self.common
+
+    def verify(self, selected, candidate):
+        from unittest.mock import patch
+        with patch.dict("os.environ", {"FRAMEWORK_REVISION": "bogus", "PYTHONPATH": "/missing"}):
+            return VERIFIER.verify_contract(self.root, candidate, self.common,
+                                            expected_parent_framework_sha=selected)
+
+    def test_candidate_checkout_does_not_override_old_parent_selection(self):
+        self.assertEqual(self.git(self.framework, "rev-parse", "HEAD"), self.new)
+        self.assertEqual(self.verify(self.old, self.new)["release_tag"], "release-1.31.6")
+
+    def test_new_selection_reads_candidate_data_with_old_checkout_and_trusted_parser(self):
+        self.select(self.new, "1.31.8", "b" * 64)
+        self.git(self.framework, "checkout", "-q", self.old)
+        # An old local migrated file cannot override selected immutable data.
+        self.write(self.root, VERIFIER.RUNTIME_COMPONENTS_PATH, 'NGINX_PINNED_RELEASE_TAG = "stale"\n')
+        self.assertEqual(self.verify(self.new, self.new)["release_tag"], "release-1.31.8")
+
+    def test_wrong_wrapper_revision_is_rejected(self):
+        path = self.root / VERIFIER.NGINX_EXACT_HEAD_WORKFLOW_PATH
+        path.write_text(path.read_text().replace(self.old, self.new))
+        with self.assertRaisesRegex(VERIFIER.ContractError, "immutable pin"):
+            self.verify(self.old, self.new)
+
+    def test_missing_selected_action_blob_is_rejected(self):
+        self.git(self.framework, "rm", ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml")
+        self.git(self.framework, "commit", "-qm", "missing action")
+        missing = self.git(self.framework, "rev-parse", "HEAD")
+        self.select(missing, "1.31.8", "b" * 64)
+        with self.assertRaisesRegex(VERIFIER.ContractError, "regular blob"):
+            self.verify(missing, missing)
 
 
 # Parent default discovery uses the one admitted active-case inventory.

@@ -2129,7 +2129,23 @@ def write_native_success(
     )
 
 
-def write_native_failure(result_path: Path, error_class: str, rule_evaluation: str, stopped: bool) -> None:
+def native_failure_origin(error: Exception) -> str:
+    """Identify the last runner frame without exposing paths, payloads or locals."""
+
+    origin = "unknown"
+    frame = error.__traceback__
+    while frame is not None:
+        code = frame.tb_frame.f_code
+        if code.co_filename == __file__:
+            origin = f"{code.co_name}:{frame.tb_lineno}"
+        frame = frame.tb_next
+    return origin
+
+
+def write_native_failure(
+    result_path: Path, error_class: str, rule_evaluation: str, stopped: bool,
+    error_origin: str = "",
+) -> None:
     """Write a non-promoting failure result for the isolated native host run."""
 
     payload: dict[str, Any] = {
@@ -2144,6 +2160,8 @@ def write_native_failure(result_path: Path, error_class: str, rule_evaluation: s
     }
     if error_class:
         payload["error_class"] = error_class
+    if error_origin:
+        payload["error_origin"] = error_origin
     write_json(result_path, payload)
 
 
@@ -2190,13 +2208,15 @@ def run() -> int:
         outcome = 0
     except Exception as exc:
         traefik_stopped, engine_stopped = stop_native_processes(processes)
+        origin = native_failure_origin(exc)
         write_native_failure(
             artifacts.result_path,
             type(exc).__name__,
             "host_runtime_failed",
             traefik_stopped and engine_stopped,
+            origin,
         )
-        print(f"FAIL: Traefik native local-plugin host: {type(exc).__name__}", file=sys.stderr)
+        print(f"FAIL: Traefik native local-plugin host: {type(exc).__name__} at {origin}", file=sys.stderr)
     finally:
         stop_native_processes(processes)
         setup.upstream.shutdown()
@@ -2224,7 +2244,8 @@ def main() -> int:
         print(f"BLOCKED: {exc}", file=sys.stderr)
         return 77
     except Exception as exc:
-        print(f"FAIL: Traefik native local-plugin host: {type(exc).__name__}", file=sys.stderr)
+        origin = native_failure_origin(exc)
+        print(f"FAIL: Traefik native local-plugin host: {type(exc).__name__} at {origin}", file=sys.stderr)
         return 1
 
 

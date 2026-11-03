@@ -98,6 +98,13 @@ GENERATED_VIEW_PATHS = (
     RUNTIME_MANIFEST_PATH,
     RUNTIME_LOCK_PATH,
     SECURITY_TOOLS_LOCK_PATH,
+    ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml",
+    "connector_suite/modsecurity_connector_ci/provisioning/components/prepare-runtime-components.py",
+    "connector_suite/modsecurity_connector_ci/checks/evidence/check-runtime-producer-readiness.py",
+    "connector_suite/modsecurity_connector_ci/runtime/lifecycle/write-nginx-functional-a-evidence.py",
+    "connector_suite/modsecurity_connector_ci/runtime/broker/protected_nginx_exact_head_builder.py",
+    "connector_suite/modsecurity_connector_ci/runtime/broker/nginx_exact_head_root_launcher.py",
+    "connector_suite/modsecurity_connector_ci/runtime/broker/nginx_exact_head_result_collector.py",
     "docs/reference/variables.md",
     "docs/reference/variables.de.md",
     FRAMEWORK_CONTRACT_CATALOG_PATH,
@@ -106,6 +113,10 @@ GENERATED_VIEW_PATHS = (
 )
 ALLOWED_AUTOMATIC_PATHS = frozenset(
     {
+        # Composite integration sources retain separate reviewed snapshot
+        # authority; native maintenance may only publish runtime data views.
+        *(path for path in GENERATED_VIEW_PATHS
+          if path.startswith("connector_suite/modsecurity_connector_ci/")),
         COMMON_SH_PATH,
         PYTHON_VERSION_PATH,
         CI_REQUIREMENTS_PATH,

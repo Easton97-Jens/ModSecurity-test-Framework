@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 from pathlib import Path
@@ -74,6 +75,8 @@ PIN_VARIABLES = frozenset(
         "LIGHTTPD_DOWNLOAD_URL",
         "LIGHTTPD_SHA256",
         "LIGHTTPD_SHA256_URL",
+        "NGINX_SOURCE_MODE",
+        "NGINX_SOURCE_GIT_REF",
         "NGINX_SOURCE_REPO_URL",
         "NGINX_RELEASE_TAG",
         "NGINX_RELEASE_ASSET_NAME",
@@ -418,6 +421,12 @@ def _validate_nginx_binding(values: dict[str, str]) -> None:
     nginx_tag = values["NGINX_RELEASE_TAG"]
     if not nginx_tag.startswith("release-") or not VERSION_RE.fullmatch(nginx_tag[8:]):
         raise SyncError("NGINX_RELEASE_TAG must use release-X.Y.Z")
+    if (values["NGINX_SOURCE_MODE"] != "github-release"
+            or hashlib.sha256(values["NGINX_SOURCE_REPO_URL"].encode("ascii")).hexdigest()
+            != "9251c307f3bced37b200f9c1dc629461fe63ff36f59eb6a210420dd29a23bccd"
+            or values["NGINX_SOURCE_GIT_REF"] != nginx_tag
+            or values["NGINX_RELEASE_ASSET_NAME"] != "nginx-" + nginx_tag[8:] + ".tar.gz"):
+        raise SyncError("NGINX handoff requires the canonical GitHub release tuple")
 
 
 def _validate_lighttpd_binding(values: dict[str, str]) -> None:
@@ -824,6 +833,9 @@ def atomic_write(path: Path, content: str) -> None:
     )
     temporary_name = Path(temporary).name
     try:
+        if path.exists():
+            # Keep source readability/executability across atomic replacement.
+            os.fchmod(descriptor, stat.S_IMODE(path.stat(follow_symlinks=False).st_mode))
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
             stream.write(content)
         os.rename(
@@ -840,6 +852,99 @@ def atomic_write(path: Path, content: str) -> None:
         raise
     finally:
         os.close(directory)
+
+
+# Ordinary handoffs are generated from common.sh. Historical root-broker
+# sources are deliberately outside this closed output set.
+NGINX_HANDOFF_PATHS = (
+    ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml",
+    "connector_suite/modsecurity_connector_ci/provisioning/components/prepare-runtime-components.py",
+    "connector_suite/modsecurity_connector_ci/checks/evidence/check-runtime-producer-readiness.py",
+    "connector_suite/modsecurity_connector_ci/runtime/lifecycle/write-nginx-functional-a-evidence.py",
+    "connector_suite/modsecurity_connector_ci/runtime/broker/protected_nginx_exact_head_builder.py",
+    "connector_suite/modsecurity_connector_ci/runtime/broker/nginx_exact_head_root_launcher.py",
+    "connector_suite/modsecurity_connector_ci/runtime/broker/nginx_exact_head_result_collector.py",
+)
+
+
+def _nginx_handoff_fields(values: dict[str, str]) -> dict[str, str]:
+    tag = values["NGINX_RELEASE_TAG"]
+    return {
+        "SOURCE_MODE": values["NGINX_SOURCE_MODE"],
+        "SOURCE_REPOSITORY": values["NGINX_SOURCE_REPO_URL"],
+        "RELEASE_TAG": tag,
+        "SOURCE_REF": values["NGINX_SOURCE_GIT_REF"],
+        "RELEASE_ASSET_NAME": values["NGINX_RELEASE_ASSET_NAME"],
+        "ARCHIVE_SHA256": values["NGINX_SHA256"].lower(),
+        "VERSION_READBACK": "nginx/" + tag.removeprefix("release-"),
+    }
+
+
+def _nginx_action_names(fields: dict[str, str]) -> dict[str, str]:
+    return {
+        "NGINX_SOURCE_MODE": fields["SOURCE_MODE"],
+        "NGINX_SOURCE_REPO_URL": fields["SOURCE_REPOSITORY"],
+        "NGINX_RELEASE_TAG": fields["RELEASE_TAG"],
+        "NGINX_SOURCE_GIT_REF": fields["RELEASE_TAG"],
+        "NGINX_RELEASE_ASSET_NAME": fields["RELEASE_ASSET_NAME"],
+        "NGINX_SHA256": fields["ARCHIVE_SHA256"],
+    }
+
+
+def _nginx_runtime_names(relative: str, fields: dict[str, str]) -> dict[str, str]:
+    version = fields["RELEASE_TAG"].removeprefix("release-")
+    if relative.endswith("nginx_exact_head_result_collector.py"):
+        return {"NGINX_VERSION": version, "NGINX_SOURCE_DIGEST": fields["ARCHIVE_SHA256"]}
+    names = {"EXPECTED_NGINX_VERSION": version}
+    if relative.endswith("write-nginx-functional-a-evidence.py"):
+        return names
+    digest_name = (
+        "EXPECTED_NGINX_SOURCE_SHA256"
+        if relative.endswith("protected_nginx_exact_head_builder.py")
+        else "EXPECTED_NGINX_SOURCE_DIGEST"
+    )
+    names[digest_name] = fields["ARCHIVE_SHA256"]
+    return names
+
+
+def _nginx_python_names(relative: str, fields: dict[str, str]) -> dict[str, str]:
+    if "/runtime/" in relative:
+        return _nginx_runtime_names(relative, fields)
+    provisioning = "/provisioning/" in relative
+    prefix = "NGINX_PINNED_" if provisioning else "CANONICAL_NGINX_"
+    names = {prefix + name: value for name, value in fields.items()}
+    if provisioning:
+        names[prefix + "RELEASE_ASSET_SHA256"] = names.pop(prefix + "ARCHIVE_SHA256")
+    return names
+
+
+def _replace_nginx_handoff(
+    text: str, relative: str, name: str, value: str, *, yaml: bool
+) -> str:
+    if yaml:
+        pattern = rf"(?m)^([ \t]*{name}:)[^\r\n]*$"
+        replacement = r"\g<1> " + value
+    else:
+        pattern = rf'(?m)^{name} = "[^"\r\n]*"$'
+        replacement = name + ' = "' + value + '"'
+    text, count = re.subn(pattern, replacement, text)
+    if count != 1:
+        raise SyncError(f"{relative}:{name} requires one literal handoff")
+    return text
+
+
+def render_nginx_handoffs(root: Path, values: dict[str, str]) -> dict[Path, str]:
+    fields = _nginx_handoff_fields(values)
+    rendered = {}
+    for relative in NGINX_HANDOFF_PATHS:
+        path = require_regular(root / relative, root, "ordinary NGINX handoff")
+        text = _read_trusted_text(path, "ordinary NGINX handoff")
+        yaml = relative.endswith("action.yml")
+        names = _nginx_action_names(fields) if yaml else _nginx_python_names(relative, fields)
+        for name, value in names.items():
+            text = _replace_nginx_handoff(text, relative, name, value, yaml=yaml)
+        rendered[path] = text
+    return rendered
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -910,7 +1015,18 @@ def run(args: argparse.Namespace) -> int:
         expected_lock,
         lock_drift,
     ) = _render_documents(args, values, common_root)
+    # Synthetic parser fixtures and component-only manifests have no connector
+    # sources. Production full synchronization always includes ordinary handoffs.
+    handoffs = (render_nginx_handoffs(common_root, values)
+                if args.test_root is None and args.component is None else {})
+    handoff_drift = {path: text for path, text in handoffs.items()
+                     if path.read_text(encoding="utf-8") != text}
     if args.check:
+        if handoff_drift:
+            print("ordinary NGINX handoff synchronization drift: " +
+                  ", ".join(str(path.relative_to(common_root)) for path in handoff_drift),
+                  file=sys.stderr)
+            return 1
         drift_status = _report_drift(manifest_drift, lock_drift)
         if drift_status:
             return drift_status
@@ -920,6 +1036,8 @@ def run(args: argparse.Namespace) -> int:
             else "runtime components: PASS"
         )
         return 0
+    for path, text in handoff_drift.items():
+        atomic_write(path, text)
     if manifest_drift:
         atomic_write(manifest_path, render_json(expected_manifest))
     if lock_drift and lock_path is not None and expected_lock is not None:

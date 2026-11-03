@@ -5,6 +5,7 @@ import concurrent.futures
 import errno
 import fcntl
 import importlib.util
+import io
 import json
 import os
 import re
@@ -64,6 +65,65 @@ def short_socket_temporary_directory() -> tempfile.TemporaryDirectory:
 
 
 class TraefikNativeLocalPluginTest(unittest.TestCase):
+    @staticmethod
+    def fail_with_sensitive_runner_error(*_args) -> None:
+        process = SimpleNamespace(poll=lambda: 1, returncode="sensitive-request-body")
+        runner.wait_for_socket(Path("/sensitive/runtime/path"), process, "secret-authorization")
+
+    def test_main_failure_reports_source_origin_without_sensitive_message(self) -> None:
+        output = io.StringIO()
+        with mock.patch.object(
+            runner, "run", side_effect=self.fail_with_sensitive_runner_error
+        ), mock.patch.object(runner.sys, "stderr", output):
+            self.assertEqual(runner.main(), 1)
+        self.assertRegex(output.getvalue(), r"RuntimeError at wait_for_socket:\d+\n$")
+        for sensitive in ("sensitive-request-body", "secret-authorization", "/sensitive/runtime/path"):
+            self.assertNotIn(sensitive, output.getvalue())
+
+    def test_runtime_failure_artifact_retains_safe_origin_and_cleanup(self) -> None:
+        output = io.StringIO()
+        setup = SimpleNamespace(upstream=mock.Mock(), engine_socket_dir=object())
+        inputs = SimpleNamespace(engine_socket_parent=object())
+        artifacts = SimpleNamespace(result_path=Path("/unused/result.json"))
+        with mock.patch.multiple(
+            runner,
+            collect_native_runtime_inputs=mock.DEFAULT,
+            stage_native_runtime=mock.DEFAULT,
+            start_native_runtime_setup=mock.DEFAULT,
+            run_native_requests=mock.DEFAULT,
+            stop_native_processes=mock.DEFAULT,
+            remove_private_engine_socket_dir=mock.DEFAULT,
+            cleanup_staged_runtime_workspaces=mock.DEFAULT,
+            write_json=mock.DEFAULT,
+        ) as patched, mock.patch.dict(os.environ, {"MSCONNECTOR_CRS_RUNTIME": "0"}), mock.patch.object(
+            runner.sys, "stderr", output
+        ):
+            patched["collect_native_runtime_inputs"].return_value = inputs
+            patched["stage_native_runtime"].return_value = artifacts
+            patched["start_native_runtime_setup"].return_value = setup
+            patched["run_native_requests"].side_effect = self.fail_with_sensitive_runner_error
+            patched["stop_native_processes"].return_value = (True, True)
+            patched["remove_private_engine_socket_dir"].return_value = True
+            patched["cleanup_staged_runtime_workspaces"].return_value = True
+            self.assertEqual(runner.run(), 1)
+        payload = patched["write_json"].call_args.args[1]
+        self.assertEqual(payload["status"], "FAIL")
+        self.assertFalse(payload["production_ready"])
+        self.assertTrue(payload["processes_stopped"])
+        self.assertRegex(payload["error_origin"], r"^wait_for_socket:\d+$")
+        self.assertIn(payload["error_origin"], output.getvalue())
+        for sensitive in ("sensitive-request-body", "secret-authorization", "/sensitive/runtime/path"):
+            self.assertNotIn(sensitive, json.dumps(payload) + output.getvalue())
+        setup.upstream.shutdown.assert_called_once_with()
+        setup.upstream.server_close.assert_called_once_with()
+        patched["cleanup_staged_runtime_workspaces"].assert_called_once_with(inputs, artifacts)
+
+    def test_failure_origin_excludes_external_frames(self) -> None:
+        try:
+            raise RuntimeError("sensitive external error")
+        except RuntimeError as exc:
+            self.assertEqual(runner.native_failure_origin(exc), "unknown")
+
     def test_normal_client_waits_for_server_eof_after_declared_body(self) -> None:
         body_sent = threading.Event()
         finish_handler = threading.Event()
