@@ -1,6 +1,6 @@
 # Native NGINX-H2/H3-Ausführung
 
-[English](nginx-native-protocol-execution.md)
+**Sprache:** [English](nginx-native-protocol-execution.md) | Deutsch
 
 Der ausgewählte Host akzeptiert nur `http1`, `h2` oder `h3` als Downstreamwerte.
 Unbekannte Werte scheitern vor Hostdispatch mit Exit2 und wählen niemals still H1.

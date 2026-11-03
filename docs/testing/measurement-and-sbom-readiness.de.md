@@ -1,6 +1,6 @@
 # Laufbereitschaft für Messung und Komponenten-SBOM
 
-**Sprache:** Deutsch | [English](measurement-and-sbom-readiness.md)
+**Sprache:** [English](measurement-and-sbom-readiness.md) | Deutsch
 
 Ausgegebenes `$schema` erhält den kanonischen HTTP-Identifier aus `$id` des
 offiziellen CycloneDX1.6-Schemas. Er identifiziert das Schema; der Exporter ruft
@@ -98,8 +98,8 @@ Unterstützte Eingaben:
 
 ```json
 [{"name":"connector-module","version":"development","profile":"nginx-h2",
-  "path":"build/connector.so","build":{"compiler":"tatsächlichen Compiler eintragen",
-  "flags":["tatsächliche Flags eintragen"],"source_revision":"tatsächliche Quelle eintragen"}}]
+  "path":"build/connector.so","build":{"compiler":"record actual compiler",
+  "flags":["record actual flags"],"source_revision":"record actual source"}}]
 ```
 
 Beispiel mit bekannten Eingaben und exakten ausgewählten HEADs:
