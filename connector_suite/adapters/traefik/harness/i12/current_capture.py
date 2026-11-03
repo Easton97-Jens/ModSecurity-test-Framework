@@ -9,30 +9,14 @@ import difflib
 import hashlib
 import json
 from pathlib import Path
+from modsecurity_test_framework.connector_context import framework_revision, source_path
 
+CONTRACT_HASH = '066cecc1f18d5e45437d22714ac0be1bf5865106eb3b8bf291b11fce126b7a94'
 
-PROFILE_HASHES = {
-    'traefik-native': 'a40b3dbe85f04a89970f689c26497d178bb1df3d6f24dfa56e0f1f6abb250683',
-    'traefik-forwardauth': '27ecb4b122a9d873800177c2704a18c56293da6e2029af6854578cc4b793a9f2',
-}
-CENTRAL_HASH = '198c16b71cdd029d8f46ad5c48f7ab37d7d326be0529190b47ac73a98a7237bd'
 RUNTIME = 'common/runtime/msconnector_runtime.c'
 AUTHORIZATION = 'common/runtime/http_authorization_service.c'
 OBSERVER = 'connectors/traefik/response_observer/observer.go'
 PROVENANCE = 'connectors/traefik/response_observer/provenance.go'
-CURRENT = {
-    RUNTIME: '2224eb66d963b9ee4413175fdd89f5719ae214e0bd1efdb1e39d1eaf93f04451',
-    AUTHORIZATION: '6d19d10c6b26c3eab28ee897e16319220488debdc0a3f62752f4d5516b16ede0',
-    OBSERVER: 'd333215d6f6f8c18b9b36b14e908038bd9e1fcc0fe0fa8ed8a04204a4e9da49c',
-    PROVENANCE: '11c0acd0bf014a1dd490c1b0be34cf1b70d9f8b20dd0be682e8639f177daeaa9',
-}
-# Independently pinned results of the reviewed observation-only transformations.
-REBASED = {
-    RUNTIME: '8a4b725280bbcd4f29b335368f41ee3f3ebbf00ffa28748337e752e9a9c07ffb',
-    AUTHORIZATION: 'e0961262d5c098444a9a734d8f32c4058185e2f4043b68b0639e5091dd460c8b',
-    OBSERVER: '95c6eb02327495cf596081584e1b1d5d11ac9da29f4dd5bfcfa4c2a42e3816bf',
-    PROVENANCE: 'f2b32c12484a722c4b1b92f47f014407743facb6758e82a0539e9b2a4fd858e2',
-}
 
 
 def digest(data):
@@ -41,6 +25,23 @@ def digest(data):
 
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
+
+
+def sealed_contract():
+    data = Path(__file__).with_name('capture_contract.json').read_bytes()
+    if digest(data) != CONTRACT_HASH:
+        raise ValueError('Sealed current capture contract differs')
+    return json.loads(data)
+
+
+CONTRACT = sealed_contract()
+PROFILE_HASHES = CONTRACT['profile_hashes']
+CENTRAL_HASH = CONTRACT['central_hash']
+CURRENT = CONTRACT['current']
+OUTPUTS = CONTRACT['outputs']
+# Compatibility name for the forwardAuth product observation outputs.
+REBASED = {name: value for name, value in OUTPUTS['traefik-forwardauth'].items()
+           if not name.startswith('ci/')}
 
 
 def observation_delta(central, historical, observed, current):
@@ -93,6 +94,7 @@ def provenance_observation(central, current):
 
 
 def validate_capture(central, registry, profile_name, target):
+    sealed_contract()
     expected_profile = PROFILE_HASHES.get(profile_name)
     if expected_profile is None:
         raise ValueError('Only sealed Traefik variants are supported')
@@ -115,17 +117,27 @@ def source_write(central, registry, profile_name, target, name, entry):
     path = target / central.relative(name)
     original = central.plain(path) if path.exists() else None
     actual = digest(original) if original is not None else None
-    expected = CURRENT.get(name, entry.get('current_before_sha256', entry['before_sha256']))
+    expected = entry['before_sha256']
     if actual != expected:
         raise ValueError('Exact current source-copy base differs: ' + name)
     output, delta = registry.content(entry['sha256']), None
     strategy = 'central-declared-output'
-    if name in (RUNTIME, AUTHORIZATION) and profile_name == 'traefik-native':
-        output, strategy = original, 'current-product-preserved'
+    if 'framework_input_sha256' in entry:
+        bound = central.plain(source_path(name, root=registry.repository))
+        if digest(bound) != entry['framework_input_sha256'] or output != bound:
+            raise ValueError('Current Framework helper differs: ' + name)
+        strategy = 'current-framework-source-bound'
     elif name in CURRENT:
-        output, delta = observation_delta(central, registry.content(entry['before_sha256']), output, original)
-        strategy = 'sealed-observation-rebased-on-current-product'
-    if name in CURRENT and profile_name == 'traefik-forwardauth' and digest(output) != REBASED.get(name):
+        if original == output:
+            strategy = 'current-product-preserved'
+        else:
+            delta = ''.join(difflib.unified_diff(original.decode().splitlines(keepends=True),
+                output.decode().splitlines(keepends=True), fromfile='a/payload',
+                tofile='b/payload', n=3)).encode()
+            if central.exact_patch(original, delta) != output:
+                raise ValueError('Current observation delta differs')
+            strategy = 'sealed-observation-rebased-on-current-product'
+    if name in CURRENT and digest(output) != OUTPUTS[profile_name].get(name):
         raise ValueError('Pinned current observation output differs: ' + name)
     transformation = {'strategy': strategy, 'input_sha256': actual, 'output_sha256': digest(output),
         'central_output_sha256': entry['sha256'],
@@ -153,18 +165,6 @@ def apply(central, registry, profile_name, target):
     for name, entry in profile['source_targets'].items():
         write, inputs[name], transformations[name] = source_write(central, registry, profile_name, target, name, entry)
         writes.append(write)
-    if profile_name == 'traefik-forwardauth':
-        original = central.plain(target / PROVENANCE)
-        if digest(original) != CURRENT[PROVENANCE]:
-            raise ValueError('Exact current provenance source differs')
-        output, delta = provenance_observation(central, original)
-        if digest(output) != REBASED.get(PROVENANCE):
-            raise ValueError('Pinned provenance observation output differs')
-        inputs[PROVENANCE] = digest(original)
-        transformations[PROVENANCE] = {'strategy': 'current-provenance-context-observation',
-            'input_sha256': digest(original), 'output_sha256': digest(output),
-            'applied_delta_sha256': digest(delta)}
-        writes.append((target / PROVENANCE, output, 420))
     fixture_root = target / '.i12-capture' / profile_name
     if fixture_root.exists():
         raise ValueError('Capture destination already exists')
@@ -176,6 +176,9 @@ def apply(central, registry, profile_name, target):
         'delivery_product_baseline': registry.manifest['delivery_product_baseline'],
         'capture_manifest_sha256': digest(central.plain(registry.root / 'manifest.json')),
         'central_implementation_sha256': CENTRAL_HASH, 'profile_sha256': expected_profile,
+        'capture_contract_sha256': CONTRACT_HASH, 'framework_revision': framework_revision(),
+        'framework_source_sha256': {name: entry['framework_input_sha256']
+            for name, entry in profile['source_targets'].items() if 'framework_input_sha256' in entry},
         'adapter_sha256': digest(Path(__file__).read_bytes()), 'actual_before_sha256': inputs,
         'exact_written_sha256': {str(path.relative_to(target)): digest(data) for path, data, _ in writes},
         'transformations': transformations, 'source_copy_only': True, 'runtime_qualified': False}

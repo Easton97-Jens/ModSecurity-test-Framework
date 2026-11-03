@@ -102,6 +102,8 @@ def prepare(repository, output, leg='traefik-forwardauth-request', cases=None):
     driver = replace(driver, "LEG = 'traefik-forwardauth-request'", 'LEG = ' + repr(leg))
     driver = replace(driver, "CASE = 'I12::traefik-forwardauth-request::NEED-request-eos-once'", 'CASE = ' + repr('I12::'+leg+'::extended-host-capture'))
     driver = replace(driver, "RUN = 'tf-i12-request-20261014'", "RUN = 'i12-traefik-auth-20261015'")
+    driver = replace(driver, "'-pthread','-I',SOURCE/'common/include'",
+        "'-pthread','-I',SOURCE,'-I',SOURCE/'common/include'")
     driver = replace(driver, "backend_port,auth_port,host_port=wait.free_port(),wait.free_port(),wait.free_port()",
         "backend_port,auth_port,host_port,engine_port=wait.free_port(),wait.free_port(),wait.free_port(),wait.free_port()")
     driver = replace(driver, "dynamic.write_text(helper.dynamic_config(backend_port,auth_port,Path(env['MSCONNECTOR_TRAEFIK_FORWARDAUTH_COMPANION_SOCKET'])))",

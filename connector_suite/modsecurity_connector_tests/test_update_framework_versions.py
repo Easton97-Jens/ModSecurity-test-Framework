@@ -132,6 +132,12 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.common = Path(self.temp.name) / "framework/ci/lib/common.sh"
         self.common.parent.mkdir(parents=True)
         self.write_common(CURRENT_CANDIDATE_COMMON)
+        # This suite isolates pin/data transactions. Real immutable caller Git
+        # acquisition and parser compatibility have their own focused tests.
+        caller_source = (test_root() / ".github/workflows/connector-protected-nginx-root-broker-caller.yml").read_bytes()
+        caller_patch = mock.patch.object(SYNC, "_inline_caller_source", return_value=caller_source)
+        caller_patch.start()
+        self.addCleanup(caller_patch.stop)
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -474,7 +480,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertEqual(payload["framework_sha"], NEW_FRAMEWORK_SHA)
         self.assertEqual({key: value for key, value in payload.items() if key != "framework_sha"}, retained_before)
         projected = {self.root / spec.relative_path for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS
-                     if spec.syntax == "framework-workflow"}
+                     if spec.syntax in {"framework-workflow", "framework-inline-caller"}}
         self.assertEqual({path: (body.replace(TEST_PARENT_FRAMEWORK_SHA.encode(), NEW_FRAMEWORK_SHA.encode())
                                 if path in projected else body)
                           for path, body in workflows_before.items()},
@@ -535,6 +541,23 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             set_framework_sha_fixture(ROOT, NEW_FRAMEWORK_SHA)
 
     def run_copied_cli(self, arguments: tuple[str, ...]) -> int:
+        if "--framework-sha" in arguments:
+            # The CLI now reads reviewed caller data from a real candidate Git
+            # object. Give this subprocess fixture an actual committed identity.
+            fixture = Path(self.temp.name) / "caller-object-repository"
+            if not fixture.exists():
+                source = test_root() / ".github/workflows/connector-protected-nginx-root-broker-caller.yml"
+                target = fixture / ".github/workflows/connector-protected-nginx-root-broker-caller.yml"
+                target.parent.mkdir(parents=True)
+                target.write_bytes(source.read_bytes())
+                for args in (("init", "-q"), ("add", "--all"),
+                             ("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                              "commit", "-qm", "reviewed caller source")):
+                    subprocess.run(["git", "-C", str(fixture), *args], check=True, capture_output=True)
+            sha = subprocess.check_output(["git", "-C", str(fixture), "rev-parse", "HEAD"], text=True).strip()
+            arguments = list(arguments)
+            arguments[arguments.index("--framework-sha") + 1] = sha
+            arguments.extend(("--framework-object-root", str(fixture)))
         result = subprocess.run(
             [sys.executable, str(self.root / "ci/tools/sync-framework-component-versions.py"), *arguments],
             capture_output=True, text=True, check=False, timeout=30,
@@ -559,7 +582,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         with mock.patch.object(SYNC, "synchronize", return_value=[]) as synchronize:
             self.assertEqual(SYNC.main(("--validate", "--repo-root", str(ROOT),
                                        "--framework-common", str(self.common))), 0)
-            synchronize.assert_called_once_with(ROOT, self.common, False, None)
+            synchronize.assert_called_once_with(ROOT, self.common, False, None, None)
 
     def test_cli_validate_sync_check_and_second_sync_are_byte_idempotent(self) -> None:
         framework_sha_arguments = ("--framework-sha", NEW_FRAMEWORK_SHA)

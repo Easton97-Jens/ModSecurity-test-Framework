@@ -1825,6 +1825,17 @@ def case_row_observations(
     runner_case_index: dict[Path, str] | None,
     allowed_native_operation_root: Path | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if 'protocol_bundle' in row:
+        from tests.runners import nginx_protocol as protocol
+        root = Path(row['protocol_bundle'])
+        if (connector != 'nginx' or row.get('case_id') not in expectations
+                or allowed_source_root is None or not root.is_absolute()
+                or not root.is_relative_to(allowed_source_root)):
+            raise ValueError('protocol bundle requires selected NGINX case and explicit source authority')
+        proof = protocol.validate_bundle(root, case_id=row['case_id'], run_id=row['run_id'])
+        if protocol.digest(proof['raws']['receipt.json']) != row.get('protocol_receipt_sha256'):
+            raise ValueError('protocol source receipt digest mismatch')
+        return [dict(row)], [sanitized_event(event) for event in proof['native_events']]
     if row.get("evidence_identity") == "request_bound":
         validate_request_observation(row)
     if 'native_operation_receipt' in row:

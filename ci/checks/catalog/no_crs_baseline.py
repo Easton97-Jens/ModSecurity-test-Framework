@@ -1825,6 +1825,15 @@ def derived_invocation_for_case(
     """Expose only reviewed existing executor/reuse boundaries, not free reuses."""
     if connector != "nginx":
         return None
+    from tests.runners.nginx_protocol import invocation as protocol_invocation
+    try:
+        protocol = protocol_invocation(case)
+    except ValueError as exc:
+        raise ContractError(str(exc)) from exc
+    if protocol is not None:
+        if not (FRAMEWORK_ROOT / "connector_suite/modsecurity_connector_ci/runtime/lifecycle/run-nginx-protocol-cases.py").is_file():
+            raise ContractError("native protocol executor source is missing")
+        return protocol
     case_id = str(case.get("case_id") or "")
     descriptor = NGINX_DERIVED_INVOCATIONS.get(case_id)
     if descriptor is None:
@@ -5267,6 +5276,8 @@ def normalize_case_record(
     if not case_id or case_id not in case_by_id:
         return None
     case = case_by_id[case_id]
+    if "protocol_bundle" in raw:
+        return normalize_protocol_record(raw, case, connector, configtest_artifact_root)
     request_bound = raw.get("evidence_identity") == "request_bound"
     _validate_request_bound_case(raw, request_bound)
     if "native_operation_receipt" in raw:
@@ -5360,6 +5371,67 @@ def normalize_case_record(
             validation_errors.extend(configtest_artifact_errors(record, configtest_artifact_root))
         mark_case_record_invalid(record, validation_errors)
     return record
+
+
+def normalize_protocol_record(raw, case, connector, artifact_root):
+    """Verify independent host facts without adding them to native events."""
+    from tests.runners import nginx_protocol as protocol
+    status, reason, proof = "FAIL", "protocol evidence not validated", None
+    try:
+        if connector != "nginx" or protocol.invocation(case) is None or artifact_root is None:
+            raise ValueError("protocol evidence requires declared NGINX operation and artifact authority")
+        if raw.get("status") != "PASS" or raw.get("live_executed") is not True:
+            raise ValueError("protocol proof cannot upgrade failed or unexecuted invocation")
+        if raw.get("integration_mode") != protocol.MODE:
+            raise ValueError("protocol source integration mode differs from native authority")
+        root = Path(raw["protocol_bundle"])
+        root = root if root.is_absolute() else artifact_root / root
+        if not root.is_relative_to(artifact_root) or root == artifact_root:
+            raise ValueError("protocol bundle escaped explicit source authority")
+        if sha256_file(root / "receipt.json") != raw.get("protocol_receipt_sha256"):
+            raise ValueError("protocol receipt differs from sealed source")
+        identities = None
+        if (artifact_root / MANIFEST_FILE_NAME).is_file():
+            manifest = load_json(artifact_root / MANIFEST_FILE_NAME)
+            if not isinstance(manifest, Mapping) or manifest.get("run_id") != raw["run_id"]:
+                raise ValueError("protocol bundle differs from canonical run identity")
+            identities = native_authority_expected_tuple(manifest)
+        proof = protocol.validate_bundle(root, case_id=case["case_id"], run_id=raw["run_id"], identities=identities)
+        status, reason = "PASS", "verified unchanged native witness plus independent client/access/QUIC evidence"
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        reason = str(exc)
+    native = proof["matching_events"] if proof else []
+    fields = set().union(*(set(event) for event in native)) if native else set()
+    host = dict(proof["facts"], run_id=raw["run_id"], transport_case_id=case["case_id"],
+                integration_mode=protocol.MODE) if proof else {}
+    semantics = dict.fromkeys(PHASE4_SEMANTIC_FIELDS)
+    if native:
+        semantics, _ = semantic_runtime_fields({}, native[0])
+    # Explicitly named mapped fields are independently verified host facts;
+    # observed_event_fields lists only fields present in original native bytes.
+    details = {"run_id": raw.get("run_id"), "integration_mode": protocol.MODE,
+               "observed_result": proof["observed_result"] if proof else None,
+               "expected_status": case.get("expected_status"), "actual_status": proof["actual_status"] if proof else None,
+               "expected_rule_id": case.get("expected_rule_id"),
+               "observed_rule_ids": [case["expected_rule_id"]] if proof and case.get("expected_rule_id") else [],
+               "transaction_ids": proof["transaction_ids"] if proof else [],
+               "expected_fields": case.get("expected_event_fields", []),
+               "observed_event_fields": sorted(fields), "event_metadata_verified": bool(proof),
+               "semantic_values": semantics}
+    record = build_normalized_case_record(dict(raw, reason=reason), case, connector, case["case_id"], status, details)
+    record.update(host)
+    record.update(protocol_bundle=raw["protocol_bundle"], protocol_receipt_sha256=raw.get("protocol_receipt_sha256"),
+                  protocol_evidence_mapping={"host_fields": sorted(host), "native_fields": sorted(fields),
+                                             "source": "unchanged native-events.jsonl; client.json; access.jsonl; quic.json"})
+    return record
+
+
+def protocol_record_errors(record, case, connector, artifact_root):
+    verified = normalize_protocol_record(record, case, connector, artifact_root)
+    if verified["status"] != "PASS":
+        return ["protocol revalidation failed: " + verified["reason"]]
+    return ["protocol canonical field differs from reopened evidence: " + key
+            for key, value in verified.items() if key not in {"reason", "artifacts"} and record.get(key) != value]
 
 
 NATIVE_SOURCE_IDENTITY_FIELDS = (
@@ -6193,6 +6265,11 @@ def resolve_deprecated_alias(
         return
     alias_index = positions.get(alias_id)
     alias = records[alias_index] if alias_index is not None else None
+    if alias is not None and "protocol_bundle" in alias:
+        # This legacy operation observed its own allow-200 request. Never
+        # relabel the replacement's deny-403 bundle as another request/case.
+        # Final protocol binding independently reopens this explicit bundle.
+        return
     if target is not None and target.get("status") == "PASS":
         replacement = deprecated_alias_replacement(target, alias_id, case, target_id)
         replace_deprecated_alias_record(records, positions, alias_id, alias_index, replacement)
@@ -7016,6 +7093,7 @@ def bind_case_protocol_provenance(
     case_by_id: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]],
     event_integration_mode: str | None,
+    *, artifact_root: Path | None = None,
 ) -> None:
     """Bind case records to their canonical run and recheck protocol PASSes.
 
@@ -7033,6 +7111,10 @@ def bind_case_protocol_provenance(
         if record.get("status") != "PASS":
             continue
         case = case_by_id.get(str(record.get("case_id") or ""))
+        if "protocol_bundle" in record:
+            context_errors.extend(protocol_record_errors(record, case or {}, "nginx", artifact_root))
+            mark_protocol_provenance_invalid(record, context_errors)
+            continue
         matching_event = matching_protocol_event(
             record, case, events, event_integration_mode,
         )
@@ -7607,6 +7689,8 @@ def normalized_finalize_case_record(
                 or identity["source_revision"] != context.manifest.get("connector_commit")):
             raise ContractError("client request observation differs from the canonical run or source revision")
     case = context.case_by_id.get(str(case_identifier(raw)), {})
+    if "protocol_bundle" in raw:
+        raw = retain_finalize_protocol_bundle(context, raw)
     configuration = config_invocation_for_case(case, context.connector)
     if "configtest_receipt" in raw:
         raw = retain_finalize_configtest_bundle(context, raw)
@@ -7629,6 +7713,36 @@ def normalized_finalize_case_record(
     if record:
         require_selected_native_operation_record(context, record, case, raw)
     return record
+
+
+def retain_finalize_protocol_bundle(context, raw):
+    from tests.runners import nginx_protocol as protocol
+    source = Path(raw["protocol_bundle"])
+    authority = context.configtest_source_roots.get(id(raw))
+    if authority is None or not source.is_absolute() or not source.is_relative_to(authority):
+        raise ContractError("protocol bundle has no bounded explicit source authority")
+    proof = protocol.validate_bundle(source, case_id=raw["case_id"], run_id=context.manifest["run_id"],
+                                    identities={"parent_sha": context.manifest["connector_commit"],
+                                                "framework_sha": context.manifest["framework_commit"],
+                                                "mrts_sha": git_value(FRAMEWORK_ROOT, "rev-parse", context.manifest["framework_commit"] + ":tools/MRTS")})
+    if hashlib.sha256(proof["raws"]["receipt.json"]).hexdigest() != raw["protocol_receipt_sha256"]:
+        raise ContractError("protocol receipt differs before canonical retention")
+    relative = "inventory/native-protocol/" + raw["case_id"]
+    destination = context.run_dir / relative
+    if destination.exists():
+        raise ContractError("duplicate retained native protocol case bundle")
+    for leaf, original in proof["raws"].items():
+        copy_artifact(source / leaf, destination / leaf, maximum_bytes=protocol.LIMIT)
+        (destination / leaf).chmod(0o600)
+        if protocol.read_leaf(destination, leaf) != original:
+            raise ContractError("protocol evidence changed during canonical retention")
+        context.manifest["artifacts"]["native_protocol_" + raw["case_id"] + "_" + leaf.replace(".", "_")] = artifact_entry(
+            relative + "/" + leaf, "produced", sha256=protocol.digest(original),
+        )
+    normalized = deepcopy(dict(raw))
+    normalized["protocol_bundle"] = relative
+    normalized["artifacts"] = {"native_protocol_dir": relative}
+    return normalized
 
 
 def require_selected_native_operation_record(
@@ -7787,6 +7901,7 @@ def complete_finalize_records(
         context.case_by_id,
         events,
         context.event_integration_mode,
+        artifact_root=context.run_dir,
     )
 
 
@@ -7794,19 +7909,24 @@ def validate_protocol_client_records(
     records: Sequence[dict[str, Any]],
     case_by_id: Mapping[str, Mapping[str, Any]],
     artifact_dir: Path | None,
+    *, native_protocol_root: Path | None = None,
 ) -> None:
     for record in records:
-        validate_protocol_client_record(record, case_by_id, artifact_dir)
+        validate_protocol_client_record(record, case_by_id, artifact_dir, native_protocol_root=native_protocol_root)
 
 
 def validate_protocol_client_record(
     record: dict[str, Any],
     case_by_id: Mapping[str, Mapping[str, Any]],
     artifact_dir: Path | None,
+    *, native_protocol_root: Path | None = None,
 ) -> None:
     if record.get("status") != "PASS":
         return
     case = case_by_id.get(str(record.get("case_id") or ""))
+    if "protocol_bundle" in record:
+        mark_protocol_client_evidence_invalid(record, protocol_record_errors(record, case or {}, "nginx", native_protocol_root))
+        return
     try:
         protocol = record_protocol_profile(record, case)
     except ContractError as exc:
@@ -8373,6 +8493,7 @@ def finalize_run(args: argparse.Namespace) -> int:
     )
     validate_protocol_client_records(
         records, context.case_by_id, protocol_client_artifact_dir,
+        native_protocol_root=context.run_dir,
     )
     deduplicated = write_finalize_case_results(context, records)
     copy_finalize_logs(context, args)
@@ -9170,6 +9291,8 @@ def pass_case_completeness_errors(
         return []
     case_id = record.get("case_id")
     case = next((case for case in catalog_cases(load_catalog()) if case["case_id"] == case_id), {})
+    if "protocol_bundle" in record:
+        return [f"{case_id}: {error}" for error in protocol_record_errors(record, case, connector, artifact_root)]
     if record.get("native_operation_receipt") is not None:
         if native_invocation_for_case(case, connector) is None:
             return [f"{case_id}: native receipt has no declared case/host contract"]
@@ -9194,6 +9317,8 @@ def generic_pass_case_completeness_errors(
 ) -> list[str]:
     case_id = record.get("case_id")
     errors: list[str] = []
+    if "protocol_bundle" in record:
+        return [f"{case_id}: protocol proof requires artifact revalidation"]
     if record.get("configtest_receipt") is not None:
         errors.append(f"{case_id}: configuration receipt has no declared case/host contract")
     if record.get("live_executed") is not True:
@@ -9915,6 +10040,11 @@ def protocol_client_errors(run_dir: Path) -> list[str]:
     catalog = load_catalog()
     case_by_id = {case["case_id"]: case for case in catalog_cases(catalog)}
     errors, modern_records = modern_protocol_pass_records(records, case_by_id)
+    native_protocol_records = [(record, profile) for record, profile in modern_records if "protocol_bundle" in record]
+    for record, _ in native_protocol_records:
+        errors.extend(f"{record['case_id']}: {error}" for error in protocol_record_errors(
+            record, case_by_id.get(record["case_id"], {}), "nginx", run_dir))
+    modern_records = [(record, profile) for record, profile in modern_records if "protocol_bundle" not in record]
     if not modern_records:
         return errors
     errors.extend(multiple_modern_protocol_errors(modern_records))

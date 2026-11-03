@@ -1,0 +1,42 @@
+--- a/payload
++++ b/payload
+@@ -540,6 +540,7 @@
+ 	state.requestBodyChunks++
+ 	state.requestBodyBytes += int64(len(chunk))
+ 	decision, err := state.engine.ProcessBody(contextValue, DirectionRequest, chunk, end)
++	i12Observe(state.metadata.TransactionID, "request_body_callback_return", map[string]interface{}{"input_bytes": len(chunk), "end_argument": end, "error": err != nil})
+ 	if end && err == nil {
+ 		state.requestEOS = true
+ 	}
+@@ -573,6 +574,7 @@
+ 	state.responseBodyChunks++
+ 	state.responseBodyBytes += int64(len(chunk))
+ 	decision, err := state.engine.ProcessBody(contextValue, DirectionResponse, chunk, end)
++	i12Observe(state.metadata.TransactionID, "response_body_callback_return", map[string]interface{}{"input_bytes": len(chunk), "end_argument": end, "error": err != nil})
+ 	if err != nil {
+ 		state.terminalError = err
+ 		return allowDecision(), err
+@@ -833,6 +835,7 @@
+ 		buffer = buffer[:body.state.config.MaxRequestChunkBytes]
+ 	}
+ 	count, readErr := body.readWithIdleTimeout(buffer)
++	i12Observe(body.state.metadata.TransactionID, "request_reader_return", map[string]interface{}{"bytes": count, "eof": errors.Is(readErr, io.EOF), "error": readErr != nil && !errors.Is(readErr, io.EOF)})
+ 	if count > 0 {
+ 		end := errors.Is(readErr, io.EOF)
+ 		if err := body.state.processRequestBody(body.request.Context(), buffer[:count], end); err != nil {
+@@ -1031,6 +1034,7 @@
+ 		return 0, false, err
+ 	}
+ 	count, writeErr := writer.target.Write(chunk)
++	i12Observe(writer.state.metadata.TransactionID, "writer_write_body_return", map[string]interface{}{"input_bytes": len(chunk), "bytes": count, "error": writeErr != nil})
+ 	var commitErr error
+ 	if count > 0 {
+ 		commitErr = writer.markResponseCommit(0, true, true)
+@@ -1101,6 +1105,7 @@
+ 		return
+ 	}
+ 	writer.target.WriteHeader(status)
++	i12Observe(writer.state.metadata.TransactionID, "writer_write_header_return", map[string]interface{}{"status_argument": status})
+ 	writer.committed = true
+ 	writer.markResponseCommit(status, true, false)
+ }

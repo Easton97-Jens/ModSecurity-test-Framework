@@ -1,0 +1,21 @@
+--- a/payload
++++ b/payload
+@@ -282,8 +282,10 @@
+ 	}()
+ 
+ 	if err := writeUDSConnectionFrame(connection, opcode, payload); err != nil {
++		i12Observe(transaction.metadata.TransactionID, "uds_frame_write_error", map[string]interface{}{"opcode": opcode, "payload_bytes": len(payload), "error": true})
+ 		return transaction.discardConnectionLocked(connection, ctx, err)
+ 	}
++	i12Observe(transaction.metadata.TransactionID, "uds_frame_write_return", map[string]interface{}{"opcode": opcode, "payload_bytes": len(payload), "error": false})
+ 	responseOpcode, response, err := readUDSFrame(connection)
+ 	if err != nil {
+ 		return transaction.discardConnectionLocked(connection, ctx, err)
+@@ -295,6 +297,7 @@
+ 	if err != nil {
+ 		return transaction.discardConnectionLocked(connection, ctx, err)
+ 	}
++	i12Observe(transaction.metadata.TransactionID, "uds_result_parsed", map[string]interface{}{"opcode": opcode, "error": false})
+ 	return result, nil
+ }
+ 

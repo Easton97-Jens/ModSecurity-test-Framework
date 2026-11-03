@@ -2,6 +2,7 @@
 from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
 import importlib.util
 import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -31,7 +32,8 @@ class CurrentCaptureTests(unittest.TestCase):
         cls.root = Path(cls.temporary.name)
         cls.snapshot = cls.root / 'snapshot'
         EXPORT.export(REPOSITORY, cls.snapshot)
-        registry = CENTRAL.Registry(REPOSITORY / 'ci/runtime/lifecycle/i12', REPOSITORY)
+        cls.directories = {path for path in cls.snapshot.rglob('*') if path.is_dir()}
+        registry = CENTRAL.Registry(source_path('ci/runtime/lifecycle/i12'), REPOSITORY)
         targets = {ADAPTER.PROVENANCE, CENTRAL.MARKER, CENTRAL.SNAPSHOT, 'unknown-file'}
         for profile in ADAPTER.PROFILE_HASHES:
             targets.update(registry.manifest['profiles'][profile]['source_targets'])
@@ -54,7 +56,10 @@ class CurrentCaptureTests(unittest.TestCase):
         capture = self.source / '.i12-capture'
         if capture.exists():
             shutil.rmtree(capture)
-        self.registry = CENTRAL.Registry(REPOSITORY / 'ci/runtime/lifecycle/i12', REPOSITORY)
+        for directory in sorted((path for path in self.source.rglob('*')
+                                 if path.is_dir() and path not in self.directories), reverse=True):
+            directory.rmdir()
+        self.registry = CENTRAL.Registry(source_path('ci/runtime/lifecycle/i12'), REPOSITORY)
 
     def rebind_changed_file(self, relative):
         snapshot_path = self.source / CENTRAL.SNAPSHOT
@@ -99,20 +104,17 @@ class CurrentCaptureTests(unittest.TestCase):
         self.assertEqual(authorization.count('msconnector_lifecycle_authorization_request_eos('), 1)
         self.assertIn('remaining -= received_size;\n    }\n    (void)msconnector_lifecycle_authorization_request_eos(', authorization)
         self.assertIn('msconnector_runtime_transaction_destroy(&entry->transaction);\n        (void)msconnector_lifecycle_companion_retired(', runtime)
-        self.assertIn('transaction->response_companion_handed_off = 1;\n    (void)msconnector_lifecycle_companion_registered(', runtime)
+        self.assertIn('transaction->completion.response_companion_handed_off = 1;\n    (void)msconnector_lifecycle_companion_registered(', runtime)
         self.assert_declared_fixtures(receipt)
 
     def test_old_absolute_offsets_do_not_describe_current_observation_placement(self):
-        profile = self.registry.manifest['profiles']['traefik-forwardauth']
+        recipe = json.loads(Path(ADAPTER.__file__).with_name('capture_recipe.json').read_text())
+        historical = recipe['historical_targets']['traefik-forwardauth']
         for name in (ADAPTER.RUNTIME, ADAPTER.AUTHORIZATION):
             original = (self.source / name).read_bytes()
-            entry = self.registry.manifest['objects'][profile['source_targets'][name]['sha256']]
+            entry = self.registry.manifest['objects'][historical[name]['sha256']]
             absolute = CENTRAL.exact_patch(original, CENTRAL.plain(self.registry.root / entry['patch']))
             self.assertNotEqual(ADAPTER.digest(absolute), ADAPTER.REBASED[name])
-            if name == ADAPTER.AUTHORIZATION:
-                self.assertIn(b'received_size, error) != 1) return 0;\n    (void)msconnector_lifecycle_authorization_request_eos(', absolute)
-            else:
-                self.assertIn(b'MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION :\n        msconnector_runtime_transaction *observed_transaction', absolute)
 
     def assert_declared_fixtures(self, receipt):
         profile = self.registry.manifest['profiles'][receipt['profile']]
@@ -122,7 +124,8 @@ class CurrentCaptureTests(unittest.TestCase):
         for name in ('ci/runtime/lifecycle/native-lifecycle-observer.c',
                      'ci/runtime/lifecycle/native-lifecycle-observer.h'):
             self.assertEqual(receipt['exact_written_sha256'][name], profile['source_targets'][name]['sha256'])
-            self.assertEqual(receipt['transformations'][name]['strategy'], 'central-declared-output')
+            self.assertEqual(receipt['transformations'][name]['strategy'], 'current-framework-source-bound')
+            self.assertEqual((self.source / name).read_bytes(), source_path(name).read_bytes())
 
     def test_rejects_v1_even_with_valid_historical_marker(self):
         marker = {'format': 'i12-disposable-source-copy-v1', 'path': str(self.source),
@@ -173,7 +176,7 @@ class CurrentCaptureTests(unittest.TestCase):
         self.assert_unwritten()
 
     def test_rejects_different_pinned_result_before_writes(self):
-        with mock.patch.dict(ADAPTER.REBASED, {ADAPTER.RUNTIME: '0' * 64}):
+        with mock.patch.dict(ADAPTER.OUTPUTS['traefik-forwardauth'], {ADAPTER.RUNTIME: '0' * 64}):
             with self.assertRaisesRegex(ValueError, 'Pinned current observation output differs'):
                 self.apply()
         self.assert_unwritten()
@@ -182,7 +185,7 @@ class CurrentCaptureTests(unittest.TestCase):
         path = self.source / ADAPTER.PROVENANCE
         path.write_bytes(path.read_bytes() + b'\n// unknown provenance\n')
         self.rebind_changed_file(ADAPTER.PROVENANCE)
-        with self.assertRaisesRegex(ValueError, 'Exact current provenance source differs'):
+        with self.assertRaisesRegex(ValueError, 'Exact current source-copy base differs'):
             self.apply()
         self.assert_unwritten()
 
@@ -191,6 +194,60 @@ class CurrentCaptureTests(unittest.TestCase):
         observed = b'a\nb\nc\nprobe\nd\ne\nf\n'
         with self.assertRaisesRegex(ValueError, 'overlaps changed current product'):
             ADAPTER.observation_delta(CENTRAL, before, observed, b'a\nb\nc\nnew product\nd\ne\nf\n')
+
+    def test_native_observations_preserve_all_current_product_bytes(self):
+        self.apply('traefik-native')
+        for name in ('middleware.go', 'engine_uds.go'):
+            relative = 'connectors/traefik/native_middleware/' + name
+            observed = (self.source / relative).read_bytes()
+            # Native instrumentation consists solely of whole-line calls.
+            uninstrumented = b''.join(line for line in observed.splitlines(True)
+                                      if not line.lstrip().startswith(b'i12Observe('))
+            self.assertEqual(uninstrumented, self.originals[relative])
+        middleware = (self.source / 'connectors/traefik/native_middleware/middleware.go').read_text()
+        self.assertIn('writer.responseCommitErr = err', middleware)
+        self.assertIn('writer.state.responseIsIncomplete()', middleware)
+        engine = (self.source / 'connectors/traefik/native_middleware/engine_uds.go').read_text()
+        self.assertIn('transaction.begun && !summary.ResponseIncomplete', engine)
+
+    def test_forwardauth_keeps_current_guards_and_bound_unmodified_spans(self):
+        self.apply()
+        for key, spans in ADAPTER.CONTRACT['preserved_spans'].items():
+            profile, name = key.split(':', 1)
+            if profile != 'traefik-forwardauth':
+                continue
+            original = source_path(name).read_bytes()
+            observed = (self.source / name).read_bytes()
+            for span in spans:
+                before = original[span['input_start']:span['input_start'] + span['size']]
+                after = observed[span['output_start']:span['output_start'] + span['size']]
+                self.assertEqual(before, after)
+                self.assertEqual(hashlib.sha256(before).hexdigest(), span['sha256'])
+        observer = (self.source / ADAPTER.OBSERVER).read_text()
+        for guard in ('stripProvenanceHeaders(request.Header)', 'validateProvenanceConfig(c)',
+                      '<-watchExited', 'm.confirmProvenance(writer, request)'):
+            self.assertIn(guard, observer)
+        auth = (self.source / ADAPTER.AUTHORIZATION).read_text()
+        for guard in ('authorization_begin_trusted_request(service, &request,',
+                      'service->trusted_binding.complete != NULL',
+                      'msconnector_runtime_transaction_finalize_and_snapshot(transaction,'):
+            self.assertIn(guard, auth)
+        helper = (self.source / 'ci/runtime/lifecycle/native-lifecycle-observer.c').read_bytes()
+        self.assertEqual(helper, source_path('ci/runtime/lifecycle/native-lifecycle-observer.c').read_bytes())
+        self.assertIn(b'if (result == 1 && intervention != NULL)', helper)
+
+    def test_changed_framework_helper_is_rejected_before_writes(self):
+        name = 'ci/runtime/lifecycle/native-lifecycle-observer.c'
+        original_plain = CENTRAL.plain
+
+        def changed(path):
+            data = original_plain(path)
+            return data + b'\n/* unreviewed */\n' if path == source_path(name) else data
+
+        with mock.patch.object(CENTRAL, 'plain', side_effect=changed):
+            with self.assertRaisesRegex(ValueError, 'Source byte hash mismatch'):
+                self.apply()
+        self.assert_unwritten()
 
 
 

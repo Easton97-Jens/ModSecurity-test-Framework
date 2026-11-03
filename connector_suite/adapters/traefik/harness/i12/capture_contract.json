@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "profile_hashes": {
+    "traefik-native": "26e59bebada235dbafb6b6af0ba9fe7bb6a2b96639e23e72910e474d7cde9524",
+    "traefik-forwardauth": "41995b0687c228a5483c9177396a3970b86afa94dc98b10dab071b9016e2e263"
+  },
+  "central_hash": "77f952f100140ca8ea8d166ff9654831b090dc70a20459beba1f856e49974619",
+  "current": {
+    "ci/runtime/lifecycle/native-lifecycle-observer.c": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740",
+    "ci/runtime/lifecycle/native-lifecycle-observer.h": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+    "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e",
+    "common/runtime/http_authorization_service.c": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277",
+    "common/runtime/msconnector_runtime.c": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155",
+    "connectors/traefik/native_middleware/engine_uds.go": "1e88c98c3eca5068cb04459c4af03e8d108bed1a55f5590455e32bee4c1d3ecd",
+    "connectors/traefik/native_middleware/middleware.go": "e3fabbc772c3b5206878a717a428308bcf89ce01851fd360aec0e7995dae7885",
+    "connectors/traefik/response_observer/observer.go": "46c4d054f788cc9bd339bc721b6330a5342a6f2d30acb4f6be7bb0318646ded3",
+    "connectors/traefik/response_observer/provenance.go": "00dd6d359a56c1bfbdb85376477b7aad9cff3a129756845b8fa5ac799aa616e5"
+  },
+  "outputs": {
+    "traefik-native": {
+      "connectors/traefik/native_middleware/middleware.go": "d46e6d6c74213083d40d6bd137f80695c420f249ea064d99ccab0bb8c6c3dfae",
+      "connectors/traefik/native_middleware/engine_uds.go": "6d086345229d4bd9188f79b48848b29b011c60165daf4335e857872efdbf45b6",
+      "common/runtime/msconnector_runtime.c": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155",
+      "common/runtime/http_authorization_service.c": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277",
+      "ci/runtime/lifecycle/native-lifecycle-observer.c": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740",
+      "ci/runtime/lifecycle/native-lifecycle-observer.h": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+      "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e"
+    },
+    "traefik-forwardauth": {
+      "connectors/traefik/response_observer/observer.go": "f66ca34e7ffe10bff64ea8a50b8aaa64d07c5d74136afc966b2f11c2ab20f31b",
+      "common/runtime/msconnector_runtime.c": "cf64d39977590f7ed18ad738e81ca30bba834c3cdb3c199f8a398b9caca9aa13",
+      "common/runtime/http_authorization_service.c": "7b99fe0cd68b28067078ece60353881a9eccd3f3bbc9fe340d6228d5481b666d",
+      "ci/runtime/lifecycle/native-lifecycle-observer.c": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740",
+      "ci/runtime/lifecycle/native-lifecycle-observer.h": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b",
+      "ci/runtime/lifecycle/native-lifecycle-sdk.cpp": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e",
+      "connectors/traefik/response_observer/provenance.go": "742392a091b9748febd09e49fd3dda4b26ccee6b67a29e6dc20a2aeaa05aac55"
+    }
+  },
+  "preserved_spans": {
+    "traefik-native:connectors/traefik/native_middleware/middleware.go": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 19534,
+        "sha256": "08bc8b5533ac624ed3c1e769b7c92191934edab8f5e86e5f71cce20b68e1f049"
+      },
+      {
+        "input_start": 19534,
+        "output_start": 19701,
+        "size": 1190,
+        "sha256": "baa359ea87f0343acc6690d43f9ba9461a200739b8c96653e6241493a0ce741f"
+      },
+      {
+        "input_start": 20724,
+        "output_start": 21059,
+        "size": 8203,
+        "sha256": "2d96d9c123002642e2a4889d7c99f4165efebf50d3e14fe8e91d18f21094509b"
+      },
+      {
+        "input_start": 28927,
+        "output_start": 29465,
+        "size": 6186,
+        "sha256": "61f21328b38b1edb5afbd246cf46cf2197fb8c832ce66e3e73e51850771a3d3c"
+      },
+      {
+        "input_start": 35113,
+        "output_start": 35821,
+        "size": 1996,
+        "sha256": "f34b889ed1e750b77f04c77ea1b4ee224720dc951c0cee1f18b0885737e02b61"
+      },
+      {
+        "input_start": 37109,
+        "output_start": 37947,
+        "size": 13433,
+        "sha256": "8935dedd49988ec6b1855c3d011fb81cf677d735c6732204138cb56f8e440e3b"
+      }
+    ],
+    "traefik-native:connectors/traefik/native_middleware/engine_uds.go": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 8871,
+        "sha256": "1755721b4589f517d14b7bb46f72117c87617dfbb45352c01c9456840a071d2a"
+      },
+      {
+        "input_start": 8871,
+        "output_start": 9033,
+        "size": 70,
+        "sha256": "cadc8ca7ede0ef1c4cb6cac39ecd6314bc9a5f32e45c251b019ec712f5ebc3ee"
+      },
+      {
+        "input_start": 8941,
+        "output_start": 9266,
+        "size": 409,
+        "sha256": "62208847bd5a3a41c07114af157e46675dd2070800ab789ee50d35924a560fe3"
+      },
+      {
+        "input_start": 9350,
+        "output_start": 9802,
+        "size": 7157,
+        "sha256": "8d1af371398ac6125c6864e45c9ccee00ca256c545eb2c3a00570ac6032c8f13"
+      }
+    ],
+    "traefik-native:common/runtime/msconnector_runtime.c": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 194337,
+        "sha256": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155"
+      }
+    ],
+    "traefik-native:common/runtime/http_authorization_service.c": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 78800,
+        "sha256": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277"
+      }
+    ],
+    "traefik-native:ci/runtime/lifecycle/native-lifecycle-observer.c": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 55200,
+        "sha256": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740"
+      }
+    ],
+    "traefik-native:ci/runtime/lifecycle/native-lifecycle-observer.h": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 3443,
+        "sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
+      }
+    ],
+    "traefik-native:ci/runtime/lifecycle/native-lifecycle-sdk.cpp": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 2338,
+        "sha256": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e"
+      }
+    ],
+    "traefik-forwardauth:connectors/traefik/response_observer/observer.go": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 6465,
+        "sha256": "6325e51247991723197d22b52193a889f4b30dccb6b6d62f3557bb6bfa88a540"
+      },
+      {
+        "input_start": 6535,
+        "output_start": 6545,
+        "size": 972,
+        "sha256": "f5c5098ba4772470b3d7a3d7e05f8700048e2383f3b10e9f0efd935686ffe07d"
+      },
+      {
+        "input_start": 7605,
+        "output_start": 7649,
+        "size": 744,
+        "sha256": "12198ca80cbccedb6efe0f771a46850838d8fd2a7a19df7262c8a89f424f2687"
+      },
+      {
+        "input_start": 8472,
+        "output_start": 8548,
+        "size": 1428,
+        "sha256": "0d89d2a5a7df31663b90ce8b6c90f949ee40f7d408003b540b704a358ca4b14d"
+      },
+      {
+        "input_start": 9900,
+        "output_start": 10128,
+        "size": 26,
+        "sha256": "3f73cf8af0f36943d4fb9308d38f4277addeb11d702172fe1be56ddae9900ee3"
+      },
+      {
+        "input_start": 9926,
+        "output_start": 10306,
+        "size": 36,
+        "sha256": "06d1da2c90c651ff48a421a38bdf662419b9f101d64d1d6ce71beb9d3751eecb"
+      },
+      {
+        "input_start": 9962,
+        "output_start": 10655,
+        "size": 5448,
+        "sha256": "224dc4d5a6830442a12a3aebb880343e9427938c4d8264f49bb9b501cf7ec501"
+      },
+      {
+        "input_start": 15410,
+        "output_start": 16227,
+        "size": 716,
+        "sha256": "28a59b1d70d1868474f85ee097188f1b1d388ea804bbe8a975b2b516e838c39f"
+      },
+      {
+        "input_start": 16126,
+        "output_start": 17066,
+        "size": 1634,
+        "sha256": "536618b13e2bb2ee29908691b8e3d46224536c8e5fcbe4ca2300c918f7c8c3d9"
+      },
+      {
+        "input_start": 17760,
+        "output_start": 18866,
+        "size": 3110,
+        "sha256": "e9eecf7bfb33eadc9743040d74182b13946357e150e9b9abaccc27d56186f845"
+      },
+      {
+        "input_start": 20870,
+        "output_start": 22099,
+        "size": 5398,
+        "sha256": "8bfa376e81cf0149f67aaebc7f3837b137769c88a123ea17e41f7ed21009c50e"
+      }
+    ],
+    "traefik-forwardauth:common/runtime/msconnector_runtime.c": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 204,
+        "sha256": "0b8f46e19cfd8c752e30c30141a65dbd6428bba3c04b25ee4e96e6b86e4896ac"
+      },
+      {
+        "input_start": 204,
+        "output_start": 243,
+        "size": 143739,
+        "sha256": "9057a8e668c7a82f048ec2094e51ea02ad7603e3bc534badab83e71399bf4cc8"
+      },
+      {
+        "input_start": 143943,
+        "output_start": 144394,
+        "size": 350,
+        "sha256": "ba5e47562aa10caa481a7e954261764dbcf87993366d98e11e000824fcf28baf"
+      },
+      {
+        "input_start": 144293,
+        "output_start": 144874,
+        "size": 7456,
+        "sha256": "a74ba7a39a5c866e99ff25f662d24957144474a32b72ef2cbaa79557f8a562cf"
+      },
+      {
+        "input_start": 151749,
+        "output_start": 152624,
+        "size": 10079,
+        "sha256": "02411df6ba74ebfda09942b068aab938f72e8f1f793bb6a1552dd49a1d0748ff"
+      },
+      {
+        "input_start": 161828,
+        "output_start": 163095,
+        "size": 32509,
+        "sha256": "0f27646666c39cfe6a398aed8c89b1ee503eea981f466eca0e068a15efc0e4f5"
+      }
+    ],
+    "traefik-forwardauth:common/runtime/http_authorization_service.c": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 73,
+        "sha256": "8db1633c9c3cc212b064c7326bef483b3fdc5ecf02cfb1fed139ddadee04f43e"
+      },
+      {
+        "input_start": 73,
+        "output_start": 112,
+        "size": 41392,
+        "sha256": "d8b170571e4373309125da5bfbfb31a2d39fec03b2d12775c7a46fad2dc64d3c"
+      },
+      {
+        "input_start": 41465,
+        "output_start": 41638,
+        "size": 37335,
+        "sha256": "f7be4b0ff32f074b038d728d7e2a870fb0bdd3ddc6cae2028348f1af44dbd069"
+      }
+    ],
+    "traefik-forwardauth:ci/runtime/lifecycle/native-lifecycle-observer.c": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 55200,
+        "sha256": "5d601896710a248c86098e038b6afb7b8ae50f4df2cd30ab0057d29bba58f740"
+      }
+    ],
+    "traefik-forwardauth:ci/runtime/lifecycle/native-lifecycle-observer.h": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 3443,
+        "sha256": "5b7d8fa7c327017cafb05b1e932f70eefe8641797751a0dc19df0337f4893b1b"
+      }
+    ],
+    "traefik-forwardauth:ci/runtime/lifecycle/native-lifecycle-sdk.cpp": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 2338,
+        "sha256": "a220539856ea8164302f7b427fe72c829f035541387aebce620aebae0fa1310e"
+      }
+    ],
+    "traefik-forwardauth:connectors/traefik/response_observer/provenance.go": [
+      {
+        "input_start": 0,
+        "output_start": 0,
+        "size": 11496,
+        "sha256": "eaac611b00cb70221e9b77c9e659cd0d2e55cdeefe25d7ceaeb378cc107cf6a6"
+      },
+      {
+        "input_start": 11571,
+        "output_start": 11581,
+        "size": 1411,
+        "sha256": "22791ea1aabb248235c03d3f2068e8129d21544d8ecd7926074834a7937b6658"
+      },
+      {
+        "input_start": 13052,
+        "output_start": 13136,
+        "size": 988,
+        "sha256": "e3ee2febe56759d2a32790999280e46b1ca22f3d038e59c978bc38906ea02b62"
+      }
+    ]
+  }
+}

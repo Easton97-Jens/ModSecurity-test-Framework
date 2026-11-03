@@ -152,6 +152,15 @@ literal arguments, as does Make function syntax such as `$(...)`.
 
 ## Protocol, cache, and provisioning
 
+### `NGINX_DOWNSTREAM_PROTOCOL`
+
+Selects the actual native NGINX downstream: `http1` (default), TLS `h2`, or
+QUIC `h3`. H2 requires a compatible `h1-h2` or `h1-h2-h3-quic` build; H3
+requires `h1-h2-h3-quic`. A build profile alone does not change the default.
+Modern canonical cases use the native protocol executor and independently
+verified client/access/QUIC evidence; unsupported stream features remain
+unexecuted. See [native protocol execution](../nginx-native-protocol-execution.md).
+
 ### `PROTOCOL_URL`
 
 | Property | Meaning |
@@ -494,6 +503,19 @@ expected SHA-256)` tuple. A cache entry with a missing, mismatched, or legacy
 non-empty, 64-hex `NGINX_SHA256` value before it is staged or extracted, and
 the staged copy is verified again. These source-provenance checks do not claim
 a connector or production-runtime result.
+
+## Measurement and explicit-input export examples
+
+These caller-supplied example variables do not change runtime profile defaults.
+
+| Variable | Meaning and allowed value |
+|---|---|
+| `PARENT_SHA`, `FRAMEWORK_SHA` | Actual selected clean Parent/Framework HEAD; exact lowercase 40-hex Git revision. |
+| `MEASUREMENT_ROOT`, `INPUT_ROOT` | Fresh task-owned absolute external directories for measurement outputs and reviewed SBOM inputs/outputs. |
+| `GOTOOLCHAIN` | `local` prevents an implicit Go toolchain download. |
+| `GOWORK` | `off` disables incidental workspace-module selection. |
+| `GOPROXY`, `GOSUMDB` | `off` selects cached offline Go module export; missing cache entries remain errors. |
+| `PYTHONNOUSERSITE` | `1` excludes incidental user-site packages from selected Python measurements. |
 
 | Placeholder | What to replace | Allowed values and example |
 |---|---|---|
