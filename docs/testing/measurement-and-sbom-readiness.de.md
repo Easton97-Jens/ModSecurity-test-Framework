@@ -2,6 +2,13 @@
 
 **Sprache:** Deutsch | [English](measurement-and-sbom-readiness.md)
 
+Ausgegebenes `$schema` erhält den kanonischen HTTP-Identifier aus `$id` des
+offiziellen CycloneDX1.6-Schemas. Er identifiziert das Schema; der Exporter ruft
+es nicht ab. Mit vertrauenswürdigen lokalen Schemabytes und verweigertem externem
+Nachladen validieren oder in einem getrennten Verbraucher unabhängig geprüften
+HTTPS-Bezug verwenden. Ein Identifierwechsel ist eine Interoperabilitätsentscheidung,
+keine HTTP-Reparatur.
+
 Dies bereitet eine später ausdrücklich ausgewählte Abnahme vor. Es führt weder
 die Abnahme aus noch qualifiziert es Connectoren/Protokolle. Die 100 Standardfälle
 bleiben unverändert. Historische gezielte Messungen behalten ihren Quellbezug.

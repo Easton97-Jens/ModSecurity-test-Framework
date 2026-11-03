@@ -2,7 +2,6 @@
 """Execute closed native H2/H3 cases; force and independently observe transport."""
 from __future__ import annotations
 
-import argparse
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -18,6 +17,8 @@ from tests.runners import nginx_protocol as CONTRACT
 
 HERE = Path(__file__).resolve().parent
 HOST = load_source(HERE / "run-nginx-valid-rules.py")
+SOURCE_RESULT_FILE = "source-result.json"
+TLS_CERTIFICATE_FILE = "tls.crt"
 
 
 def write(path, value):
@@ -80,10 +81,12 @@ class Backend(BaseHTTPRequestHandler):
         self.do_GET()
 
     def log_message(self, *args):
+        # Suppress BaseHTTPRequestHandler's unstructured access log. The
+        # protocol contract retains bounded native NGINX access records.
         pass
 
 
-def configuration(output, port, upstream, protocol, run_id, case_id):
+def configuration(output, port, upstream, protocol, run_id):
     quic = f"listen 127.0.0.1:{port} quic reuseport; http3 on;" if protocol == "h3" else ""
     return (
         f'load_module "{output}/nginx-module.so";\n'
@@ -100,7 +103,7 @@ def configuration(output, port, upstream, protocol, run_id, case_id):
         'modsecurity_phase4_mode safe;\n'
         f'modsecurity_phase4_log "{output}/native-events.jsonl";\n'
         f'server {{ listen 127.0.0.1:{port} ssl; http2 on; {quic}\n'
-        f'ssl_certificate "{output}/tls.crt"; ssl_certificate_key "{output}/tls.key";\n'
+        f'ssl_certificate "{output / TLS_CERTIFICATE_FILE}"; ssl_certificate_key "{output}/tls.key";\n'
         'ssl_protocols TLSv1.3;\n'
         f'add_header Alt-Svc \'h3=":{port}"; ma=60\' always;\n'
         f'location / {{ proxy_pass http://127.0.0.1:{upstream}; '
@@ -113,7 +116,7 @@ def request(args, output, environment, protocol, path, *, allow=False):
     headers = output / (prefix + ".headers")
     trace = output / (prefix + ".trace")
     command = [args.curl, "--noproxy", "*", "--http2-prior-knowledge" if protocol == "h2" else "--http3-only",
-               "--cacert", str(output / "tls.crt"), "--verbose", "--max-time", "10",
+               "--cacert", str(output / TLS_CERTIFICATE_FILE), "--verbose", "--max-time", "10",
                "--output", os.devnull, "--dump-header", str(headers), "--write-out", "%{json}"]
     if not allow and CONTRACT.CASES[args.case_id][1] == 1:
         command += ["--header", "X-Modsec-Smoke: block"]
@@ -142,7 +145,7 @@ def request(args, output, environment, protocol, path, *, allow=False):
     return observed
 
 
-def preflight(args, output):
+def preflight(output):
     command = [sys.executable, "-P", "-m", "modsecurity_connector_ci.runtime.common.hostruntime_preflight",
                "--execution-context-only", "--connector", "nginx", "--profile", "nginx-native-protocol",
                "--runtime-root", str(output), "--output-dir", str(output / "preflight"),
@@ -156,21 +159,21 @@ def tls_material(output):
     try:
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
                         "-subj", "/CN=localhost", "-addext", "subjectAltName=IP:127.0.0.1,DNS:localhost",
-                        "-keyout", str(output / "tls.key"), "-out", str(output / "tls.crt")],
+                        "-keyout", str(output / "tls.key"), "-out", str(output / TLS_CERTIFICATE_FILE)],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20, check=True)
         yield
     finally:
         (output / "tls.key").unlink(missing_ok=True)
-        (output / "tls.crt").unlink(missing_ok=True)
+        (output / TLS_CERTIFICATE_FILE).unlink(missing_ok=True)
 
 
 def run(args):
     binary, module, output = HOST.BASE.validate_inputs(args)
-    protocol, phase, status, rule = CONTRACT.CASES[args.case_id]
+    protocol, phase, _, rule = CONTRACT.CASES[args.case_id]
     os.umask(0o077)
     output.mkdir(mode=0o700)
     # Fresh same-process-launcher preflight before any identity-dependent host.
-    if preflight(args, output) != 0:
+    if preflight(output) != 0:
         return 77
     client = load_source(Path(args.framework_root) / "ci/checks/protocol/protocol_client.py")
     inspection = client.inspect_curl(args.curl)
@@ -202,7 +205,7 @@ def run(args):
     try:
         certificate.__enter__()
         config = output / "nginx.conf"
-        config.write_text(configuration(output, args.port, backend.server_port, protocol, args.run_id, args.case_id))
+        config.write_text(configuration(output, args.port, backend.server_port, protocol, args.run_id))
         (output / "access.jsonl").touch(mode=0o600)
         argv = [str(output / "nginx-binary"), "-p", str(output) + "/", "-c", str(config)]
         code, stdout, stderr, failure = HOST.BASE.invoke([*argv, "-t"], environment)
@@ -252,7 +255,7 @@ def run(args):
                "sha256": {leaf: CONTRACT.digest(CONTRACT.read_leaf(output, leaf)) for leaf in CONTRACT.LEAVES}}
     write(output / "receipt.json", receipt)
     if blocked:
-        write(output / "source-result.json", {"case_id": args.case_id, "run_id": args.run_id,
+        write(output / SOURCE_RESULT_FILE, {"case_id": args.case_id, "run_id": args.run_id,
               "connector": "nginx", "integration_mode": CONTRACT.MODE, "status": "BLOCKED", "reason": error})
         return 77
     try:
@@ -262,10 +265,10 @@ def run(args):
                "integration_mode": CONTRACT.MODE, "status": "PASS", "live_executed": True,
                "actual_status": proof["actual_status"], "transaction_ids": proof["transaction_ids"],
                "protocol_bundle": str(output), "protocol_receipt_sha256": CONTRACT.digest((output / "receipt.json").read_bytes())}
-        write(output / "source-result.json", row)
+        write(output / SOURCE_RESULT_FILE, row)
         return 0
     except ValueError as exc:
-        write(output / "source-result.json", {"case_id": args.case_id, "run_id": args.run_id,
+        write(output / SOURCE_RESULT_FILE, {"case_id": args.case_id, "run_id": args.run_id,
               "connector": "nginx", "integration_mode": CONTRACT.MODE, "status": "FAIL", "reason": str(exc)})
         print("native protocol case failed: " + str(exc), file=sys.stderr)
         return 1

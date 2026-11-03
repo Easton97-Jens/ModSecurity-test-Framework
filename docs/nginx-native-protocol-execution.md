@@ -2,6 +2,11 @@
 
 [Deutsch](nginx-native-protocol-execution.de.md)
 
+The selected host accepts only `http1`, `h2` or `h3` downstream values. Unknown
+values fail with exit2 before host dispatch; they never silently select H1.
+Receipt/source checks, access bindings, native phase semantics and QUIC checks
+are separate validation stages with the same mandatory integrity conditions.
+
 The native protocol executor connects the existing TLS H2 and QUIC H3 catalog
 contracts to an isolated NGINX master/worker, a loopback upstream and a forced
 curl client. `full-lifecycle-nginx` with `NGINX_DOWNSTREAM_PROTOCOL=h2` or `h3`

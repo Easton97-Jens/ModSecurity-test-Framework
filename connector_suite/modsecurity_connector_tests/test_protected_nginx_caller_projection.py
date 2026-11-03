@@ -82,8 +82,9 @@ class ProtectedCallerProjectionTests(unittest.TestCase):
             (BROKER_FRAMEWORK_SHA.encode(), b"c" * 40),
             (b"permissions: {}", b"permissions:\n  contents: write"),
         ):
+            changed = raw.replace(before, after)
             with self.subTest(before=before), self.assertRaises(self.broker.BrokerError):
-                self.validate(raw.replace(before, after))
+                self.validate(changed)
 
 
     def test_parent_versioned_caller_is_the_exact_generated_projection(self):
@@ -100,8 +101,9 @@ class ProtectedCallerProjectionTests(unittest.TestCase):
         self.validate(after.encode())
         self.assertEqual(after.count("@" + BROKER_SHA), 2)
         self.assertNotIn("uses: Easton97-Jens/ModSecurity-test-Framework/", after)
+        unreviewed = before.decode().replace("contents: read", "contents: write")
         with self.assertRaises(self.sync.SyncError):
-            self.sync._render_inline_caller(spec, before.decode().replace("contents: read", "contents: write"),
+            self.sync._render_inline_caller(spec, unreviewed,
                                           "a" * 40, "b" * 40, self.source)
 
     def test_parent_projector_admits_only_exact_historical_migration_bytes(self):

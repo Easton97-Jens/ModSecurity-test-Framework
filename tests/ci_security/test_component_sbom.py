@@ -78,8 +78,9 @@ class ComponentSbomTests(unittest.TestCase):
             {"Path": "x", "Replace": {"Dir": "../unbound"}},
             {"Path": "x"},
         ):
+            raw = json.dumps(row).encode()
             with self.subTest(row=row), self.assertRaises(ValueError):
-                SBOM.go_components(json.dumps(row).encode())
+                SBOM.go_components(raw)
 
     def test_python_environment_identities_do_not_claim_product_linkage(self):
         actual = SBOM.python_components([{"name": "PyYAML", "version": "6.0.3"}])

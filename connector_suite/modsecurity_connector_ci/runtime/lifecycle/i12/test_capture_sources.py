@@ -164,15 +164,28 @@ class CaptureSourceControls(unittest.TestCase):
         self.assertEqual(CAPTURE.Registry(self.bundle, self.repo).content(after), self.observed)
         rows = json.loads((self.bundle / filename).read_text())
         (self.bundle / filename).write_text(json.dumps(rows + ['changed\n']))
+        registry = CAPTURE.Registry(self.bundle, self.repo)
         with self.assertRaisesRegex(ValueError, 'Source delta hash mismatch'):
-            CAPTURE.Registry(self.bundle, self.repo).content(after)
+            registry.content(after)
         (self.bundle / filename).write_text(json.dumps([42]))
+        registry = CAPTURE.Registry(self.bundle, self.repo)
         with self.assertRaisesRegex(ValueError, 'Invalid lossless text-line object'):
-            CAPTURE.Registry(self.bundle, self.repo).content(after)
+            registry.content(after)
         entry['patch_kind'] = 'unrecognized'
         self.save_manifest()
+        registry = CAPTURE.Registry(self.bundle, self.repo)
         with self.assertRaisesRegex(ValueError, 'Unknown source delta storage kind'):
-            CAPTURE.Registry(self.bundle, self.repo).content(after)
+            registry.content(after)
+
+    def test_current_traefik_product_cannot_be_created_from_missing_source(self):
+        adapter = load_source(source_path('connectors/traefik/harness/i12/current_capture.py'))
+        registry = CAPTURE.Registry(self.bundle, self.repo)
+        entry = {'before_sha256': None, 'sha256': CAPTURE.digest(self.observed)}
+        with self.assertRaisesRegex(ValueError, 'Current product source missing'):
+            adapter.source_write(CAPTURE, registry, 'traefik-forwardauth',
+                                 self.copy, adapter.AUTHORIZATION, entry)
+        self.assertFalse((self.copy / adapter.AUTHORIZATION).exists())
+        self.assertFalse((self.copy / CAPTURE.RECEIPT).exists())
 
     def test_escape_path_refused(self):
         self.manifest["profiles"]["selected"]["capture_files"] = {"../escaped.py": next(iter(self.manifest["profiles"]["selected"]["capture_files"].values()))}

@@ -11,6 +11,12 @@ case "${NGINX_DOWNSTREAM_PROTOCOL:-http1}" in
         # protocol run or manufacture a full-lifecycle qualification.
         exec "${PYTHON:-python3}" "$SCRIPT_DIR/run-selected-nginx-protocol-cases.py"
         ;;
+    http1)
+        ;;
+    *)
+        printf '%s\n' 'unsupported NGINX_DOWNSTREAM_PROTOCOL' >&2
+        exit 2
+        ;;
 esac
 host_rc=0
 sh "$FRAMEWORK_ROOT/ci/runtime/run-nginx-smoke.sh" || host_rc=$?

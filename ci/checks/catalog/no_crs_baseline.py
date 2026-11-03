@@ -5373,30 +5373,36 @@ def normalize_case_record(
     return record
 
 
+def verified_protocol_record_proof(raw, case, connector, artifact_root):
+    """Require declared source authority before reopening original protocol evidence."""
+    from tests.runners import nginx_protocol as protocol
+    if connector != "nginx" or protocol.invocation(case) is None or artifact_root is None:
+        raise ValueError("protocol evidence requires declared NGINX operation and artifact authority")
+    if raw.get("status") != "PASS" or raw.get("live_executed") is not True:
+        raise ValueError("protocol proof cannot upgrade failed or unexecuted invocation")
+    if raw.get("integration_mode") != protocol.MODE:
+        raise ValueError("protocol source integration mode differs from native authority")
+    root = Path(raw["protocol_bundle"])
+    root = root if root.is_absolute() else artifact_root / root
+    if not root.is_relative_to(artifact_root) or root == artifact_root:
+        raise ValueError("protocol bundle escaped explicit source authority")
+    if sha256_file(root / protocol.RECEIPT_FILE) != raw.get("protocol_receipt_sha256"):
+        raise ValueError("protocol receipt differs from sealed source")
+    identities = None
+    if (artifact_root / MANIFEST_FILE_NAME).is_file():
+        manifest = load_json(artifact_root / MANIFEST_FILE_NAME)
+        if not isinstance(manifest, Mapping) or manifest.get("run_id") != raw["run_id"]:
+            raise ValueError("protocol bundle differs from canonical run identity")
+        identities = native_authority_expected_tuple(manifest)
+    return protocol.validate_bundle(root, case_id=case["case_id"], run_id=raw["run_id"], identities=identities)
+
+
 def normalize_protocol_record(raw, case, connector, artifact_root):
     """Verify independent host facts without adding them to native events."""
     from tests.runners import nginx_protocol as protocol
     status, reason, proof = "FAIL", "protocol evidence not validated", None
     try:
-        if connector != "nginx" or protocol.invocation(case) is None or artifact_root is None:
-            raise ValueError("protocol evidence requires declared NGINX operation and artifact authority")
-        if raw.get("status") != "PASS" or raw.get("live_executed") is not True:
-            raise ValueError("protocol proof cannot upgrade failed or unexecuted invocation")
-        if raw.get("integration_mode") != protocol.MODE:
-            raise ValueError("protocol source integration mode differs from native authority")
-        root = Path(raw["protocol_bundle"])
-        root = root if root.is_absolute() else artifact_root / root
-        if not root.is_relative_to(artifact_root) or root == artifact_root:
-            raise ValueError("protocol bundle escaped explicit source authority")
-        if sha256_file(root / "receipt.json") != raw.get("protocol_receipt_sha256"):
-            raise ValueError("protocol receipt differs from sealed source")
-        identities = None
-        if (artifact_root / MANIFEST_FILE_NAME).is_file():
-            manifest = load_json(artifact_root / MANIFEST_FILE_NAME)
-            if not isinstance(manifest, Mapping) or manifest.get("run_id") != raw["run_id"]:
-                raise ValueError("protocol bundle differs from canonical run identity")
-            identities = native_authority_expected_tuple(manifest)
-        proof = protocol.validate_bundle(root, case_id=case["case_id"], run_id=raw["run_id"], identities=identities)
+        proof = verified_protocol_record_proof(raw, case, connector, artifact_root)
         status, reason = "PASS", "verified unchanged native witness plus independent client/access/QUIC evidence"
     except (OSError, ValueError, TypeError, KeyError) as exc:
         reason = str(exc)

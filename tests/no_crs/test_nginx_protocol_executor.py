@@ -2,7 +2,10 @@
 from copy import deepcopy
 import json
 import io
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -23,8 +26,9 @@ class NginxProtocolExecutorTest(unittest.TestCase):
         self.assertNotIn("alpn", facts)
         for changed in ({"http_version": "1.1"}, {"trace": "* ALPN: offers h2\n"},
                         {"trace": "* ALPN: server accepted http/1.1\n"}, {"exit_code": 35}):
+            client = dict(self.client(), **changed)
             with self.subTest(changed=changed), self.assertRaises(ValueError):
-                protocol.client_facts(dict(self.client(), **changed), "h2")
+                protocol.client_facts(client, "h2")
 
     def test_real_quic_header_metadata_excludes_payload_and_raw_connection_id(self):
         port = 18443
@@ -106,7 +110,10 @@ class NginxProtocolExecutorTest(unittest.TestCase):
                 protocol.validate_bundle(root, case_id=case, run_id=run)
         for leaf, mutation, message in (
             ("cleanup.json", {"verified": False}, "cleanup"),
+            ("cleanup.json", {"udp_listener_open": True}, "cleanup"),
+            ("roles.json", {"worker_uid": 0}, "isolated native roles"),
             ("observation.json", {"run_id": "foreign"}, "identity mismatch"),
+            ("observation.json", {"driver_error": "config rejected"}, "original protocol driver failed"),
             ("client.json", {"http_version": "1.1"}, "fallback"),
         ):
             with self.subTest(leaf=leaf), tempfile.TemporaryDirectory() as temporary:
@@ -120,6 +127,35 @@ class NginxProtocolExecutorTest(unittest.TestCase):
                 (root / "receipt.json").write_text(json.dumps(receipt))
                 with self.assertRaisesRegex(ValueError, message):
                     protocol.validate_bundle(root, case_id=case, run_id=run)
+
+    def test_unknown_shell_protocol_is_rejected_before_host_dispatch(self):
+        framework = Path(__file__).resolve().parents[2]
+        script = framework / "connector_suite/modsecurity_connector_ci/runtime/lifecycle/run-nginx-selected-host.sh"
+        # No smoke/config/native script exists in this private root. Explicit
+        # protocol rejection must happen before attempting any of them.
+        with tempfile.TemporaryDirectory() as temporary:
+            environment = dict(os.environ, FRAMEWORK_ROOT=temporary)
+            for value in ("h2c", "unexpected", "H3"):
+                environment["NGINX_DOWNSTREAM_PROTOCOL"] = value
+                result = subprocess.run(["/bin/sh", str(script)], env=environment,
+                                        capture_output=True, timeout=5, check=False)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(result.stderr.strip(), b"unsupported NGINX_DOWNSTREAM_PROTOCOL")
+
+    def test_selected_cli_rejects_unsafe_or_duplicate_identities_before_sources(self):
+        framework = Path(__file__).resolve().parents[2]
+        script = framework / "connector_suite/modsecurity_connector_ci/runtime/lifecycle/run-selected-nginx-protocol-cases.py"
+        for changes, message in (
+            ({"NO_CRS_RUN_ID": "../foreign"}, b"path-safe protocol run identity"),
+            ({"NO_CRS_SELECTED_CASE_IDS": "h2_phase2_deny h2_phase2_deny"}, b"unique bounded tokens"),
+            ({"NO_CRS_SELECTED_CASE_IDS": "../foreign"}, b"unique bounded tokens"),
+        ):
+            environment = dict(os.environ, NO_CRS_RUN_ID="valid-run", NO_CRS_SELECTED_CASE_IDS="h2_phase2_deny")
+            environment.update(changes)
+            result = subprocess.run([sys.executable, str(script)], env=environment,
+                                    capture_output=True, timeout=10, check=False)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn(message, result.stderr)
 
     def test_catalog_binding_rejects_changed_rule_or_protocol(self):
         catalog = json.loads((Path(__file__).parents[1] / "cases/no-crs-baseline/catalog.json").read_text())

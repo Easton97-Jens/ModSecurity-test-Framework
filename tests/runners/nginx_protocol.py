@@ -14,6 +14,8 @@ import stat
 
 MODE = "native-nginx-http-module"
 LIMIT = 262144
+RECEIPT_FILE = "receipt.json"
+ROLES_FILE = "roles.json"
 CASES = {
     "transport_http2_if_supported": ("h2", 4, 200, None),
     **{name: ("h2", 1, 403, 1100001) for name in (
@@ -31,7 +33,7 @@ RESULTS = {case: "transport_http2" if case == "transport_http2_if_supported" els
            "late_intervention_log_only_safe" if case.endswith("_phase4_safe") else case
            for case in CASES}
 LEAVES = frozenset({"observation.json", "native-events.jsonl", "access.jsonl", "client.json",
-                    "quic.json", "cleanup.json", "roles.json"})
+                    "quic.json", "cleanup.json", ROLES_FILE})
 
 
 def digest(raw):
@@ -67,7 +69,7 @@ def client_facts(raw, protocol):
     negotiated = {"2": "h2", "3": "h3"}.get(version)
     trace = raw.get("trace", "")
     require(isinstance(trace, str) and len(trace) <= LIMIT, "bounded client trace required")
-    alpn = re.findall(r"ALPN(?:,|:)\s*server accepted\s+(?:to use\s+)?([^\s]+)", trace)
+    alpn = re.findall(r"ALPN[,:]\s*server accepted\s+(?:to use\s+)?([^\s]+)", trace)
     streams = re.findall(r"\[HTTP/[23]\]\s*\[(\d+)\]\s*(?:OPENED stream|:method:)", trace)
     require(negotiated == protocol, "forced protocol was not negotiated (fallback rejected)")
     require(not alpn or set(alpn) == {protocol}, "observed client TLS ALPN is mismatched")
@@ -105,7 +107,7 @@ def quic_datagram(frame, port):
 
 
 def read_leaf(root, leaf):
-    require(leaf in LEAVES | {"receipt.json"}, "unknown protocol evidence leaf")
+    require(leaf in LEAVES | {RECEIPT_FILE}, "unknown protocol evidence leaf")
     require(root.is_absolute() and ".." not in root.parts, "absolute protocol evidence root required")
     for parent in (root, *root.parents):
         require(not parent.is_symlink(), "protocol evidence cannot traverse a symlink")
@@ -123,10 +125,10 @@ def read_leaf(root, leaf):
     return raw
 
 
-def validate_bundle(root, *, case_id, run_id, identities=None):
-    """Reopen original bytes and verify causal request/event/access bindings."""
+def verified_bundle_bytes(root, case_id, run_id, identities):
+    """Read the closed original inventory and its source-bound receipt."""
     require(case_id in CASES, "unsupported protocol operation; no reset/multiplex promotion")
-    raw_receipt = read_leaf(root, "receipt.json")
+    raw_receipt = read_leaf(root, RECEIPT_FILE)
     receipt = json.loads(raw_receipt)
     require(receipt.get("case_id") == case_id and receipt.get("run_id") == run_id
             and receipt.get("integration_mode") == MODE, "protocol receipt identity mismatch")
@@ -147,15 +149,11 @@ def validate_bundle(root, *, case_id, run_id, identities=None):
     raws = {leaf: read_leaf(root, leaf) for leaf in LEAVES}
     require(all(digest(raw) == receipt["sha256"][leaf] for leaf, raw in raws.items()),
             "protocol evidence digest mismatch")
-    value = {leaf: json.loads(raw) for leaf, raw in raws.items() if not leaf.endswith(".jsonl")}
-    observed, client = value["observation.json"], value["client.json"]
-    protocol, phase, status, rule = CASES[case_id]
-    require(observed.get("case_id") == case_id and observed.get("run_id") == run_id,
-            "protocol observation identity mismatch")
-    require(observed.get("driver_error") is None, "original protocol driver failed")
-    facts = client_facts(client, protocol)
-    require(client.get("http_code") == status and observed.get("actual_status") == status,
-            "actual protocol wire status differs from contract")
+    return receipt, raws, raw_receipt
+
+
+def access_transactions(raws, observed, protocol, status, run_id):
+    """Bind independent allow/contract access rows to distinct run transactions."""
     accesses = [json.loads(line) for line in raws["access.jsonl"].splitlines() if line.strip()]
     require(len(accesses) == 2, "exact allow plus contract request access records required")
     transactions = []
@@ -167,25 +165,50 @@ def validate_bundle(root, *, case_id, run_id, identities=None):
         require(isinstance(access.get("transaction_id"), str)
                 and access["transaction_id"].startswith(run_id + "-"), "native transaction/run binding missing")
         transactions.append(access["transaction_id"])
-    # Both real native access records have independently established ALPN.
-    # This is a server TLS observation, never a substituted client trace fact.
-    facts.update(alpn=protocol, alpn_source="nginx_access_ssl_alpn_protocol")
     require(len(set(transactions)) == 2, "allow and contract request transaction collision")
-    require(value["roles.json"].get("master_uid") == 0 and value["roles.json"].get("worker_uid") == 65534,
-            "observed isolated native roles required")
-    cleanup = value["cleanup.json"]
-    require(cleanup.get("verified") is True and cleanup.get("udp_listener_open") is False,
-            "protocol process/TCP/UDP cleanup not verified")
-    native = [json.loads(line) for line in raws["native-events.jsonl"].splitlines() if line.strip()]
-    def original_allow(transaction, path):
-        return [row for row in native if row.get("transaction_id") == transaction
+    return transactions
+
+
+def original_allow(native, transaction, path, run_id, case_id):
+    return [row for row in native if row.get("transaction_id") == transaction
                 and row.get("uri") == path and row.get("method") == "GET"
                 and row.get("connector") == "nginx" and row.get("integration_mode") == MODE
                 and row.get("run_id") in (None, run_id) and row.get("transport_case_id") in (None, case_id)
                 and row.get("event") == "request_headers_complete" and row.get("status") == "ok"
                 and row.get("requested_action") == "allow"
                 and row.get("phase") in (1, "1", "request_headers")]
-    require(original_allow(transactions[0], "/no-crs/protocol/allow"),
+
+
+def intervention_matches(row, phase, request_path):
+    """Check actual phase-specific native action and response-commit facts."""
+    if phase in (1, 2):
+        return (row.get("uri") == request_path
+                    and row.get("event") in {f"phase{phase}_intervention", "engine_decision"}
+                    and row.get("status") == "blocked" and row.get("requested_action") == "deny"
+                    and row.get("http_status") == 403 and row.get("actual_action") in ("", "deny"))
+    if phase == 3:
+        # Current native Phase-3 intervention omits request URI. Its exact
+        # transaction and rule/phase bind it to the original same-transaction
+        # URI witness above; no URI is copied into the intervention event.
+        return (row.get("event") == "phase3_intervention"
+                    and row.get("status") == "blocked" and row.get("requested_action") == "deny"
+                    and row.get("actual_action") == "deny" and row.get("http_status") == 403
+                    and row.get("visible_http_status") == 403 and row.get("response_committed") is False)
+    if phase == 4:
+        return (row.get("uri") == request_path
+                    and row.get("event") == "phase4_intervention" and row.get("status") == "blocked"
+                    and row.get("requested_action") == "deny" and row.get("actual_action") == "log_only"
+                    and row.get("http_status") == 403 and row.get("visible_http_status") == 200
+                    and row.get("response_committed") is True and row.get("headers_sent") is True
+                    and row.get("late_intervention") is True and row.get("late_intervention_mode") == "safe"
+                    and row.get("connection_aborted") is False)
+    return False
+
+
+def native_semantic_witness(native, transactions, observed, case_id, run_id):
+    """Use original same-transaction events without synthesizing native fields."""
+    _, phase, _, rule = CASES[case_id]
+    require(original_allow(native, transactions[0], "/no-crs/protocol/allow", run_id, case_id),
             "actual allow request lacks original native P1 completion")
     transaction_events = [row for row in native if row.get("transaction_id") == transactions[1]
                 and row.get("connector") == "nginx" and row.get("integration_mode") == MODE
@@ -196,32 +219,14 @@ def validate_bundle(root, *, case_id, run_id, identities=None):
                 and row.get("phase") in (phase, str(phase),
                     {1: "request_headers", 2: "request_body", 3: "response_headers", 4: "response_body"}[phase])]
     if rule is None:
-        matching = original_allow(transactions[1], observed.get("request_path"))
-    elif phase in (1, 2):
-        matching = [row for row in matching if row.get("uri") == observed.get("request_path")
-                    and row.get("event") in {f"phase{phase}_intervention", "engine_decision"}
-                    and row.get("status") == "blocked" and row.get("requested_action") == "deny"
-                    and row.get("http_status") == 403 and row.get("actual_action") in ("", "deny")]
-    elif phase == 3:
-        # Current native Phase-3 intervention omits request URI. Its exact
-        # transaction and rule/phase bind it to the original same-transaction
-        # URI witness above; no URI is copied into the intervention event.
-        matching = [row for row in matching if row.get("event") == "phase3_intervention"
-                    and row.get("status") == "blocked" and row.get("requested_action") == "deny"
-                    and row.get("actual_action") == "deny" and row.get("http_status") == 403
-                    and row.get("visible_http_status") == 403 and row.get("response_committed") is False]
-    elif phase == 4:
-        matching = [row for row in matching if row.get("uri") == observed.get("request_path")
-                    and row.get("event") == "phase4_intervention" and row.get("status") == "blocked"
-                    and row.get("requested_action") == "deny" and row.get("actual_action") == "log_only"
-                    and row.get("http_status") == 403 and row.get("visible_http_status") == 200
-                    and row.get("response_committed") is True and row.get("headers_sent") is True
-                    and row.get("late_intervention") is True and row.get("late_intervention_mode") == "safe"
-                    and row.get("connection_aborted") is False]
+        matching = original_allow(native, transactions[1], observed.get("request_path"), run_id, case_id)
+    else:
+        matching = [row for row in matching if intervention_matches(row, phase, observed.get("request_path"))]
     require(matching, "native intervention/allow semantic witness is missing or contradicts wire outcome")
-    if case_id == "protocol_h3_alt_svc_advertised":
-        require(client.get("alt_svc_h3") is True, "actual Alt-Svc response header missing")
-    quic = value["quic.json"]
+    return matching
+
+
+def add_quic_facts(facts, quic, protocol):
     if protocol == "h3":
         packets = quic.get("datagrams", [])
         require({row.get("direction") for row in packets} == {"request", "response"},
@@ -230,7 +235,36 @@ def validate_bundle(root, *, case_id, run_id, identities=None):
                     and row.get("quic_version") in {"0x00000001", "0x6b3343cf"} for row in packets),
                 "unsupported QUIC version or unhashed connection ID")
         facts.update(quic_connection_id_present=True, quic_version=packets[0]["quic_version"])
+
+
+def validate_bundle(root, *, case_id, run_id, identities=None):
+    """Reopen original bytes and verify causal request/event/access bindings."""
+    receipt, raws, raw_receipt = verified_bundle_bytes(root, case_id, run_id, identities)
+    value = {leaf: json.loads(raw) for leaf, raw in raws.items() if not leaf.endswith(".jsonl")}
+    observed, client = value["observation.json"], value["client.json"]
+    protocol, _, status, _ = CASES[case_id]
+    require(observed.get("case_id") == case_id and observed.get("run_id") == run_id,
+            "protocol observation identity mismatch")
+    require(observed.get("driver_error") is None, "original protocol driver failed")
+    facts = client_facts(client, protocol)
+    require(client.get("http_code") == status and observed.get("actual_status") == status,
+            "actual protocol wire status differs from contract")
+    transactions = access_transactions(raws, observed, protocol, status, run_id)
+    # Both real native access records have independently established ALPN.
+    # This is a server TLS observation, never a substituted client trace fact.
+    facts.update(alpn=protocol, alpn_source="nginx_access_ssl_alpn_protocol")
+    roles = value[ROLES_FILE]
+    require(roles.get("master_uid") == 0 and roles.get("worker_uid") == 65534,
+            "observed isolated native roles required")
+    cleanup = value["cleanup.json"]
+    require(cleanup.get("verified") is True and cleanup.get("udp_listener_open") is False,
+            "protocol process/TCP/UDP cleanup not verified")
+    native = [json.loads(line) for line in raws["native-events.jsonl"].splitlines() if line.strip()]
+    matching = native_semantic_witness(native, transactions, observed, case_id, run_id)
+    if case_id == "protocol_h3_alt_svc_advertised":
+        require(client.get("alt_svc_h3") is True, "actual Alt-Svc response header missing")
+    add_quic_facts(facts, value["quic.json"], protocol)
     return {"facts": facts, "transaction_ids": transactions, "native_events": native,
             "observed_result": RESULTS[case_id],
             "matching_events": matching, "actual_status": status, "receipt": receipt,
-            "raws": dict(raws, **{"receipt.json": raw_receipt})}
+            "raws": dict(raws, **{RECEIPT_FILE: raw_receipt})}

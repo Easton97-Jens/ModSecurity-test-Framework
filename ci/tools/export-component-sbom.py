@@ -114,27 +114,29 @@ def source_components(document: object) -> list[dict]:
     rows = document.get("profiles", document.get("components"))
     if not isinstance(rows, list) or not rows:
         raise ValueError("source input requires nonempty profiles or components")
-    result = []
-    for row in rows:
-        name = row.get("component", row.get("name"))
-        profile = text(row.get("id", row.get("profile", "source")), "source profile")
-        is_git = "commit" in row
-        identity = text(row.get("commit" if is_git else "sha256"), "source identity")
-        if re.fullmatch(r"[0-9a-f]{40}" if is_git else r"[0-9a-f]{64}", identity) is None:
-            raise ValueError("source identity must be an exact lowercase commit or SHA-256")
-        url = text(row.get("repository_url" if is_git else "download_url"), "source URL")
-        if not url.startswith("https://") or "@" in url or "?" in url or "#" in url:
-            raise ValueError("source download URL must be credential-free HTTPS without query or fragment")
-        item = component("library", name, row.get("version"), "locked-source-or-release",
-                         {"profile": profile,
-                          "source-commit" if is_git else "expected-release-sha256": identity})
-        # Lock hashes describe downloaded assets, not the source component itself.
-        reference = {"type": "vcs" if is_git else "distribution", "url": url}
-        if not is_git:
-            reference["hashes"] = [{"alg": "SHA-256", "content": identity}]
-        item["externalReferences"] = [reference]
-        result.append(item)
-    return result
+    return [source_component(row) for row in rows]
+
+
+def source_component(row: dict) -> dict:
+    """Validate one locked source and keep its release hash on the reference."""
+    name = row.get("component", row.get("name"))
+    profile = text(row.get("id", row.get("profile", "source")), "source profile")
+    is_git = "commit" in row
+    identity = text(row.get("commit" if is_git else "sha256"), "source identity")
+    if re.fullmatch(r"[0-9a-f]{40}" if is_git else r"[0-9a-f]{64}", identity) is None:
+        raise ValueError("source identity must be an exact lowercase commit or SHA-256")
+    url = text(row.get("repository_url" if is_git else "download_url"), "source URL")
+    if not url.startswith("https://") or "@" in url or "?" in url or "#" in url:
+        raise ValueError("source download URL must be credential-free HTTPS without query or fragment")
+    item = component("library", name, row.get("version"), "locked-source-or-release",
+                     {"profile": profile,
+                      "source-commit" if is_git else "expected-release-sha256": identity})
+    # Lock hashes describe downloaded assets, not the source component itself.
+    reference = {"type": "vcs" if is_git else "distribution", "url": url}
+    if not is_git:
+        reference["hashes"] = [{"alg": "SHA-256", "content": identity}]
+    item["externalReferences"] = [reference]
+    return item
 
 
 def go_components(data: bytes) -> list[dict]:
@@ -190,6 +192,17 @@ def artifact_components(document: object, base: Path) -> list[dict]:
     return result
 
 
+def input_components(kind: str, raw: bytes, path: Path) -> list[dict]:
+    """Decode one supplied input using its explicit format and artifact base."""
+    if kind == "go":
+        return go_components(raw)
+    document = json.loads(raw)
+    if kind == "artifacts":
+        return artifact_components(document, path.absolute().parent)
+    producer = {"source": source_components, "python": python_components}
+    return producer[kind](document)
+
+
 def export(args: argparse.Namespace) -> dict:
     roots = {"parent": args.parent_root, "framework": args.framework_root}
     revisions = {"parent": args.parent_revision, "framework": args.framework_revision}
@@ -205,13 +218,7 @@ def export(args: argparse.Namespace) -> dict:
             selected.add(identity)
             raw = regular_bytes(path)
             provenance.append({"kind": kind, "path": str(path.absolute()), "sha256": digest(raw)})
-            if kind == "go":
-                components.extend(go_components(raw))
-            else:
-                document = json.loads(raw)
-                producer = {"source": source_components, "python": python_components}
-                components.extend(artifact_components(document, path.absolute().parent)
-                                  if kind == "artifacts" else producer[kind](document))
+            components.extend(input_components(kind, raw, path))
     if not components:
         raise ValueError("at least one nonempty component input is required")
     # Different selected modules/environments can share exactly the same component.
@@ -221,6 +228,7 @@ def export(args: argparse.Namespace) -> dict:
              for name, root in roots.items()}
     if before != after:
         raise ValueError("repository revision or clean state changed during export")
+    # Official CycloneDX 1.6 schema $id; an identifier, not a network request.
     return {"$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
             "bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
             "metadata": {"properties": properties({

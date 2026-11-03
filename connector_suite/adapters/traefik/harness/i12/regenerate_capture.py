@@ -17,6 +17,7 @@ from modsecurity_test_framework.connector_context import (
 )
 
 HERE = Path(__file__).resolve().parent
+ADAPTER_PATH = HERE / 'current_capture.py'
 
 
 def encoded(value):
@@ -56,77 +57,89 @@ def git_blob(row):
         'show', row['revision'] + ':' + row['path']])
 
 
-def generate():
-    central = load_source(source_path('ci/runtime/lifecycle/i12/capture_sources.py'))
-    adapter = load_source(HERE / 'current_capture.py')
-    recipe = json.loads((HERE / 'capture_recipe.json').read_text())
-    registry = central.Registry(source_path('ci/runtime/lifecycle/i12'), connector_root())
-    manifest = copy.deepcopy(registry.manifest)
-    generated = {}
-
-    def add_file(path, data):
-        generated[path] = data
-
+def recover_historical_objects(central, registry, manifest, generated, recipe):
     for row in recipe['historical_objects']:
         identity = row['identity']
         data = git_blob(row)
         if central.digest(data) != identity:
             raise ValueError('Reviewed historical Git blob differs: ' + row['logical_path'])
         filename = 'objects/text/' + identity + '-historical.lines.json'
-        add_file(registry.root / filename, encoded(data.decode().splitlines(keepends=True)))
+        generated[registry.root / filename] = encoded(data.decode().splitlines(keepends=True))
         item = {'kind': 'text_lines', 'file': filename,
                 'historical_git': {key: row[key] for key in ('repository', 'revision', 'path')}}
         manifest['objects'][identity] = item
         registry.cache[identity] = data
-    # Keep strict global validation; unrelated historical variants retain bytes.
-    registry.verify()
 
+
+def validate_current_inputs(central, recipe):
     for name, expected in recipe['current_inputs'].items():
         data = central.plain(source_path(name))
         if central.digest(data) != expected:
             raise ValueError('Reviewed current input differs: ' + name)
 
-    preservation = {}
+
+def observation_output(central, adapter, registry, name, entry, current, framework_owned):
+    # Migrated helpers retain current ABI/admission/finalize code byte for byte.
+    if framework_owned or entry['before_sha256'] == entry['sha256']:
+        return current
+    before, after = historical_anchor_model(name,
+        registry.content(entry['before_sha256']), registry.content(entry['sha256']))
+    output, _ = adapter.observation_delta(central, before, after, current)
+    return output
+
+
+def provenance_target(central, adapter, root, manifest, generated, recipe, preservation):
+    name = adapter.PROVENANCE
+    current = central.plain(source_path(name))
+    output, _ = adapter.provenance_observation(central, current)
+    if central.digest(output) != recipe['expected_outputs']['traefik-forwardauth'][name]:
+        raise ValueError('Independent reviewed provenance output differs')
+    manifest['objects'][central.digest(current)] = {'kind': 'repository', 'path': name}
+    entry = store_output(central, manifest, generated, root,
+                         name, current, output, False)
+    preservation['traefik-forwardauth:' + name] = preserved_spans(central, current, output)
+    return entry
+
+
+def profile_targets(central, adapter, registry, manifest, generated, recipe,
+                    profile_name, historical, preservation):
+    targets = {}
+    for name, entry in historical.items():
+        if name not in recipe['current_inputs']:
+            targets[name] = entry
+            continue
+        current = central.plain(source_path(name))
+        manifest['objects'][central.digest(current)] = {'kind': 'repository', 'path': name}
+        framework_owned = source_path(name).is_relative_to(test_root())
+        output = observation_output(central, adapter, registry, name, entry, current, framework_owned)
+        if central.digest(output) != recipe['expected_outputs'][profile_name][name]:
+            raise ValueError('Independent reviewed output differs: ' + name)
+        targets[name] = store_output(central, manifest, generated, registry.root,
+                                    name, current, output, framework_owned)
+        preservation[profile_name + ':' + name] = preserved_spans(central, current, output)
+    if profile_name == 'traefik-forwardauth':
+        targets[adapter.PROVENANCE] = provenance_target(central, adapter, registry.root,
+            manifest, generated, recipe, preservation)
+    return targets
+
+
+def generate():
+    central = load_source(source_path('ci/runtime/lifecycle/i12/capture_sources.py'))
+    adapter = load_source(ADAPTER_PATH)
+    recipe = json.loads((HERE / 'capture_recipe.json').read_text())
+    registry = central.Registry(source_path('ci/runtime/lifecycle/i12'), connector_root())
+    manifest, generated, preservation = copy.deepcopy(registry.manifest), {}, {}
+    recover_historical_objects(central, registry, manifest, generated, recipe)
+    # Keep strict global validation; unrelated historical variants retain bytes.
+    registry.verify()
+    validate_current_inputs(central, recipe)
     for profile_name, historical in recipe['historical_targets'].items():
         profile = manifest['profiles'][profile_name]
-        targets = {}
-        for name, entry in historical.items():
-            if name not in recipe['current_inputs']:
-                targets[name] = entry
-                continue
-            current = central.plain(source_path(name))
-            input_hash = central.digest(current)
-            manifest['objects'][input_hash] = {'kind': 'repository', 'path': name}
-            framework_owned = source_path(name).is_relative_to(test_root())
-            if framework_owned:
-                # The migrated helper is not in a committed Parent export.
-                # Retain current ABI/admission/finalize code byte for byte.
-                output = current
-            elif entry['before_sha256'] == entry['sha256']:
-                output = current
-            else:
-                before, after = historical_anchor_model(name,
-                    registry.content(entry['before_sha256']), registry.content(entry['sha256']))
-                output, _ = adapter.observation_delta(central, before, after, current)
-            if central.digest(output) != recipe['expected_outputs'][profile_name][name]:
-                raise ValueError('Independent reviewed output differs: ' + name)
-            targets[name] = store_output(central, manifest, generated, registry.root,
-                                        name, current, output, framework_owned)
-            preservation[profile_name + ':' + name] = preserved_spans(central, current, output)
-        if profile_name == 'traefik-forwardauth':
-            name = adapter.PROVENANCE
-            current = central.plain(source_path(name))
-            output, _ = adapter.provenance_observation(central, current)
-            if central.digest(output) != recipe['expected_outputs'][profile_name][name]:
-                raise ValueError('Independent reviewed provenance output differs')
-            manifest['objects'][central.digest(current)] = {'kind': 'repository', 'path': name}
-            targets[name] = store_output(central, manifest, generated, registry.root,
-                                        name, current, output, False)
-            preservation[profile_name + ':' + name] = preserved_spans(central, current, output)
-        profile['source_targets'] = targets
+        profile['source_targets'] = profile_targets(central, adapter, registry,
+            manifest, generated, recipe, profile_name, historical, preservation)
         profile['required_source_identity_format'] = 'i12-disposable-source-copy-v2'
         profile['current_capture_recipe_sha256'] = central.digest((HERE / 'capture_recipe.json').read_bytes())
-    add_file(registry.root / 'manifest.json', encoded(manifest))
+    generated[registry.root / 'manifest.json'] = encoded(manifest)
     contract = {'schema_version': 2,
         'profile_digests': [{'profile': name,
                              'sha256': central.digest(adapter.canonical(manifest['profiles'][name]))}
@@ -136,13 +149,13 @@ def generate():
         'preserved_spans': preservation}
     adapter.profile_digests(contract['profile_digests'])
     contract_bytes = encoded(contract)
-    add_file(HERE / 'capture_contract.json', contract_bytes)
-    adapter_bytes = (HERE / 'current_capture.py').read_text()
+    generated[HERE / 'capture_contract.json'] = contract_bytes
+    adapter_bytes = ADAPTER_PATH.read_text()
     adapter_bytes, count = re.subn(r"CONTRACT_HASH = '[a-f0-9]{64}'",
         "CONTRACT_HASH = '" + central.digest(contract_bytes) + "'", adapter_bytes)
     if count != 1:
         raise ValueError('Single adapter seal declaration required')
-    add_file(HERE / 'current_capture.py', adapter_bytes.encode())
+    generated[ADAPTER_PATH] = adapter_bytes.encode()
     return generated
 
 

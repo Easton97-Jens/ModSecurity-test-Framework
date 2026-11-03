@@ -67,10 +67,9 @@ class ProtectedCallerGeneratorTests(unittest.TestCase):
             self.assertEqual(foreign.read_bytes(), b"preserve")
 
     def test_generator_refuses_unreviewed_source_or_symbolic_revision(self):
+        unreviewed = self.source.replace(b"contents: read", b"contents: write")
         with self.assertRaises(PROJECTION.CallerProjectionError):
-            PROJECTION.render(
-                self.source.replace(b"contents: read", b"contents: write"), "b" * 40
-            )
+            PROJECTION.render(unreviewed, "b" * 40)
         with self.assertRaises(PROJECTION.CallerProjectionError):
             PROJECTION.render(self.source, "master")
 

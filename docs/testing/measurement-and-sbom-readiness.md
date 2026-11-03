@@ -2,6 +2,12 @@
 
 **Language:** English | [Deutsch](measurement-and-sbom-readiness.de.md)
 
+The emitted `$schema` retains the canonical HTTP identifier from the official
+CycloneDX1.6 schema's `$id`. It identifies the schema; the exporter does not fetch
+it. Validate with trusted local schema bytes and deny external retrieval, or
+use independently verified HTTPS acquisition in a separate consumer. Changing
+this normalized identifier is an interoperability decision, not an HTTP fix.
+
 This is preparation for an explicitly selected later assessment. It does not run
 that assessment or qualify any connector/protocol. The default 100 cases remain
 unchanged. Historical targeted coverage retains its original source applicability.

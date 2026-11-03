@@ -28,6 +28,12 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
 
 
+def contextual_patch(before, after):
+    return ''.join(difflib.unified_diff(before.decode().splitlines(keepends=True),
+        after.decode().splitlines(keepends=True), fromfile='a/payload',
+        tofile='b/payload', n=3)).encode()
+
+
 def profile_digests(rows):
     """Decode the closed profile/digest records without changing identities."""
     expected = {'traefik-native', 'traefik-forwardauth'}
@@ -99,8 +105,7 @@ def observation_delta(central, historical, observed, current):
     result = list(source)
     for start, end, replacement in reversed(edits):
         result[start:end] = replacement
-    patch = ''.join(difflib.unified_diff(source, result, fromfile='a/payload',
-                                         tofile='b/payload', n=3)).encode()
+    patch = contextual_patch(current, ''.join(result).encode())
     return central.exact_patch(current, patch), patch
 
 
@@ -116,8 +121,7 @@ def provenance_observation(central, current):
         if text.count(before) != 1:
             raise ValueError('Current provenance observation boundary differs')
         text = text.replace(before, after, 1)
-    patch = ''.join(difflib.unified_diff(current.decode().splitlines(keepends=True),
-        text.splitlines(keepends=True), fromfile='a/payload', tofile='b/payload', n=3)).encode()
+    patch = contextual_patch(current, text.encode())
     return central.exact_patch(current, patch), patch
 
 
@@ -141,6 +145,17 @@ def validate_capture(central, registry, profile_name, target):
     return identity, profile, expected_profile
 
 
+def current_product_delta(central, name, original, output):
+    if original is None:
+        raise ValueError('Current product source missing: ' + name)
+    if original == output:
+        return 'current-product-preserved', None
+    delta = contextual_patch(original, output)
+    if central.exact_patch(original, delta) != output:
+        raise ValueError('Current observation delta differs')
+    return 'sealed-observation-rebased-on-current-product', delta
+
+
 def source_write(central, registry, profile_name, target, name, entry):
     path = target / central.relative(name)
     original = central.plain(path) if path.exists() else None
@@ -156,15 +171,7 @@ def source_write(central, registry, profile_name, target, name, entry):
             raise ValueError('Current Framework helper differs: ' + name)
         strategy = 'current-framework-source-bound'
     elif name in CURRENT:
-        if original == output:
-            strategy = 'current-product-preserved'
-        else:
-            delta = ''.join(difflib.unified_diff(original.decode().splitlines(keepends=True),
-                output.decode().splitlines(keepends=True), fromfile='a/payload',
-                tofile='b/payload', n=3)).encode()
-            if central.exact_patch(original, delta) != output:
-                raise ValueError('Current observation delta differs')
-            strategy = 'sealed-observation-rebased-on-current-product'
+        strategy, delta = current_product_delta(central, name, original, output)
     if name in CURRENT and digest(output) != OUTPUTS[profile_name].get(name):
         raise ValueError('Pinned current observation output differs: ' + name)
     transformation = {'strategy': strategy, 'input_sha256': actual, 'output_sha256': digest(output),
