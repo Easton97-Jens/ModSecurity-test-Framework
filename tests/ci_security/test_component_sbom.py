@@ -15,6 +15,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "ci/tools/export-component-sbom.py"
 SPEC = importlib.util.spec_from_file_location("component_sbom", TOOL)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError("Component SBOM tool import requires a valid module loader")
 SBOM = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SBOM)
 
