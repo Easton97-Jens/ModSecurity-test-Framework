@@ -1,6 +1,6 @@
 # Projektion des geschützten NGINX-Callers
 
-**Sprache:** Deutsch | [English](protected-nginx-caller-projection.md)
+**Sprache:** [English](protected-nginx-caller-projection.md) | Deutsch
 
 Der unveränderliche geschützte Broker erwartet einen Inline-Parent-Caller mit
 fünf Jobs, standardmäßig verweigerten Berechtigungen, exakten Master-/Nicht-Fork-
