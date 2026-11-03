@@ -126,7 +126,10 @@ class Registry:
         elif kind in ("text", "text_lines"):
             result = self._text_content(item, kind)
         elif kind == "delta":
-            patch = plain(self.root / relative(item["patch"]))
+            patch_kind = item.get("patch_kind", "text")
+            if patch_kind not in ("text", "text_lines"):
+                raise ValueError("Unknown source delta storage kind")
+            patch = self._text_content({"file": item["patch"]}, patch_kind)
             if digest(patch) != item["patch_sha256"]:
                 raise ValueError("Source delta hash mismatch")
             result = exact_patch(self.content(item["base"], (*trail, identity)), patch)

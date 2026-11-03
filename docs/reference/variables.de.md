@@ -155,6 +155,16 @@ bleiben literale Argumente.
 
 ## Protokoll, Cache und Provisionierung
 
+### `NGINX_DOWNSTREAM_PROTOCOL`
+
+Wählt den tatsächlichen nativen NGINX-Downstream: `http1` (Standard), TLS `h2`
+oder QUIC `h3`. H2 benötigt einen kompatiblen Build `h1-h2` oder
+`h1-h2-h3-quic`, H3 benötigt `h1-h2-h3-quic`. Ein Buildprofil allein ändert
+den Standard nicht. Moderne kanonische Fälle verwenden den nativen
+Protokollexecutor mit unabhängig geprüfter Client-/Access-/QUIC-Evidence;
+nicht unterstützte Streamfähigkeiten bleiben unausgeführt. Siehe
+[native Protokollausführung](../nginx-native-protocol-execution.de.md).
+
 ### `PROTOCOL_URL`
 
 | Eigenschaft | Bedeutung |
@@ -520,6 +530,19 @@ wiederverwendet werden. Das ausgewählte Archiv muss vor Staging oder Extraktion
 dem nicht leeren, 64-hexadezimalen Wert `NGINX_SHA256` entsprechen; die gestagte
 Kopie wird erneut geprüft. Diese Source-Provenance-Prüfungen behaupten kein
 Connector- oder Produktionsruntime-Ergebnis.
+
+## Beispiele für Messung und Export expliziter Eingaben
+
+Diese Aufrufervariablen der Beispiele ändern keine Runtimeprofilvorgaben.
+
+| Variable | Bedeutung und erlaubter Wert |
+|---|---|
+| `PARENT_SHA`, `FRAMEWORK_SHA` | Tatsächliche ausgewählte saubere Parent-/Framework-HEADs; exakte kleingeschriebene 40-Hex-Gitrevision. |
+| `MEASUREMENT_ROOT`, `INPUT_ROOT` | Frische absolute externe Taskverzeichnisse für Messergebnisse und geprüfte SBOM-Eingaben/-Ausgaben. |
+| `GOTOOLCHAIN` | `local` verhindert impliziten Go-Toolchain-Download. |
+| `GOWORK` | `off` verhindert beiläufige Workspace-Modulauswahl. |
+| `GOPROXY`, `GOSUMDB` | `off` wählt Offline-Go-Modulexport aus dem Cache; Cachelücken bleiben Fehler. |
+| `PYTHONNOUSERSITE` | `1` schließt beiläufige User-Site-Pakete aus ausgewählten Pythonmessungen aus. |
 
 | Platzhalter | Zu ersetzender Wert | Erlaubte Werte und Beispiel |
 |---|---|---|

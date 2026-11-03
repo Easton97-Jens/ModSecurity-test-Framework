@@ -1,0 +1,23 @@
+[
+  "--- a/payload\n",
+  "+++ b/payload\n",
+  "@@ -282,8 +282,10 @@\n",
+  " \t}()\n",
+  " \n",
+  " \tif err := writeUDSConnectionFrame(connection, opcode, payload); err != nil {\n",
+  "+\t\ti12Observe(transaction.metadata.TransactionID, \"uds_frame_write_error\", map[string]interface{}{\"opcode\": opcode, \"payload_bytes\": len(payload), \"error\": true})\n",
+  " \t\treturn transaction.discardConnectionLocked(connection, ctx, err)\n",
+  " \t}\n",
+  "+\ti12Observe(transaction.metadata.TransactionID, \"uds_frame_write_return\", map[string]interface{}{\"opcode\": opcode, \"payload_bytes\": len(payload), \"error\": false})\n",
+  " \tresponseOpcode, response, err := readUDSFrame(connection)\n",
+  " \tif err != nil {\n",
+  " \t\treturn transaction.discardConnectionLocked(connection, ctx, err)\n",
+  "@@ -295,6 +297,7 @@\n",
+  " \tif err != nil {\n",
+  " \t\treturn transaction.discardConnectionLocked(connection, ctx, err)\n",
+  " \t}\n",
+  "+\ti12Observe(transaction.metadata.TransactionID, \"uds_result_parsed\", map[string]interface{}{\"opcode\": opcode, \"error\": false})\n",
+  " \treturn result, nil\n",
+  " }\n",
+  " \n"
+]

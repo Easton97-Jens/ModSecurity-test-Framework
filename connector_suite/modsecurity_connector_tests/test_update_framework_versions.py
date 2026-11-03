@@ -132,6 +132,12 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.common = Path(self.temp.name) / "framework/ci/lib/common.sh"
         self.common.parent.mkdir(parents=True)
         self.write_common(CURRENT_CANDIDATE_COMMON)
+        # This suite isolates pin/data transactions. Real immutable caller Git
+        # acquisition and parser compatibility have their own focused tests.
+        caller_source = (test_root() / ".github/workflows/connector-protected-nginx-root-broker-caller.yml").read_bytes()
+        caller_patch = mock.patch.object(SYNC, "_inline_caller_source", return_value=caller_source)
+        caller_patch.start()
+        self.addCleanup(caller_patch.stop)
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -320,6 +326,8 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         )
         self.assertFalse(
             any("nginx" in spec.relative_path.lower() and spec.syntax != "framework-workflow"
+                and not (spec.syntax == "framework-inline-caller"
+                         and spec.relative_path == ".github/workflows/run-protected-nginx-root-broker.yml")
                 for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS)
         )
 
@@ -474,7 +482,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.assertEqual(payload["framework_sha"], NEW_FRAMEWORK_SHA)
         self.assertEqual({key: value for key, value in payload.items() if key != "framework_sha"}, retained_before)
         projected = {self.root / spec.relative_path for spec in SYNC.FRAMEWORK_SHA_PROJECTION_TARGETS
-                     if spec.syntax == "framework-workflow"}
+                     if spec.syntax in {"framework-workflow", "framework-inline-caller"}}
         self.assertEqual({path: (body.replace(TEST_PARENT_FRAMEWORK_SHA.encode(), NEW_FRAMEWORK_SHA.encode())
                                 if path in projected else body)
                           for path, body in workflows_before.items()},
@@ -517,6 +525,103 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
         self.assertEqual(before, self.target_bytes())
 
+    def mrts_git_objects(self):
+        objects = Path(self.temp.name) / "mrts-framework-objects"
+        objects.mkdir()
+        source = test_root() / SYNC.INLINE_CALLER_SOURCE
+        target = objects / SYNC.INLINE_CALLER_SOURCE
+        target.parent.mkdir(parents=True)
+        target.write_bytes(source.read_bytes())
+        def git(*arguments):
+            return subprocess.check_output(["git", "--no-replace-objects", "-c", "core.hooksPath=/dev/null",
+                "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                "-C", str(objects), *arguments], text=True, stderr=subprocess.PIPE).strip()
+        git("init", "-q")
+        git("add", ".")
+        old_mrts = json.loads((self.root / SYNC.LOCK_RELATIVE_PATH).read_bytes())["mrts_sha"]
+        revisions = []
+        for mrts in (old_mrts, "d" * 40):
+            git("update-index", "--add", "--cacheinfo", "160000," + mrts + ",tools/MRTS")
+            git("commit", "-qm", "nested selection " + mrts)
+            revisions.append(git("rev-parse", "HEAD"))
+        set_framework_sha_fixture(self.root, revisions[0])
+        return objects, revisions[0], revisions[1], "d" * 40
+
+    def test_explicit_mrts_handoff_updates_joint_lock_and_primary_publication(self):
+        objects, _, candidate, mrts = self.mrts_git_objects()
+        base = self.install_admitted_inventory()
+        before = self.all_target_bytes()
+        nginx = self.nginx_pin_lines()
+        old_lock = json.loads((self.root / SYNC.LOCK_RELATIVE_PATH).read_bytes())
+        default_lock, _ = SYNC._render_framework_revision_lock(self.root, candidate, framework_object_root=objects)
+        self.assertEqual(json.loads(default_lock.replacement)["mrts_sha"], old_lock["mrts_sha"])
+        changed = SYNC.synchronize(self.root, self.common, False, candidate, objects, mrts_sha=mrts)
+        self.assertIn(SYNC.LOCK_RELATIVE_PATH, changed)
+        self.assertEqual(self.all_target_bytes(), before)
+        SYNC.synchronize(self.root, self.common, True, candidate, objects, mrts_sha=mrts)
+        actual = json.loads((self.root / SYNC.LOCK_RELATIVE_PATH).read_bytes())
+        self.assertEqual(actual, old_lock | {"framework_sha": candidate, "mrts_sha": mrts})
+        self.assertEqual(self.nginx_pin_lines(), nginx)
+        SYNC.verify_primary_changes(self.root, self.common, candidate, base,
+                                    framework_object_root=objects, mrts_sha=mrts)
+        with self.assertRaisesRegex(SYNC.SyncError, "primary differs"):
+            SYNC.verify_primary_changes(self.root, self.common, candidate, base, framework_object_root=objects)
+        self.assertEqual(SYNC.synchronize(self.root, self.common, True, candidate, objects, mrts_sha=mrts), [])
+
+    def test_explicit_mrts_handoff_rejects_unapproved_or_dishonest_inputs_without_writes(self):
+        objects, _, candidate, mrts = self.mrts_git_objects()
+        for framework, approved in ((None, mrts), (candidate, "A" * 40), (candidate, ""),
+                                    (candidate, "main"), (candidate, "d" * 39), (candidate, "e" * 40),
+                                    ("f" * 40, mrts)):
+            before = self.all_target_bytes()
+            with self.subTest(framework=framework, approved=approved), self.assertRaises(SYNC.SyncError):
+                SYNC.synchronize(self.root, self.common, True, framework, objects, mrts_sha=approved)
+            self.assertEqual(self.all_target_bytes(), before)
+        lock = self.root / SYNC.LOCK_RELATIVE_PATH
+        payload = json.loads(lock.read_bytes())
+        lock.write_text(json.dumps(payload | {"mrts_sha": "e" * 40}))
+        before = self.all_target_bytes()
+        with self.assertRaisesRegex(SYNC.SyncError, "locked MRTS"):
+            SYNC.synchronize(self.root, self.common, True, candidate, objects, mrts_sha=mrts)
+        self.assertEqual(self.all_target_bytes(), before)
+        lock.write_text(json.dumps(payload | {"framework_sha": "f" * 40}))
+        before = self.all_target_bytes()
+        with self.assertRaisesRegex(SYNC.SyncError, "Git provenance"):
+            SYNC.synchronize(self.root, self.common, True, candidate, objects, mrts_sha=mrts)
+        self.assertEqual(self.all_target_bytes(), before)
+
+    def test_explicit_mrts_handoff_rejects_symlink_authority_and_missing_gitlink(self):
+        objects, _, candidate, mrts = self.mrts_git_objects()
+        link = Path(self.temp.name) / "linked-objects"
+        link.symlink_to(objects, target_is_directory=True)
+        before = self.all_target_bytes()
+        with self.assertRaisesRegex(SYNC.SyncError, "symlink"):
+            SYNC.synchronize(self.root, self.common, True, candidate, link, mrts_sha=mrts)
+        subprocess.run(["git", "-C", str(objects), "rm", "--cached", "tools/MRTS"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(objects), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                        "-c", "core.hooksPath=/dev/null", "commit", "-qm", "missing nested link"], check=True, capture_output=True)
+        missing = subprocess.check_output(["git", "-C", str(objects), "rev-parse", "HEAD"], text=True).strip()
+        with self.assertRaisesRegex(SYNC.SyncError, "Git provenance"):
+            SYNC.synchronize(self.root, self.common, True, missing, objects, mrts_sha=mrts)
+        self.assertEqual(self.all_target_bytes(), before)
+
+    def test_explicit_mrts_cli_sync_check_and_verify_primary(self):
+        objects, _, candidate, mrts = self.mrts_git_objects()
+        base = self.install_admitted_inventory()
+        arguments = ("--framework-common", str(self.common), "--framework-sha", candidate,
+                     "--framework-object-root", str(objects), "--mrts-sha", mrts)
+        before = self.all_target_bytes()
+        self.assertEqual(self.run_copied_cli(("--sync", "--framework-common", str(self.common),
+                                             "--mrts-sha", mrts)), 2)
+        self.assertEqual(self.all_target_bytes(), before)
+        self.assertEqual(self.run_copied_cli(("--check", *arguments)), 1)
+        self.assertEqual(self.all_target_bytes(), before)
+        self.assertEqual(self.run_copied_cli(("--sync", *arguments)), 0)
+        self.assertEqual(self.run_copied_cli(("--check", *arguments)), 0)
+        self.assertEqual(self.run_copied_cli(("--verify-primary", "--base", base, *arguments)), 0)
+        self.git("add", "--all")
+        self.assertEqual(self.run_copied_cli(("--verify-primary", "--base", base, "--staged", *arguments)), 0)
+
     def test_framework_revision_lock_symlink_is_rejected_before_writes(self) -> None:
         lock = self.root / "ci/tooling/project-versions.lock.json"
         outside = Path(self.temp.name) / "outside-lock.json"
@@ -534,7 +639,27 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "source checkout"):
             set_framework_sha_fixture(ROOT, NEW_FRAMEWORK_SHA)
 
+    def caller_git_fixture(self):
+        # The CLI reads reviewed caller data from a real candidate Git object.
+        fixture = Path(self.temp.name) / "caller-object-repository"
+        if not fixture.exists():
+            source = test_root() / ".github/workflows/connector-protected-nginx-root-broker-caller.yml"
+            target = fixture / ".github/workflows/connector-protected-nginx-root-broker-caller.yml"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(source.read_bytes())
+            for args in (("init", "-q"), ("add", "--all"),
+                         ("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                          "commit", "-qm", "reviewed caller source")):
+                subprocess.run(["git", "-C", str(fixture), *args], check=True, capture_output=True)
+        sha = subprocess.check_output(["git", "-C", str(fixture), "rev-parse", "HEAD"], text=True).strip()
+        return fixture, sha
+
     def run_copied_cli(self, arguments: tuple[str, ...]) -> int:
+        if "--framework-sha" in arguments and "--framework-object-root" not in arguments:
+            fixture, sha = self.caller_git_fixture()
+            arguments = list(arguments)
+            arguments[arguments.index("--framework-sha") + 1] = sha
+            arguments.extend(("--framework-object-root", str(fixture)))
         result = subprocess.run(
             [sys.executable, str(self.root / "ci/tools/sync-framework-component-versions.py"), *arguments],
             capture_output=True, text=True, check=False, timeout=30,
@@ -559,7 +684,7 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         with mock.patch.object(SYNC, "synchronize", return_value=[]) as synchronize:
             self.assertEqual(SYNC.main(("--validate", "--repo-root", str(ROOT),
                                        "--framework-common", str(self.common))), 0)
-            synchronize.assert_called_once_with(ROOT, self.common, False, None)
+            synchronize.assert_called_once_with(ROOT, self.common, False, None, None, mrts_sha=None)
 
     def test_cli_validate_sync_check_and_second_sync_are_byte_idempotent(self) -> None:
         framework_sha_arguments = ("--framework-sha", NEW_FRAMEWORK_SHA)
@@ -940,10 +1065,10 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
         self.addCleanup(os.close, competing)
         original_render = SYNC._render_targets
 
-        def assert_locked(*args):
+        def assert_locked(*args, **kwargs):
             with self.assertRaises(BlockingIOError):
                 fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return original_render(*args)
+            return original_render(*args, **kwargs)
 
         with mock.patch.object(SYNC, "_render_targets", side_effect=assert_locked):
             SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
@@ -967,12 +1092,13 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             {}, {}, frozenset(), proposed)
 
     def test_framework_update_preserves_admitted_selection_and_native_archive(self) -> None:
+        objects, candidate_sha = self.caller_git_fixture()
         base = self.install_admitted_inventory()
         before = {name: (self.root / name).read_bytes() for name in inventory_updates.COMPANIONS}
         candidate = replace_rhs(future_series_common(), "MODSECURITY_V3_RELEASE_TAG", '"v3.0.17"')
         candidate = replace_rhs(candidate, "MODSECURITY_V3_APPROVED_COMMIT", '"' + "f" * 40 + '"')
         self.write_common(candidate)
-        changed = SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA)
+        changed = SYNC.synchronize(self.root, self.common, True, candidate_sha, objects)
         self.assertFalse(inventory_updates.COMPANIONS & set(changed))
         self.assertEqual({name: (self.root / name).read_bytes() for name in inventory_updates.COMPANIONS}, before)
         self.assertEqual(len(load_inventory(self.root).case_ids), 2)
@@ -991,15 +1117,15 @@ class SyncFrameworkVersionsTests(unittest.TestCase):
             row["source_sha256"] = hashlib.sha256((self.root / row["source"]).read_bytes()).hexdigest()
         self.assertEqual(json.loads((self.root / inventory_updates.ARCHIVE).read_bytes()), expected_archive)
         self.verify_legacy_publication(base)
-        SYNC.verify_primary_changes(self.root, self.common, NEW_FRAMEWORK_SHA, base)
-        verification = ("--verify-primary", "--base", base, "--framework-sha", NEW_FRAMEWORK_SHA,
-                        "--framework-common", str(self.common))
+        SYNC.verify_primary_changes(self.root, self.common, candidate_sha, base, framework_object_root=objects)
+        verification = ("--verify-primary", "--base", base, "--framework-sha", candidate_sha,
+                        "--framework-common", str(self.common), "--framework-object-root", str(objects))
         self.assertEqual(self.run_copied_cli(verification), 0)
         self.git("add", "--all")
         self.verify_legacy_publication(base, staged=True)
-        SYNC.verify_primary_changes(self.root, self.common, NEW_FRAMEWORK_SHA, base, staged=True)
+        SYNC.verify_primary_changes(self.root, self.common, candidate_sha, base, staged=True, framework_object_root=objects)
         self.assertEqual(self.run_copied_cli((*verification, "--staged")), 0)
-        self.assertEqual(SYNC.synchronize(self.root, self.common, True, NEW_FRAMEWORK_SHA), [])
+        self.assertEqual(SYNC.synchronize(self.root, self.common, True, candidate_sha, objects), [])
 
     def test_framework_publication_rejects_forged_sources_selection_and_modes(self) -> None:
         base = self.install_admitted_inventory()

@@ -42,6 +42,10 @@ prepare_nginx_native_authority() {
     if [ "$connector:$NO_CRS_ARTIFACT_PROFILE" != nginx:full_lifecycle ]; then
         return 0
     fi
+    if [ "${NGINX_DOWNSTREAM_PROTOCOL:-http1}" != http1 ]; then
+        # The modern executor never invokes H1-native fault operations.
+        return 0
+    fi
     native_selected=$("$PYTHON" - "$FRAMEWORK_ROOT" "$NO_CRS_SELECTED_CASE_IDS" <<'PY'
 import importlib.util
 import json

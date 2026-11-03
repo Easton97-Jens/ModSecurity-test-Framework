@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "2c1b73b77f9a41feafe69d41a220ef8d97ee2fe3fba0b7a36d2a0413cd231ceb",
+  "inventory_sha256": "ad8465845ffc0a1bc326a104e6d7ca46ed18782b8252db207d2a200aeed515bd",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8045,
+  "on_demand_definition_count": 8096,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -2964,6 +2964,8 @@
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_context_patch_has_no_fuzz",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_zero_context_patch_matches_standard_offsets",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_lossless_source_lines_preserve_original_whitespace",
+        "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_lossless_delta_lines_preserve_patch_bytes_and_hash",
+        "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_current_traefik_product_cannot_be_created_from_missing_source",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_escape_path_refused",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_non_directory_capture_parent_refused_before_product_write",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.ArchiveStorageControls.test_executable_source_objects_require_inert_line_storage",
@@ -2997,7 +2999,7 @@
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CurrentApacheProfileControls.test_unknown_required_identity_format_rejected_by_registry"
       ],
       "source": "ci/runtime/lifecycle/i12/test_capture_sources.py",
-      "source_sha256": "9666c249b324c00975c68f9c43e0bc625080f28b2c68f236883f3159f2289f38"
+      "source_sha256": "22813590046081219ac865bf44fa5f2516fd85c8dd8fc0b137460debc48b9b14"
     },
     {
       "contains_selected_definitions": [],
@@ -8055,15 +8057,15 @@
         "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_enhanced_build_profile_does_not_invent_a_different_downstream",
         "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_explicit_http1_remains_authoritative",
         "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_http1_plan_excludes_h2_h3_even_with_capable_fixture",
-        "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_explicit_h2_reaches_selection_but_missing_executors_block_init",
-        "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_explicit_h3_reaches_selection_but_missing_executors_block_init",
+        "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_explicit_h2_reaches_init_with_native_protocol_executor",
+        "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_explicit_h3_reaches_init_with_native_protocol_executor",
         "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_overpromoted_capabilities_do_not_invent_execution_descriptors",
         "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_invalid_and_conflicting_protocols_fail_before_selection",
         "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_generic_nginx_plan_remains_any",
         "modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring.NginxFullLifecycleProtocolWiringTest.test_other_connector_full_lifecycle_plan_remains_any"
       ],
       "source": "tests/test_nginx_full_lifecycle_protocol_wiring.py",
-      "source_sha256": "24f49750838ac3b91a8eb2930bce2e16501866d4861da4c6ea4dcf3482af80b9"
+      "source_sha256": "b6e7cec94a9c21e836e83eebe94a7e27ab2168de868dcc4a74912c9964ee918e"
     },
     {
       "contains_selected_definitions": [],
@@ -8847,7 +8849,7 @@
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_worker_writable_log_layout_is_exact_and_log_files_stay_fail_closed",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_cleanup_removes_worker_layout_after_failed_config_test",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_projection_rejects_symlink_or_special_inputs_before_copy",
-        "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_current_delegated_caller_is_rejected_by_the_inline_broker_contract",
+        "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_historical_delegated_caller_is_rejected_by_the_inline_broker_contract",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_accepts_the_exact_two_immutable_broker_jobs",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_accepts_uniform_ubuntu26_runners",
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_yaml_contract_rejects_mixed_runner_modes",
@@ -8870,7 +8872,7 @@
         "modsecurity_connector_tests.test_nginx_root_broker.TrustedNginxRootBrokerTest.test_caller_workflow_real_git_object_rejections_are_fail_closed"
       ],
       "source": "tests/test_nginx_root_broker.py",
-      "source_sha256": "a94ae2785f73f8b670c9d6a2477f0b331ce72cfb41ddfa43af79e01bcecb0043"
+      "source_sha256": "f25f2764bd378e3cdbea7273626de66c919fc83362f709d275d86c1d570402ad"
     },
     {
       "contains_selected_definitions": [],
@@ -9613,6 +9615,21 @@
       ],
       "source": "tests/test_protected_nginx_broker_caller.py",
       "source_sha256": "bbfbc65d6efcb032769bd425cdf75ebb1ebd5a579a69146beba0917143ab1bef"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_protected_nginx_caller_projection.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_protected_nginx_caller_projection.ProtectedCallerProjectionTests.test_original_delegation_fails_actual_immutable_contract",
+        "modsecurity_connector_tests.test_protected_nginx_caller_projection.ProtectedCallerProjectionTests.test_generated_current_source_passes_actual_immutable_contract",
+        "modsecurity_connector_tests.test_protected_nginx_caller_projection.ProtectedCallerProjectionTests.test_weakened_gate_and_mutable_or_changed_protected_pins_fail",
+        "modsecurity_connector_tests.test_protected_nginx_caller_projection.ProtectedCallerProjectionTests.test_parent_versioned_caller_is_the_exact_generated_projection",
+        "modsecurity_connector_tests.test_protected_nginx_caller_projection.ProtectedCallerProjectionTests.test_parent_typed_projector_agrees_with_framework_generator_and_preserves_broker_pins",
+        "modsecurity_connector_tests.test_protected_nginx_caller_projection.ProtectedCallerProjectionTests.test_parent_projector_admits_only_exact_historical_migration_bytes",
+        "modsecurity_connector_tests.test_protected_nginx_caller_projection.ProtectedCallerProjectionTests.test_parent_reads_fixed_caller_source_from_exact_framework_git_object"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_protected_nginx_caller_projection.py",
+      "source_sha256": "afd400152836b9612e36ed73c585e9b2ec2d1bf3113da9cc9b71eb464f6bede5"
     },
     {
       "contains_selected_definitions": [],
@@ -10580,10 +10597,11 @@
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_timing_stage_rejects_unexpected_parallel_coverage_data",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_offline_summary_cannot_claim_another_admitted_case",
         "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_finalization_retains_completed_offline_measurement_evidence",
-        "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_finalization_rejects_other_revision_before_combining_data"
+        "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_finalization_rejects_other_revision_before_combining_data",
+        "modsecurity_connector_tests.test_sonar_coverage.SonarCoverageTests.test_finalization_rejects_other_or_unbound_framework_before_combining"
       ],
       "source": "tests/test_sonar_coverage.py",
-      "source_sha256": "7b96bc9997fdb250d2b472c36b3aff5d97deff900f2256c50e9f0b745e0ac5ff"
+      "source_sha256": "f1be2162fbf4b2d781b71bc5bb954b2c0763cea85af96153dcc5fca5679ed6d6"
     },
     {
       "contains_selected_definitions": [],
@@ -10881,7 +10899,7 @@
         "modsecurity_connector_tests.test_traefik_i12_auth.AuthCaptureControls.test_central_capture_is_bound_without_host_execution"
       ],
       "source": "tests/test_traefik_i12_auth.py",
-      "source_sha256": "cdd85bfdbb3da8d3e93a441a6ce37b43f54c859f4bdeaa78d1f2bb8253d8d19e"
+      "source_sha256": "189b65089a440ffeab7410750292ea2d902d8049e00af7b4dc64ccd1fcf1068e"
     },
     {
       "contains_selected_definitions": [],
@@ -11015,6 +11033,7 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_traefik_i12_current_capture.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_typed_profile_digest_contract_rejects_invalid_records",
         "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_native_preserves_current_runtime_and_authorization",
         "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_forwardauth_rebases_all_product_observations",
         "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_old_absolute_offsets_do_not_describe_current_observation_placement",
@@ -11026,10 +11045,13 @@
         "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_rejects_tampered_sealed_central_delta_before_writes",
         "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_rejects_different_pinned_result_before_writes",
         "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_rejects_unknown_provenance_input",
-        "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_observation_delta_rejects_overlap_with_product_edit"
+        "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_observation_delta_rejects_overlap_with_product_edit",
+        "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_native_observations_preserve_all_current_product_bytes",
+        "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_forwardauth_keeps_current_guards_and_bound_unmodified_spans",
+        "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_changed_framework_helper_is_rejected_before_writes"
       ],
       "source": "tests/test_traefik_i12_current_capture.py",
-      "source_sha256": "76d5c09d261df312aef8498ca46939400f65e3177c096febb6c83c5ef74705c0"
+      "source_sha256": "e527a4a4406c9be05a94af87e1039a06e0abb6894c23100cd88e1d4438b9f873"
     },
     {
       "contains_selected_definitions": [],
@@ -11542,6 +11564,10 @@
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_nginx_tuple_cannot_change_parent",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_sha_projection_updates_only_revision_lock",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_sha_projection_rejects_malformed_lock_without_writes",
+        "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_explicit_mrts_handoff_updates_joint_lock_and_primary_publication",
+        "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_explicit_mrts_handoff_rejects_unapproved_or_dishonest_inputs_without_writes",
+        "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_explicit_mrts_handoff_rejects_symlink_authority_and_missing_gitlink",
+        "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_explicit_mrts_cli_sync_check_and_verify_primary",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_revision_lock_symlink_is_rejected_before_writes",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_sha_fixture_refuses_original_checkout",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_cli_rejects_alternate_and_symlinked_repository_roots_before_io",
@@ -11570,7 +11596,7 @@
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_postwrite_admission_failure_rolls_back_transaction"
       ],
       "source": "tests/test_update_framework_versions.py",
-      "source_sha256": "9e6e9ee64a6927b71edad7def755e63cba26951b79e38965915d68e6afa1220f"
+      "source_sha256": "9cb7c82d286e994619c397c59c9012e51667e37b8285990e6b91f999c7cf2580"
     },
     {
       "contains_selected_definitions": [
@@ -11738,13 +11764,16 @@
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateContractTests.test_unsafe_candidate_expression_fails_before_parent_projection",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateContractTests.test_cli_reports_the_verified_candidate",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateContractTests.test_cli_rejects_an_invalid_expected_parent_framework_sha",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_explicit_candidate_mrts_requires_real_approved_pair_and_default_stays_locked",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_explicit_candidate_mrts_refuses_malformed_missing_mismatch_and_dishonest_old_lock",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_explicit_candidate_mrts_refuses_symlink_authority_and_missing_gitlink",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_candidate_checkout_does_not_override_old_parent_selection",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_new_selection_reads_candidate_data_with_old_checkout_and_trusted_parser",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_wrong_wrapper_revision_is_rejected",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_missing_selected_action_blob_is_rejected"
       ],
       "source": "tests/test_verify_framework_candidate_contract.py",
-      "source_sha256": "d1699e4d3c9d38f07c55c5ffe63e57dc4057d3b8ba05cb07f1e67e4f556fd245"
+      "source_sha256": "b616b29c168404c573592ff51a703287b1cfcf1250c69ad0ca0da309cb85fcfa"
     },
     {
       "contains_selected_definitions": [],
@@ -12089,6 +12118,23 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "tests/ci_security/test_component_sbom.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.ci_security.test_component_sbom.ComponentSbomTests.test_current_runtime_lock_identities_and_release_hash_semantics",
+        "modsecurity_test_framework.selftests.ci_security.test_component_sbom.ComponentSbomTests.test_go_stream_preserves_independent_expected_module_identities",
+        "modsecurity_test_framework.selftests.ci_security.test_component_sbom.ComponentSbomTests.test_git_source_commit_is_not_misrepresented_as_a_file_hash",
+        "modsecurity_test_framework.selftests.ci_security.test_component_sbom.ComponentSbomTests.test_unresolved_or_replaced_go_modules_fail",
+        "modsecurity_test_framework.selftests.ci_security.test_component_sbom.ComponentSbomTests.test_python_environment_identities_do_not_claim_product_linkage",
+        "modsecurity_test_framework.selftests.ci_security.test_component_sbom.ComponentSbomTests.test_artifact_observes_exact_bytes_and_keeps_build_assertions_separate",
+        "modsecurity_test_framework.selftests.ci_security.test_component_sbom.ComponentSbomTests.test_special_files_symlinks_hardlinks_and_oversized_inputs_fail",
+        "modsecurity_test_framework.selftests.ci_security.test_component_sbom.ComponentSbomTests.test_bad_source_digest_and_credential_url_fail",
+        "modsecurity_test_framework.selftests.ci_security.test_component_sbom.ComponentSbomTests.test_cli_determinism_revisions_duplicates_dirty_state_and_no_overwrite"
+      ],
+      "source": "framework/tests/ci_security/test_component_sbom.py",
+      "source_sha256": "f5ec575c190855233bdc98c3b947544a208ede0b30bc004d307dad835c8c318d"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "tests/ci_security/test_connector_action_pins.py",
       "on_demand_definitions": [
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_all_reviewed_sources_validate_without_connector_checkout",
@@ -12233,6 +12279,16 @@
       ],
       "source": "framework/tests/ci_security/test_osv_evidence_contract.py",
       "source_sha256": "ede11d6d04beb4ea67d176f98e6e67d955d5d4bff966a5ed22dcb6160a7b5ebb"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "tests/ci_security/test_protected_nginx_caller_projection.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.ci_security.test_protected_nginx_caller_projection.ProtectedCallerGeneratorTests.test_generator_cli_materializes_checks_and_preserves_invalid_target",
+        "modsecurity_test_framework.selftests.ci_security.test_protected_nginx_caller_projection.ProtectedCallerGeneratorTests.test_generator_refuses_unreviewed_source_or_symbolic_revision"
+      ],
+      "source": "framework/tests/ci_security/test_protected_nginx_caller_projection.py",
+      "source_sha256": "c325bb27f320a0c8923843525c1146b9c0b3db613f094bb915ca8859d6469184"
     },
     {
       "contains_selected_definitions": [],
@@ -13236,6 +13292,33 @@
       ],
       "source": "framework/tests/no_crs/test_nginx_native_source_dependencies.py",
       "source_sha256": "b4b4797fdf0d7eab08e8d297ad56fc32429e1329626a5f34a4046b009850136f"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "tests/no_crs/test_nginx_protocol_executor.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_observed_protocol_alpn_and_stream_are_required",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_real_quic_header_metadata_excludes_payload_and_raw_connection_id",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_unsupported_reset_and_multiplex_operations_have_no_executor",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_reopen_detects_mutation_foreign_request_and_cleanup",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_unknown_shell_protocol_is_rejected_before_host_dispatch",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_selected_cli_rejects_unsafe_or_duplicate_identities_before_sources",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_catalog_binding_rejects_changed_rule_or_protocol",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_executor_forces_protocol_and_rejects_successful_http1_transfer",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_canonical_roundtrip_keeps_host_facts_separate_and_reopens_bytes",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_canonical_retention_copies_original_bytes_and_pins_exact_pair",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_deprecated_alias_preserves_own_allow_bundle_without_borrowing_deny",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_h3_backend_without_client_alpn_requires_independent_server_alpn",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_h3_missing_or_contradictory_server_or_client_alpn_fails",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_native_allow_cannot_prove_phase1_phase2_or_phase3_deny",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_phase4_safe_requires_actual_committed_safe_intervention",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_allow_and_legacy_cannot_pass_with_absent_native_transaction",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_phase3_native_intervention_uses_same_transaction_uri_witness",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_invalid_library_directory_precedes_backend_acquisition",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_allow_body_has_no_phase4_marker"
+      ],
+      "source": "framework/tests/no_crs/test_nginx_protocol_executor.py",
+      "source_sha256": "48f6f8bfea3d5200b0341f78eebd4927943b391e2cbec7431facbcd76a459517"
     },
     {
       "contains_selected_definitions": [],

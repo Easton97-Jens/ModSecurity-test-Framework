@@ -1,0 +1,22 @@
+[
+  "--- a/payload\n",
+  "+++ b/payload\n",
+  "@@ -400,7 +400,7 @@\n",
+  " \t\tw.fail()\n",
+  " \t\treturn\n",
+  " \t}\n",
+  "-\tsession, err := openSession(w.request.Context(), w.parent.config, handle)\n",
+  "+\tsession, err := openSession(i12ObservedContext(w.request), w.parent.config, handle)\n",
+  " \tif err != nil {\n",
+  " \t\tw.fail()\n",
+  " \t\treturn\n",
+  "@@ -445,7 +445,7 @@\n",
+  " \tif status < 200 || status >= 300 || !validHandle(string(reply[2:])) {\n",
+  " \t\treturn errProtocol\n",
+  " \t}\n",
+  "-\tsession, err := openSession(ctx, w.parent.config, string(reply[2:]))\n",
+  "+\tsession, err := openSession(context.WithValue(ctx, i12ObserverContextKey{}, i12RequestProbeID(w.request)), w.parent.config, string(reply[2:]))\n",
+  " \tif err != nil {\n",
+  " \t\treturn err\n",
+  " \t}\n"
+]
