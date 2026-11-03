@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "db7b3bef72b88e55af07976825bf9c9fd6a1923c565ba18f1a584da9dd25ae2c",
+  "inventory_sha256": "807351567dfe505aa4b437403202f503cf485375eaf1ce9adcbc07fc02fe70f5",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8042,
+  "on_demand_definition_count": 8045,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -11317,6 +11317,9 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_traefik_native_local_plugin.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_traefik_native_local_plugin.TraefikNativeLocalPluginTest.test_main_failure_reports_source_origin_without_sensitive_message",
+        "modsecurity_connector_tests.test_traefik_native_local_plugin.TraefikNativeLocalPluginTest.test_runtime_failure_artifact_retains_safe_origin_and_cleanup",
+        "modsecurity_connector_tests.test_traefik_native_local_plugin.TraefikNativeLocalPluginTest.test_failure_origin_excludes_external_frames",
         "modsecurity_connector_tests.test_traefik_native_local_plugin.TraefikNativeLocalPluginTest.test_normal_client_waits_for_server_eof_after_declared_body",
         "modsecurity_connector_tests.test_traefik_native_local_plugin.TraefikNativeLocalPluginTest.test_physical_eof_timeout_and_extra_tail_are_failures",
         "modsecurity_connector_tests.test_traefik_native_local_plugin.TraefikNativeLocalPluginTest.test_completion_duplicate_closes_when_response_setup_fails",
@@ -11368,7 +11371,7 @@
         "modsecurity_connector_tests.test_traefik_native_local_plugin.TraefikNativeLocalPluginTest.test_crs_transaction_ids_are_not_reused_across_run_ids"
       ],
       "source": "tests/test_traefik_native_local_plugin.py",
-      "source_sha256": "0145a901f65ae25aa5a0719a5d01690fd2650513ea705430d20b8a69f21687cb"
+      "source_sha256": "4e1d590f7bc8500a208bf9cf5ecbeeda1bbc88382ce3c07dce7b1c1384d1b769"
     },
     {
       "contains_selected_definitions": [],
