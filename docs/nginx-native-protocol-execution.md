@@ -34,14 +34,24 @@ IDs and required `--nginx-binary`, `--module`, `--output-root`, `--run-id`,
 privilege escalation occurs in the executor.
 
 H2 uses `--http2-prior-knowledge` over TLS; H3 uses `--http3-only`. A successful
-HTTP transfer is insufficient: curl's actual HTTP version, accepted ALPN and
-stream-open trace must agree. Both native access records must report the same
-protocol and ALPN and bind the allow and contract requests to different native
+HTTP transfer is insufficient: curl's actual HTTP version and stream-open trace
+must agree. Both native access records must independently report the requested
+protocol and accepted ALPN through `$ssl_alpn_protocol` and bind the allow and contract requests to different native
 transactions. Native rule, phase, URI and transaction witnesses establish each
 deny or Safe action. H3 also requires bidirectional, port-scoped loopback
 QUIC/UDP long-header observations. Only packet sizes, direction, version and
 hashed connection identifiers are retained; packet payloads and raw identifiers
 are not written.
+
+Some curl QUIC TLS backends omit an accepted-ALPN trace line. The client parser
+preserves that absence; it does not infer ALPN from HTTP/3 or copy the server's
+value into a client observation. A completed bundle still requires matching
+server ALPN on **both** original access records. An explicit contradictory
+client ALPN always fails. `alpn_source=nginx_access_ssl_alpn_protocol` identifies
+the independently verified server source; `client_alpn_observed` and
+`client_alpn` retain whether the client actually reported ALPN and its value.
+Missing or contradictory server ALPN cannot produce PASS even when HTTP/3
+transfer, stream and QUIC packet observations succeed.
 
 `tests/runners/nginx_protocol.py` reopens the private evidence bundle, verifies
 all original hashes, source contracts, run/revision identities, request/access

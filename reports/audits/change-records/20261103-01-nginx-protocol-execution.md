@@ -28,7 +28,8 @@ admission and connector product capabilities remain separate boundaries.
 ## Acceptance criteria
 
 Existing supported modern cases select real executors. A valid transfer with
-wrong HTTP version, absent/mismatched ALPN, absent stream identity, unobserved
+wrong HTTP version, absent/mismatched independently observed server ALPN,
+contradictory client ALPN, absent stream identity, unobserved
 QUIC, mismatched native transaction or failed cleanup cannot pass. Raw native
 events stay unchanged. The standard 100-case inventory does not grow.
 
@@ -49,6 +50,14 @@ H1-only operations remain unexecuted in modern invocations; their denominator
 is preserved. Product resets, multiplexing, h2c and modern first-byte remain
 explicit unsupported/unimplemented work.
 
+The actual H3 OpenSSL curl backend omitted accepted ALPN in its trace while
+native access independently reported HTTP/3.0 and ALPN h3. Client transport
+parsing therefore preserves missing client ALPN as missing. Final ALPN proof
+still requires matching `$ssl_alpn_protocol` on both original access records;
+an explicit contradictory client ALPN fails. New provenance fields identify
+`alpn_source=nginx_access_ssl_alpn_protocol`, `client_alpn_observed` and the
+actual `client_alpn` or null. No server value is attributed to the client.
+
 Independent review reproduced contradictory native decisions, pre-commit Safe evidence and missing allow events being accepted. The corrected reader requires original clean-allow completion, actual deny intent/intervention status, exact committed Safe semantics, and observed outcomes. Library validation now precedes backend acquisition. No expected-result field supplies an observed result.
 
 ## Changed files and tests
@@ -65,6 +74,8 @@ Git checkout with current product version contracts.
 | --- | --- | --- | --- |
 | RTK, original two wiring methods, Framework-owned Python3.14.4 | 1 | Both reproduce exact invalid source-context failure before selection | runtime-readiness/protocols baseline tool receipt |
 | RTK, Framework-owned Python3.15.2, protocol regression module | 0 | 15 tests; protocol/ALPN/stream facts, fallback, semantic intervention, clean allow, packet metadata, canonical reopen/retention/exact pair, aliases, cleanup and unsupported operations | runtime-readiness/protocols |
+| RTK, H3 backend without client ALPN regression, before correction | 1 | Real backend shape rejected despite independent server ALPN; targeted RED | runtime-readiness/protocols/h3-initial |
+| RTK, Framework-owned Python3.15.2, protocol regression module after ALPN provenance correction | 0 | 17 tests; missing client trace accepted only with both server ALPN records; missing/conflicting server or client ALPN rejected | runtime-readiness/protocols |
 | RTK, Framework-owned Python3.15.2, full protocol wiring module | 0 | Ten real Make selection/init tests; no host launched | runtime-readiness/protocols |
 | RTK, five neighboring selection/authority modules | 1 | 37/40 pass; three separate old non-Git authority-fixture failures | runtime-readiness/protocols |
 

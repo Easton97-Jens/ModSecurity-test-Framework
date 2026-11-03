@@ -18,7 +18,9 @@ class NginxProtocolExecutorTest(unittest.TestCase):
 
     def test_observed_protocol_alpn_and_stream_are_required(self):
         facts = protocol.client_facts(self.client(), "h2")
-        self.assertEqual((facts["alpn"], facts["stream_id"], facts["fallback_used"]), ("h2", 1, False))
+        self.assertEqual((facts["client_alpn"], facts["stream_id"], facts["fallback_used"]), ("h2", 1, False))
+        self.assertTrue(facts["client_alpn_observed"])
+        self.assertNotIn("alpn", facts)
         for changed in ({"http_version": "1.1"}, {"trace": "* ALPN: offers h2\n"},
                         {"trace": "* ALPN: server accepted http/1.1\n"}, {"exit_code": 35}):
             with self.subTest(changed=changed), self.assertRaises(ValueError):
@@ -49,11 +51,14 @@ class NginxProtocolExecutorTest(unittest.TestCase):
         requested, phase, expected_status, rule = protocol.CASES[case]
         transactions = [run + "-1-1", run + "-2-1"]
         rows = [{"uri": path, "transaction_id": transaction, "status": status,
-                 "protocol": "HTTP/2.0", "alpn": "h2"}
+                 "protocol": "HTTP/2.0" if requested == "h2" else "HTTP/3.0", "alpn": requested}
                 for path, transaction, status in zip(("/no-crs/protocol/allow", f"/no-crs/protocol/phase{phase}"),
                                                      transactions, (200, expected_status), strict=True)]
         client = dict(self.client(requested), http_code=expected_status)
-        objects = {"client.json": client, "quic.json": {"datagrams": []},
+        packets = [{"direction": direction, "quic_version": "0x00000001",
+                    "connection_id": "sha256:" + "c" * 64, "udp_bytes": 1200}
+                   for direction in ("request", "response")] if requested == "h3" else []
+        objects = {"client.json": client, "quic.json": {"datagrams": packets},
                    "roles.json": {"master_uid": 0, "worker_uid": 65534},
                    "cleanup.json": {"verified": True, "udp_listener_open": False},
                    "observation.json": {"case_id": case, "run_id": run,
@@ -230,6 +235,51 @@ class NginxProtocolExecutorTest(unittest.TestCase):
         receipt["sha256"]["native-events.jsonl"] = protocol.digest(raw)
         (root / "receipt.json").write_text(json.dumps(receipt))
 
+    def test_h3_backend_without_client_alpn_requires_independent_server_alpn(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            case, run, receipt = self.fixture(root, "protocol_h3_negotiated")
+            client = json.loads((root / "client.json").read_bytes())
+            client["trace"] = "* [HTTP/3] [0] OPENED stream for https://127.0.0.1\n"
+            raw = json.dumps(client).encode()
+            (root / "client.json").write_bytes(raw)
+            receipt["sha256"]["client.json"] = protocol.digest(raw)
+            (root / "receipt.json").write_text(json.dumps(receipt))
+            proof = protocol.validate_bundle(root, case_id=case, run_id=run)
+            self.assertEqual(proof["facts"]["alpn"], "h3")
+            self.assertEqual(proof["facts"]["alpn_source"], "nginx_access_ssl_alpn_protocol")
+            self.assertFalse(proof["facts"]["client_alpn_observed"])
+            self.assertIsNone(proof["facts"]["client_alpn"])
+
+    def test_h3_missing_or_contradictory_server_or_client_alpn_fails(self):
+        for index in (0, 1):
+            for value in (None, "", "h2", "http/1.1"):
+                with self.subTest(access=index, alpn=value), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    case, run, receipt = self.fixture(root, "protocol_h3_negotiated")
+                    client = json.loads((root / "client.json").read_bytes())
+                    client["trace"] = "* [HTTP/3] [0] OPENED stream for https://127.0.0.1\n"
+                    raw = json.dumps(client).encode()
+                    (root / "client.json").write_bytes(raw)
+                    receipt["sha256"]["client.json"] = protocol.digest(raw)
+                    accesses = [json.loads(line) for line in (root / "access.jsonl").read_bytes().splitlines()]
+                    if value is None:
+                        accesses[index].pop("alpn")
+                    else:
+                        accesses[index]["alpn"] = value
+                    raw = b"\n".join(json.dumps(row).encode() for row in accesses) + b"\n"
+                    (root / "access.jsonl").write_bytes(raw)
+                    receipt["sha256"]["access.jsonl"] = protocol.digest(raw)
+                    (root / "receipt.json").write_text(json.dumps(receipt))
+                    with self.assertRaisesRegex(ValueError, "native access/client protocol"):
+                        protocol.validate_bundle(root, case_id=case, run_id=run)
+        for token in ("h2", "http/1.1", "h3-draft", "unknown"):
+            with self.subTest(client_alpn=token):
+                client = self.client("h3")
+                client["trace"] = f"* ALPN: server accepted {token}\n* [HTTP/3] [0] OPENED stream for https://127.0.0.1\n"
+                with self.assertRaisesRegex(ValueError, "observed client TLS ALPN"):
+                    protocol.client_facts(client, "h3")
+
     def test_native_allow_cannot_prove_phase1_phase2_or_phase3_deny(self):
         for case in ("protocol_h2_negotiated", "h2_phase2_deny", "h2_phase3_deny"):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
@@ -299,10 +349,12 @@ class NginxProtocolExecutorTest(unittest.TestCase):
                  mock.patch.object(executor, "preflight", return_value=0), \
                  mock.patch.object(executor, "load_source", return_value=client), \
                  mock.patch.object(executor.HOST.BASE, "snapshot_artifact", return_value="b" * 64), \
+                 mock.patch.object(executor.os, "umask") as umask, \
                  mock.patch.object(executor, "ThreadingHTTPServer") as backend, \
                  mock.patch.object(executor.threading, "Thread") as thread:
                 with self.assertRaisesRegex(ValueError, "library directory must exist"):
                     executor.run(args)
+                umask.assert_called_once_with(0o077)
                 backend.assert_not_called()
                 thread.assert_not_called()
 

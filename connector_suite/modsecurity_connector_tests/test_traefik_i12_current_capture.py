@@ -169,7 +169,11 @@ class CurrentCaptureTests(unittest.TestCase):
         original_plain = CENTRAL.plain
         def tampered(path):
             data = original_plain(path)
-            return data + b'changed\n' if path == patch else data
+            if path != patch:
+                return data
+            if object_entry.get('patch_kind') == 'text_lines':
+                return json.dumps(json.loads(data) + ['changed\n']).encode()
+            return data + b'changed\n'
         with mock.patch.object(CENTRAL, 'plain', side_effect=tampered):
             with self.assertRaisesRegex(ValueError, 'Source delta hash mismatch'):
                 self.apply()

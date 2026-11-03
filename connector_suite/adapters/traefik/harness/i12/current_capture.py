@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from modsecurity_test_framework.connector_context import framework_revision, source_path
 
-CONTRACT_HASH = '066cecc1f18d5e45437d22714ac0be1bf5865106eb3b8bf291b11fce126b7a94'
+CONTRACT_HASH = 'a8165b97ae9f52338538109c7bdf2cbfb1c88fddaab115f1366227c9727b313b'
 
 RUNTIME = 'common/runtime/msconnector_runtime.c'
 AUTHORIZATION = 'common/runtime/http_authorization_service.c'

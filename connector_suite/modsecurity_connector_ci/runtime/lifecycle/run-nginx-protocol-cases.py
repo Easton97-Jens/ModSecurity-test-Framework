@@ -133,6 +133,9 @@ def request(args, output, environment, protocol, path, *, allow=False):
                 "http_version": metrics.get("http_version"),
                 "trace": trace_facts,
                 "alt_svc_h3": b"alt-svc: h3=" in HOST.bounded_capture(headers).lower() if headers.exists() else False}
+    # Only parse actual client transport here. The completed bundle separately
+    # requires server ALPN on both native access records; absent client ALPN is
+    # retained as absent, while an explicit contradictory client ALPN fails.
     CONTRACT.client_facts(observed, protocol)
     trace.unlink()
     headers.unlink(missing_ok=True)

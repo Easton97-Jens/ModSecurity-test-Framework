@@ -170,10 +170,11 @@ def store_output(central, manifest, generated, root, name, current, output, fram
         if central.exact_patch(current, patch) != output:
             raise ValueError('Generated current delta differs')
         patch_hash = central.digest(patch)
-        filename = 'objects/deltas/' + patch_hash + '-' + Path(name).name + '.patch'
-        generated[root / filename] = patch
+        filename = 'objects/deltas/' + patch_hash + '-' + Path(name).name + '.patch.lines.json'
+        generated[root / filename] = encoded(patch.decode().splitlines(keepends=True))
         manifest['objects'][identity] = {'kind': 'delta', 'base': input_hash,
-                                        'patch': filename, 'patch_sha256': patch_hash}
+                                        'patch': filename, 'patch_kind': 'text_lines',
+                                        'patch_sha256': patch_hash}
     return entry
 
 

@@ -47,6 +47,13 @@ Zeilendaten samt ursprünglicher Git-Provenienz. Globale Registryprüfung sowie
 Quell-, Ziel- und Ausgabeprüfungen bleiben aktiv. Reine Quellbelege erfassen die
 tatsächliche Framework-Revision und getrennte Hashes der Hilfsquellen.
 
+Neue kontextgebundene Deltas verwenden inerte JSON-Zeilendaten. Die Registry
+prüft die dekodierten Unified-Patchbytes vor exakter Anwendung gegen ihren
+unveränderten Patch-SHA. Kontexttabs, abschließende Leerzeichen und sämtliche
+zweizeiligen Beobachtungsanker bleiben ohne Git-Whitespace-Verstöße erhalten.
+Historische rohe Patchobjekte bleiben unverändert; unbekannte Speicherformate
+werden geschlossen abgewiesen.
+
 ## Geänderte Dateien und Tests
 
 `current_capture.py`, `regenerate_capture.py`, Rezept/generierter Vertrag,

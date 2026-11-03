@@ -28,7 +28,8 @@ und Connector-Produktfähigkeiten bleiben eigene Grenzen.
 ## Akzeptanzkriterien
 
 Bestehende unterstützte moderne Fälle wählen echte Executoren. Falsche
-HTTP-Version, fehlendes/falsches ALPN, fehlende Streamidentität, unbeobachtetes
+HTTP-Version, fehlendes/falsches unabhängig beobachtetes Server-ALPN,
+widersprüchliches Client-ALPN, fehlende Streamidentität, unbeobachtetes
 QUIC, fremde native Transaktion oder fehlgeschlagenes Cleanup verhindern PASS.
 Native Originalevents bleiben unverändert. Der 100-Fälle-Standardumfang wächst
 nicht.
@@ -51,6 +52,16 @@ unausgeführt; ihr Nennwert bleibt bestehen. Produktresets, Multiplexing, h2c
 und moderne First-Byte-Verträge bleiben nicht unterstützt beziehungsweise
 unimplementiert.
 
+Das tatsächlich ausgeführte H3-OpenSSL-Backend von curl meldete akzeptiertes
+ALPN nicht im Trace, während native Accessrecords unabhängig HTTP/3.0 und
+ALPN h3 belegten. Der Clientparser erhält daher fehlendes Client-ALPN als
+fehlend. Der Abschlussnachweis verlangt weiterhin passendes
+`$ssl_alpn_protocol` in beiden originalen Accessrecords; ausdrücklich
+widersprüchliches Client-ALPN scheitert. Neue Herkunftsfelder benennen
+`alpn_source=nginx_access_ssl_alpn_protocol`, `client_alpn_observed` sowie
+den tatsächlichen Clientwert `client_alpn` oder null. Kein Serverwert wird
+als Clientbeobachtung ausgegeben.
+
 Der unabhängige Review reproduzierte die Annahme widersprüchlicher Nativeentscheidungen, nicht committeter Safe-Evidenz und fehlender Allow-Events. Der korrigierte Reader verlangt originale saubere Allow-Completion, tatsächliche Denyabsicht und Interventionsstatus, exakte committete Safe-Semantik und beobachtete Ergebnisse. Die Libraryprüfung erfolgt vor Backend-Allokation. Kein Erwartungsfeld liefert ein beobachtetes Ergebnis.
 
 ## Geänderte Dateien und Tests
@@ -67,6 +78,8 @@ mit aktuellen Produktversionsverträgen.
 | --- | --- | --- | --- |
 | RTK, ursprüngliche zwei Wiringmethoden, Framework-Python3.14.4 | 1 | Beide reproduzieren den ungültigen Quellkontext vor der Auswahl | runtime-readiness/protocols Baseline-Toolreceipt |
 | RTK, Framework-Python3.15.2, Protokollregressionen | 0 | 15 Tests: Protokoll-/ALPN-/Streamfakten, Fallback, Interventionssemantik, sauberes Allow, Paketmetadaten, kanonische Nachprüfung/Retention/exaktes Paar, Aliasfälle, Cleanup und fehlende Operationen | runtime-readiness/protocols |
+| RTK, H3-Backend ohne Client-ALPN, Regression vor Korrektur | 1 | Tatsächliche Backendform trotz unabhängigem Server-ALPN abgelehnt; gezielt rot | runtime-readiness/protocols/h3-initial |
+| RTK, Framework-Python3.15.2, Protokollregressionen nach ALPN-Herkunftskorrektur | 0 | 17 Tests: fehlendes Client-ALPN nur mit beiden Serverrecords zulässig; fehlendes/falsches Server- oder Client-ALPN abgewiesen | runtime-readiness/protocols |
 | RTK, Framework-Python3.15.2, vollständiges Protokollwiringmodul | 0 | Zehn echte Make-Auswahl-/Init-Tests; kein Hoststart | runtime-readiness/protocols |
 | RTK, fünf benachbarte Auswahl-/Autoritätsmodule | 1 | 37/40 bestehen; drei separate alte Nicht-Git-Autoritätsfixtures scheitern | runtime-readiness/protocols |
 

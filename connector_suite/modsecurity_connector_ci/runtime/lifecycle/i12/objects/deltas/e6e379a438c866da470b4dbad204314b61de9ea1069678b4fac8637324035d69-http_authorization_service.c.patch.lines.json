@@ -1,0 +1,21 @@
+[
+  "--- a/payload\n",
+  "+++ b/payload\n",
+  "@@ -1,6 +1,7 @@\n",
+  " #define _POSIX_C_SOURCE 200809L\n",
+  " \n",
+  " #include \"http_authorization_service.h\"\n",
+  "+#include \"native-lifecycle-observer.h\"\n",
+  " #include \"msconnector_runtime.h\"\n",
+  " \n",
+  " #include \"msconnector/decision_action.h\"\n",
+  "@@ -1161,6 +1162,8 @@\n",
+  "                 scratch, received_size, error) != 1) return 0;\n",
+  "         remaining -= received_size;\n",
+  "     }\n",
+  "+    (void)msconnector_lifecycle_authorization_request_eos(transaction,\n",
+  "+        parsed->content_length, parsed->body_size, remaining);\n",
+  "     return msconnector_runtime_transaction_finish_request_body(transaction, decision, error);\n",
+  " }\n",
+  " \n"
+]

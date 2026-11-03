@@ -782,7 +782,8 @@
     "d46e6d6c74213083d40d6bd137f80695c420f249ea064d99ccab0bb8c6c3dfae": {
       "kind": "delta",
       "base": "e3fabbc772c3b5206878a717a428308bcf89ce01851fd360aec0e7995dae7885",
-      "patch": "objects/deltas/e33fce0a5b6436a1b2d8b671069c8b1349207c4f9d40d17baf5ddc6c4a3bb9c2-middleware.go.patch",
+      "patch": "objects/deltas/e33fce0a5b6436a1b2d8b671069c8b1349207c4f9d40d17baf5ddc6c4a3bb9c2-middleware.go.patch.lines.json",
+      "patch_kind": "text_lines",
       "patch_sha256": "e33fce0a5b6436a1b2d8b671069c8b1349207c4f9d40d17baf5ddc6c4a3bb9c2"
     },
     "1e88c98c3eca5068cb04459c4af03e8d108bed1a55f5590455e32bee4c1d3ecd": {
@@ -792,7 +793,8 @@
     "6d086345229d4bd9188f79b48848b29b011c60165daf4335e857872efdbf45b6": {
       "kind": "delta",
       "base": "1e88c98c3eca5068cb04459c4af03e8d108bed1a55f5590455e32bee4c1d3ecd",
-      "patch": "objects/deltas/80483628d25d8e81377e3c941c8c76491b40861ce49bf978a9c8cf2542afbb3c-engine_uds.go.patch",
+      "patch": "objects/deltas/80483628d25d8e81377e3c941c8c76491b40861ce49bf978a9c8cf2542afbb3c-engine_uds.go.patch.lines.json",
+      "patch_kind": "text_lines",
       "patch_sha256": "80483628d25d8e81377e3c941c8c76491b40861ce49bf978a9c8cf2542afbb3c"
     },
     "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155": {
@@ -818,19 +820,22 @@
     "f66ca34e7ffe10bff64ea8a50b8aaa64d07c5d74136afc966b2f11c2ab20f31b": {
       "kind": "delta",
       "base": "46c4d054f788cc9bd339bc721b6330a5342a6f2d30acb4f6be7bb0318646ded3",
-      "patch": "objects/deltas/80344c8f4eb69659bd08f8cbdd9253268afbf1380847306d6d501b35678cc03c-observer.go.patch",
+      "patch": "objects/deltas/80344c8f4eb69659bd08f8cbdd9253268afbf1380847306d6d501b35678cc03c-observer.go.patch.lines.json",
+      "patch_kind": "text_lines",
       "patch_sha256": "80344c8f4eb69659bd08f8cbdd9253268afbf1380847306d6d501b35678cc03c"
     },
     "cf64d39977590f7ed18ad738e81ca30bba834c3cdb3c199f8a398b9caca9aa13": {
       "kind": "delta",
       "base": "b48d52c8127b9c734f8aa6233d27cf672b0bad4fe80ac63f41d27c4c38a3f155",
-      "patch": "objects/deltas/cde826540e1f2e8e04a5454876168ee5831a2e332cbbc3a0e15d0899e0a68263-msconnector_runtime.c.patch",
+      "patch": "objects/deltas/cde826540e1f2e8e04a5454876168ee5831a2e332cbbc3a0e15d0899e0a68263-msconnector_runtime.c.patch.lines.json",
+      "patch_kind": "text_lines",
       "patch_sha256": "cde826540e1f2e8e04a5454876168ee5831a2e332cbbc3a0e15d0899e0a68263"
     },
     "7b99fe0cd68b28067078ece60353881a9eccd3f3bbc9fe340d6228d5481b666d": {
       "kind": "delta",
       "base": "43bed207edcfaded54144a3cecf13c6069b9143e557d2b2285c5123db4930277",
-      "patch": "objects/deltas/e6e379a438c866da470b4dbad204314b61de9ea1069678b4fac8637324035d69-http_authorization_service.c.patch",
+      "patch": "objects/deltas/e6e379a438c866da470b4dbad204314b61de9ea1069678b4fac8637324035d69-http_authorization_service.c.patch.lines.json",
+      "patch_kind": "text_lines",
       "patch_sha256": "e6e379a438c866da470b4dbad204314b61de9ea1069678b4fac8637324035d69"
     },
     "00dd6d359a56c1bfbdb85376477b7aad9cff3a129756845b8fa5ac799aa616e5": {
@@ -840,7 +845,8 @@
     "742392a091b9748febd09e49fd3dda4b26ccee6b67a29e6dc20a2aeaa05aac55": {
       "kind": "delta",
       "base": "00dd6d359a56c1bfbdb85376477b7aad9cff3a129756845b8fa5ac799aa616e5",
-      "patch": "objects/deltas/5cc95a26c03dbcbcae7b4b75fd3ac2f97844847be3ad545e98dbc9ee6e434408-provenance.go.patch",
+      "patch": "objects/deltas/5cc95a26c03dbcbcae7b4b75fd3ac2f97844847be3ad545e98dbc9ee6e434408-provenance.go.patch.lines.json",
+      "patch_kind": "text_lines",
       "patch_sha256": "5cc95a26c03dbcbcae7b4b75fd3ac2f97844847be3ad545e98dbc9ee6e434408"
     }
   },

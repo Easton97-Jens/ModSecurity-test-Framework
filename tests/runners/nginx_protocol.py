@@ -57,21 +57,25 @@ def invocation(case):
 
 
 def client_facts(raw, protocol):
-    """Parse actual curl output; an option or advertised ALPN is insufficient."""
+    """Parse client transport; final ALPN authority is verified host access.
+
+    Some QUIC TLS backends omit accepted ALPN from their curl trace. Preserve
+    that absence as a client fact; never fill it from the server observation.
+    An observed client ALPN must still agree with the forced protocol.
+    """
     version = str(raw.get("http_version", ""))
     negotiated = {"2": "h2", "3": "h3"}.get(version)
     trace = raw.get("trace", "")
     require(isinstance(trace, str) and len(trace) <= LIMIT, "bounded client trace required")
-    alpn = re.findall(r"ALPN(?:,|:)\s*server accepted\s+(h[23])\b", trace)
-    # Curl's actual HTTP/3 stream-open message can coexist with a TLS backend
-    # that omits its ALPN status. Do not infer ALPN from that message.
+    alpn = re.findall(r"ALPN(?:,|:)\s*server accepted\s+(?:to use\s+)?([^\s]+)", trace)
     streams = re.findall(r"\[HTTP/[23]\]\s*\[(\d+)\]\s*(?:OPENED stream|:method:)", trace)
     require(negotiated == protocol, "forced protocol was not negotiated (fallback rejected)")
-    require(alpn and set(alpn) == {protocol}, "actual accepted TLS ALPN is missing or mismatched")
+    require(not alpn or set(alpn) == {protocol}, "observed client TLS ALPN is mismatched")
     require(streams and len(set(streams)) == 1, "actual single client stream identity missing or ambiguous")
     require(raw.get("exit_code") == 0, "protocol client failed")
     return {"requested_protocol": protocol, "downstream_protocol": protocol,
-            "negotiated_protocol": negotiated, "alpn": protocol, "stream_id": int(streams[0]),
+            "negotiated_protocol": negotiated, "client_alpn_observed": bool(alpn),
+            "client_alpn": alpn[0] if alpn else None, "stream_id": int(streams[0]),
             "transport": "quic_udp" if protocol == "h3" else "tls_tcp", "fallback_used": False}
 
 
@@ -163,6 +167,9 @@ def validate_bundle(root, *, case_id, run_id, identities=None):
         require(isinstance(access.get("transaction_id"), str)
                 and access["transaction_id"].startswith(run_id + "-"), "native transaction/run binding missing")
         transactions.append(access["transaction_id"])
+    # Both real native access records have independently established ALPN.
+    # This is a server TLS observation, never a substituted client trace fact.
+    facts.update(alpn=protocol, alpn_source="nginx_access_ssl_alpn_protocol")
     require(len(set(transactions)) == 2, "allow and contract request transaction collision")
     require(value["roles.json"].get("master_uid") == 0 and value["roles.json"].get("worker_uid") == 65534,
             "observed isolated native roles required")

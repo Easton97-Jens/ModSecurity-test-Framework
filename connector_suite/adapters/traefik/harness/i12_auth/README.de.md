@@ -116,6 +116,11 @@ festgelegte Beobachtungsausgaben. `../i12/regenerate_capture.py` regeneriert die
 zentralen Ziele, exakte kontextgebundene Deltas, `capture_contract.json` und die
 Adapterversiegelung. `--check` vergleicht alle erzeugten Bytes ohne Schreibzugriff:
 
+Die kontextgebundenen Patches verwenden inerte JSON-Zeilendaten
+(`patch_kind=text_lines`). Ihre Hashes binden die exakten dekodierten
+Unified-Patchbytes einschließlich Whitespace und Kontextankern. Die Registry
+prüft diese Bytes vor exakter Anwendung.
+
 ```sh
 rtk bypass "$FRAMEWORK_PYTHON" -P -B "$TEST_ROOT/connector_suite/adapters/traefik/harness/i12/regenerate_capture.py" --check
 ```

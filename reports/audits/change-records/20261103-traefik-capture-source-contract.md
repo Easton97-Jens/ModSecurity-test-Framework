@@ -44,6 +44,12 @@ lossless line data with original Git provenance. Global registry verification
 and all source, destination and output checks remain active. Source-only receipts
 record the actual Framework revision and separate helper hashes.
 
+New contextual deltas use inert JSON text-line storage. The registry verifies
+the decoded Unified Patch bytes against their unchanged patch SHA before exact
+application. This preserves context tabs, trailing spaces and all two-line
+observation anchors without introducing Git whitespace violations. Historical
+raw patch objects remain unchanged; unknown storage kinds fail closed.
+
 ## Changed files and tests
 
 `current_capture.py`, `regenerate_capture.py`, the recipe/generated contract,

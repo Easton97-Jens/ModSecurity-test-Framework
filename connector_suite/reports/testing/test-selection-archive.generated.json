@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "205a46eb93c96d127836557d094a07142288eeb28b3e7ed10948b0c25b57f790",
+  "inventory_sha256": "7280b3a235fbac92f239b4f5eb45519f08479af027881fdcc0d8a68fc7179e54",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8082,
+  "on_demand_definition_count": 8085,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -2964,6 +2964,7 @@
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_context_patch_has_no_fuzz",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_zero_context_patch_matches_standard_offsets",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_lossless_source_lines_preserve_original_whitespace",
+        "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_lossless_delta_lines_preserve_patch_bytes_and_hash",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_escape_path_refused",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CaptureSourceControls.test_non_directory_capture_parent_refused_before_product_write",
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.ArchiveStorageControls.test_executable_source_objects_require_inert_line_storage",
@@ -2997,7 +2998,7 @@
         "modsecurity_connector_ci.runtime.lifecycle.i12.test_capture_sources.CurrentApacheProfileControls.test_unknown_required_identity_format_rejected_by_registry"
       ],
       "source": "ci/runtime/lifecycle/i12/test_capture_sources.py",
-      "source_sha256": "9666c249b324c00975c68f9c43e0bc625080f28b2c68f236883f3159f2289f38"
+      "source_sha256": "efb73fa1c0a6dfbd6cc7dc31ba319a25b8b0cd574f772dfdab056eca168d5902"
     },
     {
       "contains_selected_definitions": [],
@@ -11033,7 +11034,7 @@
         "modsecurity_connector_tests.test_traefik_i12_current_capture.CurrentCaptureTests.test_changed_framework_helper_is_rejected_before_writes"
       ],
       "source": "tests/test_traefik_i12_current_capture.py",
-      "source_sha256": "791628e288bbf79be0662ced070f6911159e735cac47cdabde0604e8b6680edc"
+      "source_sha256": "692af146336af6f5439cdb53cc7101d77adb61f550942eef6d17269c38478261"
     },
     {
       "contains_selected_definitions": [],
@@ -13288,6 +13289,8 @@
         "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_canonical_roundtrip_keeps_host_facts_separate_and_reopens_bytes",
         "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_canonical_retention_copies_original_bytes_and_pins_exact_pair",
         "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_deprecated_alias_preserves_own_allow_bundle_without_borrowing_deny",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_h3_backend_without_client_alpn_requires_independent_server_alpn",
+        "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_h3_missing_or_contradictory_server_or_client_alpn_fails",
         "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_native_allow_cannot_prove_phase1_phase2_or_phase3_deny",
         "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_phase4_safe_requires_actual_committed_safe_intervention",
         "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_allow_and_legacy_cannot_pass_with_absent_native_transaction",
@@ -13296,7 +13299,7 @@
         "modsecurity_test_framework.selftests.no_crs.test_nginx_protocol_executor.NginxProtocolExecutorTest.test_allow_body_has_no_phase4_marker"
       ],
       "source": "framework/tests/no_crs/test_nginx_protocol_executor.py",
-      "source_sha256": "9cea76df54ef9b8b947215d20735e741a71e4443f8822c48e44d087a7f955270"
+      "source_sha256": "cfbc909149424aaeabbb9679e4a6e4a89726883b88c64b3932b291e96615411c"
     },
     {
       "contains_selected_definitions": [],

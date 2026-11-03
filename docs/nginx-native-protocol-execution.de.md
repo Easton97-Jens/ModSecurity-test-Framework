@@ -37,14 +37,25 @@ geschlossenen Fall-IDs und erforderlichen Argumente `--nginx-binary`, `--module`
 installiert keine Pakete und erhöht keine Berechtigungen selbstständig.
 
 H2 verwendet `--http2-prior-knowledge` über TLS, H3 `--http3-only`. Ein
-erfolgreicher HTTP-Transfer reicht nicht: tatsächliche HTTP-Version,
-akzeptiertes ALPN und Streamöffnung aus curl müssen übereinstimmen. Beide
-nativen Accessrecords müssen dasselbe Protokoll/ALPN zeigen und Allow- und
+erfolgreicher HTTP-Transfer reicht nicht: tatsächliche HTTP-Version und
+Streamöffnung aus curl müssen übereinstimmen. Beide nativen Accessrecords
+müssen unabhängig das gewünschte Protokoll und akzeptiertes ALPN über
+`$ssl_alpn_protocol` zeigen und Allow- und
 Vertragsrequest an unterschiedliche native Transaktionen binden. Native
 Rule-/Phasen-/URI-/Transaktionszeugen belegen Deny oder Safe-Aktion. H3 verlangt
 zusätzlich bidirektionale portgebundene QUIC-/UDP-Longheader auf Loopback.
 Gespeichert werden nur Paketgrößen, Richtung, Version und gehashte
 Verbindungskennungen; keine Paketnutzlasten oder rohen Verbindungskennungen.
+
+Einige QUIC-TLS-Backends von curl melden akzeptiertes ALPN nicht im Trace.
+Der Clientparser erhält dieses Fehlen; er leitet ALPN weder aus HTTP/3 ab noch
+kopiert er den Serverwert in eine Clientbeobachtung. Das vollständige Bundle
+verlangt weiterhin passendes Server-ALPN in **beiden** originalen Accessrecords.
+Ein ausdrücklich widersprüchliches Client-ALPN scheitert immer.
+`alpn_source=nginx_access_ssl_alpn_protocol` benennt die unabhängig geprüfte
+Serverquelle; `client_alpn_observed` und `client_alpn` erhalten, ob und welchen
+ALPN-Wert der Client tatsächlich meldete. Fehlendes oder falsches Server-ALPN
+verhindert PASS auch bei erfolgreichem HTTP/3-Transfer, Stream- und QUIC-Nachweis.
 
 `tests/runners/nginx_protocol.py` öffnet das private Nachweisbundle erneut und
 prüft Originalhashes, Quellverträge, Run-/Revisionsidentitäten,
