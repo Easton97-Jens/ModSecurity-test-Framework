@@ -621,6 +621,63 @@ class VerifyFrameworkCandidateGitContextTests(unittest.TestCase):
             return VERIFIER.verify_contract(self.root, candidate, self.common,
                                             expected_parent_framework_sha=selected)
 
+    def mrts_framework_pair(self):
+        self.git(self.framework, "checkout", "-q", self.old)
+        revisions = []
+        for mrts in ("c" * 40, "d" * 40):
+            self.git(self.framework, "update-index", "--add", "--cacheinfo", "160000," + mrts + ",tools/MRTS")
+            self.git(self.framework, "commit", "-qm", "nested selection " + mrts)
+            revisions.append(self.git(self.framework, "rev-parse", "HEAD"))
+        self.select(revisions[0], "1.31.6", "a" * 64)
+        return revisions[0], revisions[1], "d" * 40
+
+    def test_explicit_candidate_mrts_requires_real_approved_pair_and_default_stays_locked(self):
+        selected, candidate, mrts = self.mrts_framework_pair()
+        before = (self.root / "ci/tooling/project-versions.lock.json").read_bytes()
+        with self.assertRaisesRegex(VERIFIER.ContractError, "locked MRTS"):
+            VERIFIER.verify_contract(self.root, candidate, self.common, selected, self.framework)
+        self.assertEqual(VERIFIER.verify_contract(self.root, candidate, self.common, selected, self.framework,
+            expected_candidate_mrts_sha=mrts)["release_tag"], "release-1.31.6")
+        self.assertEqual((self.root / "ci/tooling/project-versions.lock.json").read_bytes(), before)
+        arguments = ("--repo-root", str(self.root), "--candidate-sha", candidate,
+                     "--framework-common", str(self.common), "--expected-parent-framework-sha", selected,
+                     "--candidate-framework-root", str(self.framework), "--expected-candidate-mrts-sha", mrts)
+        self.assertEqual(VERIFIER.main(arguments), 0)
+
+    def test_explicit_candidate_mrts_refuses_malformed_missing_mismatch_and_dishonest_old_lock(self):
+        selected, candidate, mrts = self.mrts_framework_pair()
+        lock = self.root / "ci/tooling/project-versions.lock.json"
+        before = lock.read_bytes()
+        for root, approval in ((None, mrts), (self.framework, "A" * 40), (self.framework, ""),
+                               (self.framework, "main"), (self.framework, "e" * 40)):
+            with self.subTest(approval=approval), self.assertRaises(VERIFIER.ContractError):
+                VERIFIER.verify_contract(self.root, candidate, self.common, selected, root,
+                                         expected_candidate_mrts_sha=approval)
+            self.assertEqual(lock.read_bytes(), before)
+        payload = json.loads(before)
+        lock.write_text(json.dumps(payload | {"mrts_sha": "e" * 40}))
+        dishonest = lock.read_bytes()
+        with self.assertRaisesRegex(VERIFIER.ContractError, "locked MRTS"):
+            VERIFIER.verify_contract(self.root, candidate, self.common, selected, self.framework,
+                                     expected_candidate_mrts_sha=mrts)
+        self.assertEqual(lock.read_bytes(), dishonest)
+
+    def test_explicit_candidate_mrts_refuses_symlink_authority_and_missing_gitlink(self):
+        selected, candidate, mrts = self.mrts_framework_pair()
+        link = Path(self.temporary.name) / "linked-framework"
+        link.symlink_to(self.framework, target_is_directory=True)
+        before = (self.root / "ci/tooling/project-versions.lock.json").read_bytes()
+        with self.assertRaisesRegex(VERIFIER.ContractError, "real directory"):
+            VERIFIER.verify_contract(self.root, candidate, self.common, selected, link,
+                                     expected_candidate_mrts_sha=mrts)
+        self.git(self.framework, "rm", "--cached", "tools/MRTS")
+        self.git(self.framework, "commit", "-qm", "missing nested link")
+        missing = self.git(self.framework, "rev-parse", "HEAD")
+        with self.assertRaisesRegex(VERIFIER.ContractError, "cannot verify"):
+            VERIFIER.verify_contract(self.root, missing, self.common, selected, self.framework,
+                                     expected_candidate_mrts_sha=mrts)
+        self.assertEqual((self.root / "ci/tooling/project-versions.lock.json").read_bytes(), before)
+
     def test_candidate_checkout_does_not_override_old_parent_selection(self):
         self.assertEqual(self.git(self.framework, "rev-parse", "HEAD"), self.new)
         self.assertEqual(self.verify(self.old, self.new)["release_tag"], "release-1.31.6")

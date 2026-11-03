@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "c1ec27a1e0eb6e01538e385f68fb1caade312e6a065115809d1fad6b97ccb0bf",
+  "inventory_sha256": "ad8465845ffc0a1bc326a104e6d7ca46ed18782b8252db207d2a200aeed515bd",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8089,
+  "on_demand_definition_count": 8096,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -11564,6 +11564,10 @@
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_nginx_tuple_cannot_change_parent",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_sha_projection_updates_only_revision_lock",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_sha_projection_rejects_malformed_lock_without_writes",
+        "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_explicit_mrts_handoff_updates_joint_lock_and_primary_publication",
+        "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_explicit_mrts_handoff_rejects_unapproved_or_dishonest_inputs_without_writes",
+        "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_explicit_mrts_handoff_rejects_symlink_authority_and_missing_gitlink",
+        "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_explicit_mrts_cli_sync_check_and_verify_primary",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_revision_lock_symlink_is_rejected_before_writes",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_sha_fixture_refuses_original_checkout",
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_cli_rejects_alternate_and_symlinked_repository_roots_before_io",
@@ -11592,7 +11596,7 @@
         "modsecurity_connector_tests.test_update_framework_versions.SyncFrameworkVersionsTests.test_framework_postwrite_admission_failure_rolls_back_transaction"
       ],
       "source": "tests/test_update_framework_versions.py",
-      "source_sha256": "f1918c8396f13a5e7d4a582f50abeb5e4ff17f3c0820358681c0626196de030f"
+      "source_sha256": "9cb7c82d286e994619c397c59c9012e51667e37b8285990e6b91f999c7cf2580"
     },
     {
       "contains_selected_definitions": [
@@ -11760,13 +11764,16 @@
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateContractTests.test_unsafe_candidate_expression_fails_before_parent_projection",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateContractTests.test_cli_reports_the_verified_candidate",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateContractTests.test_cli_rejects_an_invalid_expected_parent_framework_sha",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_explicit_candidate_mrts_requires_real_approved_pair_and_default_stays_locked",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_explicit_candidate_mrts_refuses_malformed_missing_mismatch_and_dishonest_old_lock",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_explicit_candidate_mrts_refuses_symlink_authority_and_missing_gitlink",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_candidate_checkout_does_not_override_old_parent_selection",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_new_selection_reads_candidate_data_with_old_checkout_and_trusted_parser",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_wrong_wrapper_revision_is_rejected",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_missing_selected_action_blob_is_rejected"
       ],
       "source": "tests/test_verify_framework_candidate_contract.py",
-      "source_sha256": "d1699e4d3c9d38f07c55c5ffe63e57dc4057d3b8ba05cb07f1e67e4f556fd245"
+      "source_sha256": "b616b29c168404c573592ff51a703287b1cfcf1250c69ad0ca0da309cb85fcfa"
     },
     {
       "contains_selected_definitions": [],
