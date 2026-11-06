@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "1e0a294d8db21f7ab01d33de7962132c1064e5224aa79a2ff60819e935cdec76",
+  "inventory_sha256": "52ea29e56f53034436c3e5dd0701a742fd3a51961b7ae54e72ac3e6494b9f326",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -945,6 +945,11 @@
       "source_sha256": "16c9d92348507f764bd4fb8f5822202732faf4921bf9f1c8c413c09cbd0e226f"
     },
     {
+      "framework_path": "connector_suite/adapters/apache/harness/apache_h2_observer.c",
+      "source": "framework/connector_suite/adapters/apache/harness/apache_h2_observer.c",
+      "source_sha256": "bced83616e83d8f3a1085198e3e10ca42722223d689dbe9a3af3a083a9041da2"
+    },
+    {
       "framework_path": "connector_suite/adapters/apache/harness/mod_phase4_terminal_rogue.c",
       "source": "connectors/apache/harness/mod_phase4_terminal_rogue.c",
       "source_sha256": "c56462c48499d651c59ef81bfc178c57cb839538b2f818c8338608c886d7b904"
@@ -1345,7 +1350,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8111,
+  "on_demand_definition_count": 8178,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -1537,7 +1542,7 @@
         "TestAuthzServerAllowsRealCommonRequestAndEmitsBoundedPipelineMetadata"
       ],
       "source": "connectors/envoy/ext_proc/internal/compositeenvoy/common_runtime_integration_test.go",
-      "source_sha256": "8ae2100dfbfa6b64bc0b1b4b04765272e62ec261db3127a1342a053f9aa33bf9"
+      "source_sha256": "3e09b956f6152d4229ecc96dd912168105fa398521804925261daf561b4725e1"
     },
     {
       "contains_selected_definitions": [],
@@ -1747,6 +1752,7 @@
         "TestFailedImmediateResponseDoesNotRecordHostAction",
         "TestResponseCommitRequiresSuccessfulResponseHeaderContinue",
         "TestStrictPolicyIsRejectedBeforeStreamAdmission",
+        "TestCommittedStrictDecisionRequestsNativeLocalReply",
         "TestLatePolicyAdmissionDelegatesToRuleEvaluatingEngine",
         "TestCancellationCleansUpWithoutAttributingTheHTTPReset",
         "TestInheritedParentDeadlineIsCancellationNotStreamLifetime",
@@ -1764,7 +1770,7 @@
         "TestStreamCloseMetadataSinkFailureRemainsFatalAfterIncompleteFinish"
       ],
       "source": "connectors/envoy/ext_proc/internal/processor/processor_test.go",
-      "source_sha256": "8463c368e15987de6474b1ee1835f08bfc32e390b791c978d70c26496c9cd78b"
+      "source_sha256": "502a4c2432e905ba1b7eff5c08a0089a64473120b6a9f6fe50a4a247cbeecc3e"
     },
     {
       "contains_selected_definitions": [
@@ -3318,6 +3324,23 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_apache_h2_acceptance.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_apache_h2_acceptance.ApacheH2AcceptanceTests.test_reader_accepts_complete_independent_native_binding",
+        "modsecurity_connector_tests.test_apache_h2_acceptance.ApacheH2AcceptanceTests.test_reader_rejects_missing_duplicate_wrong_stream_and_foreign_cleanup",
+        "modsecurity_connector_tests.test_apache_h2_acceptance.ApacheH2AcceptanceTests.test_reader_rejects_native_h1_fallback_rule_and_connection_misbinding",
+        "modsecurity_connector_tests.test_apache_h2_acceptance.ApacheH2AcceptanceTests.test_partial_json_and_zero_native_records_fail",
+        "modsecurity_connector_tests.test_apache_h2_acceptance.ApacheH2AcceptanceTests.test_native_response_phase_marker_requires_exact_rule_and_transaction",
+        "modsecurity_connector_tests.test_apache_h2_acceptance.ApacheH2AcceptanceTests.test_bundle_rejects_changed_file_before_semantic_evaluation",
+        "modsecurity_connector_tests.test_apache_h2_acceptance.ApacheH2AcceptanceTests.test_native_peer_cleanup_cannot_precede_observed_reset",
+        "modsecurity_connector_tests.test_apache_h2_acceptance.ApacheH2AcceptanceTests.test_client_release_request_waits_for_real_matching_native_cleanup",
+        "modsecurity_connector_tests.test_apache_h2_acceptance.ApacheH2AcceptanceTests.test_late_forced_or_foreign_cleanup_cannot_qualify_live_peer"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_apache_h2_acceptance.py",
+      "source_sha256": "32bd161bde0464ae3bddc151bbe3382181cbd76d33065f67d3f2015ddcda3de2"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_apache_header_semantics.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_apache_header_semantics.ApacheHeaderWireTests.test_case_variants_and_empty_values_keep_their_wire_order",
@@ -4856,6 +4879,25 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_envoy_h2_acceptance.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_exact_join",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_missing_duplicate_and_foreign_correlation_rejected",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_protocol_fallback_connection_replacement_peer_damage_rejected",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_independent_wire_protocol_entities_rule_phase_and_count_are_mandatory",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_cancellation_requires_native_cancel_before_upstream_eos",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_real_phase2_request_contains_post_and_entity",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_hpack_length_and_frame_boundary",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_json_evidence_rejects_duplicates_and_nonfinite_numbers",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_reader_rejects_symlink_parent_leaf_and_hardlink",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_strict_requires_both_actual_reset_and_native_action_correlation",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_native_hpack_status_decoder"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_envoy_h2_acceptance.py",
+      "source_sha256": "044140c92d4d59ba9c3427384411d297c83bb6ef64aaeac5ce0b87be46b6370d"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_envoy_i12_offline_orchestration.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_envoy_i12_offline_orchestration.EnvoyOfflineOrchestrationTests.test_complete_packet_verifies_real_joins_without_host_qualification",
@@ -4934,7 +4976,7 @@
         "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_runtime_uses_an_unambiguous_allow_transaction"
       ],
       "source": "tests/test_envoy_transport_hardening_contract.py",
-      "source_sha256": "eec821d565929a88fef079367825c498e1758ebda44fcd2c92a2a1967ecd2b46"
+      "source_sha256": "cf5e45fd04d1e78589db58322e5f8c68fdb3341b5decb59746a3c5fbacc74c0b"
     },
     {
       "contains_selected_definitions": [],
@@ -5221,10 +5263,11 @@
         "modsecurity_connector_tests.test_full_lifecycle_profiles.FullLifecycleProfilesTest.test_non_native_profiles_are_conservatively_downgraded",
         "modsecurity_connector_tests.test_full_lifecycle_profiles.FullLifecycleProfilesTest.test_common_bridge_profiles_select_only_unpromoted_native_capabilities",
         "modsecurity_connector_tests.test_full_lifecycle_profiles.FullLifecycleProfilesTest.test_patched_lighttpd_keeps_entity_body_lifecycle_selectable",
+        "modsecurity_connector_tests.test_full_lifecycle_profiles.FullLifecycleProfilesTest.test_h2_profile_availability_cannot_promote_or_leak_to_other_profiles",
         "modsecurity_connector_tests.test_full_lifecycle_profiles.FullLifecycleProfilesTest.test_wrong_connector_profile_is_rejected_and_write_is_atomic"
       ],
       "source": "tests/test_full_lifecycle_profiles.py",
-      "source_sha256": "ceeef9ad315621290ab0dddb35d19f02b6ff72ef58d435b132d5604e03225fa8"
+      "source_sha256": "ed65bb7b6cd8248f279e48cf4004d8a3d550d9f2c3aaa8a889059beb13413fe6"
     },
     {
       "contains_selected_definitions": [],
@@ -5629,6 +5672,29 @@
       ],
       "source": "tests/test_haproxy_evidence_workflow_contract.py",
       "source_sha256": "7e20a53fcaa23d1b5bfb2bc0556e57fc9aab08d6b83d0119803954ae0da5f989"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_haproxy_h2_acceptance.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ObserverContractTests.test_observer_preserves_cleanup_and_scopes_claim_to_success",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ObserverContractTests.test_changed_anchor_rejected",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ObserverContractTests.test_closed_inputs_include_build_and_registry",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArchiveAdmissionTests.test_exact_bytes_and_safe_symlink",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArchiveAdmissionTests.test_changed_byte",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArchiveAdmissionTests.test_extra_file",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArchiveAdmissionTests.test_duplicate_archive_member",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArchiveAdmissionTests.test_traversal_archive_member",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArchiveAdmissionTests.test_escaping_symlink",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ReaderContractTests.test_complete_contract",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ReaderContractTests.test_independent_missing_or_crossed_witnesses_reject",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ReaderContractTests.test_duplicate_json_rejected",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArtifactAdmissionTests.test_exact_artifact_identity",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArtifactAdmissionTests.test_wrong_hashes_source_and_location_fail",
+        "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArtifactAdmissionTests.test_symlink_binary_fails_even_with_matching_bytes"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_haproxy_h2_acceptance.py",
+      "source_sha256": "167720121037a3754be04a5e9a1ef4c016edaac30735b9159bfd081bb42240f4"
     },
     {
       "contains_selected_definitions": [],
@@ -6121,6 +6187,22 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_haproxy_spop_h2_acceptance.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_actual_three_role_cross_process_join",
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_early_spop_deny_retires_unclaimed_context_without_inventing_lease",
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_owner_eos_rule_and_independent_host_action_are_required",
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_handle_lease_and_cleanup_corruption_fail_closed",
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_safe_requires_normal_eos_bodies_and_first_byte_barrier",
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_real_wire_file_writer_failure_closes_socket_and_retains_failure",
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_reused_cross_process_handle_is_rejected",
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_protocol_status_foreign_transactions_and_late_cleanup_fail_closed"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_haproxy_spop_h2_acceptance.py",
+      "source_sha256": "5c989c9628e12a21f1ce31ef025e4f49daff29fd40ebb4279ec04a9598f0b50c"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_haproxy_spop_owned_decision.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_haproxy_spop_owned_decision.SPOPDecisionOwnership.test_actual_common_copy_then_ha_copy",
@@ -6369,6 +6451,19 @@
       ],
       "source": "tests/test_http_authorization_service_worker_contract.py",
       "source_sha256": "ecd27ce50fb6a764491d8b01cc93f8d7716fc5ac1d461cbb1781c1a09bfe4770"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_httpd_checksum_cache.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_valid_private_cache_rechecks_actual_bytes_without_network",
+        "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_wrong_provider_pin_or_filename_cannot_authorize_cache_reuse",
+        "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_wrong_actual_source_or_cached_checksum_fails",
+        "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_symlink_hardlink_fifo_and_public_files_are_rejected",
+        "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_symlinked_ancestor_does_not_redirect_private_cache_read"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_httpd_checksum_cache.py",
+      "source_sha256": "6eb5e231079e3e65aa3cc41101691d660f768ffea388413917668b5b5d9cf95f"
     },
     {
       "contains_selected_definitions": [],
@@ -9448,6 +9543,11 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_prepare_runtime_components.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_download_failure_is_distinct_from_missing_httpd_build",
+        "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_retired_primary_404_does_not_mask_later_compiler_failure",
+        "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_cache_binds_canonical_profile_registry",
+        "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_failed_logged_command_records_actual_exit_status",
+        "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_failed_configure_retains_nested_compiler_linker_diagnostics",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_nginx_build_environment_preserves_canonical_non_h3_quic_pins",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_nginx_staged_make_log_diagnostics_requires_current_managed_identity",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_nginx_staged_make_log_diagnostics_bounds_and_rejects_links",
@@ -9545,7 +9645,7 @@
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root"
       ],
       "source": "tests/test_prepare_runtime_components.py",
-      "source_sha256": "025edf116e261d85cfa92dbe88fab0a4f8c6982232c5a9972769fc54acae14a4"
+      "source_sha256": "15db4b4731e1b04e0495dde0f52aca70289a1421ac2dcdb1c02e696909641b3c"
     },
     {
       "contains_selected_definitions": [],
@@ -11817,6 +11917,9 @@
         "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_generic_upload_accepts_current_bound_pass_evidence",
         "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_non_successful_generic_runtime_retains_only_a_failure_receipt",
         "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_non_successful_apache_runtime_retains_a_failure_receipt",
+        "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_apache_failure_retains_allowlisted_build_logs_and_hashes",
+        "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_apache_failure_bounds_large_compiler_output_and_preserves_error_tail",
+        "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_apache_failure_rejects_symlink_fifo_and_hardlink_build_logs",
         "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_generic_upload_rejects_mismatched_pass_evidence",
         "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_workflow_summary_counts_actual_haproxy_evidence_upload",
         "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_workflow_summary_treats_skipped_haproxy_upload_as_nonpassing",
@@ -11886,7 +11989,7 @@
         "modsecurity_connector_tests.test_with_crs_no_mrts_runtime.WithCrsNoMrtsRuntimeContractTest.test_runner_prepares_crs_under_its_private_build_root"
       ],
       "source": "tests/test_with_crs_no_mrts_runtime.py",
-      "source_sha256": "fff5009e794eef178317155b5f603f0a3222313d2f18d18be826b03fcea8c21a"
+      "source_sha256": "8b9234cd6127e95c09eb5d6b186a3e1048fa7a05274f9785f4fe7fcdae23a8ea"
     },
     {
       "contains_selected_definitions": [],
@@ -13442,6 +13545,16 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "tests/no_crs/test_non_nginx_h2_registry.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.no_crs.test_non_nginx_h2_registry.NativeH2RegistryTests.test_registered_adapters_exist_without_default_or_nginx_collision",
+        "modsecurity_test_framework.selftests.no_crs.test_non_nginx_h2_registry.NativeH2RegistryTests.test_missing_duplicate_foreign_zero_and_failed_results_rejected"
+      ],
+      "source": "framework/tests/no_crs/test_non_nginx_h2_registry.py",
+      "source_sha256": "3132e540f23db3feb9633ff158a9fda6d0d69317df59c0b8734bc3be38c0b67f"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "tests/no_crs/test_protocol_acceptance_contract.py",
       "on_demand_definitions": [
         "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_registry_is_separate_and_strict_requires_server_reset",
@@ -13544,6 +13657,17 @@
       ],
       "source": "framework/tests/no_crs/test_valid_rules_quality_characterization.py",
       "source_sha256": "2ea8cdecc5333fd00255d2e7f7a471c44f5a72bd0297e6bb0ce8cca9722b501d"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "tests/protocol_client/test_acceptance_body_fixture.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.protocol_client.test_acceptance_body_fixture.AcceptanceBodyFixtureTests.test_hostile_body_files_fail_before_requests_start",
+        "modsecurity_test_framework.selftests.protocol_client.test_acceptance_body_fixture.AcceptanceBodyFixtureTests.test_inconsistent_method_options_fail_before_requests_start",
+        "modsecurity_test_framework.selftests.protocol_client.test_acceptance_body_fixture.AcceptanceBodyFixtureTests.test_post_applies_only_to_target_and_never_logs_body"
+      ],
+      "source": "framework/tests/protocol_client/test_acceptance_body_fixture.py",
+      "source_sha256": "0395de21592a33fa20eaef27776d20bbe96e762ea1860f0990dc9b36ec284531"
     },
     {
       "contains_selected_definitions": [],
@@ -14210,6 +14334,18 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "tests/security_regression/test_nginx_http2_reset_patch.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.security_regression.test_nginx_http2_reset_patch.NginxHttp2ResetPatchTests.test_patch_preserves_blocked_return_and_schedules_owned_connection_writer",
+        "modsecurity_test_framework.selftests.security_regression.test_nginx_http2_reset_patch.NginxHttp2ResetPatchTests.test_native_source_drift_is_rejected_without_fuzzy_application",
+        "modsecurity_test_framework.selftests.security_regression.test_nginx_http2_reset_patch.NginxHttp2ResetPatchTests.test_patch_bytes_are_part_of_nginx_component_source_identity",
+        "modsecurity_test_framework.selftests.security_regression.test_nginx_http2_reset_patch.NginxHttp2ResetPatchTests.test_release_verification_precedes_patch_and_patch_precedes_provenance"
+      ],
+      "source": "framework/tests/security_regression/test_nginx_http2_reset_patch.py",
+      "source_sha256": "505e027aa5fa06a4874884514bdf42c3254fcca2382e96725b04aed61ee0c844"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "tests/security_regression/test_nginx_release_provenance.py",
       "on_demand_definitions": [
         "modsecurity_test_framework.selftests.security_regression.test_nginx_release_provenance.NginxReleaseProvenanceTests.test_current_release_asset_and_digest_are_verified_together",
@@ -14499,7 +14635,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.ApprovedSdkPreparationTests.test_symlinked_sdk_run_root_preserves_external_directory"
       ],
       "source": "framework/tests/security_regression/test_sonar_analysis_contract.py",
-      "source_sha256": "ecb333b374e714dc72690de951f34e4619092e1be1f8ae74abadf037e26b4a66"
+      "source_sha256": "82b3fc5a89c60925c30c49febf1a7d10297c5b48ac2bf845131a4947bf4ddc97"
     },
     {
       "contains_selected_definitions": [],

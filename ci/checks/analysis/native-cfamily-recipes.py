@@ -11,6 +11,7 @@ _C_SOURCE_CONTRACT_PATH = 'connector_suite/modsecurity_connector_tests/c_source_
 
 
 NATIVE_UNITS = (
+    "connector_suite/adapters/apache/harness/apache_h2_observer.c",
     "connector_suite/adapters/apache/harness/mod_phase4_terminal_rogue.c",
     "connector_suite/adapters/envoy/src/envoy_ext_authz_response_companion_test.c",
     "connector_suite/adapters/haproxy/harness/i12_request_scope_observer.c",

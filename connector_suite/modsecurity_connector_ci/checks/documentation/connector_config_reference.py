@@ -2765,7 +2765,7 @@ def envoy_processor_options(root: Path) -> list[dict[str, Any]]:
             allowed = ALLOWED_VALUES_PHASE4_MODE
         effect = "Sets one bounded ext_proc service control."
         if json_name == "late_action_policy":
-            effect = "Selects late decision reporting; off preserves native handling, safe records late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset."
+            effect = "Selects late decision handling; off preserves native handling, safe records log_only, and strict sends a late ImmediateResponse through the selected ext_proc host. A successful send is recorded separately from the independently observed downstream reset."
         options.append(_option(
             "envoy", json_name, "service_json_field", config_source, f"processor.Config.{field} / Config.Validate",
             syntax=f'"{json_name}": <{go_type.strip()}>', value_type=go_type.strip(), allowed_values=allowed,
@@ -3558,7 +3558,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Selects audit-log parts.": "Wählt Audit-Log-Teile aus.",
     "Selects body visibility for ext_proc. The repository Common bridge requires STREAMED for both directions in the selected full-lifecycle path.": "Wählt die Body-Sichtbarkeit für ext_proc. Die Common-Bridge des Repositorys verlangt im ausgewählten Full-Lifecycle-Pfad STREAMED für beide Richtungen.",
     "Selects host listener, routing, filter, service, or logging setup from the checked-in example.": "Wählt Listener-, Routing-, Filter-, Service- oder Logging-Einrichtung des eingecheckten Beispiels.",
-    "Selects late decision reporting; off preserves native handling, safe records late disruptive decisions as log_only, while strict records strict_abort_not_attempted rather than a fabricated status/reset.": "Wählt die Protokollierung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst späte disruptive Entscheidungen als log_only, während strict strict_abort_not_attempted statt eines erfundenen Status/Resets erfasst.",
+    "Selects late decision handling; off preserves native handling, safe records log_only, and strict sends a late ImmediateResponse through the selected ext_proc host. A successful send is recorded separately from the independently observed downstream reset.": "Wählt die Behandlung später Entscheidungen; off bewahrt die native Behandlung, safe erfasst log_only und strict sendet eine späte ImmediateResponse über den ausgewählten ext_proc-Host. Ein erfolgreicher Send wird getrennt vom unabhängig beobachteten Downstream-Reset erfasst.",
     "Selects the persistent UDS engine. Legacy source-only passthrough is rejected so a rule-evaluating deployment cannot silently select a non-enforcing path.": "Wählt die persistente UDS-Engine. Legacy-source-only-passthrough wird abgelehnt, damit ein regelauswertendes Deployment nicht stillschweigend einen nicht durchsetzenden Pfad wählen kann.",
     "uds is the engine transport for native P1/P2/P3/P4 callbacks. Legacy passthrough is rejected rather than creating an always-allow path.": "uds ist der Engine-Transport für native P1/P2/P3/P4-Callbacks. Legacy-passthrough wird abgelehnt, statt einen Always-Allow-Pfad zu erzeugen.",
     "Use the private uds path for the selected rule-evaluating deployment. Do not rely on a passthrough fallback; it is rejected.": "Den privaten uds-Pfad für das ausgewählte regelauswertende Deployment verwenden. Nicht auf einen passthrough-Fallback vertrauen; er wird abgelehnt.",

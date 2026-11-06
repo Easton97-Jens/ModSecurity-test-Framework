@@ -41,11 +41,11 @@ func closeCommonRuntimeForTest(t *testing.T, engine *processor.CommonRuntimeEngi
 }
 
 func TestAuthzServerAllowsRealCommonRequestAndEmitsBoundedPipelineMetadata(t *testing.T) {
-	repositoryRoot, err := filepath.Abs("../../../../../")
-	if err != nil {
-		t.Fatal(err)
+	frameworkRoot := os.Getenv("TEST_ROOT")
+	if !filepath.IsAbs(frameworkRoot) {
+		t.Fatal("TEST_ROOT must explicitly select the Framework checkout")
 	}
-	rulesPath := filepath.Join(repositoryRoot, "common", "rules", "modsecurity_p1_p4_vectors.conf")
+	rulesPath := filepath.Join(frameworkRoot, "connector_suite", "common", "rules", "modsecurity_p1_p4_vectors.conf")
 	if info, statErr := os.Stat(rulesPath); statErr != nil || !info.Mode().IsRegular() {
 		t.Fatalf("shared rules are unavailable: %v", statErr)
 	}

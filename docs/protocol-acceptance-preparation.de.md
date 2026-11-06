@@ -2,8 +2,9 @@
 
 **Sprache:** [English](protocol-acceptance-preparation.md) | Deutsch
 
-Dieser separat auswählbare Vorbereitungsläufer ergänzt ausführbare native
-NGINX-Pfade für H2, H3 und h2c. Die 100 Standardfälle bleiben unverändert.
+Diese separat auswählbaren Adapter ergänzen native NGINX-Pfade für H2/H3/h2c
+sowie Apache-, HAProxy-HTX/SPOP-Companion- und Envoy-ext_proc-H2-Pfade.
+Die 100 Standardfälle bleiben unverändert.
 Die Gesamtabnahme bleibt **NOT_RUN**. Dieses Dokument erklärt weder
 `READY_FOR_FULL_ACCEPTANCE` noch eine Connector-Capability als erreicht.
 
@@ -31,8 +32,8 @@ Nachweisbundle.
 seine kanonischen Fixtures/Assertions behalten ihren bisherigen Umfang.
 Der separate Einstiegspunkt ist
 `connector_suite/modsecurity_connector_ci/runtime/lifecycle/run-protocol-acceptance.py`.
-Er ist auf `native-nginx-http-module` begrenzt. Die übrigen neun logischen
-Profile behalten ihre eigenen Capability- und Runnerlücken. Ein fehlender
+Er ist auf `native-nginx-http-module` begrenzt. Andere Profile verwenden
+eigene Adapter und unabhängige native Nachweisleser. Ein fehlender
 Pflichtpfad wird nicht durch eine Unsupported-Markierung geschlossen.
 Ein Vorbereitungsergebnis bewirkt keine Framework-, Parent- oder MRTS-Promotion.
 
@@ -110,56 +111,109 @@ Lokales Sonar ist für diesen Auftrag ausgesetzt; bestehende GitHub-Sonar- und
 CodeQL-Prüfungen bleiben erforderlich. Vorbereitung und spätere Gesamtabnahme
 bleiben getrennte Nachweise.
 
-## Beobachtetes Vorbereitungsergebnis
+## Separate Nicht-NGINX-H2-Registry
 
-Die gezielte Hostkampagne `trial4` wertete alle 25 registrierten IDs aus:
-**21 PASS, 4 FAIL**. Die fehlgeschlagenen IDs sind `h2_phase4_strict`,
-`h2_server_rst_stream`, `h2_upstream_reset` und
-`phase4_strict_http2_stream_reset`. Alle 25 Bundles bestätigten Cleanup eigener
-Prozesse und Listener. Originale Fehlerbeobachtungen bleiben in externen
-`host/trial4`-Nachweisen erhalten; Erwartungen und fehlgeschlagene Regressionen
-bleiben unverändert. Die Vorbereitung ist **NOT_READY**; die Gesamtabnahme ist
-**NOT_RUN**.
+`tests/runners/non_nginx_h2_acceptance.py:CASES` registriert **32** zusätzliche
+Opt-in-IDs, getrennt von den 25 NGINX-IDs und den 100 Standardfällen.
+Jedes folgende Präfix hat acht Suffixe: `allow`, `phase1`, `phase2`, `phase3`,
+`phase4_safe`, `phase4_strict`, `client_cancel`, `upstream_reset`.
 
-H3 Strict bestand mit einem nach den Headern bis zum tatsächlichen Zielreset
-gehaltenen Peer sowie anschließend gesundem Peer und Folgerequest derselben
-Verbindung. Bei H2 erschien das native Abortereignis sofort; der Client sah
-den Reset jedoch erst etwa 12 Sekunden später beim Timeout der Peerbarriere.
-Der Peer scheiterte danach. Ein H2-Build ohne QUIC reproduzierte sowohl Strict-
-als auch Upstreamresetfehler. Die Quellhypothese lautet, dass NGINX HTTP/2 RST
-in `close_stream` einreiht und zurückkehrt, solange ein anderer Peer verarbeitet
-wird. Dies ist eine Hypothese zum beobachteten Produktpfad, kein abgeschlossener
-Ursachennachweis oder eine Behebung. Produktänderungen liegen außerhalb dieser
-Vorbereitungsänderung.
+| Präfix | Ausgewähltes Profil | Ausführbarer Framework-Adapter |
+| --- | --- | --- |
+| `apache_h2_` | Natives Apache-Modul | `connector_suite/adapters/apache/harness/apache_h2_acceptance.py` |
+| `haproxy_htx_h2_` | Lokaler nativer HTX-Filter | `connector_suite/adapters/haproxy/harness/haproxy_h2_acceptance.py` |
+| `haproxy_spop_htx_h2_` | SPOP-Requestphasen plus nativer HTX-Response-Companion | `connector_suite/adapters/haproxy/harness/haproxy_spop_h2_acceptance.py` |
+| `envoy_h2_` | Natives gestreamtes ext_proc | `connector_suite/adapters/envoy/harness/envoy_h2_acceptance.py` |
 
-Weiter erforderliche moderne Pfade umfassen Apache H2, HAProxy HTX H2 samt
-SPOE-Begleiter für H2-Streamshutdown sowie Envoy ext_proc H2. Dieser NGINX-Runner
-schließt diese Lücken nicht. Die ausgewählten stock- und gepatchten lighttpd-
-Profile besitzen einen bestehenden H1-Vertrag; moderne Protokolle sind darüber
-ausgeschlossen, ohne neue Unsupported-Deklaration. Alle zehn logischen Profile
-behalten getrennte Abnahmeaussagen.
+`--help` jedes Adapters über RTK im oben beschriebenen expliziten Quellkontext
+prüfen. Apache akzeptiert eine vollständige `--case-id`; die übrigen Adapter
+akzeptieren ein Szenario über `--case`. Envoy Strict benötigt
+`--late-action-policy strict --case phase4_strict`; seine Vorgabe führt die
+sieben Safe-Szenarien aus. Jeder Adapter verlangt explizite externe Laufzeit-
+und zugelassene Binär-/Buildeingaben. Die HAProxy-Buildhelfer
+`ci/provisioning/prepare-haproxy-h2-test-build.py` und
+`ci/provisioning/prepare-haproxy-spop-h2-test-build.py` bauen rein protokollierende
+native Observer aus verifizierten Quellkopien. Produktquellbytes bleiben
+unverändert. Die Manifeste erhalten historische Buildidentitäten, exakte
+Transformation und Quell-/Archiv-/Bibliotheks-/Binärhashes; wiederverwendete
+Ausgaben benötigen eine frische Quellenzulassung.
 
-Die acht angrenzenden bestehenden echten Hostfälle bestanden ebenfalls:
-`protocol_h2_negotiated`, `h2_phase2_deny`, `h2_phase3_deny`, `h2_phase4_safe`,
-`protocol_h3_negotiated`, `h3_phase2_deny`, `h3_phase3_deny`, `h3_phase4_safe`.
-Die vollständige Ausführungsquittung bleibt extern als
-`host/adjacent/executions.json` erhalten, mit Frameworkbasis
-`62b411e073551ef0fef22ab3d372e2489f2ae168` und Parentquelle
-`a5f697c35acb5386d2037f91dfed10ad4b469cd9`. Diese erfolgreichen angrenzenden
-Pfade schließen die vier fehlgeschlagenen neuen H2-Fälle nicht.
+Ein TLS-1.3/ALPN-h2-verifizierender Rohframeclient hält Peer-Stream 1, während
+Target-Stream 3 läuft, und verwendet Stream 5 für den Folgezugriff. Er dekodiert
+native HPACK-Statusheader über die zugelassene libnghttp2-ABI und weist fehlende/
+doppelte Statuswerte, H1-Fallback und fehlerhafte Frames zurück. P2 sendet einen
+tatsächlichen begrenzten POST-Body. Native Access-Records, Common-Regel-/
+Phasenentscheidungen und profilbezogenes Transaktionscleanup bleiben getrennte
+Beobachtungen. Das Target muss bei offener TLS-Verbindung und weiter gehaltenem
+Peer bereinigt sein; Hostshutdown kann diesen Nachweis nicht liefern. Apaches
+Testmodul beobachtet die tatsächliche Freigabe des mod_security-Requestkontexts
+in einem APR-Pool-Cleanup. HTX beobachtet seinen tatsächlichen Detach; SPOP
+verknüpft zusätzlich nativen Handoff/Claim/Close über einen SHA-256-Handlezeugen,
+ohne den rohen Responsehandle auszugeben. Frühe SPOP-P1/P2-Denys verlangen null
+Phantomclaims. Die SPOP-Fixture sendet für leere H2-Requests explizit
+`Content-Length: 0`, weil die aktuelle NOTIFY-ABI H2 END_STREAM nicht transportiert.
+Dies ist eine sichtbare Produktgrenze, kein Nachweis sämtlicher H2-Bodyframings.
 
-Der Vorbereitungsclient akzeptiert ausschließlich seine eigene IPv4-Loopbackorigin
-(`127.0.0.1` mit explizitem Port 1..65535), ohne Userinfo, Pfad, Query oder Fragment.
-TLS-Fälle setzen passend zum Fixtureserver explizit TLS 1.3 als Minimum; der
-getrennt gewählte h2c-Fall nutzt bewusst Klartext auf Loopback. Der Nachweisreader
-liest vollständige Listenerdirektiven ohne quadratisches Regexbacktracking.
-Entfernte CI bewertet die gepflegten Quellen; kein lokaler Sonar-Scanner wird
-für diesen Vorbereitungsauftrag aufgerufen.
+Jeder Fall prüft Allow/Block, anwendbare Request-/Responsephase und exakte Regel,
+clientseitiges Targetergebnis, aktive Peer-Isolation, erfolgreichen Folgezugriff,
+Readiness und eigenes Cleanup. Safe verlangt erste Bytes vor Upstream-EOS und
+die tatsächliche Log-only-Entscheidung. Strict verlangt den tatsächlichen Reset
+des betroffenen Streams mit profilbezogenem Fehlercode; Engineentscheidung oder
+erfolgreicher gRPC-Send ersetzen ihn nicht. Negativkontrollen weisen fehlende,
+doppelte, fremde oder falsch zugeordnete Nachweise, fehlerhaftes JSON, unsichere
+Nachweisdateien, spätes Cleanup und Writerfehler zurück. Die Registry-Prüfung
+weist null Ergebnisse, fehlende/doppelte/fremde IDs und jedes Ergebnis ohne
+PASS zurück; sie ergänzt die unabhängigen Hostleser.
 
-Die abschließende C-Clientkorrektur setzt das vorhandene TLS-1.3-Minimum,
-Peer-/Hostprüfung und CA direkt nach der Easy-Handleinitialisierung durch
-geprüfte libcurl-Aufrufe. Eine echte TLS-1.2-Loopbackkontrolle weist alle drei
-Handshakes mit Protokollversionsalarm und ohne HTTP-Bytes zurück; eigener
-Listener, Thread und ephemere Schlüssel/Zertifikate werden entfernt. Veränderliche
-Callback-ABI, typisierte Streammetadaten und der ausdrückliche h2c-Testvertrag
-bleiben erhalten. Entfernte Gates am aktuellen Head bleiben getrennte Nachweise.
+## Bewiesene H2-Resetursache und versionierte Korrektur
+
+Die erhaltene Baseline reproduzierte alle vier Fehler bei Parent
+`adf75d05ced37ccab066b8608aed1ce297be84e3` / Framework
+`b5d8d9442d7751c04ee84f478f594fc84a236e3b`. Unabhängige verifizierte TLS/H2-
+Frames zeigten Target-RST_STREAM ohne neue Eingabe erst nach etwa 12 Sekunden,
+nach einem kontrollierten PING dagegen sofort mit gesundem Peer/Folgezugriff.
+Damit ist ausstehende Serverausgabe statt verzögerter libcurl-Verarbeitung belegt.
+
+NGINX reihte den Reset in `ngx_http_v2_close_stream` ein und kehrte bei einem
+weiter aktiven Stream zurück, ohne das Schreibereignis der echten Verbindung
+zu planen. `ci/provisioning/patches/nginx/h2-close-stream-flush.patch` plant das
+vorhandene Schreibereignis bei ausstehender Ausgabe und nicht blockierter
+Verbindung. Die native Vorbereitung wendet ihn ohne Fuzz auf verifizierte
+angeheftete Quellen an; sein SHA bindet Provenienz und Cacheidentität. Er ruft
+keinen rekursiven Flush auf und behält keinen Requestzeiger. Assertions und
+Timeouts bleiben unverändert.
+
+Frische native H2- und H3-Builds bestanden. Die vier erhaltenen Regressionen und
+acht H2/H3-Nachbarn bestanden in gezielten Kandidatenläufen. Ein unabhängiger
+Frameprobe ohne PING sah den Targetreset nach etwa 15 ms mit gesundem Peer/
+Folgezugriff. Endgültige Commitpaar-Zahlen und aktuelle gehostete CI stehen im
+laufbezogenen Bericht und gepaarten Change Record; Kandidatenläufe allein
+belegen keine globale Bereitschaft. Die versiegelten früheren 21-PASS/4-FAIL-
+Beobachtungen bleiben als Vorher-Nachweis erhalten.
+
+Envoy Strict sendet nun eine späte ImmediateResponse über den angehefteten
+nativen Host. Sein Filter-Manager setzt einen bereits committeten Downstream-
+Stream zurück; der Dienst erfasst den erfolgreichen Send getrennt vom
+clientseitig beobachteten Reset. Acht ext_proc-H2-Kandidatenfälle bestanden mit
+rechtzeitigem Cleanup. Dies stuft weder ext_authz noch andere Versionen/Profile hoch.
+
+## Übrige Profilgrenzen und Bereitschaft
+
+Alle zehn logischen Profile behalten getrennte Aussagen. Die ausgewählten
+Stock-/Patched-lighttpd-Verträge bleiben H1-only. Envoy ext_authz und Traefik
+ForwardAuth benötigen eigene Response-Companions und erben keine direkten
+ext_proc-/nativen Ergebnisse. Moderne Protokoll- und Strict-Pfade von Traefik
+native benötigen weiterhin eigene Qualifizierung; diese Pflichten bleiben in
+der Abschlussmatrix sichtbar. Neue Unsupported-Markierungen oder entfernte
+Fälle schließen keinen fehlenden Pflichtpfad.
+
+Der Vorbereitungsclient erlaubt nur eigene IPv4-Loopback-Origins, verifiziert CA,
+Peer und Host, setzt die geprüfte TLS-1.3-Mindestversion vor Netzwerkzugriff und
+verwendet Klartext nur für die separat gewählte h2c-Fixture. Tatsächliche
+TLS-1.2-Negativkontrollen verlangen abgelehnte Handshakes ohne HTTP-Bytes.
+Callback-ABI, numerisches Streamlogging und begrenztes h2c werden je Sonar-
+Vorkommen geprüft; lokale Prüfung bleibt getrennt von gehosteter Befundbewertung
+und erforderlichem Gate. Lokales Sonar bleibt ausgesetzt. Die Gesamtabnahme
+bleibt **NOT_RUN**. Bereitschaft wird erst im abgeglichenen Abschlussbericht
+erklärt, wenn alle Pflichtvorbereitungen und erforderlichen aktuellen gehosteten
+Checks erfolgreich sind.

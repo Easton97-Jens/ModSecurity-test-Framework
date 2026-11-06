@@ -79,6 +79,11 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             [
                 sys.executable,
                 "-I",
+                "-c",
+                "import runpy, sys; root=sys.argv.pop(1); "
+                "sys.path[:0]=[root, root+'/connector_suite']; "
+                "sys.argv.pop(0); runpy.run_path(sys.argv[0], run_name='__main__')",
+                str(test_root()),
                 str(UPLOAD_PREPARER_PATH),
                 "--connector",
                 connector,
@@ -203,6 +208,54 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             receipt = read_json(root / "failure-receipt.json")
             self.assertEqual(receipt["connector"], "apache")
             self.assertEqual(receipt["runtime_outcome"], "failure")
+
+    def test_apache_failure_retains_allowlisted_build_logs_and_hashes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-apache-logs-") as temporary:
+            root = Path(temporary)
+            diagnostic = root / "build/logs/apache/httpd-make.log"
+            private_file(diagnostic, "compiler: error: deliberate failure\n")
+            private_file(root / "build/logs/apache/private-unlisted.log", "must not export\n")
+            result = self.run_upload_preparer(root, "apache", "run-1", "a" * 40, "failure")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            stage = root / "apache-build-failure"
+            manifest = read_json(stage / "manifest.json")
+            self.assertEqual(manifest["runtime_status"], "FAIL")
+            retained = [item for item in manifest["files"] if item["status"] == "retained"]
+            self.assertEqual(len(retained), 1)
+            item = retained[0]
+            self.assertEqual((stage / item["name"]).read_bytes(), diagnostic.read_bytes())
+            self.assertEqual(item["sha256"], hashlib.sha256(diagnostic.read_bytes()).hexdigest())
+            self.assertFalse(any("unlisted" in path.name for path in stage.iterdir()))
+
+    def test_apache_failure_bounds_large_compiler_output_and_preserves_error_tail(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="crs-upload-apache-large-") as temporary:
+            root = Path(temporary)
+            private_file(root / "build/logs/apache/httpd-make.log", b"x" * (3 * 1024 * 1024) + b"\nlinker failed\n")
+            result = self.run_upload_preparer(root, "apache", "run-1", "a" * 40, "failure")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            stage = root / "apache-build-failure"
+            retained = next(item for item in read_json(stage / "manifest.json")["files"] if item["status"] == "retained")
+            self.assertEqual(retained["bytes"], 2 * 1024 * 1024)
+            self.assertTrue(retained["possibly_truncated"])
+            self.assertTrue((stage / retained["name"]).read_bytes().endswith(b"linker failed\n"))
+
+    def test_apache_failure_rejects_symlink_fifo_and_hardlink_build_logs(self) -> None:
+        for kind in ("symlink", "fifo", "hardlink"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory(prefix="crs-upload-apache-unsafe-") as temporary:
+                root = Path(temporary)
+                log = root / "build/logs/apache/httpd-make.log"
+                log.parent.mkdir(parents=True)
+                other = root / "private.txt"
+                private_file(other, "must not export\n")
+                if kind == "symlink":
+                    log.symlink_to(other)
+                elif kind == "fifo":
+                    os.mkfifo(log)
+                else:
+                    os.link(other, log)
+                result = self.run_upload_preparer(root, "apache", "run-1", "a" * 40, "failure")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse((root / "failure-receipt.json").exists())
 
     def test_generic_upload_rejects_mismatched_pass_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="crs-upload-mismatch-") as temporary:
@@ -749,6 +802,7 @@ class WithCrsNoMrtsRuntimeContractTest(unittest.TestCase):
             environment = os.environ | {
                 "CONNECTOR_ROOT": str(ROOT),
                 "FRAMEWORK_ROOT": str(Path(temporary) / "missing-framework"),
+                "TEST_ROOT": str(Path(temporary) / "missing-framework"),
                 "VERIFIED_RUN_ROOT": str(Path(temporary) / "task"),
                 "EVIDENCE_ROOT": str(Path(temporary) / "task" / "evidence"),
             }

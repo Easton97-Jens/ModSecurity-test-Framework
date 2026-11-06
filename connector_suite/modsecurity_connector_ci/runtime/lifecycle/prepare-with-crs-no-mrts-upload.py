@@ -26,6 +26,17 @@ MAX_RECORD_BYTES = 65536
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$")
 VERIFIED_ROOT_LABEL = "verified root"
 FAILURE_RECEIPT_NAME = "failure-receipt.json"
+APACHE_FAILURE_DIRECTORY = "apache-build-failure"
+APACHE_BUILD_LOG_NAMES = (
+    "status.txt", "commands.txt", "source-info.txt", "artifacts.txt",
+    "httpd-checksum-cache.json",
+    "materialize-apache-connector-source.log", "check-expat.h.log",
+    "pcre2-extract.log", "httpd-extract.log", "apr-extract.log", "apr-util-extract.log",
+    "pcre2-configure.log", "pcre2-make.log", "pcre2-make-install.log",
+    "httpd-configure.log", "httpd-make.log", "httpd-make-install.log",
+    "apache-autogen.log", "apache-configure.log", "apache-make.log",
+)
+APACHE_DIAGNOSTIC_BYTES = 2 * 1024 * 1024
 _THIS = Path(__file__).resolve()
 _CONTRACT_PATH = _THIS.parents[1] / "contracts" / "runtime_observation.py"
 RUNTIME_OBSERVATION = load_source(_CONTRACT_PATH)
@@ -67,13 +78,15 @@ def require_safe_directory(details: os.stat_result, label: str) -> None:
         raise ValueError(f"{label} is not a private current-user directory")
 
 
-def require_safe_regular(details: os.stat_result, label: str) -> None:
+def require_safe_regular(
+    details: os.stat_result, label: str, *, size_limit: int = MAX_RECORD_BYTES
+) -> None:
     if (
         not stat.S_ISREG(details.st_mode)
         or details.st_uid != os.geteuid()
         or details.st_nlink != 1
         or stat.S_IMODE(details.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
-        or details.st_size > MAX_RECORD_BYTES
+        or details.st_size > size_limit
     ):
         raise ValueError(f"{label} is not a bounded private regular file")
 
@@ -143,7 +156,11 @@ def open_private_directory(path: Path, label: str) -> int:
     return descriptor
 
 
-def read_evidence(root: Path, components: tuple[str, ...], label: str) -> bytes:
+def read_evidence(
+    root: Path, components: tuple[str, ...], label: str,
+    *, size_limit: int = MAX_RECORD_BYTES,
+    retain_tail: bool = False,
+) -> bytes:
     if not components:
         raise ValueError("evidence path is empty")
     no_follow = getattr(os, "O_NOFOLLOW", None)
@@ -161,7 +178,8 @@ def read_evidence(root: Path, components: tuple[str, ...], label: str) -> bytes:
         before = os.stat(
             components[-1], dir_fd=directory_descriptor, follow_symlinks=False
         )
-        require_safe_regular(before, label)
+        effective_limit = max(size_limit, before.st_size) if retain_tail else size_limit
+        require_safe_regular(before, label, size_limit=effective_limit)
         file_descriptor = os.open(
             components[-1], os.O_RDONLY | no_follow | nonblock, dir_fd=directory_descriptor
         )
@@ -171,9 +189,11 @@ def read_evidence(root: Path, components: tuple[str, ...], label: str) -> bytes:
         opened = os.fstat(file_descriptor)
         if identity(opened) != identity(before):
             raise ValueError(f"{label} changed between validation and open")
-        require_safe_regular(opened, label)
+        require_safe_regular(opened, label, size_limit=effective_limit)
+        if retain_tail and opened.st_size > size_limit:
+            os.lseek(file_descriptor, opened.st_size - size_limit, os.SEEK_SET)
         chunks: list[bytes] = []
-        remaining = MAX_RECORD_BYTES + 1
+        remaining = size_limit + 1
         while remaining:
             chunk = os.read(file_descriptor, min(65536, remaining))
             if not chunk:
@@ -184,12 +204,78 @@ def read_evidence(root: Path, components: tuple[str, ...], label: str) -> bytes:
         after = os.fstat(file_descriptor)
         if identity(after) != identity(opened):
             raise ValueError(f"{label} changed while reading")
-        require_safe_regular(after, label)
+        require_safe_regular(after, label, size_limit=effective_limit)
     finally:
         os.close(file_descriptor)
-    if len(data) > MAX_RECORD_BYTES:
+    if len(data) > size_limit:
         raise ValueError(f"{label} exceeds its bound")
     return data
+
+
+def apache_diagnostic_paths() -> tuple[tuple[str, ...], ...]:
+    phase_logs = tuple(("build", "logs", "apache", name) for name in APACHE_BUILD_LOG_NAMES)
+    configure_logs = tuple(
+        ("build", "logs", "apache", phase + suffix)
+        for phase in ("pcre2-configure", "httpd-configure", "apache-configure")
+        for suffix in (".config.log", ".apr-config.log", ".apr-util-config.log")
+    )
+    return (
+        ("build", "logs", "runtime-components", "apache-build.log"),
+        ("build", "logs", "runtime-components", "apache-build-failure.json"),
+        *phase_logs, *configure_logs,
+    )
+
+
+def create_diagnostic_file(directory: int, name: str, data: bytes) -> None:
+    descriptor = os.open(
+        name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        0o600, dir_fd=directory,
+    )
+    try:
+        with os.fdopen(descriptor, "wb", closefd=False) as output:
+            output.write(data)
+            output.flush()
+            os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def retain_apache_build_diagnostics(root: Path) -> None:
+    """Retain only bounded build diagnostics, never the runtime/body tree."""
+    root_descriptor = open_private_directory(root, VERIFIED_ROOT_LABEL)
+    try:
+        os.mkdir(APACHE_FAILURE_DIRECTORY, mode=0o700, dir_fd=root_descriptor)
+        output = open_directory_component(
+            root_descriptor, APACHE_FAILURE_DIRECTORY, "Apache diagnostics",
+            require_private=True,
+        )
+    finally:
+        os.close(root_descriptor)
+    records = []
+    try:
+        for components in apache_diagnostic_paths():
+            record = {"source": "/".join(components)}
+            try:
+                data = read_evidence(
+                    root, components, "Apache build diagnostic",
+                    size_limit=APACHE_DIAGNOSTIC_BYTES, retain_tail=True,
+                )
+            except FileNotFoundError:
+                record["status"] = "not_created"
+            else:
+                name = "--".join(components)
+                create_diagnostic_file(output, name, data)
+                record.update(
+                    status="retained", name=name, bytes=len(data),
+                    sha256=hashlib.sha256(data).hexdigest(),
+                    retention="last_2_MiB", possibly_truncated=len(data) == APACHE_DIAGNOSTIC_BYTES,
+                )
+            records.append(record)
+        manifest = {"schema_version": 1, "record_type": "apache_build_failure_diagnostics", "runtime_status": "FAIL", "files": records}
+        create_diagnostic_file(output, "manifest.json", (json.dumps(manifest, sort_keys=True) + "\n").encode("utf-8"))
+        os.fsync(output)
+    finally:
+        os.close(output)
 
 
 def reject_duplicate_json_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -395,6 +481,8 @@ def main() -> int:
         return 1
     if args.runtime_outcome != "success":
         try:
+            if args.connector == "apache":
+                retain_apache_build_diagnostics(verified_root)
             write_receipt(
                 verified_root,
                 args.connector,

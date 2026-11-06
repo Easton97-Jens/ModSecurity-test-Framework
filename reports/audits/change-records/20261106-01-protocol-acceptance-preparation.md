@@ -8,196 +8,179 @@
 | --- | --- |
 | Change ID | 20261106-01-protocol-acceptance-preparation |
 | UTC date | 2026-11-06 |
-| Framework base revision | `62b411e073551ef0fef22ab3d372e2489f2ae168` |
-| Issue or pull request | [Framework PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169); exact delivery SHAs and CI receipts retained externally |
+| Framework follow-up base revision | `b5d8d9442d7751c04ee84f478f594fc84a236e3b` |
+| Issue or pull request | [Framework PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169); final delivery identities and CI receipts remain external |
 
 ## Motivation and problem statement
 
-The existing native NGINX executor deliberately excludes reset/cancellation,
-active multiplex isolation, modern streaming, h2c and Strict stream termination.
-This change adds a separate executable preparation surface without altering
-existing assertions or the 100-case default inventory. Full acceptance is NOT_RUN.
+Prepare real modern-protocol qualification without changing the 100 standard
+cases or existing assertions. The original NGINX preparation run found four
+required H2 reset failures. This follow-up proves and fixes that dependency
+cause, strengthens client/evidence controls, and adds separate Apache, local
+HTX, SPOP/HTX-companion and Envoy H2 preparation paths. Comprehensive acceptance
+remains **NOT_RUN**; global preparation readiness is not declared.
 
 ## Affected components and security boundaries
 
-Framework owns the driver, libcurl client, rules, independent evidence reader,
-unit controls and paired documentation. Native connector implementation,
-capabilities and promotion remain Parent-owned. Parent gitlink is unchanged by
-this Framework change; MRTS remains read-only. Retained evidence is private,
-bounded, hash-bound and external to the checkout.
+Framework owns opt-in registries, runners, clients, rules, readers, provisioning
+helpers, tests, compile inventory and paired documentation. External Parent
+dependencies own connector product changes, profile metadata and gitlink
+delivery. MRTS remains read-only. Native test observers add lifecycle metadata
+to private verified source copies; they do not replace cleanup or decisions.
+Artifacts and evidence remain bounded, source-bound and external to the checkout.
 
 ## Acceptance criteria
 
-The separate 25-ID registry must execute real NGINX/client scenarios; require
-independent request/connection/stream/transaction/rule witnesses, actual active
-multiplexing, bytes before EOS and isolated resets; reject incomplete/mutated
-bundles and writer errors; preserve the old executor/default inventory; and
-retain truthful targeted host/cleanup evidence and bilingual documentation.
-All 25 targeted host cases were evaluated; four failed mandatory H2 reset
-expectations remain open. The preparation outcome is NOT_READY and does not
-establish READY_FOR_FULL_ACCEPTANCE.
+Preserve all 25 NGINX IDs and the standard 100-case selection; register 32
+additional IDs as eight scenarios for each of four distinct H2 profiles. Require
+actual TLS/ALPN or explicit h2c, independent native/wire identity, real P2 POST
+bodies, phase/rule correlation, first bytes before EOS, isolated termination,
+healthy peer/follow-up and target cleanup before peer release or physical
+connection close. Reject missing, contradictory, stale or corrupted evidence
+and writer failures. Final committed-pair reruns and current-head CI remain
+separate completion requirements.
 
 ## Alternatives considered
 
-Expanding the standard suite would violate the fixed inventory. Relabeling
-missing required paths unsupported would conceal a preparation gap. Mock-only
-checks cannot prove host semantics. The selected opt-in runner retains the
-existing executor and adds independent host evidence with negative unit controls.
+Timeout increases, weakened reset expectations, unsupported relabeling and
+mock-only qualification would hide required behavior. Extending the default
+inventory would change its contract. Separate opt-in adapters preserve existing
+selection and expose each native profile's observable lifecycle.
 
 ## Implementation decision
 
-Use a source-built libcurl multi client and the existing same-context preflight
-and owned-process cleanup. Start the peer before the target, observe distinct
-active streams on one connection and retain native transaction cleanup. Keep
-client debug/ALPN, server access and QUIC sources distinct. A paused upstream
-barrier requires observed bytes before EOS. Strict native `abort_connection`
-remains distinct from client-observed H2 `0x2`/H3 `0x102` stream resets with a
-healthy peer/follow-up. Reopen the complete hashed bundle before PASS.
+An independent TLS/ALPN raw-frame experiment separated server flushing from
+client processing. With a held peer, unpatched NGINX delayed RST about 12 seconds;
+a PING after one second released it immediately. Native source showed queued
+RST output with no write event when another stream remained active. The small
+versioned NGINX patch posts that connection write event on the affected return
+path. The native preparer applies it with zero fuzz after archive verification
+and binds patch bytes into provenance/cache identity for H2 and H3 builds.
+
+The NGINX libcurl client retains checked TLS 1.3 minimum, peer/host verification
+and CA setup. Loopback h2c is explicit. Callback ABI and numeric JSON fields
+remain typed. New non-NGINX adapters use a verified TLS 1.3 raw H2 frame client
+with HPACK status decoding and an actual bounded P2 POST. Native cleanup,
+Common engine decisions, actual host actions and wire outcomes remain distinct.
+Native manifests admit the closed product input map, exact observer transform,
+verified archive bytes, library and binary. Reuse requires fresh byte admission.
+
+External Parent product fixes include Envoy's native Strict late response path
+and profile policy. SPOP request phases and the HTX response companion keep
+separate ownership witnesses; an early SPOP deny must not invent an HTX claim.
+Empty SPOP test requests use explicit `Content-Length: 0`, documenting the
+current NOTIFY ABI boundary rather than proving every H2 body framing.
 
 ## Changed files and tests
 
-- `connector_suite/modsecurity_connector_ci/runtime/lifecycle/run-protocol-acceptance.py`
-- `tests/runners/protocol_acceptance_contract.py`
-- `tests/runners/protocol_acceptance_client.py` and `protocol_acceptance_client.c`
-- `tests/rules/protocol-acceptance.conf`
-- `tests/no_crs/test_protocol_acceptance_contract.py`
-- `docs/protocol-acceptance-preparation.md` / `.de.md`, the existing native
-  execution documentation pair's crosslinks, and this Change Record pair.
-
-Contract tests cover all scenario expectations and corrupt independent
-witnesses, source/hash/revision binding, h2c ALPN, bidirectional QUIC,
-Strict stream reset identity, concurrent native transactions and upstream abort.
+- NGINX lifecycle runner, protocol acceptance contract/client/rules and negative
+  controls under `connector_suite/` and `tests/`.
+- `ci/provisioning/patches/nginx/h2-close-stream-flush.patch`, native NGINX build
+  helper and source/cache admission in runtime provisioning.
+- `tests/runners/native_h2_probe.py` and `non_nginx_h2_acceptance.py`; separate
+  Apache, HAProxy HTX, HAProxy SPOP/HTX and Envoy harnesses and focused tests.
+- Apache and HAProxy native observer build helpers and verified source admission.
+- CFamily compile recipes/inventory and native generated archive projections;
+  the standard case selection and offline exception contract remain preserved.
+- The paired [protocol guide](../../../docs/protocol-acceptance-preparation.md)
+  and this record. Parent product/docs changes are external dependencies.
 
 ## Commands and results
 
-Command context: `F` = Framework task worktree, `P` = selected Parent checkout,
-`PYTHON` = selected existing Framework-owned interpreter.
-Absolute host paths are retained in external task evidence, as required by the
-repository documentation path contract.
-The selected existing Framework environment uses Python 3.15.2; the configured
-3.14.4 environment mismatch is recorded, with no dependency installation.
+`F` denotes the selected Framework checkout, `P` its explicit Parent checkout,
+and `PYTHON` the existing Framework-owned Python 3.15.2 interpreter. All shell
+commands use RTK. Exact commands, environment, source hashes, private paths,
+preflight and raw results remain in the external follow-up evidence. No toolchain
+installation was performed for the configured Python-version mismatch.
 
-| Command | Exit code | Concise result | Run ID or approved evidence path |
-| --- | --- | --- | --- |
-| `rtk bypass env ON_DEMAND_TESTS=1 PYTHONPATH="$F:$F/connector_suite" TEST_ROOT="$F" CONNECTOR_ROOT="$P" CONNECTOR_REVISION=a5f697c35acb5386d2037f91dfed10ad4b469cd9 "$PYTHON" -m unittest tests.no_crs.test_nginx_protocol_executor modsecurity_connector_tests.test_nginx_full_lifecycle_protocol_wiring -q` | 0 | 29 adjacent regression tests passed | Task execution evidence |
-| `rtk make check-documentation PYTHON="$PYTHON"` | 0 | Links, bilingual parity, repository paths and Change Record contract passed; initial exit 2 for local paths corrected by keeping absolute paths external | Task documentation validation |
-| `rtk bypass git diff --check` | 0 | No whitespace errors | Task documentation validation |
+| Command or procedure | Result | External evidence |
+| --- | --- | --- |
+| Four unchanged NGINX H2 regression cases, before patch | 4 FAIL; native abort immediate, reset delayed until held-peer timeout | `h2/baseline-and-diagnosis.json` |
+| Independent raw TLS H2 frame experiment, with/without PING | Delayed unpatched RST; PING triggers queued output; patched no-PING RST about 0.015 seconds with healthy peer/follow-up | `h2/diagnosis.md` |
+| Native fresh patched NGINX H2 and H3 builds | PASS; exact source/archive/patch identity retained | `h2/targeted-before-after.json` |
+| Same four H2 regression cases after patch | 4 PASS; all original reset/isolation assertions retained | `h2/targeted-before-after.json` |
+| Eight existing H2/H3 adjacent host cases | 8 PASS on fresh H3-capable build; owned cleanup verified | `h2/targeted-before-after.json` |
+| NGINX patch/archive focused checks | 25 PASS | `h2/unit-validation.json` |
+| Real client TLS-1.2-only negative handshakes and CLI/debug controls | 3 handshake rejections, 28 controls PASS | `validation/client-current/` |
+| Strict C17 callback ABI positive and const-negative compilation | Canonical callback types pass; two incompatible canonical assignments reject | `validation/abi-controls/` |
+| Local native HTX H2, eight scenarios | 8 PASS, 24 transactions, 8 cleanup barriers while peer/TLS remain active | `profiles/haproxy/verification-receipt.json` |
+| `rtk bypass env ... "$PYTHON" -P -m unittest connector_suite.modsecurity_connector_tests.test_haproxy_h2_acceptance -v` | 15 PASS; archive, observer, reader and artifact-admission controls | `profiles/haproxy/unit-final.log` |
+| HTX real-bundle corruptions, artifact negatives and actual wire-writer failure | 100 controls PASS; real writer failure remains FAIL with verified cleanup | `profiles/haproxy/focused-controls.json` |
+| Native Envoy H2 candidate | 8 PASS, 24 transactions, 8 live-peer cleanup barriers | `profiles/envoy/candidate-verification-hardened.json` |
+| SPOP/HTX v4 final candidate | 8 PASS, 24 transactions, 8 live-peer cleanup barriers; owner EOS rule joined by unique handle/lease | `profiles/spop/candidate-verification-hardened.json` |
+| Apache source/cache/provisioning contracts | 190 PASS, 5 dirty-checkout skips; fresh HTTPD/module build PASS; new H2 module correction under verification | `apache/final-apache-contracts` |
+| `rtk bypass make check-documentation PYTHON="$PYTHON"` and scoped `rtk bypass git diff --check` | Exit 0; links, bilingual variables, repository paths, Change Record contract and whitespace pass | `profiles/haproxy/change-record-documentation.log` |
 
-Fresh focused verification also passed 15 contract unit methods, 21 negative
-mutations of copied real observations (all rejected), strict C17 client build,
-CLI/cache/writer negative controls and a bounded cleanup probe after an accepted
-partial HTTP request (2-second bound). Exact executed commands, tool versions,
-source/artifact identities and raw results remain in external task evidence.
+An intermediate SPOP/HTX v4 candidate had six passing and two failing scenarios.
+The final candidate resolves the owner-specific EOS/handoff observation gap
+through a copied-source diagnostic observer; Common product source is unchanged.
+Apache's first actual H2 selection passed six scenarios and retained Strict/
+upstream-reset failures. Independent no-PING/PING frames show missing abort
+notification, unlike NGINX queueing; Parent owns the H2 error-bucket correction.
+Local CRS preflight is blocked by the existing fixture's unmapped default worker;
+current-pair hosted CRS and aggregate remain required.
 
-The targeted `trial4` procedure invoked every registered ID against the real
-host and source-built client: 21 PASS / 4 FAIL, with 25/25 cleanup verified.
-Failures: `h2_phase4_strict`, `h2_server_rst_stream`, `h2_upstream_reset`,
-`phase4_strict_http2_stream_reset`. Separate H2-only/no-QUIC build reproduction
-also failed Strict and upstream-reset expectations. These are retained failing
-product-path regressions; no expectation or product code was changed.
-
-The eight adjacent existing real-host cases also passed:
-`protocol_h2_negotiated`, `h2_phase2_deny`, `h2_phase3_deny`, `h2_phase4_safe`,
-`protocol_h3_negotiated`, `h3_phase2_deny`, `h3_phase3_deny`, `h3_phase4_safe`.
-The completed execution receipt is retained externally as
-`host/adjacent/executions.json`, with Framework base
-`62b411e073551ef0fef22ab3d372e2489f2ae168` and Parent source
-`a5f697c35acb5386d2037f91dfed10ad4b469cd9`. These successful adjacent paths do
-not close the four failed new H2 cases.
+Independent review withdrew the earlier Envoy cancellation qualification: its
+upstream release allowed ordinary EOS. The hardened driver holds EOS through
+native cancellation cleanup. Both readers now reject contradictory TLS/ALPN,
+missing request/body/barrier evidence, wrong-phase/duplicate decisions and wrong
+reset codes. SPOP wire-writer failure cannot bypass owned cleanup. Nineteen
+focused tests, fresh eight-case runs for each profile and the actual writer-
+failure cleanup control pass; bounded independent second review closes these
+pointed gaps. Original receipts and the explicit qualification erratum remain.
+Candidate observations do not replace final-pair runs.
 
 ## Security impact
 
-No product security remediation is performed. The new validation surface rejects
-missing or contradictory protocol/transaction witnesses and incomplete writes.
-Raw native event fields are preserved. No global permissions, authentication,
-capability declarations or test gates are weakened; no credentials are retained.
+The NGINX dependency fix restores timely request-local reset delivery without
+weakening isolation or changing required errors. Native provenance rejects stale
+or foreign source/artifacts. Client TLS setup fails closed; TLS-1.2-only controls
+exercise actual rejection. No authentication, compiler warning, assertion,
+capability or analysis gate is relaxed. No Sonar suppression or server issue
+disposition is applied. Evidence excludes credentials, private keys and raw
+response handles; SPOP/HTX correlation uses hashed handles.
 
 ## Documentation and runtime evidence
 
-The new preparation documentation and this record have full EN/DE companions;
-the existing native executor documentation links to the separate runner.
-The paired guide records the real `trial4` outcomes and H2 failure mechanism.
-H3 Strict independently observed target reset with the peer held after headers
-until reset, then healthy peer/follow-up on the same connection. H2 reset was
-only observed after an approximately 12-second peer barrier timeout, followed
-by peer failure despite an immediate native abort event. The source hypothesis
-is NGINX HTTP/2 queuing RST in `close_stream` while another peer is processing;
-root-cause proof and remediation remain separate work. Original `host/trial4`
-bundles and all absolute paths remain in external task evidence. Comprehensive
-acceptance is NOT_RUN; preparation is NOT_READY.
+The EN/DE guide and record describe the separate 25/32 registries, commands,
+observable boundaries and retained candidate evidence. Earlier sealed runs
+remain historical: the original committed pair had 21/25 new NGINX cases pass,
+four H2 failures and eight adjacent passes. The follow-up's independent causal
+experiment and unchanged targeted reruns close that specific dependency defect.
+Historical and candidate evidence are not relabeled as final committed-head
+qualification. Absolute local paths and full source/artifact identities remain
+in external receipts.
+
+The six open Sonar occurrences and 30 analysis-closed occurrences receive an
+individual factual review in external `sonar/per-occurrence-review.json` and
+its Markdown companion. Canonical ABI compilation and actual TLS controls
+support the technical review; they do not apply server `FALSE_POSITIVE` status
+or establish a passing current Quality Gate.
 
 ## Checks not run
 
-Comprehensive acceptance: NOT_RUN, explicitly deferred by the user. Local Sonar:
-not run, explicitly suspended; no local install/start/authentication. GitHub
-Sonar, CodeQL and PR checks: running or under investigation; exact-head outcomes external. All-profile host qualification:
-not performed by this NGINX-specific runner. No product fix was performed;
-failed H2 expectations remain required.
+Comprehensive acceptance: **NOT_RUN**, explicitly deferred. Local Sonar scan,
+installation, service startup and login: not performed. Final committed-pair
+25+8 NGINX repetition, complete final non-NGINX qualification, Apache native
+host/CRS evidence and authoritative current-head GitHub/Sonar/CodeQL outcomes
+remain pending. No merge is authorized or performed by this preparation work.
 
 ## Limitations and residual risk
 
-The new runner serves only `native-nginx-http-module`; all ten logical profiles
-remain separate claims. Required Apache H2, HAProxy HTX H2/SPOE companion H2 stream-shutdown and
-Envoy ext_proc H2 paths remain open. Selected stock/patched lighttpd profiles
-retain their current H1-only contract, without new unsupported declarations. A matching build alone is not runtime proof. Unit controls do not
-replace actual host evidence. Failed harness trials must remain recorded and
-must not change product expectations. Global preparation readiness is unclaimed.
+Candidate passes apply only to admitted source bytes/artifacts and selected
+profiles. Apache completion remains open. The SPOP MRC1 boundary does not carry
+the response rule ID or a distinct Strict outcome; an independent owner-side
+observer joins that decision to handle/lease, native host action and wire.
+All ten logical profiles retain separate capability claims; stock/patched
+lighttpd keep their existing H1 contract. No global readiness or capability
+promotion follows from build, registry, unit or candidate host evidence.
 
 ## Final diff and review status
 
-The explicitly approved Framework [PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169)
-and Parent [PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445)
-exist. The earlier push rejection was superseded by fresh user authorization;
-both original commits were pushed. GitHub CI remains under evaluation, with
-final exact-head outcomes retained externally. No merge was performed.
-
-All 33 targeted host reruns were completed at Parent
-`5093a7aa349372279fb2c76974da6423de511332` / Framework
-`fa444236fa3b00c91ba94de49f69f52101087087` / MRTS
-`ee2174431c4edf97e66afe32558ce8454deb2397`: new cases 21 PASS / 4 FAIL,
-adjacent cases 8 PASS; all 33 cleanups verified. Those results qualify that exact
-pair and its admitted artifacts. Four H2 requirements and other modern profile
-paths remain open; NOT_READY and full acceptance NOT_RUN remain unchanged.
-
-Parent CI exposed an omitted generated test-archive projection: the native
-`update-test-archive --check` failed in lint, quick, NGINX and Common checks.
-Running the native generator in Framework adds only the new 15-method test
-source to the archive, changing 8096 to 8111. This follow-up changes the archive
-projection and documentation, with no runtime-code or expectation change.
-Verification of a later commit pair is separate and is not claimed from the
-5093/fa host runs. Exact follow-up SHAs and CI receipts remain external.
-
-Framework PR CI then rejected the newly tracked C client before scanner startup:
-its closed native compile inventory omitted the source. Add only
-`tests/runners/protocol_acceptance_client.c` to the reviewed recipes and update
-the exact offline inventory assertion from 81 to 82 units. Preserve complete
-set equality, warning flags, credential boundaries and every analysis gate.
-Refresh the generated specialist archive for the changed offline test source.
-No local scanner, Sonar installation or authentication is run. Final follow-up
-SHAs, targeted host repetitions and current-head CI results remain external.
-
-The native inventory-binding maintainer refreshes the two existing source
-digest slots for the reviewed compile recipe and its offline test. All 100
-standard cases, execution selectors and offline exceptions remain identical.
-The inventory digest changes only because those reviewed source bytes changed;
-its dependent generated archive is refreshed natively. Parent validation uses
-an explicit command-line Framework root to avoid an inherited host checkout.
-
-The first complete remote Framework analysis compiled the new client but failed
-the new-code Security Gate. Follow-up remediation sets the client TLS minimum
-to TLS 1.3, confines client origins to `127.0.0.1` with an explicit valid port, removes
-quadratic listener-regex parsing and splits the three new runtime/evidence
-modules into bounded helpers. All protocol, barrier, correlation, output-failure
-and cleanup expectations remain required. Explicit plaintext h2c remains part
-of the loopback test contract; numeric stream IDs use fixed typed JSON output.
-No Sonar suppression, issue disposition, exclusion or gate relaxation is made.
-Targeted unit/equivalence/CLI/barrier controls pass; fresh committed-pair host
-repetitions and authoritative current-head remote analysis are recorded externally.
-
-The final C-client follow-up makes the existing TLS 1.3 minimum, peer/host
-verification and CA setup direct checked libcurl calls immediately after easy
-handle initialization. A real TLS-1.2-only loopback control rejects all three
-handshakes with a protocol-version alert and no HTTP bytes; its owned listener,
-thread and ephemeral key/certificate are removed. Mutable callback ABI, typed
-stream metadata and the explicit h2c test contract remain intact. Remote
-current-head gate results remain separate evidence.
+The existing Framework [PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169)
+and external Parent [PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445)
+remain separate delivery boundaries. The explicitly authorized original pushes
+and draft PRs do not imply a merge. This record replaces the stale incremental
+appendices with the follow-up scope. Final source freeze, generator checks,
+review, committed-pair qualification and exact-head CI receipts remain required;
+their outcomes must be recorded before declaring preparation complete.

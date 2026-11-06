@@ -2,15 +2,20 @@
 #define _POSIX_C_SOURCE 200809L
 #include <curl/curl.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 
 struct request {
   CURL *easy;
   const char *name;
   const char *path;
+  char *body;
+  size_t body_size;
   char *url;
   size_t bytes;
   int first_data;
@@ -131,7 +136,7 @@ static int start(CURLM *multi, struct request *r, const char *base, const char *
   r->url = malloc(n);
   r->easy = curl_easy_init();
   if(!r->url || !r->easy) return 1;
-  if(curl_easy_setopt(r->easy, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_3) != CURLE_OK ||
+  if(curl_easy_setopt(r->easy, CURLOPT_SSLVERSION, (long)CURL_SSLVERSION_TLSv1_3) != CURLE_OK ||
      curl_easy_setopt(r->easy, CURLOPT_SSL_VERIFYPEER, 1L) != CURLE_OK ||
      curl_easy_setopt(r->easy, CURLOPT_SSL_VERIFYHOST, 2L) != CURLE_OK ||
      curl_easy_setopt(r->easy, CURLOPT_CAINFO, ca) != CURLE_OK) return 1;
@@ -151,10 +156,16 @@ static int start(CURLM *multi, struct request *r, const char *base, const char *
   OPT(CURLOPT_WRITEDATA, r);
   OPT(CURLOPT_ERRORBUFFER, r->error);
   OPT(CURLOPT_PRIVATE, r);
+  if(r->body) {
+    OPT(CURLOPT_POSTFIELDS, r->body);
+    OPT(CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)r->body_size);
+  }
 #undef OPT
   if(curl_multi_add_handle(multi, r->easy) != CURLM_OK) return 1;
   r->active = 1;
-  begin("request_started", r); printf(",\"path\":"); quoted(r->path); finish();
+  begin("request_started", r); printf(",\"path\":"); quoted(r->path);
+  printf(",\"method\":\"%s\",\"upload_bytes\":%zu", r->body ? "POST" : "GET", r->body_size);
+  finish();
   return output_failed;
 }
 static int allowed(const char *s, const char *const *choices) {
@@ -166,6 +177,8 @@ struct options {
   const char *base;
   const char *ca;
   const char *scenario;
+  const char *method;
+  const char *body_file;
   long version;
 };
 struct option_binding {
@@ -195,7 +208,8 @@ static int parse_arguments(int argc, char **argv, struct options *options,
     {"--protocol", &options->protocol}, {"--base-url", &options->base},
     {"--ca", &options->ca}, {"--scenario", &options->scenario},
     {"--target-path", &req[0].path}, {"--peer-path", &req[1].path},
-    {"--followup-path", &req[2].path}
+    {"--followup-path", &req[2].path},
+    {"--method", &options->method}, {"--body-file", &options->body_file}
   };
   if(argc % 2 != 1) return 1;
   for(int i = 1; i < argc; i += 2) {
@@ -252,7 +266,40 @@ static int valid_options(struct options *options, const struct request *req) {
   if(!strcmp(options->protocol, "h2c")) scheme = "http://";
   /* Only the task driver's explicit IPv4 loopback origin is admissible. */
   if(!valid_loopback_origin(options->base, scheme)) return 0;
+  if(options->method && strcmp(options->method, "GET") && strcmp(options->method, "POST"))
+    return 0;
+  if((options->method && !strcmp(options->method, "POST")) != (options->body_file != NULL))
+    return 0;
   return valid_paths(req);
+}
+/* P2 fixtures are bounded regular files; special files must never block a probe. */
+static int read_target_body(const char *path, struct request *target) {
+  struct stat info;
+  size_t used = 0;
+  int descriptor;
+  char extra;
+  if(!path) return 0;
+  descriptor = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK);
+  if(descriptor < 0) return 1;
+  if(fstat(descriptor, &info) || !S_ISREG(info.st_mode) || info.st_nlink != 1 ||
+     info.st_size < 0 || info.st_size > 1024 * 1024) {
+    close(descriptor);
+    return 1;
+  }
+  target->body_size = (size_t)info.st_size;
+  target->body = malloc(target->body_size + 1);
+  if(!target->body) { close(descriptor); return 1; }
+  while(used < target->body_size) {
+    ssize_t count = read(descriptor, target->body + used, target->body_size - used);
+    if(count < 0 && errno == EINTR) continue;
+    if(count <= 0) { close(descriptor); return 1; }
+    used += (size_t)count;
+  }
+  ssize_t trailing;
+  do { trailing = read(descriptor, &extra, 1); } while(trailing < 0 && errno == EINTR);
+  int closed = close(descriptor);
+  target->body[target->body_size] = 0;
+  return trailing != 0 || closed != 0;
 }
 static int collect_completion(struct session *session, const CURLMsg *message) {
   struct request *r = NULL;
@@ -320,6 +367,7 @@ static int cleanup_session(struct session *session, int result) {
        curl_multi_remove_handle(session->multi, r->easy) != CURLM_OK) result = 1;
     if(r->easy) curl_easy_cleanup(r->easy);
     free(r->url);
+    free(r->body);
   }
   if(session->multi && curl_multi_cleanup(session->multi) != CURLM_OK) result = 1;
   curl_global_cleanup();
@@ -334,10 +382,18 @@ int main(int argc, char **argv) {
   int result = 1;
   if(parse_arguments(argc, argv, &options, session.req) ||
      !valid_options(&options, session.req)) {
-    fputs("usage: protocol-client --protocol h2|h3|h2c --base-url URL --ca FILE --scenario SCENARIO [--target-path PATH] [--peer-path PATH] [--followup-path PATH]\n", stderr);
+    fputs("usage: protocol-client --protocol h2|h3|h2c --base-url URL --ca FILE --scenario SCENARIO [--target-path PATH] [--peer-path PATH] [--followup-path PATH] [--method POST --body-file FILE]\n", stderr);
     return 2;
   }
-  if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) return 1;
+  if(read_target_body(options.body_file, &session.req[0])) {
+    free(session.req[0].body);
+    fputs("invalid bounded request-body fixture\n", stderr);
+    return 2;
+  }
+  if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+    free(session.req[0].body);
+    return 1;
+  }
   session.multi = curl_multi_init();
   if(session.multi &&
      curl_multi_setopt(session.multi, CURLMOPT_PIPELINING, (long)CURLPIPE_MULTIPLEX) == CURLM_OK &&

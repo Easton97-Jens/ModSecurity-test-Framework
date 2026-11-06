@@ -143,6 +143,28 @@ EOF
     blocked "missing development header for $purpose: <$header>; set CPPFLAGS/LDFLAGS for a local dependency path or install the matching system development package outside this run; see $check_log"
 }
 
+retain_configure_diagnostics() {
+    diagnostic_phase=$1
+    diagnostic_cwd=$2
+    for diagnostic_relative in config.log srclib/apr/config.log srclib/apr-util/config.log; do
+        case "$diagnostic_relative" in
+            config.log) diagnostic_suffix=.config.log ;;
+            srclib/apr/config.log) diagnostic_suffix=.apr-config.log ;;
+            *) diagnostic_suffix=.apr-util-config.log ;;
+        esac
+        diagnostic_source="$diagnostic_cwd/$diagnostic_relative"
+        if [ -f "$diagnostic_source" ] && [ ! -L "$diagnostic_source" ]; then
+            # Preserve the bounded compiler/linker tail before failed managed
+            # staging is retired. Never copy source trees or inherited envs.
+            if tail -c 2097152 "$diagnostic_source" > "$LOG_DIR/$diagnostic_phase$diagnostic_suffix"; then
+                echo "diagnostic: $diagnostic_phase$diagnostic_suffix retention=last_2_MiB" >> "$STATUS_FILE"
+            else
+                echo "diagnostic_write_failed: $diagnostic_phase$diagnostic_suffix" >> "$STATUS_FILE"
+            fi
+        fi
+    done
+}
+
 run_logged() {
     label=$1
     cwd=$2
@@ -158,9 +180,11 @@ run_logged() {
     if (cd "$cwd" && "$@") >"$log_file" 2>&1; then
         echo "pass: $label log=$log_file" >> "$STATUS_FILE"
         return 0
+    else
+        rc=$?
     fi
-    rc=$?
     echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
+    retain_configure_diagnostics "$label" "$cwd"
     echo "apache_poc: blocked command failed: $*"
     echo "apache_poc: see log: $log_file"
     exit 77
@@ -200,8 +224,9 @@ copy_sanitized_source() {
         rm -f "$archive"
         echo "pass: $label log=$log_file" >> "$STATUS_FILE"
         return 0
+    else
+        rc=$?
     fi
-    rc=$?
     echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
     echo "apache_poc: blocked sanitized copy failed: $label"
     echo "apache_poc: see log: $log_file"
@@ -345,6 +370,15 @@ verify_sha256_url() {
     sha_url=$3
     [ -n "$sha_url" ] || return 0
     sha_file="$DOWNLOAD_DIR/$label.sha256"
+    if [ "$label" = httpd ] && \
+        "${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+            --archive "$file" --checksum "$sha_file" --source-url "$HTTPD_SOURCE_URL" \
+            --checksum-url "$sha_url" --expected-sha "$HTTPD_SHA256" \
+            > "$LOG_DIR/httpd-checksum-cache.json"; then
+        echo "httpd_remote_checksum_source=cached_verified_metadata" >> "$ARTIFACTS_FILE"
+        echo "pass: httpd cached checksum and archive match reviewed provider and literal pin" >> "$STATUS_FILE"
+        return 0
+    fi
     download_file "$label-sha256" "$sha_url" "$sha_file"
     expected=$(awk '{print $1; exit}' "$sha_file")
     if [ -z "$expected" ]; then
