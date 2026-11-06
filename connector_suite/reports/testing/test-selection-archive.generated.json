@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "7bf43d3708b92daf1caedaef57e1e4d4bce6807359833eb1de38f60f133d2c6e",
+  "inventory_sha256": "0c593b006b65702dd59f31e5bfb858aeb7fa1e11a51f8713be498c5710710569",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -947,7 +947,7 @@
     {
       "framework_path": "connector_suite/adapters/apache/harness/apache_h2_observer.c",
       "source": "framework/connector_suite/adapters/apache/harness/apache_h2_observer.c",
-      "source_sha256": "c38be879ec9e0640895510780c3e0b5c8eb6d1b67eaa73287a990cdf019abe0f"
+      "source_sha256": "6dee8d9569c83243857d1b71ccee139cd5fa74589705f060237bae7480d9089f"
     },
     {
       "framework_path": "connector_suite/adapters/apache/harness/mod_phase4_terminal_rogue.c",
@@ -9653,7 +9653,7 @@
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root"
       ],
       "source": "tests/test_prepare_runtime_components.py",
-      "source_sha256": "fe57b809f8340dbaa789264c6b8e96d1cf111df3f3f363e37567c2700716dc99"
+      "source_sha256": "a561cf89ad81bfa15268d5891478307a937b92efda3927aa798ae98da3b3109e"
     },
     {
       "contains_selected_definitions": [],
@@ -12260,7 +12260,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendment_rejects_wrong_immutable_baseline_anchor"
       ],
       "source": "framework/tests/ci_security/test_connector_action_pins.py",
-      "source_sha256": "f2462e764cd7bb6fd0e05cf0686810ad75f0a66e3616bebbaeacff7fa94c1e7c"
+      "source_sha256": "561a27a8cf3ce9a74efaf09edc717c709e97c282ee7ac56da2cae49f14955a2d"
     },
     {
       "contains_selected_definitions": [],

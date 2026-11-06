@@ -27,6 +27,7 @@ NATIVE_LOG = "native.log"
 AGENT_LOG = "agent.log"
 TLS_PEM = "tls.pem"
 TLS_CERTIFICATE = "tls.crt"
+HOST_CONFIGURATION = "haproxy.cfg"
 
 
 def require(value, message):
@@ -475,11 +476,11 @@ def run_case(args, case, root, socket_root, shared):
         (root / "agent.conf").write_text(agent_configuration(root, agent_port, socket_path))
         with shared.STREAM.MODERN.tls_material(root):
             (root / TLS_PEM).write_bytes((root / "tls.key").read_bytes() + (root / TLS_CERTIFICATE).read_bytes())
-            (root / "haproxy.cfg").write_text(configuration(root, port, upstream.server_port, agent_port, socket_path, case == "phase4_strict"))
-            subprocess.run([str(args.haproxy), "-c", "-f", str(root / "haproxy.cfg")], check=True,
+            (root / HOST_CONFIGURATION).write_text(configuration(root, port, upstream.server_port, agent_port, socket_path, case == "phase4_strict"))
+            subprocess.run([str(args.haproxy), "-c", "-f", str(root / HOST_CONFIGURATION)], check=True,
                            stdout=(root / "config-check.log").open("xb"), stderr=subprocess.STDOUT)
             for name, command in (("agent", [str(args.spoa), "--config", str(root / "agent.conf")]),
-                                   ("haproxy", [str(args.haproxy), "-db", "-f", str(root / "haproxy.cfg")])):
+                                   ("haproxy", [str(args.haproxy), "-db", "-f", str(root / HOST_CONFIGURATION)])):
                 output = (root / (ACCESS_LOG if name == "haproxy" else "agent.stdout.log")).open("xb")
                 log = (root / (NATIVE_LOG if name == "haproxy" else AGENT_LOG)).open("xb")
                 process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=output, stderr=log)

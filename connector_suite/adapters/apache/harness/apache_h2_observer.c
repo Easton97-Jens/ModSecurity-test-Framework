@@ -55,7 +55,9 @@ static int append_record(const char *descriptor_text, const char *record, size_t
     struct stat details;
     char *end = NULL;
     long parsed;
-    int descriptor, flags, ok;
+    int descriptor;
+    int flags;
+    int ok;
     if (descriptor_text == NULL || *descriptor_text == '\0' || strlen(descriptor_text) > 10U) return 0;
     for (const char *digit = descriptor_text; *digit != '\0'; ++digit) {
         if (*digit < '0' || *digit > '9') return 0;

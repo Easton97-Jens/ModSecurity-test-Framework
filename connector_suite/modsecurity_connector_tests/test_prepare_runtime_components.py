@@ -31,9 +31,9 @@ PINNED_NGINX_RELEASE_TUPLE = {
 PINNED_NGINX_RELEASE_ASSET_URL = (
     "https://github.com/nginx/nginx/releases/download/release-1.31.8/nginx-1.31.8.tar.gz"
 )
-TEST_HAPROXY_LOCKED_VERSION = "3.2.25"
-TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.25.tar.gz"
-TEST_HAPROXY_LOCKED_SHA256 = "d59a68d0daef7b5c596b019b742089788ff1748513ef96e71fe7b3943577866e"
+TEST_HAPROXY_LOCKED_VERSION = "3.2.26"
+TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.26.tar.gz"
+TEST_HAPROXY_LOCKED_SHA256 = "760ef35fafc1e05844e73ad07e138e9e96fddbf5de02f606249c027f754827da"
 TEST_HAPROXY_UNAPPROVED_FUTURE_VERSION = "3.2.9001"
 TEST_HAPROXY_UNAPPROVED_FUTURE_SOURCE_URL = (
     "https://www.haproxy.org/download/3.2/src/haproxy-3.2.9001.tar.gz"
