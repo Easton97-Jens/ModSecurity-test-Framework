@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8096,
+  "on_demand_definition_count": 8111,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -13439,6 +13439,29 @@
       ],
       "source": "framework/tests/no_crs/test_no_crs_baseline.py",
       "source_sha256": "e3db80a1a16ab9e1775b12b5be4795b2ee64d659fbb21bf5989436e9bf50c8c6"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "tests/no_crs/test_protocol_acceptance_contract.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_registry_is_separate_and_strict_requires_server_reset",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_all_preparation_cases_accept_consistent_evidence",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_corrupted_independent_witnesses_are_rejected",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_hash_source_and_external_identity_binding",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_h2c_rejects_invented_tls_alpn",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_h3_requires_bidirectional_actual_quic",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_strict_native_action_remains_distinct_from_observed_reset",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_h3_binds_transport_and_each_native_stream_separately",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_strict_reset_must_be_observed_on_exact_target_stream",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_native_multiplex_overlap_is_independent_of_queued_client_requests",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_upstream_reset_needs_original_abort_before_eos",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_reset_requires_peer_active_in_client_native_and_upstream_witnesses",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_partial_transfer_wire_status_must_match_original_committed_200",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_intervention_phase_and_commit_facts_are_source_bound",
+        "modsecurity_test_framework.selftests.no_crs.test_protocol_acceptance_contract.ProtocolAcceptanceContractTests.test_unknown_case_and_cross_run_never_pass"
+      ],
+      "source": "framework/tests/no_crs/test_protocol_acceptance_contract.py",
+      "source_sha256": "3a3b345289f4cce09785cec212654e8f4124dea07251ab73fa0b41c0ef31a0b0"
     },
     {
       "contains_selected_definitions": [],

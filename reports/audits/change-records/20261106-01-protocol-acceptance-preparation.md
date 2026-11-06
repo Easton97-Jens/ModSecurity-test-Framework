@@ -9,7 +9,7 @@
 | Change ID | 20261106-01-protocol-acceptance-preparation |
 | UTC date | 2026-11-06 |
 | Framework base revision | `62b411e073551ef0fef22ab3d372e2489f2ae168` |
-| Issue or pull request | No PR reference at record update; exact delivery SHAs, PR references and checks are retained in external delivery evidence when available |
+| Issue or pull request | [Framework PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169); exact delivery SHAs and CI receipts retained externally |
 
 ## Motivation and problem statement
 
@@ -130,7 +130,7 @@ acceptance is NOT_RUN; preparation is NOT_READY.
 
 Comprehensive acceptance: NOT_RUN, explicitly deferred by the user. Local Sonar:
 not run, explicitly suspended; no local install/start/authentication. GitHub
-Sonar, CodeQL and PR checks: pending delivery. All-profile host qualification:
+Sonar, CodeQL and PR checks: running or under investigation; exact-head outcomes external. All-profile host qualification:
 not performed by this NGINX-specific runner. No product fix was performed;
 failed H2 expectations remain required.
 
@@ -145,9 +145,24 @@ must not change product expectations. Global preparation readiness is unclaimed.
 
 ## Final diff and review status
 
-Focused documentation and whitespace checks passed. Final source revisions,
-artifact hashes, PR references and check outcomes are retained in external
-repository-scoped delivery evidence; this record invents no delivery status.
-No merge was performed. The known H2 product-path failures and other profile
-runner gaps prevent readiness. This record contains no secrets, payload bodies
-or raw sensitive logs.
+The explicitly approved Framework [PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169)
+and Parent [PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445)
+exist. The earlier push rejection was superseded by fresh user authorization;
+both original commits were pushed. GitHub CI remains under evaluation, with
+final exact-head outcomes retained externally. No merge was performed.
+
+All 33 targeted host reruns were completed at Parent
+`5093a7aa349372279fb2c76974da6423de511332` / Framework
+`fa444236fa3b00c91ba94de49f69f52101087087` / MRTS
+`ee2174431c4edf97e66afe32558ce8454deb2397`: new cases 21 PASS / 4 FAIL,
+adjacent cases 8 PASS; all 33 cleanups verified. Those results qualify that exact
+pair and its admitted artifacts. Four H2 requirements and other modern profile
+paths remain open; NOT_READY and full acceptance NOT_RUN remain unchanged.
+
+Parent CI exposed an omitted generated test-archive projection: the native
+`update-test-archive --check` failed in lint, quick, NGINX and Common checks.
+Running the native generator in Framework adds only the new 15-method test
+source to the archive, changing 8096 to 8111. This follow-up changes the archive
+projection and documentation, with no runtime-code or expectation change.
+Verification of a later commit pair is separate and is not claimed from the
+5093/fa host runs. Exact follow-up SHAs and CI receipts remain external.

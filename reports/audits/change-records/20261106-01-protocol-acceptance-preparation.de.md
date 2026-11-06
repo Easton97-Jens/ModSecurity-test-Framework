@@ -9,7 +9,7 @@
 | Change-ID | 20261106-01-protocol-acceptance-preparation |
 | UTC-Datum | 2026-11-06 |
 | Framework-Basisrevision | `62b411e073551ef0fef22ab3d372e2489f2ae168` |
-| Issue oder Pull Request | Bei Recordaktualisierung keine PR-Referenz; genaue Auslieferungs-SHAs, PR-Referenzen und Prüfungen stehen bei Verfügbarkeit in externen Auslieferungsnachweisen |
+| Issue oder Pull Request | [Framework PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169); exakte Auslieferungs-SHAs und CI-Belege extern |
 
 ## Motivation und Problemstellung
 
@@ -136,7 +136,7 @@ NOT_RUN; die Vorbereitung ist NOT_READY.
 
 Gesamtabnahme: NOT_RUN, vom Benutzer ausdrücklich aufgeschoben. Lokales Sonar:
 nicht ausgeführt, ausdrücklich ausgesetzt; keine lokale Installation/Start/
-Authentifizierung. GitHub-Sonar, CodeQL und PR-Prüfungen: nach Auslieferung offen.
+Authentifizierung. GitHub-Sonar, CodeQL und PR-Prüfungen: laufen oder werden untersucht; Ergebnisse extern.
 Profilübergreifende Hostqualifikation: vom NGINX-spezifischen Runner nicht
 durchgeführt. Kein Produktfix; fehlgeschlagene H2-Erwartungen bleiben Pflicht.
 
@@ -152,9 +152,26 @@ Globale Vorbereitungsbereitschaft wird nicht behauptet.
 
 ## Finaler Diff- und Review-Status
 
-Gezielte Dokumentations- und Whitespaceprüfungen sind bestanden. Finale
-Quellrevisionen, Artefakthashes, PR-Referenzen und Prüfergebnisse bleiben in
-externen repositorybezogenen Auslieferungsnachweisen; dieser Record erfindet
-keinen Auslieferungsstatus. Kein Merge durchgeführt. Bekannte H2-Produktpfadfehler
-und Runnerlücken anderer Profile verhindern Bereitschaft. Dieser Record enthält
-keine Secrets, Payloadbodies oder sensiblen Rohlogs.
+Der ausdrücklich freigegebene Framework-[PR #169](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/169)
+und Parent-[PR #445](https://github.com/Easton97-Jens/ModSecurity-conector/pull/445)
+existieren. Neue Benutzerfreigabe ersetzte die frühere Pushablehnung; beide
+ursprünglichen Commits wurden gepusht. GitHub-CI wird weiter ausgewertet;
+finale Ergebnisse am exakten Head bleiben extern dokumentiert. Kein Merge.
+
+Alle 33 gezielten Hostwiederholungen wurden an Parent
+`5093a7aa349372279fb2c76974da6423de511332` / Framework
+`fa444236fa3b00c91ba94de49f69f52101087087` / MRTS
+`ee2174431c4edf97e66afe32558ce8454deb2397` abgeschlossen: neue Fälle
+21 PASS / 4 FAIL, angrenzende Fälle 8 PASS; alle 33 Cleanups bestätigt. Diese
+Ergebnisse qualifizieren genau dieses Paar und seine zugelassenen Artefakte.
+Vier H2-Pflichten und weitere moderne Profilpfade bleiben offen; NOT_READY und
+Gesamtabnahme NOT_RUN bleiben unverändert.
+
+Parent-CI deckte eine ausgelassene generierte Testarchivprojektion auf: Natives
+`update-test-archive --check` scheiterte in Lint-, Quick-, NGINX- und Commonprüfungen.
+Der native Frameworkgenerator ergänzt ausschließlich die neue Testquelldatei
+mit 15 Methoden im Archiv; der Bestand steigt von 8096 auf 8111. Diese Folgeänderung
+betrifft Archivprojektion und Dokumentation ohne Runtimecode- oder
+Erwartungsänderung. Die Verifikation eines späteren Commitpaars bleibt separat;
+sie wird nicht aus den 5093/fa-Hostläufen abgeleitet. Exakte Folge-SHAs und
+CI-Belege bleiben extern erhalten.
