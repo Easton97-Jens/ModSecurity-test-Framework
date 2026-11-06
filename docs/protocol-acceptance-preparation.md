@@ -137,3 +137,11 @@ The completed execution receipt is retained externally as
 `62b411e073551ef0fef22ab3d372e2489f2ae168` and Parent source
 `a5f697c35acb5386d2037f91dfed10ad4b469cd9`. These successful adjacent paths do
 not close the four failed new H2 cases.
+
+The preparation client accepts only its owned IPv4 loopback origin
+(`127.0.0.1` with an explicit port 1..65535), with no userinfo, path, query or
+fragment. TLS cases set an explicit TLS 1.3 minimum matching the fixture server;
+the separately selected h2c case intentionally uses plaintext on loopback.
+The evidence reader parses complete listener directives without quadratic regex
+backtracking. Remote CI evaluates the maintained source; no local Sonar scanner
+is invoked for this preparation task.

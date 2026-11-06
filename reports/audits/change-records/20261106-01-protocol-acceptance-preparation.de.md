@@ -192,3 +192,15 @@ Quelldigestslots für das geprüfte Compilerezept und seinen Offlinetest. Alle
 Der Inventardigest ändert sich ausschließlich wegen dieser geprüften Quellbytes;
 das abhängige generierte Archiv wird nativ aktualisiert. Die Parentprüfung setzt
 den Frameworkroot explizit als Makeargument gegen geerbte Hostcheckoutwerte.
+
+Die erste vollständige entfernte Frameworkanalyse kompilierte den neuen Client,
+verfehlte aber den Security-Gate für neuen Code. Die Folgekorrektur setzt das
+Clientminimum auf TLS 1.3, begrenzt Clientorigins auf `127.0.0.1` mit explizitem gültigem
+Port, entfernt quadratisches Listener-Regexparsing und zerlegt die drei neuen
+Runtime-/Nachweismodule in begrenzte Helfer. Sämtliche Protokoll-, Barrieren-,
+Korrelations-, Outputfehler- und Cleanuperwartungen bleiben Pflicht. Explizites
+Klartext-h2c gehört weiter zum Loopbacktestvertrag; numerische Stream-IDs werden
+mit fest typisierter JSON-Ausgabe geschrieben. Keine Sonarunterdrückung,
+Befunddisposition, Exklusion oder Gateabschwächung. Gezielte Unit-/Äquivalenz-/CLI-/
+Barrierekontrollen bestehen; frische Hostwiederholungen am eingecheckten Paar
+und die maßgebliche entfernte Headanalyse bleiben extern dokumentiert.

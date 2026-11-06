@@ -20,6 +20,8 @@ from tests.runners.protocol_acceptance_client import build_client
 HERE = Path(__file__).resolve().parent
 MODERN = load_source(HERE / "run-nginx-protocol-cases.py")
 HOST = MODERN.HOST
+CLIENT_EVENTS = "client.jsonl"
+ACCESS_EVENTS = "access.jsonl"
 
 
 class Upstream(ThreadingHTTPServer):
@@ -96,47 +98,59 @@ class Handler(BaseHTTPRequestHandler):
             if self.path in state.proof["paths"]:
                 state.proof["driver_error"] = "duplicate upstream request"
             state.proof["paths"][self.path] = row
-        first = b"acceptance-prefix-"
-        tail = (b"no-crs-response-body-marker" if name == "target" and
-                state.scenario in {"safe", "strict"} else b"complete")
         try:
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
-            self.send_header("Content-Length", str(len(first) + len(tail)))
-            self.send_header("X-Modsec-Upstream", "block" if name == "target" and state.scenario == "phase3" else "allow")
-            self.end_headers()
-            if name == "peer":
-                # Peer must remain an active transaction until the target has
-                # produced independently observed data or a blocked response.
-                if not state.peer_release.wait(10):
-                    raise TimeoutError("peer barrier was not released by target observation")
-            self.wfile.write(first)
-            self.wfile.flush()
-            row["first_chunk_written_monotonic"] = time.monotonic()
-            if name == "target" and state.scenario != "phase3":
-                if not state.release.wait(10):
-                    raise TimeoutError("upstream barrier was not released by client observation")
-                row["released_monotonic"] = time.monotonic()
-                if state.scenario == "upstream-reset":
-                    row["upstream_aborted"] = True
-                    self.connection.shutdown(socket.SHUT_RDWR)
-                    self.close_connection = True
-                    return
-            self.wfile.write(tail)
-            self.wfile.flush()
-            row["eos_sent"] = True
-            row["eos_monotonic"] = time.monotonic()
+            self.write_response(name, row)
         except (BrokenPipeError, ConnectionResetError) as exc:
             if name == "target" and state.scenario in {"client-cancel", "strict", "phase3"}:
                 row["expected_disconnect"] = type(exc).__name__
             else:
                 row["write_error"] = type(exc).__name__
-        except (OSError, TimeoutError) as exc:
+        except OSError as exc:
             row["write_error"] = str(exc)
         finally:
             row["response_finished"] = True
 
+    def write_response(self, name, row):
+        state = self.server
+        first = b"acceptance-prefix-"
+        tail = (b"no-crs-response-body-marker" if name == "target" and
+                state.scenario in {"safe", "strict"} else b"complete")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(first) + len(tail)))
+        blocked = name == "target" and state.scenario == "phase3"
+        self.send_header("X-Modsec-Upstream", "block" if blocked else "allow")
+        self.end_headers()
+        # Peer remains active until independently observed target data/reset.
+        if name == "peer" and not state.peer_release.wait(10):
+            raise TimeoutError("peer barrier was not released by target observation")
+        self.wfile.write(first)
+        self.wfile.flush()
+        row["first_chunk_written_monotonic"] = time.monotonic()
+        if not self.release_target(name, row):
+            return
+        self.wfile.write(tail)
+        self.wfile.flush()
+        row["eos_sent"] = True
+        row["eos_monotonic"] = time.monotonic()
+
+    def release_target(self, name, row):
+        state = self.server
+        if name != "target" or state.scenario == "phase3":
+            return True
+        if not state.release.wait(10):
+            raise TimeoutError("upstream barrier was not released by client observation")
+        row["released_monotonic"] = time.monotonic()
+        if state.scenario != "upstream-reset":
+            return True
+        row["upstream_aborted"] = True
+        self.connection.shutdown(socket.SHUT_RDWR)
+        self.close_connection = True
+        return False
+
     def log_message(self, *_args):
+        # Request evidence is retained in the structured upstream proof instead
+        # of BaseHTTPRequestHandler's unstructured stderr access log.
         pass
 
 
@@ -152,41 +166,51 @@ def configuration(output, port, upstream, protocol, run_id, scenario):
     return config
 
 
+def consume_client_records(buffer, rows, backend):
+    """Apply each complete callback record before reading the next chunk."""
+    while b"\n" in buffer:
+        line, buffer = buffer.split(b"\n", 1)
+        row = json.loads(line)
+        rows.append(row)
+        backend.observe(row)
+        if row.get("event") == "cancelled" and row.get("name") == "target":
+            backend.release.set()
+            backend.peer_release.set()
+    return buffer
+
+
+def collect_client_events(process, retained, backend):
+    rows = []
+    deadline = time.monotonic() + 20
+    buffer = b""
+    total = 0
+    with selectors.DefaultSelector() as selector:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        while selector.get_map():
+            if time.monotonic() > deadline:
+                raise TimeoutError("protocol client deadline")
+            for key, _mask in selector.select(0.2):
+                chunk = os.read(key.fileobj.fileno(), 8192)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                total += len(chunk)
+                if total > 262144:
+                    raise ValueError("protocol client output limit")
+                retained.write(chunk)
+                retained.flush()
+                buffer = consume_client_records(buffer + chunk, rows, backend)
+        if buffer:
+            raise ValueError("incomplete client JSONL record")
+    return rows
+
+
 def execute_client(command, output, backend):
     """Observe flushed callback events; bound stdout, stderr, duration and exit."""
-    rows = []
-    with (output / "client.jsonl").open("xb") as retained, (output / "client.stderr").open("xb") as err:
+    with (output / CLIENT_EVENTS).open("xb") as retained, (output / "client.stderr").open("xb") as err:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=err, stdin=subprocess.DEVNULL)
-        deadline = time.monotonic() + 20
-        buffer = b""
-        total = 0
         try:
-            with selectors.DefaultSelector() as selector:
-                selector.register(process.stdout, selectors.EVENT_READ)
-                while selector.get_map():
-                    if time.monotonic() > deadline:
-                        raise TimeoutError("protocol client deadline")
-                    for key, _mask in selector.select(0.2):
-                        chunk = os.read(key.fileobj.fileno(), 8192)
-                        if not chunk:
-                            selector.unregister(key.fileobj)
-                            continue
-                        total += len(chunk)
-                        if total > 262144:
-                            raise ValueError("protocol client output limit")
-                        retained.write(chunk)
-                        retained.flush()
-                        buffer += chunk
-                        while b"\n" in buffer:
-                            line, buffer = buffer.split(b"\n", 1)
-                            row = json.loads(line)
-                            rows.append(row)
-                            backend.observe(row)
-                            if row.get("event") == "cancelled" and row.get("name") == "target":
-                                backend.release.set()
-                                backend.peer_release.set()
-                if buffer:
-                    raise ValueError("incomplete client JSONL record")
+            rows = collect_client_events(process, retained, backend)
             code = process.wait(timeout=2)
             if code != 0:
                 raise ValueError(f"client process failed: {code}")
@@ -200,7 +224,7 @@ def execute_client(command, output, backend):
     return rows
 
 
-def run(args):
+def validate_source_selection(args):
     framework = Path(__file__).resolve().parents[4]
     if Path(args.framework_root).resolve() != framework:
         raise ValueError("Framework source selection must match the executing driver")
@@ -211,6 +235,29 @@ def run(args):
     mrts = subprocess.check_output(["git", "-C", str(framework), "rev-parse", "HEAD:tools/MRTS"], text=True).strip()
     if mrts != args.mrts_sha:
         raise ValueError("MRTS revision does not match the Framework gitlink")
+    return framework
+
+
+def stop_runtime(process, roles, handles, port, args, backend, backend_thread):
+    backend.release.set()
+    backend.peer_release.set()
+    cleanup = HOST.stop_owned_master(process, roles, port, args.run_id, handles)
+    backend.shutdown()
+    backend.server_close()
+    backend_thread.join(timeout=3)
+    cleanup.update(upstream_stopped=not backend_thread.is_alive(), client_stopped=True)
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
+        try:
+            udp.bind(("127.0.0.1", port))
+            cleanup["udp_listener_open"] = False
+        except OSError:
+            cleanup["udp_listener_open"] = True
+    cleanup["verified"] = cleanup["verified"] and cleanup["upstream_stopped"] and not cleanup["udp_listener_open"]
+    return cleanup
+
+
+def run(args):
+    framework = validate_source_selection(args)
     binary, module, output = HOST.BASE.validate_inputs(args)
     spec = CONTRACT.CASES[args.case_id]
     protocol, scenario = spec["protocol"], spec["scenario"]
@@ -243,7 +290,7 @@ def run(args):
         with MODERN.tls_material(output):
             config = output / "nginx.conf"
             config.write_text(configuration(output, port, backend.server_port, protocol, args.run_id, scenario))
-            (output / "access.jsonl").touch(mode=0o600)
+            (output / ACCESS_EVENTS).touch(mode=0o600)
             argv = [str(output / "nginx-binary"), "-p", str(output) + "/", "-c", str(config)]
             code, out, err, failure = HOST.BASE.invoke([*argv, "-t"], environment)
             (output / "configtest.stdout").write_bytes(out)
@@ -264,42 +311,39 @@ def run(args):
                 packets = observer.rows
                 if observer.error:
                     raise ValueError("QUIC metadata observer failed")
-    except (OSError, ValueError, subprocess.SubprocessError, TimeoutError) as exc:
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
         error = str(exc)
     finally:
-        backend.release.set()
-        backend.peer_release.set()
-        cleanup = HOST.stop_owned_master(process, roles, port, args.run_id, handles)
-        backend.shutdown()
-        backend.server_close()
-        backend_thread.join(timeout=3)
-        cleanup.update(upstream_stopped=not backend_thread.is_alive(), client_stopped=True)
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp:
-            try:
-                udp.bind(("127.0.0.1", port))
-                cleanup["udp_listener_open"] = False
-            except OSError:
-                cleanup["udp_listener_open"] = True
-        cleanup["verified"] = cleanup["verified"] and cleanup["upstream_stopped"] and not cleanup["udp_listener_open"]
+        cleanup = stop_runtime(process, roles, handles, port, args, backend, backend_thread)
     backend.proof["driver_error"] = error or backend.proof["driver_error"]
-    for leaf in ("native-events.jsonl", "access.jsonl", "client.jsonl"):
+    retain_bundle(output, backend, roles, cleanup, packets, args, artifact)
+    return validate_result(output, args)
+
+
+def retain_bundle(output, backend, roles, cleanup, packets, args, artifact):
+    framework = Path(args.framework_root).resolve()
+    spec = CONTRACT.CASES[args.case_id]
+    for leaf in ("native-events.jsonl", ACCESS_EVENTS, CLIENT_EVENTS):
         if not (output / leaf).exists():
             (output / leaf).touch(mode=0o600)
     for leaf, value in (("upstream.json", backend.proof), ("roles.json", roles),
                         ("cleanup.json", cleanup), ("quic.json", {"datagrams": packets})):
         MODERN.write(output / leaf, value)
-    leaves = ("client.jsonl", "upstream.json", "access.jsonl", "native-events.jsonl", "roles.json", "cleanup.json", "quic.json",
+    leaves = (CLIENT_EVENTS, "upstream.json", ACCESS_EVENTS, "native-events.jsonl", "roles.json", "cleanup.json", "quic.json",
               "nginx.conf", "rules.conf")
     source_paths = ("tests/runners/protocol_acceptance_contract.py", "tests/runners/protocol_acceptance_client.c",
                     "tests/runners/protocol_acceptance_client.py", "tests/rules/protocol-acceptance.conf",
                     "connector_suite/modsecurity_connector_ci/runtime/lifecycle/run-protocol-acceptance.py")
     receipt = {"schema_version": 1, "case_id": args.case_id, "run_id": args.run_id,
-               "protocol": protocol, "scenario": scenario, "profile": "native-nginx-http-module",
+               "protocol": spec["protocol"], "scenario": spec["scenario"], "profile": "native-nginx-http-module",
                **{key: getattr(args, key) for key in ("parent_sha", "framework_sha", "mrts_sha")},
                "artifact_sha256": artifact,
                "source_sha256": {path: MODERN.CONTRACT.digest((framework / path).read_bytes()) for path in source_paths},
                "sha256": {leaf: MODERN.CONTRACT.digest(HOST.bounded_capture(output / leaf)) for leaf in leaves}}
     MODERN.write(output / "receipt.json", receipt)
+
+
+def validate_result(output, args):
     try:
         proof = CONTRACT.validate_bundle(output, case_id=args.case_id, run_id=args.run_id,
                                          identities={key: getattr(args, key) for key in

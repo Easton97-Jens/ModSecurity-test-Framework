@@ -147,3 +147,11 @@ Die vollständige Ausführungsquittung bleibt extern als
 `62b411e073551ef0fef22ab3d372e2489f2ae168` und Parentquelle
 `a5f697c35acb5386d2037f91dfed10ad4b469cd9`. Diese erfolgreichen angrenzenden
 Pfade schließen die vier fehlgeschlagenen neuen H2-Fälle nicht.
+
+Der Vorbereitungsclient akzeptiert ausschließlich seine eigene IPv4-Loopbackorigin
+(`127.0.0.1` mit explizitem Port 1..65535), ohne Userinfo, Pfad, Query oder Fragment.
+TLS-Fälle setzen passend zum Fixtureserver explizit TLS 1.3 als Minimum; der
+getrennt gewählte h2c-Fall nutzt bewusst Klartext auf Loopback. Der Nachweisreader
+liest vollständige Listenerdirektiven ohne quadratisches Regexbacktracking.
+Entfernte CI bewertet die gepflegten Quellen; kein lokaler Sonar-Scanner wird
+für diesen Vorbereitungsauftrag aufgerufen.

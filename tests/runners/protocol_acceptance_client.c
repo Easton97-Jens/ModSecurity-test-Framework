@@ -46,6 +46,7 @@ static void finish(void) {
   puts("}");
   if(fflush(stdout) || ferror(stdout)) output_failed = 1;
 }
+/* libcurl requires this exact mutable-buffer callback ABI; data is not modified. */
 static size_t receive(char *data, size_t size, size_t count, void *userdata) {
   struct request *r = userdata;
   size_t n;
@@ -62,10 +63,10 @@ static size_t receive(char *data, size_t size, size_t count, void *userdata) {
   }
   return output_failed ? CURL_WRITEFUNC_ERROR : n;
 }
-static int debug(CURL *easy, curl_infotype type, char *data, size_t size, void *userdata) {
+static int debug_text(CURL *easy, curl_infotype type, const char *data, size_t size, void *userdata) {
   struct request *r = userdata;
   char line[512];
-  char *p;
+  const char *p;
   long stream;
   curl_off_t conn = -1;
   (void)easy;
@@ -97,9 +98,16 @@ static int debug(CURL *easy, curl_infotype type, char *data, size_t size, void *
   }
   return 0;
 }
+/* libcurl owns the buffer and requires char * in its callback ABI. */
+static int debug(CURL *easy, curl_infotype type, char *data, size_t size, void *userdata) {
+  return debug_text(easy, type, data, size, userdata);
+}
 static int completed(struct request *r, CURLcode result, int cancelled) {
-  long status = 0, version = 0, connects = 0;
-  curl_off_t conn = -1, xfer = -1;
+  long status = 0;
+  long version = 0;
+  long connects = 0;
+  curl_off_t conn = -1;
+  curl_off_t xfer = -1;
   if(curl_easy_getinfo(r->easy, CURLINFO_RESPONSE_CODE, &status) != CURLE_OK ||
      curl_easy_getinfo(r->easy, CURLINFO_HTTP_VERSION, &version) != CURLE_OK ||
      curl_easy_getinfo(r->easy, CURLINFO_NUM_CONNECTS, &connects) != CURLE_OK ||
@@ -128,6 +136,7 @@ static int start(CURLM *multi, struct request *r, const char *base, const char *
   OPT(CURLOPT_URL, r->url);
   OPT(CURLOPT_HTTP_VERSION, version);
   OPT(CURLOPT_CAINFO, ca);
+  OPT(CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_3);
   OPT(CURLOPT_SSL_VERIFYPEER, 1L);
   OPT(CURLOPT_SSL_VERIFYHOST, 2L);
   OPT(CURLOPT_PROXY, "");
@@ -152,84 +161,191 @@ static int allowed(const char *s, const char *const *choices) {
   for(; *choices; ++choices) if(!strcmp(s, *choices)) return 1;
   return 0;
 }
-int main(int argc, char **argv) {
-  const char *protocol = NULL, *base = NULL, *ca = NULL, *scenario = NULL;
-  const char *const scenarios[] = {"multiplex", "client-cancel", "server-reset", "streaming", "phase3", "safe", "h2c", NULL};
-  struct request req[3] = {{.name="target", .path="/acceptance/target", .stream_id=-1},
-                           {.name="peer", .path="/acceptance/peer", .stream_id=-1},
-                           {.name="followup", .path="/acceptance/followup", .stream_id=-1}};
-  CURLM *multi = NULL;
+struct options {
+  const char *protocol;
+  const char *base;
+  const char *ca;
+  const char *scenario;
   long version;
-  int i, running = 0, rc = 1, results = 0, followup = 0;
+};
+struct option_binding {
+  const char *name;
+  const char **destination;
+};
+struct session {
+  CURLM *multi;
+  struct request req[3];
+  int results;
+  int followup;
   double deadline;
+};
+static int set_argument(const char *name, const char *value,
+                        const struct option_binding *bindings, size_t count) {
+  size_t i;
+  for(i = 0; i < count; ++i) {
+    if(!strcmp(name, bindings[i].name)) {
+      *bindings[i].destination = value;
+      return 0;
+    }
+  }
+  return 1;
+}
+static int parse_arguments(int argc, char **argv, struct options *options,
+                           struct request *req) {
+  const struct option_binding bindings[] = {
+    {"--protocol", &options->protocol}, {"--base-url", &options->base},
+    {"--ca", &options->ca}, {"--scenario", &options->scenario},
+    {"--target-path", &req[0].path}, {"--peer-path", &req[1].path},
+    {"--followup-path", &req[2].path}
+  };
+  int i;
+  if(argc % 2 != 1) return 1;
   for(i = 1; i < argc; i += 2) {
-    if(i+1 >= argc) goto usage;
-    if(!strcmp(argv[i], "--protocol")) protocol = argv[i+1];
-    else if(!strcmp(argv[i], "--base-url")) base = argv[i+1];
-    else if(!strcmp(argv[i], "--ca")) ca = argv[i+1];
-    else if(!strcmp(argv[i], "--scenario")) scenario = argv[i+1];
-    else if(!strcmp(argv[i], "--target-path")) req[0].path = argv[i+1];
-    else if(!strcmp(argv[i], "--peer-path")) req[1].path = argv[i+1];
-    else if(!strcmp(argv[i], "--followup-path")) req[2].path = argv[i+1];
-    else goto usage;
+    if(set_argument(argv[i], argv[i+1], bindings,
+                    sizeof(bindings) / sizeof(bindings[0]))) return 1;
   }
-  if(!protocol || !base || !ca || !scenario || !allowed(scenario, scenarios)) goto usage;
-  if(!strcmp(protocol, "h2")) version = CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE;
-  else if(!strcmp(protocol, "h3")) version = CURL_HTTP_VERSION_3ONLY;
-  else if(!strcmp(protocol, "h2c")) version = CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE;
-  else goto usage;
-  if(strncmp(base, !strcmp(protocol, "h2c") ? "http://" : "https://",
-             !strcmp(protocol, "h2c") ? 7 : 8) || strchr(base, '?') || strchr(base, '#')) goto usage;
-  for(i = 0; i < 3; ++i) if(req[i].path[0] != '/' || strchr(req[i].path, '\r') || strchr(req[i].path, '\n')) goto usage;
-  if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) return 1;
-  multi = curl_multi_init();
-  if(!multi) goto cleanup;
-  if(curl_multi_setopt(multi, CURLMOPT_PIPELINING, (long)CURLPIPE_MULTIPLEX) != CURLM_OK ||
-     curl_multi_setopt(multi, CURLMOPT_MAX_HOST_CONNECTIONS, 1L) != CURLM_OK) goto cleanup;
-  deadline = monotonic() + 14.5;
-  /* Admit the held allowed peer first, so early target denials can overlap an
-     actual host transaction rather than just a queued client easy handle. */
-  if(start(multi, &req[1], base, ca, version) || start(multi, &req[0], base, ca, version)) goto cleanup;
-  do {
-    CURLMsg *msg;
-    int remaining;
-    if(curl_multi_perform(multi, &running) != CURLM_OK || output_failed) goto cleanup;
-    while((msg = curl_multi_info_read(multi, &remaining))) {
-      struct request *r = NULL;
-      if(msg->msg != CURLMSG_DONE) continue;
-      if(curl_easy_getinfo(msg->easy_handle, CURLINFO_PRIVATE, &r) != CURLE_OK || !r) goto cleanup;
-      if(completed(r, msg->data.result, 0)) goto cleanup;
-      ++results;
-      if(curl_multi_remove_handle(multi, r->easy) != CURLM_OK) goto cleanup;
-      r->active = 0;
-    }
-    if(!strcmp(scenario, "client-cancel") && req[0].active && req[0].first_data) {
-      if(!req[1].active) goto cleanup;
-      if(curl_multi_remove_handle(multi, req[0].easy) != CURLM_OK) goto cleanup;
-      req[0].active = 0;
-      begin("cancelled", &req[0]);
-      printf(",\"method\":\"curl_multi_remove_handle\",\"peer_active\":true"); finish();
-      if(completed(&req[0], CURLE_OK, 1)) goto cleanup;
-      ++results;
-    }
-    if(req[0].done && req[1].done && !followup) {
-      if(start(multi, &req[2], base, ca, version)) goto cleanup;
-      followup = 1;
-    }
-    if(req[2].done) break;
-    if(monotonic() > deadline || curl_multi_poll(multi, NULL, 0, 50, NULL) != CURLM_OK) goto cleanup;
-  } while(1);
-  rc = results == 3 && !output_failed ? 0 : 1;
-cleanup:
+  return 0;
+}
+static int valid_protocol(struct options *options) {
+  if(!strcmp(options->protocol, "h3")) {
+    options->version = CURL_HTTP_VERSION_3ONLY;
+    return 1;
+  }
+  if(!strcmp(options->protocol, "h2") || !strcmp(options->protocol, "h2c")) {
+    options->version = CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE;
+    return 1;
+  }
+  return 0;
+}
+static int valid_paths(const struct request *req) {
+  size_t i;
   for(i = 0; i < 3; ++i) {
-    if(req[i].active && multi && curl_multi_remove_handle(multi, req[i].easy) != CURLM_OK) rc = 1;
-    if(req[i].easy) curl_easy_cleanup(req[i].easy);
-    free(req[i].url);
+    if(req[i].path[0] != '/' || strchr(req[i].path, '\r') ||
+       strchr(req[i].path, '\n')) return 0;
   }
-  if(multi && curl_multi_cleanup(multi) != CURLM_OK) rc = 1;
+  return 1;
+}
+static int valid_loopback_origin(const char *base, const char *scheme) {
+  const char *port;
+  unsigned int number = 0;
+  size_t scheme_length = strlen(scheme);
+  const char authority[] = "127.0.0.1:";
+  if(strncmp(base, scheme, scheme_length)) return 0;
+  port = base + scheme_length;
+  if(strncmp(port, authority, sizeof(authority) - 1)) return 0;
+  port += sizeof(authority) - 1;
+  if(!*port) return 0;
+  for(; *port; ++port) {
+    unsigned int digit;
+    if(*port < '0' || *port > '9') return 0;
+    digit = (unsigned int)(*port - '0');
+    if(number > (65535U - digit) / 10U) return 0;
+    number = number * 10U + digit;
+  }
+  return number != 0;
+}
+static int valid_options(struct options *options, const struct request *req) {
+  const char *const scenarios[] = {"multiplex", "client-cancel", "server-reset",
+                                  "streaming", "phase3", "safe", "h2c", NULL};
+  const char *scheme = "https://";
+  if(!options->protocol || !options->base || !options->ca || !options->scenario)
+    return 0;
+  if(!allowed(options->scenario, scenarios) || !valid_protocol(options)) return 0;
+  /* h2c is deliberately cleartext HTTP/2 prior knowledge, never a TLS fallback. */
+  if(!strcmp(options->protocol, "h2c")) scheme = "http://";
+  /* Only the task driver's explicit IPv4 loopback origin is admissible. */
+  if(!valid_loopback_origin(options->base, scheme)) return 0;
+  return valid_paths(req);
+}
+static int collect_completion(struct session *session, const CURLMsg *message) {
+  struct request *r = NULL;
+  if(message->msg != CURLMSG_DONE) return 0;
+  if(curl_easy_getinfo(message->easy_handle, CURLINFO_PRIVATE, &r) != CURLE_OK || !r)
+    return 1;
+  if(completed(r, message->data.result, 0)) return 1;
+  ++session->results;
+  if(curl_multi_remove_handle(session->multi, r->easy) != CURLM_OK) return 1;
+  r->active = 0;
+  return 0;
+}
+static int collect_completions(struct session *session) {
+  CURLMsg *message;
+  int remaining;
+  while((message = curl_multi_info_read(session->multi, &remaining))) {
+    if(collect_completion(session, message)) return 1;
+  }
+  return 0;
+}
+static int cancel_target(struct session *session, const struct options *options) {
+  struct request *target = &session->req[0];
+  if(strcmp(options->scenario, "client-cancel") || !target->active ||
+     !target->first_data) return 0;
+  if(!session->req[1].active) return 1;
+  if(curl_multi_remove_handle(session->multi, target->easy) != CURLM_OK) return 1;
+  target->active = 0;
+  begin("cancelled", target);
+  printf(",\"method\":\"curl_multi_remove_handle\",\"peer_active\":true");
+  finish();
+  if(completed(target, CURLE_OK, 1)) return 1;
+  ++session->results;
+  return 0;
+}
+static int start_followup(struct session *session, const struct options *options) {
+  if(!session->req[0].done || !session->req[1].done || session->followup) return 0;
+  if(start(session->multi, &session->req[2], options->base, options->ca,
+           options->version)) return 1;
+  session->followup = 1;
+  return 0;
+}
+static int run_requests(struct session *session, const struct options *options) {
+  int running = 0;
+  session->deadline = monotonic() + 14.5;
+  /* Admit the held allowed peer first, so early target denials overlap an
+     actual host transaction rather than just a queued client easy handle. */
+  if(start(session->multi, &session->req[1], options->base, options->ca, options->version) ||
+     start(session->multi, &session->req[0], options->base, options->ca, options->version))
+    return 1;
+  while(!session->req[2].done) {
+    if(curl_multi_perform(session->multi, &running) != CURLM_OK || output_failed)
+      return 1;
+    if(collect_completions(session) || cancel_target(session, options) ||
+       start_followup(session, options)) return 1;
+    if(!session->req[2].done &&
+       (monotonic() > session->deadline ||
+        curl_multi_poll(session->multi, NULL, 0, 50, NULL) != CURLM_OK)) return 1;
+  }
+  return session->results == 3 && !output_failed ? 0 : 1;
+}
+static int cleanup_session(struct session *session, int result) {
+  size_t i;
+  for(i = 0; i < 3; ++i) {
+    struct request *r = &session->req[i];
+    if(r->active && session->multi &&
+       curl_multi_remove_handle(session->multi, r->easy) != CURLM_OK) result = 1;
+    if(r->easy) curl_easy_cleanup(r->easy);
+    free(r->url);
+  }
+  if(session->multi && curl_multi_cleanup(session->multi) != CURLM_OK) result = 1;
   curl_global_cleanup();
-  return rc;
-usage:
-  fputs("usage: protocol-client --protocol h2|h3|h2c --base-url URL --ca FILE --scenario SCENARIO [--target-path PATH] [--peer-path PATH] [--followup-path PATH]\n", stderr);
-  return 2;
+  return result;
+}
+int main(int argc, char **argv) {
+  struct options options = {0};
+  struct session session = {.req = {
+    {.name="target", .path="/acceptance/target", .stream_id=-1},
+    {.name="peer", .path="/acceptance/peer", .stream_id=-1},
+    {.name="followup", .path="/acceptance/followup", .stream_id=-1}}};
+  int result = 1;
+  if(parse_arguments(argc, argv, &options, session.req) ||
+     !valid_options(&options, session.req)) {
+    fputs("usage: protocol-client --protocol h2|h3|h2c --base-url URL --ca FILE --scenario SCENARIO [--target-path PATH] [--peer-path PATH] [--followup-path PATH]\n", stderr);
+    return 2;
+  }
+  if(curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) return 1;
+  session.multi = curl_multi_init();
+  if(session.multi &&
+     curl_multi_setopt(session.multi, CURLMOPT_PIPELINING, (long)CURLPIPE_MULTIPLEX) == CURLM_OK &&
+     curl_multi_setopt(session.multi, CURLMOPT_MAX_HOST_CONNECTIONS, 1L) == CURLM_OK)
+    result = run_requests(&session, &options);
+  return cleanup_session(&session, result);
 }

@@ -182,3 +182,14 @@ standard cases, execution selectors and offline exceptions remain identical.
 The inventory digest changes only because those reviewed source bytes changed;
 its dependent generated archive is refreshed natively. Parent validation uses
 an explicit command-line Framework root to avoid an inherited host checkout.
+
+The first complete remote Framework analysis compiled the new client but failed
+the new-code Security Gate. Follow-up remediation sets the client TLS minimum
+to TLS 1.3, confines client origins to `127.0.0.1` with an explicit valid port, removes
+quadratic listener-regex parsing and splits the three new runtime/evidence
+modules into bounded helpers. All protocol, barrier, correlation, output-failure
+and cleanup expectations remain required. Explicit plaintext h2c remains part
+of the loopback test contract; numeric stream IDs use fixed typed JSON output.
+No Sonar suppression, issue disposition, exclusion or gate relaxation is made.
+Targeted unit/equivalence/CLI/barrier controls pass; fresh committed-pair host
+repetitions and authoritative current-head remote analysis are recorded externally.
