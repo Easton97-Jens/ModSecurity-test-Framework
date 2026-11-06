@@ -81,6 +81,30 @@ nicht jede H2-Body-Rahmung.
 
 ## Geänderte Dateien und Tests
 
+Die Fehleruploadquelle hat ein separates exaktes Framework-eigenes aktuelles
+Amendment mit unveränderlichem Migrationshash als Anker. Historische Lock mit
+24 Quellen und sämtliche Actionpins bleiben unverändert. Nur die geprüften
+Ersatzbytes sind zugelassen; Rückkehr ohne Diagnosen, breitere Uploadpfade,
+falsche Baselineanker und geänderte Sicherheitsbedingungen werden weiterhin
+abgewiesen. Zehn gezielte Vertragstests bestehen.
+
+Die gehostete c042-Analyse meldete 83 offene Vorkommen. Jedes wird anhand seines
+Vorkommens und seiner Quellgrenze geprüft. Validierung, Traffic und Cleanup der
+Adapter sind ohne entfernte Prädikate aufgeteilt; wiederholte Nachweisdateinamen
+sind Konstanten. Runtimewurzeln weisen lexikalische Traversierung explizit ab
+und verwenden die native Deskriptor-/Ownershipprüfung ohne Linkverfolgung. Der
+Apache-Beobachter erhält einen vererbten eigenen Append-Deskriptor statt eines
+Umgebungspfads. Das sind Quelländerungen, keine Scanner-Ausnahmen oder
+FALSE_POSITIVE-Serverentscheidungen. Finale gehostete Analyse und erforderliches
+Quality Gate bleiben eigenständige Nachweise.
+
+Der kanonische Apache-CRS-Launcher führt vor Hoststart einen frischen nativen
+Ausführungskontext-Preflight durch. Er erbt Launcher-Credentials, prüft natives
+PASS und übereinstimmende beobachtete UID/GID, erhält den privaten Snapshot und
+gibt im Joblog nur den numerischen Identitätsnachweis aus. Fehler oder Nicht-PASS
+verhindern den Hoststart. Sechs gezielte Kontrollen bestehen; die drei kanonischen
+CRS-Ergebnisdateien, echte 403-/Regel942270-Audit- und Cleanupanforderungen bleiben.
+
 - NGINX-Lifecycle-Runner, Protokollvertrag/-client/-regeln und Negativkontrollen
   unter `connector_suite/` und `tests/`.
 - `ci/provisioning/patches/nginx/h2-close-stream-flush.patch`, nativer
@@ -117,7 +141,7 @@ wurde keine Toolchain installiert.
 | HTX-Korruption realer Bundles, Artefaktnegative und tatsächlicher Wire-Schreibfehler | 100 Kontrollen PASS; realer Schreibfehler bleibt FAIL bei geprüftem Cleanup | `profiles/haproxy/focused-controls.json` |
 | Nativer Envoy-H2-Kandidat | 8 PASS, 24 Transaktionen, 8 Cleanup-Barrieren bei aktivem Peer | `profiles/envoy/candidate-verification-hardened.json` |
 | Finaler SPOP/HTX-v4-Kandidat | 8 PASS, 24 Transaktionen, 8 Cleanup-Barrieren bei aktivem Peer; EOS-Regel des Eigentümers über eindeutiges Handle/Lease korreliert | `profiles/spop/candidate-verification-hardened.json` |
-| Apache-Quell-/Cache-/Provisionierungsverträge | 190 PASS, 5 Dirty-Checkout-Skips; frischer HTTPD-/Modulbuild PASS; neue H2-Modulkorrektur in Prüfung | `apache/final-apache-contracts` |
+| Apache-Quell-/Cache-/Provisionierungsverträge | 191 PASS, 5 Pin-abhängige Skips; frischer HTTPD-/Modulbuild PASS; H2-Cleanuptiming in Prüfung | `apache/final-apache-contracts` |
 | `rtk bypass make check-documentation PYTHON="$PYTHON"` und begrenztes `rtk bypass git diff --check` | Exit 0; Links, zweisprachige Variablen, Repository-Pfade, Change-Record-Vertrag und Whitespace bestehen | `profiles/haproxy/change-record-documentation.log` |
 
 Ein SPOP/HTX-v4-Zwischenkandidat hatte sechs bestandene und zwei fehlgeschlagene
@@ -129,6 +153,23 @@ Abortbenachrichtigung statt NGINX-Queueing; Parent besitzt die H2-Errorbucket-
 Korrektur. Der lokale CRS-Preflight blockiert an der nicht zugeordneten
 Default-Workeridentität der vorhandenen Fixture; gehostetes CRS und Aggregate
 am aktuellen Paar bleiben erforderlich.
+
+Ein anschließender vollständiger verwalteter Apache-Build bestand; seine erste
+H2-Auswahl bestand alle acht Fälle und drei H1-Nachbarn. Die Wiederholung mit
+gehärtetem Beobachter erhielt dann einen intermittierenden Strict-Cleanupfehler:
+Reset und Folgezugriff gelangen, aber natives Cleanup wartete auf den gehaltenen
+Peer. Der frühere PASS ersetzt diesen Fehler nicht; Ursache und finale
+Wiederholung am eingecheckten Commitpaar bleiben zu prüfen.
+
+Gepinnte HTTPD-Quellen und eine native APR-Interleavingkontrolle zeigen einen
+zweiten Abhängigkeitsfehler: Der Abschluss eines gehaltenen Resetstreams reiht
+seine Bereinigung ein, ohne den Poller der physischen Verbindung zu wecken;
+ein Wakeup allein kehrt in den unterbrochenen Poll zurück. Der versionierte
+zweiteilige Patch weckt den Poller und gibt ausstehende Bereinigung an den
+bestehenden sicheren äußeren Cleanuppunkt zurück. Shutdown und Abort behalten
+Priorität. Fünf native Kontrollen prüfen ursprünglichen Timeout, unzureichendes
+Wakeup allein, kombinierte Korrektur und beide Shutdownpfade. Frischer verwalteter
+Build und echte Qualifizierung am eingecheckten Commitpaar bleiben getrennt nötig.
 
 Die unabhängige Prüfung nahm die frühere Envoy-Cancelqualifizierung zurück:
 Upstreamfreigabe erlaubte normalen EOS-Abschluss. Der gehärtete Treiber hält EOS

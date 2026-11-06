@@ -17,6 +17,7 @@ import threading
 import time
 
 from modsecurity_test_framework.connector_context import load_source
+from modsecurity_connector_ci.lib.runtime_path_utils import verified_runtime_artifact_root
 from tests.runners.native_h2_probe import WireClient, frame
 from connector_suite.adapters.envoy.harness.envoy_h2_acceptance import load_json
 
@@ -24,6 +25,13 @@ LIFECYCLE = Path(__file__).resolve().parents[3] / "modsecurity_connector_ci/runt
 STREAM = load_source(LIFECYCLE / "run-protocol-acceptance.py")
 HOST = STREAM.HOST
 BUILDER = load_source(Path(__file__).resolve().parents[4] / "ci/provisioning/prepare-haproxy-h2-test-build.py")
+NATIVE_LOG = 'native.log'
+TLS_CERTIFICATE = 'tls.crt'
+TLS_COMBINED = 'tls.pem'
+HOST_CONFIGURATION = 'haproxy.cfg'
+ACCESS_LOG = 'access.log'
+WIRE_EVIDENCE = 'wire.json'
+COMMON_EVIDENCE = 'common.jsonl'
 CASES = ("allow", "phase1", "phase2", "phase3", "phase4_safe", "phase4_strict", "client_cancel", "upstream_reset")
 SCENARIOS = {"allow": "streaming", "phase1": "multiplex", "phase2": "phase2", "phase3": "phase3",
              "phase4_safe": "safe", "phase4_strict": "strict", "client_cancel": "client-cancel",
@@ -119,7 +127,7 @@ backend acceptance_upstream
 def observe_target_cleanup(client, upstream, paths, root):
     deadline = time.monotonic() + 3
     while True:
-        native = read(root / "native.log")
+        native = read(root / NATIVE_LOG)
         admitted = re.findall(r"modsecurity-htx-test: admitted transaction_id=(haproxy-htx-\d+)\b", native)
         require(len(admitted) <= 2, "foreign/duplicated native stream admission")
         if len(admitted) == 2:
@@ -177,11 +185,7 @@ def exercise(client, upstream, paths, scenario, root):
     client.wait(lambda: 5 in client.terminal)
 
 
-def validate_case(case, wire, access, native_text, common, upstream, cleanup, run_id):
-    require(case in CASES, "unknown case")
-    require(cleanup.get("verified") is True and cleanup.get("tls_removed") is True, "cleanup failed")
-    require(wire.get("alpn") == "h2" and wire.get("tls_verified") is True, "H2 TLS fallback")
-    require(upstream.get("driver_error") is None, "upstream driver error")
+def select_native_transactions(case, access, native_text, run_id):
     selected = {}
     for role in ("target", "peer", "followup"):
         path = f"/acceptance/{run_id}-{case}/{role}"
@@ -203,6 +207,10 @@ def validate_case(case, wire, access, native_text, common, upstream, cleanup, ru
         observed = re.findall(r"modsecurity-htx-test: " + marker + r" transaction_id=(haproxy-htx-\d+)\b", native_text)
         require(len(observed) == 3 and set(observed) == identities, "foreign or duplicated native lifecycle")
     require(len({row.get("client_port") for row in selected.values()}) == 1, "physical connection changed")
+    return selected
+
+
+def validate_wire_requests(case, wire, selected):
     sent = wire.get("requests", [])
     require(len(sent) == 3 and {row.get("stream_id") for row in sent} == {1, 3, 5},
             "actual wire request identities missing/reused")
@@ -213,13 +221,18 @@ def validate_case(case, wire, access, native_text, common, upstream, cleanup, ru
         require(request.get("method") == ("POST" if case == "phase2" and role == "target" else "GET"),
                 "wire request method mismatch")
         require(statuses.get(stream) == selected[role]["status"], "independent wire/native status mismatch")
+    return sent
+
+
+def validate_unrelated_streams(wire, selected):
     terminals = wire.get("terminal", {})
     for role, stream in (("peer", "1"), ("followup", "5")):
         require(selected[role]["status"] == 200 and terminals.get(stream, {}).get("type") in (0, 1), "unrelated stream failed")
         require(isinstance(wire.get("body_bytes", {}).get(stream), int) and wire["body_bytes"][stream] > 0,
                 "unrelated stream payload missing")
-    expected = 403 if case in ("phase1", "phase2", "phase3") else 200
-    require(selected["target"]["status"] == expected, "wrong target native status")
+
+
+def validate_upstream_proof(case, selected, upstream, native_text):
     require(upstream.get("peer_held_until_target_observed") is True, "missing peer barrier")
     early_cleanup = upstream.get("target_cleanup_while_peer_held", {})
     require(early_cleanup.get("transaction_id") == selected["target"]["transaction_id"]
@@ -236,6 +249,12 @@ def validate_case(case, wire, access, native_text, common, upstream, cleanup, ru
     require(all(upstream["paths"][selected[role]["uri"]].get("eos_sent") is True
                 and upstream["paths"][selected[role]["uri"]].get("response_finished") is True
                 for role in ("peer", "followup")), "unrelated upstream response incomplete")
+
+
+def validate_target_outcome(case, wire, upstream, selected):
+    terminals = wire.get("terminal", {})
+    expected = 403 if case in ("phase1", "phase2", "phase3") else 200
+    require(selected["target"]["status"] == expected, "wrong target native status")
     if case in ("allow", "phase4_safe", "phase4_strict", "client_cancel", "upstream_reset"):
         require(upstream.get("first_byte_before_eos") is True, "full response buffering or missing barrier")
         require(isinstance(wire.get("body_bytes", {}).get("3"), int) and wire["body_bytes"]["3"] > 0,
@@ -249,42 +268,107 @@ def validate_case(case, wire, access, native_text, common, upstream, cleanup, ru
                 "actual client cancellation missing")
     else:
         require(terminals.get("3", {}).get("type") in (0, 1), "unexpected target reset")
+
+
+def validate_phase4_decisions(case, decisions, selected, native_text):
+    require(all(row.get("eos_seen") is True and row.get("response_committed") is True
+                and row.get("late_intervention") is True for row in decisions), "P4 EOS/commit proof missing")
+    action = {"phase4_safe": "log_only", "phase4_strict": "abort_connection"}[case]
+    # The Common record explicitly reports only an engine request.
+    # Join it to the separate original host-action diagnostic and wire.
+    require(all(row.get("requested_action") == "deny" and row.get("actual_action") == ""
+                and row.get("transport_result") == "not_observable" for row in decisions),
+            "engine request and host action were conflated")
+    witness = ("modsecurity-htx: response-body late intervention observed; transaction_id="
+               + selected["target"]["transaction_id"] + " phase=4 status=403 rule_id=1100301"
+               + " requested_action=deny resolved_policy_action=" + action + " host_action=" + action)
+    require(native_text.count(witness) == 1, "actual native late host action missing/ambiguous")
+
+
+def validate_rule_decisions(case, common, selected, sent, native_text):
     expected_rule = {"phase1": 1100001, "phase2": 1100101, "phase3": 1100201,
                      "phase4_safe": 1100301, "phase4_strict": 1100301}.get(case)
-    if expected_rule:
-        decisions = [row for row in common if row.get("transaction_id") == selected["target"]["transaction_id"]
-                     and str(row.get("rule_id")) == str(expected_rule)]
-        require(decisions, "native rule correlation missing")
-        phase = {"phase1": "request_headers", "phase2": "request_body", "phase3": "response_headers",
-                 "phase4_safe": "response_body", "phase4_strict": "response_body"}[case]
-        require(all(row.get("connector") == "haproxy" and row.get("integration_mode") == "native-htx"
-                    and row.get("phase") == phase for row in decisions), "native phase/profile crossover")
-        if case == "phase2":
-            request = next(row for row in sent if row["stream_id"] == 3)
-            require(request.get("body_bytes") == len(b"no-crs-request-body-marker"), "actual P2 body missing")
-        if case.startswith("phase4"):
-            require(all(row.get("eos_seen") is True and row.get("response_committed") is True
-                        and row.get("late_intervention") is True for row in decisions), "P4 EOS/commit proof missing")
-        if case == "phase4_safe":
-            action = "log_only"
-        if case == "phase4_strict":
-            action = "abort_connection"
-        if case.startswith("phase4"):
-            # The Common record explicitly reports only an engine request.
-            # Join it to the separate original host-action diagnostic and wire.
-            require(all(row.get("requested_action") == "deny" and row.get("actual_action") == ""
-                        and row.get("transport_result") == "not_observable" for row in decisions),
-                    "engine request and host action were conflated")
-            witness = ("modsecurity-htx: response-body late intervention observed; transaction_id="
-                       + selected["target"]["transaction_id"] + " phase=4 status=403 rule_id=1100301"
-                       + " requested_action=deny resolved_policy_action=" + action + " host_action=" + action)
-            require(native_text.count(witness) == 1, "actual native late host action missing/ambiguous")
+    if not expected_rule:
+        return
+    decisions = [row for row in common if row.get("transaction_id") == selected["target"]["transaction_id"]
+                 and str(row.get("rule_id")) == str(expected_rule)]
+    require(decisions, "native rule correlation missing")
+    phase = {"phase1": "request_headers", "phase2": "request_body", "phase3": "response_headers",
+             "phase4_safe": "response_body", "phase4_strict": "response_body"}[case]
+    require(all(row.get("connector") == "haproxy" and row.get("integration_mode") == "native-htx"
+                and row.get("phase") == phase for row in decisions), "native phase/profile crossover")
+    if case == "phase2":
+        request = next(row for row in sent if row["stream_id"] == 3)
+        require(request.get("body_bytes") == len(b"no-crs-request-body-marker"), "actual P2 body missing")
+    if case.startswith("phase4"):
+        validate_phase4_decisions(case, decisions, selected, native_text)
+
+
+def validate_case(case, wire, access, native_text, common, upstream, cleanup, run_id):
+    require(case in CASES, "unknown case")
+    require(cleanup.get("verified") is True and cleanup.get("tls_removed") is True, "cleanup failed")
+    require(wire.get("alpn") == "h2" and wire.get("tls_verified") is True, "H2 TLS fallback")
+    require(upstream.get("driver_error") is None, "upstream driver error")
+    selected = select_native_transactions(case, access, native_text, run_id)
+    sent = validate_wire_requests(case, wire, selected)
+    validate_unrelated_streams(wire, selected)
+    validate_upstream_proof(case, selected, upstream, native_text)
+    validate_target_outcome(case, wire, upstream, selected)
+    validate_rule_decisions(case, common, selected, sent, native_text)
     require(all(row.get("transaction_id") in {v["transaction_id"] for v in selected.values()} for row in common),
             "foreign native decision")
     require(all(str(row.get("rule_id", "")) in ("", "0", "None") or row.get("transaction_id") == selected["target"]["transaction_id"]
                 for row in common), "rule crossed streams")
     return {"case_id": "haproxy_htx_h2_" + case, "run_id": run_id, "status": "PASS", "transactions": selected,
             "actual_h2": True, "physical_connection_reused": True, "native_cleanup_count": 3}
+
+
+def close_wire_client(client, error):
+    if client is not None:
+        try:
+            client.close()
+        except (OSError, ValueError) as exc:
+            error = error or f"wire evidence writer failed: {exc}"
+    return error
+
+
+def stop_owned_host(process, handles):
+    forced = False
+    if process is not None and process.poll() is None:
+        HOST.bind_owned_children(process, handles)
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+            forced = True
+    children_forced, running = HOST.retire_bound_children(handles)
+    for handle in handles.values():
+        os.close(handle)
+    return forced, children_forced, running
+
+
+def finish_runtime(client, upstream, process, thread, thread_started, port, roles, handles, root, error):
+    error = close_wire_client(client, error)
+    upstream.release.set()
+    upstream.peer_release.set()
+    forced, children_forced, running = stop_owned_host(process, handles)
+    if thread_started:
+        upstream.shutdown()
+    upstream.server_close()
+    if thread_started:
+        thread.join(timeout=3)
+    (root / TLS_COMBINED).unlink(missing_ok=True)
+    cleanup = {"verified": bool(roles) and not (forced or children_forced or running or thread.is_alive() or HOST.listener_open(port)),
+               "master_stopped": process is None or process.poll() is not None,
+               "bound_workers_running": running, "upstream_stopped": not thread.is_alive(),
+               "tls_removed": not any((root / name).exists() for name in (TLS_COMBINED, "tls.key", TLS_CERTIFICATE))}
+    upstream.proof["driver_error"] = error or upstream.proof["driver_error"]
+    write(root / "cleanup.json", cleanup)
+    write(root / "roles.json", roles)
+    write(root / "upstream.json", upstream.proof)
+    return cleanup, error
 
 
 def run_case(args, case, root):
@@ -314,15 +398,15 @@ def run_case(args, case, root):
             rules += '\nSecRule REQUEST_BODY "@contains no-crs-request-body-marker" "id:1100101,phase:2,deny,status:403,log,t:none"\n'
         (root / "rules.conf").write_text(rules)
         with STREAM.MODERN.tls_material(root):
-            (root / "tls.pem").write_bytes((root / "tls.key").read_bytes() + (root / "tls.crt").read_bytes())
-            (root / "haproxy.cfg").write_text(configuration(root, port, upstream.server_port, case == "phase4_strict"))
-            check = subprocess.run([str(args.haproxy), "-c", "-f", str(root / "haproxy.cfg")],
+            (root / TLS_COMBINED).write_bytes((root / "tls.key").read_bytes() + (root / TLS_CERTIFICATE).read_bytes())
+            (root / HOST_CONFIGURATION).write_text(configuration(root, port, upstream.server_port, case == "phase4_strict"))
+            check = subprocess.run([str(args.haproxy), "-c", "-f", str(root / HOST_CONFIGURATION)],
                                    check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
             (root / "configtest.stdout").write_bytes(check.stdout)
             (root / "configtest.stderr").write_bytes(check.stderr)
             require(check.returncode == 0, "native configuration rejected; inspect configtest.stderr")
-            with (root / "access.log").open("xb") as out, (root / "native.log").open("xb") as err:
-                process = subprocess.Popen([str(args.haproxy), "-W", "-db", "-f", str(root / "haproxy.cfg")],
+            with (root / ACCESS_LOG).open("xb") as out, (root / NATIVE_LOG).open("xb") as err:
+                process = subprocess.Popen([str(args.haproxy), "-W", "-db", "-f", str(root / HOST_CONFIGURATION)],
                                            stdin=subprocess.DEVNULL, stdout=out, stderr=err)
                 deadline = time.monotonic() + 5
                 while not roles:
@@ -331,57 +415,40 @@ def run_case(args, case, root):
                     roles = HOST.observed_owned_roles(process, HOST.process_info(process.pid),
                                                      [str(pid) for pid in handles], handles, port, "htx-" + case) or {}
                     time.sleep(0.02)
-                client = WireClient(port, root / "tls.crt", root / "wire.json")
+                client = WireClient(port, root / TLS_CERTIFICATE, root / WIRE_EVIDENCE)
                 exercise(client, upstream, paths, scenario, root)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         error = str(exc)
     finally:
-        if client is not None:
-            try:
-                client.close()
-            except (OSError, ValueError) as exc:
-                error = error or f"wire evidence writer failed: {exc}"
-        upstream.release.set()
-        upstream.peer_release.set()
-        forced = False
-        if process is not None and process.poll() is None:
-            HOST.bind_owned_children(process, handles)
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=5)
-                forced = True
-        children_forced, running = HOST.retire_bound_children(handles)
-        for handle in handles.values():
-            os.close(handle)
-        if thread_started:
-            upstream.shutdown()
-        upstream.server_close()
-        if thread_started:
-            thread.join(timeout=3)
-        (root / "tls.pem").unlink(missing_ok=True)
-        cleanup = {"verified": bool(roles) and not (forced or children_forced or running or thread.is_alive() or HOST.listener_open(port)),
-                   "master_stopped": process is None or process.poll() is not None,
-                   "bound_workers_running": running, "upstream_stopped": not thread.is_alive(),
-                   "tls_removed": not any((root / name).exists() for name in ("tls.pem", "tls.key", "tls.crt"))}
-        upstream.proof["driver_error"] = error or upstream.proof["driver_error"]
-        write(root / "cleanup.json", cleanup)
-        write(root / "roles.json", roles)
-        write(root / "upstream.json", upstream.proof)
+        cleanup, error = finish_runtime(client, upstream, process, thread, thread_started,
+                                        port, roles, handles, root, error)
     require(error is None, error or "runtime failed")
-    access = [load_json(line) for line in read(root / "access.log").splitlines() if line.startswith("{")]
-    common = (rows(root / "common.jsonl") if (root / "common.jsonl").exists()
-              and read(root / "common.jsonl").strip() else [])
-    report = validate_case(case, load_json(read(root / "wire.json")), access, read(root / "native.log"), common, upstream.proof, cleanup, args.run_id)
+    access = [load_json(line) for line in read(root / ACCESS_LOG).splitlines() if line.startswith("{")]
+    common = (rows(root / COMMON_EVIDENCE) if (root / COMMON_EVIDENCE).exists()
+              and read(root / COMMON_EVIDENCE).strip() else [])
+    report = validate_case(case, load_json(read(root / WIRE_EVIDENCE)), access, read(root / NATIVE_LOG), common, upstream.proof, cleanup, args.run_id)
     report["sha256"] = {name: digest(root / name) for name in
-                        ("wire.json", "access.log", "native.log", "haproxy.cfg", "rules.conf",
+                        (WIRE_EVIDENCE, ACCESS_LOG, NATIVE_LOG, HOST_CONFIGURATION, "rules.conf",
                          "upstream.json", "roles.json", "cleanup.json")}
-    if (root / "common.jsonl").exists():
-        report["sha256"]["common.jsonl"] = digest(root / "common.jsonl")
+    if (root / COMMON_EVIDENCE).exists():
+        report["sha256"][COMMON_EVIDENCE] = digest(root / COMMON_EVIDENCE)
     write(root / "result.json", report)
     return report
+
+
+def prepare_private_runtime_root(value):
+    root = value.absolute()
+    require(".." not in value.parts, "runtime traversal is forbidden")
+    require(root.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector"))
+            and not any(path.is_symlink() for path in (root, *root.parents)), "private external runtime required")
+    require(not root.exists(), "fresh runtime root required")
+    os.umask(0o077)
+    return verified_runtime_artifact_root(root)
+
+
+def canonical_revision(root, selector):
+    # Callers supply source-owned canonical roots and fixed selectors only.
+    return subprocess.check_output(["git", "-C", str(root), "rev-parse", selector], text=True).strip()
 
 
 def main():
@@ -396,17 +463,13 @@ def main():
     require(args.connector_root.resolve() == HOST.BASE.PARENT_ROOT.resolve(), "selected Parent context mismatch")
     manifest = load_json(read(args.build_manifest))
     args.haproxy = admit_manifest(manifest, args.connector_root, args.framework_root, args.build_manifest)
-    root = args.runtime_root.absolute()
-    require(root.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector"))
-            and not any(path.is_symlink() for path in (root, *root.parents)), "private external runtime required")
-    os.umask(0o077)
+    root = prepare_private_runtime_root(args.runtime_root)
     args.run_id = secrets.token_hex(12)
-    root.mkdir(mode=0o700, parents=True, exist_ok=False)
     report = {"profile": "haproxy-native-htx", "status": "FAIL", "results": []}
     report["run_id"] = args.run_id
-    report["parent_sha"] = subprocess.check_output(["git", "-C", str(args.connector_root), "rev-parse", "HEAD"], text=True).strip()
-    report["framework_sha"] = subprocess.check_output(["git", "-C", str(args.framework_root), "rev-parse", "HEAD"], text=True).strip()
-    report["mrts_sha"] = subprocess.check_output(["git", "-C", str(args.framework_root), "rev-parse", "HEAD:tools/MRTS"], text=True).strip()
+    report["parent_sha"] = canonical_revision(HOST.BASE.PARENT_ROOT.resolve(), "HEAD")
+    report["framework_sha"] = canonical_revision(Path(__file__).resolve().parents[4], "HEAD")
+    report["mrts_sha"] = canonical_revision(Path(__file__).resolve().parents[4], "HEAD:tools/MRTS")
     report["binary_sha256"] = manifest["binary_sha256"]
     report["build_manifest_sha256"] = digest(args.build_manifest)
     report["framework_source_sha256"] = {name: digest(args.framework_root / name) for name in (

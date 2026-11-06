@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "52ea29e56f53034436c3e5dd0701a742fd3a51961b7ae54e72ac3e6494b9f326",
+  "inventory_sha256": "7bf43d3708b92daf1caedaef57e1e4d4bce6807359833eb1de38f60f133d2c6e",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -947,7 +947,7 @@
     {
       "framework_path": "connector_suite/adapters/apache/harness/apache_h2_observer.c",
       "source": "framework/connector_suite/adapters/apache/harness/apache_h2_observer.c",
-      "source_sha256": "bced83616e83d8f3a1085198e3e10ca42722223d689dbe9a3af3a083a9041da2"
+      "source_sha256": "c38be879ec9e0640895510780c3e0b5c8eb6d1b67eaa73287a990cdf019abe0f"
     },
     {
       "framework_path": "connector_suite/adapters/apache/harness/mod_phase4_terminal_rogue.c",
@@ -1350,7 +1350,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8178,
+  "on_demand_definition_count": 8190,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -1542,7 +1542,7 @@
         "TestAuthzServerAllowsRealCommonRequestAndEmitsBoundedPipelineMetadata"
       ],
       "source": "connectors/envoy/ext_proc/internal/compositeenvoy/common_runtime_integration_test.go",
-      "source_sha256": "3e09b956f6152d4229ecc96dd912168105fa398521804925261daf561b4725e1"
+      "source_sha256": "0d4c99bb625627f3d1ac355f8d3d493f3d442884f0d3fd8be1036d3a1acc4f3e"
     },
     {
       "contains_selected_definitions": [],
@@ -4282,10 +4282,12 @@
         "modsecurity_connector_tests.test_apache_smoke_case_output_root.ApacheSmokeCaseOutputRootTest.test_harness_passes_one_explicit_output_root_to_each_framework_case_writer",
         "modsecurity_connector_tests.test_apache_smoke_case_output_root.ApacheSmokeCaseOutputRootTest.test_generated_directories_are_private_owned_and_symlink_free",
         "modsecurity_connector_tests.test_apache_smoke_case_output_root.ApacheSmokeCaseOutputRootTest.test_runtime_directory_helper_rejects_symlink_and_accepts_private_path",
+        "modsecurity_connector_tests.test_apache_smoke_case_output_root.ApacheSmokeCaseOutputRootTest.test_native_execution_preflight_records_actual_launcher_identity_before_host",
+        "modsecurity_connector_tests.test_apache_smoke_case_output_root.ApacheSmokeCaseOutputRootTest.test_failed_or_nonpass_native_preflight_never_reaches_host_start",
         "modsecurity_connector_tests.test_apache_smoke_case_output_root.ApacheSmokeCaseOutputRootTest.test_no_crs_lifecycle_keeps_apache_case_outputs_inside_host_runtime"
       ],
       "source": "tests/test_apache_smoke_case_output_root.py",
-      "source_sha256": "3482b4ceb8fe4965e480f9d15f2039bb07fd4e05f1166f4f909b02517c73263a"
+      "source_sha256": "08093d0502a27146868174137c9b6ef20a19bdc73d81369fdcd00ae1db7c697a"
     },
     {
       "contains_selected_definitions": [],
@@ -4891,10 +4893,13 @@
         "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_json_evidence_rejects_duplicates_and_nonfinite_numbers",
         "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_reader_rejects_symlink_parent_leaf_and_hardlink",
         "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_strict_requires_both_actual_reset_and_native_action_correlation",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_raw_h2_fragmented_headers_continuation_data_and_ack",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_raw_h2_interleaving_ambiguous_status_and_goaway_fail_closed",
+        "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_private_runtime_root_rejects_traversal_and_symlink_ancestors",
         "modsecurity_connector_tests.test_envoy_h2_acceptance.EnvoyH2AcceptanceTests.test_native_hpack_status_decoder"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_envoy_h2_acceptance.py",
-      "source_sha256": "044140c92d4d59ba9c3427384411d297c83bb6ef64aaeac5ce0b87be46b6370d"
+      "source_sha256": "4918833a707a5784181ff8f12e8b9c19a12aec186dd6c04d2ca691eb7e4c93ed"
     },
     {
       "contains_selected_definitions": [],
@@ -5694,7 +5699,7 @@
         "modsecurity_connector_tests.test_haproxy_h2_acceptance.ArtifactAdmissionTests.test_symlink_binary_fails_even_with_matching_bytes"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_haproxy_h2_acceptance.py",
-      "source_sha256": "167720121037a3754be04a5e9a1ef4c016edaac30735b9159bfd081bb42240f4"
+      "source_sha256": "1be664fcd982a2570a17d2d59f18cccf76d4e45e567acd1ca68fd162d193b989"
     },
     {
       "contains_selected_definitions": [],
@@ -6189,6 +6194,8 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_haproxy_spop_h2_acceptance.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_failed_port_reservation_starts_no_upstream_listener",
+        "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_native_runtime_root_rejects_traversal_links_and_existing_state",
         "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_actual_three_role_cross_process_join",
         "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_early_spop_deny_retires_unclaimed_context_without_inventing_lease",
         "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_owner_eos_rule_and_independent_host_action_are_required",
@@ -6199,7 +6206,7 @@
         "modsecurity_connector_tests.test_haproxy_spop_h2_acceptance.SPOPHTTP2AcceptanceTests.test_protocol_status_foreign_transactions_and_late_cleanup_fail_closed"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_haproxy_spop_h2_acceptance.py",
-      "source_sha256": "5c989c9628e12a21f1ce31ef025e4f49daff29fd40ebb4279ec04a9598f0b50c"
+      "source_sha256": "98bf066534f3d7871074d8b0a8479915e301f6b6030c86bba55e6cf2679f5847"
     },
     {
       "contains_selected_definitions": [],
@@ -9546,6 +9553,7 @@
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_download_failure_is_distinct_from_missing_httpd_build",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_retired_primary_404_does_not_mask_later_compiler_failure",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_cache_binds_canonical_profile_registry",
+        "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_cache_changes_when_native_httpd_patch_changes",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_failed_logged_command_records_actual_exit_status",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_apache_failed_configure_retains_nested_compiler_linker_diagnostics",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_nginx_build_environment_preserves_canonical_non_h3_quic_pins",
@@ -9645,7 +9653,7 @@
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root"
       ],
       "source": "tests/test_prepare_runtime_components.py",
-      "source_sha256": "15db4b4731e1b04e0495dde0f52aca70289a1421ac2dcdb1c02e696909641b3c"
+      "source_sha256": "fe57b809f8340dbaa789264c6b8e96d1cf111df3f3f363e37567c2700716dc99"
     },
     {
       "contains_selected_definitions": [],
@@ -12245,10 +12253,14 @@
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_wrong_action_sha_is_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_coordinated_workflow_and_lock_rewrite_cannot_reauthorize_itself",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_protected_runner_and_permission_changes_are_rejected",
-        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_unknown_source_path_cannot_borrow_the_integration_authority"
+        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_unknown_source_path_cannot_borrow_the_integration_authority",
+        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendment_retains_one_exact_immutable_migration_anchor",
+        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_amended_source_cannot_return_to_baseline_without_diagnostics",
+        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_amendment_cannot_broaden_paths_or_change_security_boundaries",
+        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendment_rejects_wrong_immutable_baseline_anchor"
       ],
       "source": "framework/tests/ci_security/test_connector_action_pins.py",
-      "source_sha256": "28d8995763b5ffa30a3d9f61c0808ca80f9dd7166ab9da29210b965622f54107"
+      "source_sha256": "f2462e764cd7bb6fd0e05cf0686810ad75f0a66e3616bebbaeacff7fa94c1e7c"
     },
     {
       "contains_selected_definitions": [],

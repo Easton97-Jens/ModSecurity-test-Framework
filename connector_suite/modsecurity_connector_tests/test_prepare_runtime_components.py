@@ -77,6 +77,23 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
             registry.write_text("profile version two\n")
             self.assertNotEqual(components.hash_input_paths(paths), before)
 
+    def test_apache_cache_changes_when_native_httpd_patch_changes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="apache-httpd-patch-input-") as temporary:
+            root = Path(temporary)
+            parent, framework = root / "parent", root / "framework"
+            patch = framework / "ci/provisioning/patches/apache/h2-joined-stream-purge.patch"
+            patch.parent.mkdir(parents=True)
+            patch.write_text("native correction version one\n")
+            apache_paths = components.connector_input_paths(parent, framework, "apache")
+            nginx_paths = components.connector_input_paths(parent, framework, "nginx")
+            self.assertIn(patch.parent, apache_paths)
+            self.assertNotIn(patch.parent, nginx_paths)
+            apache_before = components.hash_input_paths(apache_paths)
+            nginx_before = components.hash_input_paths(nginx_paths)
+            patch.write_text("native correction version two\n")
+            self.assertNotEqual(components.hash_input_paths(apache_paths), apache_before)
+            self.assertEqual(components.hash_input_paths(nginx_paths), nginx_before)
+
     def run_apache_logged_failure(self, root: Path) -> subprocess.CompletedProcess[str]:
         source = (test_root() / "ci/provisioning/prepare-apache-build.sh").read_text(encoding="utf-8")
         start = source.find("retain_configure_diagnostics() {")

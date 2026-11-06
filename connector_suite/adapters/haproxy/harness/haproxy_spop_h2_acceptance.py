@@ -19,8 +19,14 @@ from urllib.parse import urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 from connector_suite.adapters.envoy.harness.envoy_h2_acceptance import load_json, read_text
 from tests.runners.native_h2_probe import WireClient, frame
+from modsecurity_connector_ci.lib.runtime_path_utils import verified_runtime_artifact_root
 
 CASES = ("allow", "phase1", "phase2", "phase3", "phase4_safe", "phase4_strict", "client_cancel", "upstream_reset")
+ACCESS_LOG = "access.log"
+NATIVE_LOG = "native.log"
+AGENT_LOG = "agent.log"
+TLS_PEM = "tls.pem"
+TLS_CERTIFICATE = "tls.crt"
 
 
 def require(value, message):
@@ -164,12 +170,7 @@ def observed_handoffs(text):
     return re.findall(r"spop-h2-test: event=handoff transaction_id=([^ ]+) handle_sha256=([a-f0-9]{64}) lease=(\d+)", text)
 
 
-def validate_case(case, wire, access, native, spoa, decisions, upstream, cleanup):
-    require(case in CASES and len(access) == 3, "unknown case or incomplete native access")
-    require(cleanup.get("verified") is True and cleanup.get("socket_removed") is True and cleanup.get("tls_removed") is True, "cleanup failed")
-    require(wire.get("alpn") == "h2" and wire.get("tls_verified") is True, "TLS/H2 fallback")
-    require(upstream.get("driver_error") is None, "upstream fixture failed")
-    require(wire.get("tls_version") == "TLSv1.3", "unexpected TLS protocol")
+def _validate_wire_body(case, wire, upstream):
     bodies = wire.get("body_bytes", {})
     require(bodies.get("1") == bodies.get("5") == 26, "peer/followup response body missing/incomplete")
     expected_body = {"allow": 26, "phase1": 0, "phase2": 0, "phase3": 93,
@@ -195,84 +196,56 @@ def validate_case(case, wire, access, native, spoa, decisions, upstream, cleanup
                 "wire DATA/paused upstream release chronology mismatch")
 
 
-    selected = {}
-    sent = wire.get("requests", [])
-    require(len(sent) == 3 and {row.get("stream_id") for row in sent} == {1, 3, 5}, "missing/reused actual wire stream")
-    for role, stream in (("peer", "1"), ("target", "3"), ("followup", "5")):
-        candidates = [row for row in access if row.get("uri", "").endswith("/" + role)]
-        require(len(candidates) == 1, "missing/duplicate role")
-        value = candidates[0]
-        require(value.get("http_major") == 2 and value.get("alpn") == "h2", "native H1 fallback")
-        require(wire.get("status", {}).get(stream) == value.get("status"), "wire/native status mismatch")
-        require(re.fullmatch(r"haproxy-htx-\d+", value.get("transaction_id", "")) is not None, "invalid native HTX ID")
-        require(re.fullmatch(r"[a-f0-9-]{36}", value.get("spop_transaction_id", "")) is not None, "invalid server-issued SPOP ID")
-        transaction = value["spop_transaction_id"]
-        require(any(row.get("transaction_id") == transaction and row.get("modsecurity_processed") is True for row in decisions),
-                "real SPOP engine request evaluation missing")
-        native_path = value["uri"]
-        if not native_path.startswith("/"):
-            parsed = urlsplit(native_path)
-            require(parsed.scheme == "https" and parsed.hostname == "127.0.0.1" and parsed.port is not None
-                    and not parsed.fragment and parsed.username is None, "unexpected native absolute-form URI")
-            native_path = parsed.path + ("?" + parsed.query if parsed.query else "")
-        require(next(row for row in sent if row["stream_id"] == int(stream)).get("path") == native_path, "wire/native role mapping mismatch")
-        released = re.findall(r"spop-h2-test: event=cleanup transaction_id=" + re.escape(transaction)
-                              + r" native_cleanup_returned=1 contract_cleared=1\b", spoa)
-        require(len(released) == 1, "native SPOP cleanup missing or duplicated")
-        htx = value["transaction_id"]
-        early_request_deny = role == "target" and case in ("phase1", "phase2")
-        if early_request_deny:
-            # SPOP denies before the HTX mapper or MRC1 claim can start. Bind
-            # the actual unclaimed filter-context detach to the native host
-            # stream; do not invent a companion transaction or terminal close.
-            stream_number = htx.removeprefix("haproxy-htx-")
-            detached = re.findall(r"modsecurity-htx-test: context_detached host_stream_id=" + stream_number
-                                  + r" handle_present=0 native_released=1 companion_closed=0\b", native)
-            require(len(detached) == 1, "unclaimed HTX context was not retired exactly once")
-            require(not any(row[0] == transaction for row in observed_handoffs(spoa)), "early deny unexpectedly handed off a response lease")
-            require(not re.search(r"modsecurity-htx-test: claim transaction_id=" + re.escape(htx) + r"\b", native),
-                    "early deny unexpectedly claimed a response lease")
-        else:
-            htx_cleanup = re.findall(r"modsecurity-htx-test: cleanup transaction_id=" + re.escape(htx)
-                                     + r" native_released=1 companion_closed=1\b", native)
-            require(len(htx_cleanup) == 1, "native HTX/companion cleanup missing or duplicated")
-            handoffs = [row for row in observed_handoffs(spoa) if row[0] == transaction]
-            require(len(handoffs) == 1, "SPOP handoff correlation missing/duplicated")
-            _, handle_hash, lease = handoffs[0]
-            require(len(re.findall(r"spop-h2-test: event=claim transaction_id=none handle_sha256=" + handle_hash
-                                   + r" lease=" + lease + r"\b", spoa)) == 1, "actual owner lease claim missing")
-            require(len(re.findall(r"modsecurity-htx-test: claim transaction_id=" + re.escape(htx)
-                                   + r" handle_sha256=" + handle_hash + r"\b", native)) == 1,
-                    "cross-process handle claim mismatch")
-        selected[role] = value
-    handoffs = observed_handoffs(spoa)
-    expected_owners = {row["spop_transaction_id"] for role, row in selected.items()
-                       if not (role == "target" and case in ("phase1", "phase2"))}
-    require(len(handoffs) == len(expected_owners) and {row[0] for row in handoffs} == expected_owners
-            and len({row[1] for row in handoffs}) == len(handoffs), "foreign/reused cross-process response handle")
-    require(len({row["client_port"] for row in selected.values()}) == 1, "physical connection replaced")
-    require(len({row["transaction_id"] for row in selected.values()}) == len({row["spop_transaction_id"] for row in selected.values()}) == 3,
-            "transaction reused across streams")
-    require(selected["target"]["status"] == (403 if case in ("phase1", "phase2", "phase3") else 200), "wrong target status")
-    for role, stream in (("peer", "1"), ("followup", "5")):
-        require(selected[role]["status"] == 200 and wire.get("terminal", {}).get(stream, {}).get("type") in (0, 1)
-                and wire["terminal"][stream].get("flags", 0) & 1, "unrelated stream damaged/incomplete")
-    if case not in ("phase4_strict", "upstream_reset", "client_cancel"):
-        require(wire.get("terminal", {}).get("3", {}).get("type") in (0, 1)
-                and wire["terminal"]["3"].get("flags", 0) & 1, "normal target response reset/incomplete")
-    if case in ("phase4_strict", "upstream_reset"):
-        require(wire.get("terminal", {}).get("3", {}).get("type") == 3 and wire["terminal"]["3"].get("reset_code") == 8,
-                "actual target RST_STREAM missing")
-    if case == "client_cancel":
-        require(len([row for row in wire.get("frames", []) if row.get("type") == "client_rst_stream" and row.get("stream_id") == 3
-                     and row.get("reset_code") == 8]) == 1, "actual target client cancellation missing")
-    if case == "phase2":
-        target_request = next(row for row in sent if row["stream_id"] == 3)
-        require(target_request.get("method") == "POST" and target_request.get("body_bytes") == 26, "real P2 request entity missing")
-    require(set(re.findall(r"spop-h2-test: event=cleanup transaction_id=([^ ]+)", spoa))
-            == {row["spop_transaction_id"] for row in selected.values()}, "foreign native SPOP transaction")
-    require(upstream.get("target_cleanup_before_peer_release") is True and upstream.get("all_cleanup_before_tls_close") is True,
-            "cleanup was deferred beyond active-peer/TLS barrier")
+def _validate_response_owner(case, role, value, native, spoa):
+    transaction = value["spop_transaction_id"]
+    htx = value["transaction_id"]
+    early_request_deny = role == "target" and case in ("phase1", "phase2")
+    if early_request_deny:
+        # SPOP denies before the HTX mapper or MRC1 claim can start. Bind
+        # the actual unclaimed filter-context detach to the native host
+        # stream; do not invent a companion transaction or terminal close.
+        stream_number = htx.removeprefix("haproxy-htx-")
+        detached = re.findall(r"modsecurity-htx-test: context_detached host_stream_id=" + stream_number
+                              + r" handle_present=0 native_released=1 companion_closed=0\b", native)
+        require(len(detached) == 1, "unclaimed HTX context was not retired exactly once")
+        require(not any(row[0] == transaction for row in observed_handoffs(spoa)), "early deny unexpectedly handed off a response lease")
+        require(not re.search(r"modsecurity-htx-test: claim transaction_id=" + re.escape(htx) + r"\b", native),
+                "early deny unexpectedly claimed a response lease")
+    else:
+        htx_cleanup = re.findall(r"modsecurity-htx-test: cleanup transaction_id=" + re.escape(htx)
+                                 + r" native_released=1 companion_closed=1\b", native)
+        require(len(htx_cleanup) == 1, "native HTX/companion cleanup missing or duplicated")
+        handoffs = [row for row in observed_handoffs(spoa) if row[0] == transaction]
+        require(len(handoffs) == 1, "SPOP handoff correlation missing/duplicated")
+        _, handle_hash, lease = handoffs[0]
+        require(len(re.findall(r"spop-h2-test: event=claim transaction_id=none handle_sha256=" + handle_hash
+                               + r" lease=" + lease + r"\b", spoa)) == 1, "actual owner lease claim missing")
+        require(len(re.findall(r"modsecurity-htx-test: claim transaction_id=" + re.escape(htx)
+                               + r" handle_sha256=" + handle_hash + r"\b", native)) == 1,
+                "cross-process handle claim mismatch")
+
+
+def _validate_role(wire, value, stream, spoa, decisions, sent):
+    require(value.get("http_major") == 2 and value.get("alpn") == "h2", "native H1 fallback")
+    require(wire.get("status", {}).get(stream) == value.get("status"), "wire/native status mismatch")
+    require(re.fullmatch(r"haproxy-htx-\d+", value.get("transaction_id", "")) is not None, "invalid native HTX ID")
+    require(re.fullmatch(r"[a-f0-9-]{36}", value.get("spop_transaction_id", "")) is not None, "invalid server-issued SPOP ID")
+    transaction = value["spop_transaction_id"]
+    require(any(row.get("transaction_id") == transaction and row.get("modsecurity_processed") is True for row in decisions),
+            "real SPOP engine request evaluation missing")
+    native_path = value["uri"]
+    if not native_path.startswith("/"):
+        parsed = urlsplit(native_path)
+        require(parsed.scheme == "https" and parsed.hostname == "127.0.0.1" and parsed.port is not None
+                and not parsed.fragment and parsed.username is None, "unexpected native absolute-form URI")
+        native_path = parsed.path + ("?" + parsed.query if parsed.query else "")
+    require(next(row for row in sent if row["stream_id"] == int(stream)).get("path") == native_path, "wire/native role mapping mismatch")
+    released = re.findall(r"spop-h2-test: event=cleanup transaction_id=" + re.escape(transaction)
+                          + r" native_cleanup_returned=1 contract_cleared=1\b", spoa)
+    require(len(released) == 1, "native SPOP cleanup missing or duplicated")
+
+
+def _validate_rule(case, selected, native, spoa, decisions):
     expected_rule = {"phase1": 1100001, "phase2": 1100101, "phase3": 1100201, "phase4_safe": 1100301, "phase4_strict": 1100301}.get(case)
     if expected_rule and case not in ("phase4_safe", "phase4_strict"):
         expected_phase = {"phase1": 1, "phase2": 2, "phase3": "response_headers"}[case]
@@ -292,6 +265,59 @@ def validate_case(case, wire, access, native, spoa, decisions, upstream, cleanup
         require(re.search(r"response-companion phase-4 intervention; transaction_id="
                 + re.escape(selected["target"]["transaction_id"]) + r" rule_id= requested=deny host_action="
                 + expected_action + r"\b", native) is not None, "native HTX host-action witness missing")
+
+
+def _validate_stream_terminals(case, wire, selected, sent):
+    require(selected["target"]["status"] == (403 if case in ("phase1", "phase2", "phase3") else 200), "wrong target status")
+    for role, stream in (("peer", "1"), ("followup", "5")):
+        require(selected[role]["status"] == 200 and wire.get("terminal", {}).get(stream, {}).get("type") in (0, 1)
+                and wire["terminal"][stream].get("flags", 0) & 1, "unrelated stream damaged/incomplete")
+    if case not in ("phase4_strict", "upstream_reset", "client_cancel"):
+        require(wire.get("terminal", {}).get("3", {}).get("type") in (0, 1)
+                and wire["terminal"]["3"].get("flags", 0) & 1, "normal target response reset/incomplete")
+    if case in ("phase4_strict", "upstream_reset"):
+        require(wire.get("terminal", {}).get("3", {}).get("type") == 3 and wire["terminal"]["3"].get("reset_code") == 8,
+                "actual target RST_STREAM missing")
+    if case == "client_cancel":
+        require(len([row for row in wire.get("frames", []) if row.get("type") == "client_rst_stream" and row.get("stream_id") == 3
+                     and row.get("reset_code") == 8]) == 1, "actual target client cancellation missing")
+    if case == "phase2":
+        target_request = next(row for row in sent if row["stream_id"] == 3)
+        require(target_request.get("method") == "POST" and target_request.get("body_bytes") == 26, "real P2 request entity missing")
+
+
+def validate_case(case, wire, access, native, spoa, decisions, upstream, cleanup):
+    require(case in CASES and len(access) == 3, "unknown case or incomplete native access")
+    require(cleanup.get("verified") is True and cleanup.get("socket_removed") is True and cleanup.get("tls_removed") is True, "cleanup failed")
+    require(wire.get("alpn") == "h2" and wire.get("tls_verified") is True, "TLS/H2 fallback")
+    require(upstream.get("driver_error") is None, "upstream fixture failed")
+    require(wire.get("tls_version") == "TLSv1.3", "unexpected TLS protocol")
+    _validate_wire_body(case, wire, upstream)
+
+    selected = {}
+    sent = wire.get("requests", [])
+    require(len(sent) == 3 and {row.get("stream_id") for row in sent} == {1, 3, 5}, "missing/reused actual wire stream")
+    for role, stream in (("peer", "1"), ("target", "3"), ("followup", "5")):
+        candidates = [row for row in access if row.get("uri", "").endswith("/" + role)]
+        require(len(candidates) == 1, "missing/duplicate role")
+        value = candidates[0]
+        _validate_role(wire, value, stream, spoa, decisions, sent)
+        _validate_response_owner(case, role, value, native, spoa)
+        selected[role] = value
+    handoffs = observed_handoffs(spoa)
+    expected_owners = {row["spop_transaction_id"] for role, row in selected.items()
+                       if not (role == "target" and case in ("phase1", "phase2"))}
+    require(len(handoffs) == len(expected_owners) and {row[0] for row in handoffs} == expected_owners
+            and len({row[1] for row in handoffs}) == len(handoffs), "foreign/reused cross-process response handle")
+    require(len({row["client_port"] for row in selected.values()}) == 1, "physical connection replaced")
+    require(len({row["transaction_id"] for row in selected.values()}) == len({row["spop_transaction_id"] for row in selected.values()}) == 3,
+            "transaction reused across streams")
+    _validate_stream_terminals(case, wire, selected, sent)
+    require(set(re.findall(r"spop-h2-test: event=cleanup transaction_id=([^ ]+)", spoa))
+            == {row["spop_transaction_id"] for row in selected.values()}, "foreign native SPOP transaction")
+    require(upstream.get("target_cleanup_before_peer_release") is True and upstream.get("all_cleanup_before_tls_close") is True,
+            "cleanup was deferred beyond active-peer/TLS barrier")
+    _validate_rule(case, selected, native, spoa, decisions)
     return {"case_id": "haproxy_spop_htx_h2_" + case, "status": "PASS", "transactions": selected,
             "native_cleanup_count": 3, "cross_process_handle_correlation": True}
 
@@ -312,6 +338,108 @@ def close_wire(client, error):
     return error
 
 
+def access_rows(root):
+    return rows(root / ACCESS_LOG) if (root / ACCESS_LOG).exists() else []
+
+
+def native_completed(root, case, role):
+    values = [row for row in access_rows(root) if row.get("uri", "").endswith("/" + role)]
+    if len(values) != 1:
+        return False
+    native = read_text(root / NATIVE_LOG)
+    agent = read_text(root / AGENT_LOG)
+    row = values[0]
+    agent_done = f"event=cleanup transaction_id={row['spop_transaction_id']} native_cleanup_returned=1 contract_cleared=1" in agent
+    if role == "target" and case in ("phase1", "phase2"):
+        number = row["transaction_id"].removeprefix("haproxy-htx-")
+        host_done = f"context_detached host_stream_id={number} handle_present=0 native_released=1 companion_closed=0" in native
+    else:
+        host_done = f"cleanup transaction_id={row['transaction_id']} native_released=1 companion_closed=1" in native
+    return agent_done and host_done
+
+
+def wait_native(predicate, message, processes, client, timeout):
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        require(time.monotonic() < deadline and all(process.poll() is None for _, process in processes), message)
+        if client:
+            client.poll()
+        else:
+            time.sleep(0.02)
+
+
+def exercise(client, case, paths, upstream, wait, completed):
+    # The SPOP ownership boundary accepts one complete bounded body
+    # sample. HTTP/2 END_STREAM is not represented in its NOTIFY ABI;
+    # an explicit zero Content-Length proves this empty sample.
+    client.request(1, paths["peer"], "peer", headers=(("content-length", "0"),))
+    wait(lambda: paths["peer"] in upstream.proof["paths"] and client.status.get(1) == 200,
+         "allowed peer not active")
+    client.request(3, paths["target"], "target", body=b"no-crs-request-body-marker" if case == "phase2" else b"", phase1=case == "phase1",
+                   headers=() if case == "phase2" else (("content-length", "0"),))
+    if case in ("phase1", "phase2", "phase3"):
+        client.wait(lambda: 3 in client.terminal)
+    else:
+        client.wait(lambda: client.bytes.get(3, 0) > 0)
+        require(not upstream.release.is_set() and 3 not in client.terminal, "first-byte/EOS barrier failed")
+        upstream.proof["first_byte_before_eos"] = True
+        data = next(row for row in client.records if row.get("type") == 0 and row.get("stream_id") == 3 and row.get("size", 0) > 0)
+        target_metadata = upstream.proof["paths"][paths["target"]]
+        require(not target_metadata.get("eos_sent") and not target_metadata.get("response_finished"), "upstream target already ended at first wire DATA")
+        upstream.proof["first_byte_observation"] = {"stream_id": 3, "wire_data_monotonic_ns": data["monotonic_ns"],
+            "monotonic_ns": time.monotonic_ns(), "target_eos_held": True,
+            "target_eos_sent": bool(target_metadata.get("eos_sent")), "target_response_finished": bool(target_metadata.get("response_finished"))}
+
+        if case == "client_cancel":
+            client.socket.sendall(frame(3, 0, 3, (8).to_bytes(4, "big")))
+            client.records.append({"type": "client_rst_stream", "stream_id": 3, "reset_code": 8})
+        else:
+            upstream.release.set()
+            client.wait(lambda: 3 in client.terminal)
+    wait(lambda: completed("target"), "target native SPOP/companion cleanup missing while peer held")
+    require(1 not in client.terminal and not upstream.peer_release.is_set(), "allowed peer ended before target cleanup")
+    upstream.proof["target_cleanup_before_peer_release"] = True
+    upstream.release.set()
+    upstream.peer_release.set()
+    client.wait(lambda: 1 in client.terminal)
+    client.request(5, paths["followup"], "followup", headers=(("content-length", "0"),))
+    client.wait(lambda: 5 in client.terminal)
+    wait(lambda: all(completed(role) for role in ("peer", "target", "followup")), "native cleanup missing before TLS close")
+    upstream.proof["all_cleanup_before_tls_close"] = True
+
+
+def cleanup_native(client, error, upstream, processes, thread, thread_started, root, socket_path, socket_root, shared, port, agent_port):
+    error = close_wire(client, error)
+    upstream.release.set(); upstream.peer_release.set()
+    for _, process in reversed(processes):
+        if process.poll() is None:
+            process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill(); process.wait(timeout=3)
+            error = error or "native host forced shutdown"
+    if thread_started:
+        upstream.shutdown()
+    upstream.server_close()
+    if thread_started:
+        thread.join(timeout=3)
+    (root / TLS_PEM).unlink(missing_ok=True)
+    if socket_path.exists():
+        metadata = socket_path.lstat()
+        require(stat.S_ISSOCK(metadata.st_mode) and metadata.st_uid == os.geteuid(), "refusing foreign UDS cleanup")
+        socket_path.unlink()
+    cleanup = {"verified": all(process.poll() is not None for _, process in processes) and not thread.is_alive()
+               and not shared.HOST.listener_open(port) and not shared.HOST.listener_open(agent_port),
+               "process_returncodes": {name: process.returncode for name, process in processes},
+               "socket_removed": not socket_path.exists(), "tls_removed": not any((root / name).exists() for name in (TLS_PEM, TLS_CERTIFICATE, "tls.key"))}
+    upstream.proof["driver_error"] = error or upstream.proof["driver_error"]
+    write(root / "cleanup.json", cleanup)
+    write(root / "upstream.json", upstream.proof)
+    socket_root.rmdir()
+    return cleanup, error
+
+
 def run_case(args, case, root, socket_root, shared):
     root.mkdir(mode=0o700)
     socket_root.mkdir(mode=0o700)
@@ -324,37 +452,21 @@ def run_case(args, case, root, socket_root, shared):
                    stdout=(root / "preflight.log").open("xb"), stderr=subprocess.STDOUT)
     scenario = shared.SCENARIOS[case]
     paths = {role: f"/acceptance/spop-{case}/{role}" for role in ("peer", "target", "followup")}
+    port, agent_port = free_port(), free_port()
     upstream = shared.STREAM.Upstream(scenario, paths)
     thread = threading.Thread(target=upstream.serve_forever, daemon=False)
-    thread.start()
-    port, agent_port = free_port(), free_port()
+    thread_started = False
     processes, client = [], None
     error = None
     def wait(predicate, message, timeout=4):
-        deadline = time.monotonic() + timeout
-        while not predicate():
-            require(time.monotonic() < deadline and all(process.poll() is None for _, process in processes), message)
-            if client:
-                client.poll()
-            else:
-                time.sleep(0.02)
+        wait_native(predicate, message, processes, client, timeout)
     def access():
-        return rows(root / "access.log") if (root / "access.log").exists() else []
+        return rows(root / ACCESS_LOG) if (root / ACCESS_LOG).exists() else []
     def completed(role):
-        values = [row for row in access() if row.get("uri", "").endswith("/" + role)]
-        if len(values) != 1:
-            return False
-        native = read_text(root / "native.log")
-        agent = read_text(root / "agent.log")
-        row = values[0]
-        agent_done = f"event=cleanup transaction_id={row['spop_transaction_id']} native_cleanup_returned=1 contract_cleared=1" in agent
-        if role == "target" and case in ("phase1", "phase2"):
-            number = row["transaction_id"].removeprefix("haproxy-htx-")
-            host_done = f"context_detached host_stream_id={number} handle_present=0 native_released=1 companion_closed=0" in native
-        else:
-            host_done = f"cleanup transaction_id={row['transaction_id']} native_released=1 companion_closed=1" in native
-        return agent_done and host_done
+        return native_completed(root, case, role)
     try:
+        thread.start()
+        thread_started = True
         rules = (args.framework_root / "tests/rules/protocol-acceptance.conf").read_text()
         rules += '\nSecRule REQUEST_HEADERS:X-Modsec-Smoke "@streq block" "id:1100001,phase:1,deny,status:403,log,t:none"\n'
         rules += '\nSecRule REQUEST_BODY "@contains no-crs-request-body-marker" "id:1100101,phase:2,deny,status:403,log,t:none"\n'
@@ -362,14 +474,14 @@ def run_case(args, case, root, socket_root, shared):
         (root / "spoe.cfg").write_text(spoe_configuration())
         (root / "agent.conf").write_text(agent_configuration(root, agent_port, socket_path))
         with shared.STREAM.MODERN.tls_material(root):
-            (root / "tls.pem").write_bytes((root / "tls.key").read_bytes() + (root / "tls.crt").read_bytes())
+            (root / TLS_PEM).write_bytes((root / "tls.key").read_bytes() + (root / TLS_CERTIFICATE).read_bytes())
             (root / "haproxy.cfg").write_text(configuration(root, port, upstream.server_port, agent_port, socket_path, case == "phase4_strict"))
             subprocess.run([str(args.haproxy), "-c", "-f", str(root / "haproxy.cfg")], check=True,
                            stdout=(root / "config-check.log").open("xb"), stderr=subprocess.STDOUT)
             for name, command in (("agent", [str(args.spoa), "--config", str(root / "agent.conf")]),
                                    ("haproxy", [str(args.haproxy), "-db", "-f", str(root / "haproxy.cfg")])):
-                output = (root / ("access.log" if name == "haproxy" else "agent.stdout.log")).open("xb")
-                log = (root / ("native.log" if name == "haproxy" else "agent.log")).open("xb")
+                output = (root / (ACCESS_LOG if name == "haproxy" else "agent.stdout.log")).open("xb")
+                log = (root / (NATIVE_LOG if name == "haproxy" else AGENT_LOG)).open("xb")
                 process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=output, stderr=log)
                 output.close(); log.close()
                 processes.append((name, process))
@@ -379,76 +491,29 @@ def run_case(args, case, root, socket_root, shared):
                 with socket.socket() as probe:
                     return probe.connect_ex(("127.0.0.1", port)) == 0
             wait(listening, "native HAProxy listener missing")
-            client = WireClient(port, root / "tls.crt", root / "wire.json")
-            # The SPOP ownership boundary accepts one complete bounded body
-            # sample. HTTP/2 END_STREAM is not represented in its NOTIFY ABI;
-            # an explicit zero Content-Length proves this empty sample.
-            client.request(1, paths["peer"], "peer", headers=(("content-length", "0"),))
-            wait(lambda: paths["peer"] in upstream.proof["paths"] and client.status.get(1) == 200,
-                 "allowed peer not active")
-            client.request(3, paths["target"], "target", body=b"no-crs-request-body-marker" if case == "phase2" else b"", phase1=case == "phase1",
-                           headers=() if case == "phase2" else (("content-length", "0"),))
-            if case in ("phase1", "phase2", "phase3"):
-                client.wait(lambda: 3 in client.terminal)
-            else:
-                client.wait(lambda: client.bytes.get(3, 0) > 0)
-                require(not upstream.release.is_set() and 3 not in client.terminal, "first-byte/EOS barrier failed")
-                upstream.proof["first_byte_before_eos"] = True
-                data = next(row for row in client.records if row.get("type") == 0 and row.get("stream_id") == 3 and row.get("size", 0) > 0)
-                target_metadata = upstream.proof["paths"][paths["target"]]
-                require(not target_metadata.get("eos_sent") and not target_metadata.get("response_finished"), "upstream target already ended at first wire DATA")
-                upstream.proof["first_byte_observation"] = {"stream_id": 3, "wire_data_monotonic_ns": data["monotonic_ns"],
-                    "monotonic_ns": time.monotonic_ns(), "target_eos_held": True,
-                    "target_eos_sent": bool(target_metadata.get("eos_sent")), "target_response_finished": bool(target_metadata.get("response_finished"))}
-
-                if case == "client_cancel":
-                    client.socket.sendall(frame(3, 0, 3, (8).to_bytes(4, "big")))
-                    client.records.append({"type": "client_rst_stream", "stream_id": 3, "reset_code": 8})
-                else:
-                    upstream.release.set()
-                    client.wait(lambda: 3 in client.terminal)
-            wait(lambda: completed("target"), "target native SPOP/companion cleanup missing while peer held")
-            require(1 not in client.terminal and not upstream.peer_release.is_set(), "allowed peer ended before target cleanup")
-            upstream.proof["target_cleanup_before_peer_release"] = True
-            upstream.release.set()
-            upstream.peer_release.set()
-            client.wait(lambda: 1 in client.terminal)
-            client.request(5, paths["followup"], "followup", headers=(("content-length", "0"),))
-            client.wait(lambda: 5 in client.terminal)
-            wait(lambda: all(completed(role) for role in ("peer", "target", "followup")), "native cleanup missing before TLS close")
-            upstream.proof["all_cleanup_before_tls_close"] = True
+            client = WireClient(port, root / TLS_CERTIFICATE, root / "wire.json")
+            exercise(client, case, paths, upstream, wait, completed)
     except (OSError, ValueError, subprocess.SubprocessError) as exception:
         error = str(exception)
     finally:
-        error = close_wire(client, error)
-        upstream.release.set(); upstream.peer_release.set()
-        for _, process in reversed(processes):
-            if process.poll() is None:
-                process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill(); process.wait(timeout=3)
-                error = error or "native host forced shutdown"
-        upstream.shutdown(); upstream.server_close(); thread.join(timeout=3)
-        (root / "tls.pem").unlink(missing_ok=True)
-        if socket_path.exists():
-            metadata = socket_path.lstat()
-            require(stat.S_ISSOCK(metadata.st_mode) and metadata.st_uid == os.geteuid(), "refusing foreign UDS cleanup")
-            socket_path.unlink()
-        cleanup = {"verified": all(process.poll() is not None for _, process in processes) and not thread.is_alive()
-                   and not shared.HOST.listener_open(port) and not shared.HOST.listener_open(agent_port),
-                   "process_returncodes": {name: process.returncode for name, process in processes},
-                   "socket_removed": not socket_path.exists(), "tls_removed": not any((root / name).exists() for name in ("tls.pem", "tls.crt", "tls.key"))}
-        upstream.proof["driver_error"] = error or upstream.proof["driver_error"]
-        write(root / "cleanup.json", cleanup)
-        write(root / "upstream.json", upstream.proof)
-        socket_root.rmdir()
+        cleanup, error = cleanup_native(client, error, upstream, processes, thread, thread_started, root,
+                                        socket_path, socket_root, shared, port, agent_port)
     require(error is None, error or "host failed")
-    result = validate_case(case, load_json(read_text(root / "wire.json")), access(), read_text(root / "native.log"),
-                           read_text(root / "agent.log"), rows(root / "decision.jsonl"), upstream.proof, cleanup)
+    result = validate_case(case, load_json(read_text(root / "wire.json")), access(), read_text(root / NATIVE_LOG),
+                           read_text(root / AGENT_LOG), rows(root / "decision.jsonl"), upstream.proof, cleanup)
     write(root / "result.json", result)
     return result
+
+
+def reserve_runtime_root(directory):
+    require(".." not in directory.parts and directory.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector"))
+            and not directory.exists() and not any(parent.is_symlink() for parent in directory.parents),
+            "fresh task-owned external root required")
+    previous_mask = os.umask(0o077)
+    try:
+        return verified_runtime_artifact_root(directory)
+    finally:
+        os.umask(previous_mask)
 
 
 def main():
@@ -475,9 +540,7 @@ def main():
             "SPOP selected artifact differs from admitted native artifact")
     root, sockets = args.runtime_root.absolute(), args.socket_root.absolute()
     for directory in (root, sockets):
-        require(directory.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector")) and not directory.exists()
-                and not any(parent.is_symlink() for parent in directory.parents), "fresh task-owned external root required")
-        directory.mkdir(mode=0o700, parents=True)
+        reserve_runtime_root(directory)
     report = {"profile": "haproxy-spop-htx-h2", "results": [], "status": "FAIL",
               "source_revisions": {"parent": args.connector_revision, "framework": args.framework_revision},
               "uid_contract": {"uid": os.geteuid(), "gid": os.getegid(), "selection": "existing combined profile inherits launcher credentials"},

@@ -73,6 +73,28 @@ current NOTIFY ABI boundary rather than proving every H2 body framing.
 
 ## Changed files and tests
 
+The failure-upload source has a separate exact Framework-owned current amendment
+anchored to its immutable migration hash. The historical 24-source lock and all
+action pins remain unchanged. Only the reviewed replacement bytes are admitted;
+rollback without diagnostics, broader upload paths, wrong baseline anchors and
+changed security conditions remain rejected. Ten focused contract tests pass.
+
+The hosted c042 analysis reported 83 open occurrences. Each is reviewed by
+occurrence and source boundary. Adapter validation/traffic/cleanup functions are
+split without removing predicates; repeated evidence filenames are constants.
+Runtime-root admission explicitly rejects lexical traversal and uses the native
+no-follow descriptor/ownership checks. The Apache observer receives an inherited
+owned append-only descriptor rather than an environment pathname. These are
+source changes, not scanner exclusions or server FALSE_POSITIVE decisions.
+Final hosted analysis and the required Quality Gate remain independent evidence.
+
+The canonical Apache CRS launcher now runs a fresh native execution-context
+preflight before starting the host. It uses inherited launcher credentials,
+checks native PASS and matching observed UID/GID, retains its private snapshot
+and emits only the numeric identity witness in the job log. A failed or non-PASS
+preflight prevents host start. Six focused controls pass; the three canonical
+CRS result files, real 403/rule942270 audit and cleanup requirements are retained.
+
 - NGINX lifecycle runner, protocol acceptance contract/client/rules and negative
   controls under `connector_suite/` and `tests/`.
 - `ci/provisioning/patches/nginx/h2-close-stream-flush.patch`, native NGINX build
@@ -108,7 +130,7 @@ installation was performed for the configured Python-version mismatch.
 | HTX real-bundle corruptions, artifact negatives and actual wire-writer failure | 100 controls PASS; real writer failure remains FAIL with verified cleanup | `profiles/haproxy/focused-controls.json` |
 | Native Envoy H2 candidate | 8 PASS, 24 transactions, 8 live-peer cleanup barriers | `profiles/envoy/candidate-verification-hardened.json` |
 | SPOP/HTX v4 final candidate | 8 PASS, 24 transactions, 8 live-peer cleanup barriers; owner EOS rule joined by unique handle/lease | `profiles/spop/candidate-verification-hardened.json` |
-| Apache source/cache/provisioning contracts | 190 PASS, 5 dirty-checkout skips; fresh HTTPD/module build PASS; new H2 module correction under verification | `apache/final-apache-contracts` |
+| Apache source/cache/provisioning contracts | 191 PASS, 5 pin-dependent skips; fresh HTTPD/module build PASS; H2 cleanup timing remains under verification | `apache/final-apache-contracts` |
 | `rtk bypass make check-documentation PYTHON="$PYTHON"` and scoped `rtk bypass git diff --check` | Exit 0; links, bilingual variables, repository paths, Change Record contract and whitespace pass | `profiles/haproxy/change-record-documentation.log` |
 
 An intermediate SPOP/HTX v4 candidate had six passing and two failing scenarios.
@@ -119,6 +141,21 @@ upstream-reset failures. Independent no-PING/PING frames show missing abort
 notification, unlike NGINX queueing; Parent owns the H2 error-bucket correction.
 Local CRS preflight is blocked by the existing fixture's unmapped default worker;
 current-pair hosted CRS and aggregate remain required.
+
+A subsequent full managed Apache build passed and its first H2 selection passed
+all eight cases plus three H1 neighbors. The hardened observer repetition then
+retained one intermittent Strict cleanup failure: reset and follow-up succeeded,
+but native cleanup waited for the held peer. That failure is not replaced by the
+earlier PASS; its cause and final committed-pair repetition remain required.
+
+Pinned HTTPD source and a native APR interleaving control identify a second
+dependency defect: joining a held reset stream queues its purge without waking
+the physical connection poller; a wakeup alone re-enters the interrupted poll.
+The versioned two-part patch wakes the poller and returns pending purge to the
+existing safe outer cleanup point. Shutdown and abort handling retain priority.
+Five native controls cover the original timeout, insufficient wake-only change,
+combined correction and both shutdown paths. Fresh managed build and real
+committed-pair qualification remain separate requirements.
 
 Independent review withdrew the earlier Envoy cancellation qualification: its
 upstream release allowed ordinary EOS. The hardened driver holds EOS through

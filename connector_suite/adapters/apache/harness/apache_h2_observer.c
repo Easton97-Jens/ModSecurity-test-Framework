@@ -14,6 +14,7 @@
 #include "apr_optional.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,17 +50,27 @@ static const module *security_module(void)
     return ap_find_linked_module("mod_security3.c");
 }
 
-static int append_record(const char *path, const char *record, size_t length)
+static int append_record(const char *descriptor_text, const char *record, size_t length)
 {
     struct stat details;
-    int descriptor = open(path, O_WRONLY | O_APPEND | O_NOFOLLOW | O_CLOEXEC);
-    int ok = descriptor >= 0;
-    if (!ok) return 0;
+    char *end = NULL;
+    long parsed;
+    int descriptor, flags, ok;
+    if (descriptor_text == NULL || *descriptor_text == '\0' || strlen(descriptor_text) > 10U) return 0;
+    for (const char *digit = descriptor_text; *digit != '\0'; ++digit) {
+        if (*digit < '0' || *digit > '9') return 0;
+    }
+    errno = 0;
+    parsed = strtol(descriptor_text, &end, 10);
+    if (errno != 0 || *end != '\0' || parsed < 3 || parsed > INT_MAX) return 0;
+    descriptor = (int)parsed;
+    flags = fcntl(descriptor, F_GETFL);
+    if (flags < 0 || (flags & O_ACCMODE) != O_WRONLY || (flags & O_APPEND) == 0) return 0;
     ok = fstat(descriptor, &details) == 0 && S_ISREG(details.st_mode) &&
         details.st_uid == geteuid() && details.st_nlink == 1 &&
-        (details.st_mode & 0022) == 0 && details.st_size < 1048576;
+        (details.st_mode & 0777) == 0600 && details.st_size >= 0 &&
+        details.st_size <= 1048576 - (off_t)length;
     if (ok) ok = write(descriptor, record, length) == (ssize_t)length;
-    if (close(descriptor) != 0) ok = 0;
     return ok;
 }
 
@@ -68,7 +79,7 @@ static apr_status_t observe_cleanup(void *data)
     observation *item = (observation *)data;
     request_rec *r = item->request;
     const module *security = security_module();
-    const char *path = getenv("APACHE_ACCEPTANCE_OBSERVER_LOG");
+    const char *descriptor_text = getenv("APACHE_ACCEPTANCE_OBSERVER_FD");
     const char *stream = apr_table_get(r->subprocess_env, "H2_STREAM_ID");
     const char *tag = apr_table_get(r->subprocess_env, "H2_STREAM_TAG");
     char record[768];
@@ -83,7 +94,7 @@ static apr_status_t observe_cleanup(void *data)
         stream_id = strtol(stream, &end, 10);
         if (errno != 0 || end == stream || *end != '\0') stream_id = -1;
     }
-    if (path == NULL || !safe_uri(r->uri) || !safe_uri(tag) ||
+    if (descriptor_text == NULL || !safe_uri(r->uri) || !safe_uri(tag) ||
         clock_gettime(CLOCK_MONOTONIC, &timestamp) != 0) return APR_EGENERAL;
     count = snprintf(record, sizeof(record),
         "{\"event\":\"native_pool_cleanup\",\"uri\":\"%s\","
@@ -94,7 +105,7 @@ static apr_status_t observe_cleanup(void *data)
         item->context_seen ? "true" : "false", cleared ? "true" : "false",
         (long long)timestamp.tv_sec * 1000000000LL + timestamp.tv_nsec);
     if (count <= 0 || (size_t)count >= sizeof(record) ||
-        !append_record(path, record, (size_t)count)) return APR_EGENERAL;
+        !append_record(descriptor_text, record, (size_t)count)) return APR_EGENERAL;
     return APR_SUCCESS;
 }
 
@@ -137,6 +148,7 @@ static apr_status_t observe_before_cleanup(void *data)
 static void register_hooks(apr_pool_t *pool)
 {
     static const char *const after[] = {"mod_security3.c", NULL};
+    /* Apache module.register_hooks requires apr_pool_t *, including when unused. */
     (void)pool;
     ap_hook_post_read_request(observe_begin, NULL, after, APR_HOOK_REALLY_FIRST);
 }

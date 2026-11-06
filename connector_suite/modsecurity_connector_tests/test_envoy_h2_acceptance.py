@@ -161,6 +161,60 @@ class EnvoyH2AcceptanceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ADAPTER.validate_case(*args)
 
+    def raw_probe(self, chunks):
+        from tests.runners.native_h2_probe import StatusDecoder, WireClient
+        class RecordedSocket:
+            def __init__(self): self.sent = []
+            def recv(self, _limit): return chunks.pop(0)
+            def sendall(self, value): self.sent.append(value)
+        client = WireClient.__new__(WireClient)
+        client.socket = RecordedSocket(); client.buffer = bytearray(); client.records = []
+        client.header_stream = 0; client.header_block = bytearray(); client.status = {}
+        client.bytes = {}; client.terminal = {}; client.decoder = StatusDecoder()
+        return client
+
+    def test_raw_h2_fragmented_headers_continuation_data_and_ack(self):
+        wire = (ADAPTER.frame(4, 0, 0) + ADAPTER.frame(1, 0, 1, b"\x08\x03")
+                + ADAPTER.frame(9, 4, 1, b"200") + ADAPTER.frame(0, 1, 1, b"probe"))
+        client = self.raw_probe([wire[:5], wire[5:13], wire[13:]])
+        try:
+            for _ in range(3): client.poll()
+            self.assertEqual(client.status, {1: 200})
+            self.assertEqual(client.bytes, {1: 5})
+            self.assertEqual(client.terminal[1]["type"], 0)
+            self.assertEqual(client.terminal[1]["flags"], 1)
+            self.assertEqual(client.socket.sent[0], ADAPTER.frame(4, 1, 0))
+            self.assertEqual(client.socket.sent[1], ADAPTER.frame(8, 0, 0, (5).to_bytes(4, "big")))
+        finally:
+            client.decoder.close()
+
+    def test_raw_h2_interleaving_ambiguous_status_and_goaway_fail_closed(self):
+        invalid = [ADAPTER.frame(1, 0, 1, b"\x88") + ADAPTER.frame(0, 0, 1, b"x"),
+                   ADAPTER.frame(1, 4, 1, b"\x88\x88"), ADAPTER.frame(7, 0, 0),
+                   ADAPTER.frame(3, 0, 3, b"bad")]
+        for wire in invalid:
+            client = self.raw_probe([wire])
+            try:
+                with self.subTest(wire=wire.hex()), self.assertRaises(ValueError): client.poll()
+            finally:
+                client.decoder.close()
+
+    def test_private_runtime_root_rejects_traversal_and_symlink_ancestors(self):
+        base = Path("/var/tmp/codex/ModSecurity-conector")
+        with self.assertRaises(ValueError):
+            ADAPTER.private_runtime_root(base / ".." / "outside")
+        with tempfile.TemporaryDirectory(dir=base, prefix="envoy-runtime-control-") as temporary:
+            root = Path(temporary)
+            created = ADAPTER.private_runtime_root(root / "fresh")
+            self.assertEqual(created.stat().st_mode & 0o777, 0o700)
+            with self.assertRaises(ValueError):
+                ADAPTER.private_runtime_root(created)
+            alias = root / "alias"
+            alias.symlink_to(created, target_is_directory=True)
+            with self.assertRaises((ValueError, OSError)):
+                ADAPTER.private_runtime_root(alias / "escaped")
+            self.assertFalse((created / "escaped").exists())
+
     def test_native_hpack_status_decoder(self):
         from tests.runners.native_h2_probe import StatusDecoder
         decoder = StatusDecoder()

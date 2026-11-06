@@ -1,0 +1,18 @@
+--- a/modules/http2/h2_mplx.c
++++ b/modules/http2/h2_mplx.c
+@@ -146,2 +146,5 @@
+     add_for_purge(m, stream);
++    /* C1 may already be waiting after this reset stream left its registry.
++     * Wake it so the joined stream's EOR/request pool reaches safe purge. */
++    apr_pollset_wakeup(m->pollset);
+ }
+@@ -1276,2 +1279,9 @@
+             }
++            /* A joined reset stream may have arrived while C1 was polling.
++             * Return to the outer, safe purge point instead of sleeping again.
++             * Keep the shutdown/aborted handling above authoritative. */
++            if (APR_STATUS_IS_EINTR(rv) && m->spurge->nelts) {
++                rv = APR_SUCCESS;
++                goto cleanup;
++            }
+         } while (APR_STATUS_IS_EINTR(rv));

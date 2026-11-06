@@ -40,7 +40,8 @@ func closeCommonRuntimeForTest(t *testing.T, engine *processor.CommonRuntimeEngi
 	return engine.Close(ctx)
 }
 
-func TestAuthzServerAllowsRealCommonRequestAndEmitsBoundedPipelineMetadata(t *testing.T) {
+func commonRuntimeRulesForTest(t *testing.T) string {
+	t.Helper()
 	frameworkRoot := os.Getenv("TEST_ROOT")
 	if !filepath.IsAbs(frameworkRoot) {
 		t.Fatal("TEST_ROOT must explicitly select the Framework checkout")
@@ -49,6 +50,11 @@ func TestAuthzServerAllowsRealCommonRequestAndEmitsBoundedPipelineMetadata(t *te
 	if info, statErr := os.Stat(rulesPath); statErr != nil || !info.Mode().IsRegular() {
 		t.Fatalf("shared rules are unavailable: %v", statErr)
 	}
+	return rulesPath
+}
+
+func TestAuthzServerAllowsRealCommonRequestAndEmitsBoundedPipelineMetadata(t *testing.T) {
+	rulesPath := commonRuntimeRulesForTest(t)
 	directory := t.TempDir()
 	runtimeConfig := filepath.Join(directory, "runtime.conf")
 	commonEventPath := filepath.Join(directory, "common-events.jsonl")

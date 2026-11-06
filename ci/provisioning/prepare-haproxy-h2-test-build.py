@@ -92,6 +92,25 @@ def observe_filter(source: str) -> str:
             .replace(admission, admission_observer).replace(detach, detach_observer))
 
 
+def verify_source_member(bundle, member, source: Path, relative: Path) -> str:
+    """Compare one pinned member with its prepared regular file or safe link."""
+    path = source / relative
+    if member.issym():
+        if (not path.is_symlink() or os.readlink(path) != member.linkname
+                or not path.resolve(strict=True).is_relative_to(source)):
+            raise ValueError("prepared source symlink differs/escapes: " + str(relative))
+        return hashlib.sha256(("symlink:" + member.linkname).encode()).hexdigest()
+    if not member.isfile() or member.size > 16 * 1024 * 1024:
+        raise ValueError("unexpected nonregular/large source archive member")
+    if any(value.is_symlink() for value in (path, *path.parents)):
+        raise ValueError("symlink in prepared source")
+    with bundle.extractfile(member) as stream:
+        archived_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+    if not path.is_file() or digest(path) != archived_hash:
+        raise ValueError("prepared source differs from verified archive: " + str(relative))
+    return archived_hash
+
+
 def verify_source_archive(archive: Path, source: Path) -> dict[str, str]:
     """Prove every supplied upstream source byte belongs to the pinned archive."""
     expected = {}
@@ -106,26 +125,11 @@ def verify_source_archive(archive: Path, source: Path) -> dict[str, str]:
                 continue
             if str(relative) in expected:
                 raise ValueError("duplicate source archive member")
-            if member.issym():
-                path = source / relative
-                if (not path.is_symlink() or os.readlink(path) != member.linkname
-                        or not path.resolve(strict=True).is_relative_to(source)):
-                    raise ValueError("prepared source symlink differs/escapes: " + str(relative))
-                expected[str(relative)] = hashlib.sha256(("symlink:" + member.linkname).encode()).hexdigest()
-                continue
-            if not member.isfile() or member.size > 16 * 1024 * 1024:
-                raise ValueError("unexpected nonregular/large source archive member")
-            total += member.size
+            if member.isfile():
+                total += member.size
             if total > 128 * 1024 * 1024 or len(expected) >= 20000:
                 raise ValueError("source archive bound exceeded")
-            path = source / relative
-            if any(value.is_symlink() for value in (path, *path.parents)):
-                raise ValueError("symlink in prepared source")
-            with bundle.extractfile(member) as stream:
-                archived_hash = hashlib.file_digest(stream, "sha256").hexdigest()
-            if not path.is_file() or digest(path) != archived_hash or str(relative) in expected:
-                raise ValueError("prepared source differs from verified archive: " + str(relative))
-            expected[str(relative)] = archived_hash
+            expected[str(relative)] = verify_source_member(bundle, member, source, relative)
     actual = {str(path.relative_to(source)) for path in source.rglob("*") if not path.is_dir()}
     if not expected or actual != set(expected) | {".haproxy-source-provenance"}:
         raise ValueError("foreign or missing prepared source file")
@@ -148,13 +152,13 @@ def main() -> int:
     root = args.build_root.absolute()
     if not 1 <= args.jobs <= (os.cpu_count() or 1):
         parser.error("jobs must fit available CPUs")
-    if (not root.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector"))
+    if (".." in root.parts or not root.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector"))
             or any(path.is_symlink() for path in (root, *root.parents))
             or parent in root.parents or framework in root.parents):
         parser.error("private external build root required")
     contract = json.loads((parent / "connectors/haproxy/htx-overlay/version-contract.json").read_text())
-    provenance = dict(line.split("=", 1) for line in
-                      (source / ".haproxy-source-provenance").read_text().splitlines() if "=" in line)
+    provenance = {key: value for line in (source / ".haproxy-source-provenance").read_text().splitlines()
+                  if "=" in line for key, value in (line.split("=", 1),)}
     for key, value in (("haproxy_version", contract["version"]),
                        ("haproxy_source_url", contract["source_url"]),
                        ("haproxy_sha256", contract["sha256"])):
@@ -169,7 +173,14 @@ def main() -> int:
     product_filter = parent / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c"
     product_source = product_filter.read_text()
     instrumented = observe_filter(product_source)
-    root.mkdir(mode=0o700, parents=True, exist_ok=False)
+    from modsecurity_connector_ci.lib.runtime_path_utils import verified_runtime_artifact_root
+    if root.exists():
+        parser.error("fresh private external build root required")
+    previous_mask = os.umask(0o077)
+    try:
+        verified_runtime_artifact_root(root)
+    finally:
+        os.umask(previous_mask)
     overlay = root / "overlay"
     environment = os.environ.copy()
     environment.update(CONNECTOR_ROOT=str(parent), FRAMEWORK_ROOT=str(framework), TEST_ROOT=str(framework),
@@ -190,7 +201,8 @@ def main() -> int:
         raise ValueError("native staged filter differs from admitted product source")
     production_hash = digest(filter_source)
     filter_source.write_text(instrumented)
-    binding = dict(line.split("=", 1) for line in (root / "binding/paths.env").read_text().splitlines())
+    binding = {key: value for line in (root / "binding/paths.env").read_text().splitlines()
+               for key, value in (line.split("=", 1),)}
     flags = binding.get("HAPROXY_MODSECURITY_BINDING_CPPFLAGS", "")
     if flags not in ("", "-DHAPROXY_HAVE_MSC_GET_RULES_MESSAGES_RULE_IDS=1"):
         raise ValueError("unexpected native binding flags")

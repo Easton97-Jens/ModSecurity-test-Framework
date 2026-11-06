@@ -13,12 +13,13 @@ import socket
 import stat
 import subprocess
 import sys
-import tempfile
+import secrets
 import threading
 import time
 
 from modsecurity_test_framework.connector_context import connector_root, load_source, test_root
 from tests.runners.protocol_acceptance_client import build_client
+from modsecurity_connector_ci.lib import runtime_path_utils as runtime_paths
 
 FRAMEWORK = test_root()
 LIFECYCLE = FRAMEWORK / "connector_suite/modsecurity_connector_ci/runtime/lifecycle"
@@ -28,6 +29,17 @@ PROVISIONER = load_source(FRAMEWORK / "connector_suite/modsecurity_connector_ci/
 CASES = {"apache_h2_" + ("phase4_" + name if name in {"safe", "strict"} else name): name for name in (
     "allow", "phase1", "phase2", "phase3", "safe", "strict", "client_cancel", "upstream_reset")}
 MAX_CAPTURE = 8 * 1024 * 1024
+CLEANUP_LOG = 'native-cleanup.jsonl'
+WORKER_CLEANUP_LOG = 'worker/native-cleanup.jsonl'
+EVENTS_LOG = 'native-events.jsonl'
+ACCESS_LOG = 'access.jsonl'
+ERROR_LOG = 'error.log'
+UPSTREAM_PROOF = 'upstream.json'
+CLEANUP_PROOF = 'cleanup.json'
+TLS_CERTIFICATE = 'tls.crt'
+HTTPD_CONFIG = 'httpd.conf'
+HTTPD_BINARY = 'bin/httpd'
+
 
 
 def require(condition, reason):
@@ -35,8 +47,29 @@ def require(condition, reason):
         raise ValueError(reason)
 
 
+def open_parent(path):
+    path = Path(path)
+    require(path.is_absolute() and ".." not in path.parts, "artifact path must be absolute without traversal")
+    require(path.is_relative_to(HOST.BASE.AUTHORIZED_STORAGE_ROOT), "artifact outside external storage")
+    directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for component in path.parts[1:-1]:
+            child = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            os.close(directory)
+            directory = child
+        return directory
+    except BaseException:
+        os.close(directory)
+        raise
+
+
 def digest(path):
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    path = Path(path)
+    parent = open_parent(path)
+    try:
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+    finally:
+        os.close(parent)
     with os.fdopen(descriptor, "rb") as stream:
         before = os.fstat(stream.fileno())
         require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1, "unsafe hash input")
@@ -48,7 +81,13 @@ def digest(path):
 
 
 def write_json(path, value):
-    with Path(path).open("x", encoding="utf-8") as stream:
+    path = Path(path)
+    parent = open_parent(path)
+    try:
+        descriptor = os.open(path.name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent)
+    finally:
+        os.close(parent)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
         json.dump(value, stream, indent=2, sort_keys=True)
         stream.write("\n")
 
@@ -103,7 +142,7 @@ class Upstream(DRIVER.Upstream):
 def observe_cleanup_gate(backend, runtime, paths, stop):
     try:
         while not stop.wait(0.01):
-            records = read_jsonl(runtime / "worker/native-cleanup.jsonl")
+            records = read_jsonl(runtime / WORKER_CLEANUP_LOG)
             target = [row for row in records if row.get("uri") == paths["target"]]
             require(len(target) <= 1, "duplicate live target cleanup")
             if target and backend.peer_release.requested.is_set():
@@ -202,7 +241,7 @@ def selected_sources(args):
     expected_hash = PROVISIONER.hash_input_paths(PROVISIONER.connector_input_paths(connector_root(), FRAMEWORK, "apache"))
     require(record.get("source_hash") == expected_hash, "Apache build source admission mismatch")
     require(PROVISIONER.connector_manifest_ready(record), "Apache native build/cache manifest is incomplete")
-    require(Path(record["output_paths"]["binary"]).resolve() == (args.httpd_prefix / "bin/httpd").resolve(), "foreign Apache binary")
+    require(Path(record["output_paths"]["binary"]).resolve() == (args.httpd_prefix / HTTPD_BINARY).resolve(), "foreign Apache binary")
     require(Path(record["output_paths"]["module"]).resolve() == args.module.resolve(), "foreign Apache module")
     return record
 
@@ -255,7 +294,7 @@ def native_stream_binding(path, completion, access, cleanup):
     require(len(logs) == 1 and logs[0].get("protocol") == "HTTP/2.0", "native H2 access record missing")
     require(str(logs[0].get("stream_id")) == str(row["stream_id"]), "access/cleanup stream mismatch")
     tag = row.get("stream_tag", "")
-    require(type(tag) is str and re.fullmatch(r"[0-9]+-[0-9]+-[0-9]+", tag) and
+    require(type(tag) is str and re.fullmatch(r"\d+-\d+-\d+", tag, flags=re.ASCII) and
             tag.rsplit("-", 1)[1] == str(row["stream_id"]) and logs[0].get("stream_tag") == tag,
             "native H2 session/stream tag mismatch")
     require(logs[0].get("status") == completion.get("status"), "native/client HTTP status mismatch")
@@ -290,9 +329,9 @@ def native_allowed_phases(native, paths, error_log):
 
 
 def validate_native(output, paths, completed, scenario):
-    native = read_jsonl(output / "native-events.jsonl")
-    access = read_jsonl(output / "access.jsonl")
-    cleanup = read_jsonl(output / "native-cleanup.jsonl")
+    native = read_jsonl(output / EVENTS_LOG)
+    access = read_jsonl(output / ACCESS_LOG)
+    cleanup = read_jsonl(output / CLEANUP_LOG)
     require(native and len(access) == 3 and len(cleanup) == 3, "native evidence count incomplete")
     server_connections = {native_stream_binding(path, completed[name], access, cleanup) for name, path in paths.items()}
     require(len(server_connections) == 1 and None not in server_connections, "server physical connection changed")
@@ -300,7 +339,7 @@ def validate_native(output, paths, completed, scenario):
     require(all(item.get("connector") == "apache" and item.get("integration_mode") == "native-httpd-module"
                 and item.get("uri") == item.get("transaction_id") for item in native), "foreign native profile/request")
     native_intervention(native, paths["target"], scenario)
-    native_allowed_phases(native, paths, HOST.bounded_capture(output / "error.log").decode("utf-8"))
+    native_allowed_phases(native, paths, HOST.bounded_capture(output / ERROR_LOG).decode("utf-8"))
     return {"server_connection_id": next(iter(server_connections)), "native_cleanup_count": len(cleanup)}
 
 
@@ -311,16 +350,16 @@ def validate_cleanup_barrier(output, paths, scenario, rows, reset):
         require(len(cancelled) == 1, "missing/ambiguous cancel barrier")
         barrier = cancelled[0]
     if barrier is not None:
-        peer = next(row for row in read_jsonl(output / "native-cleanup.jsonl") if row["uri"] == paths["peer"])
+        peer = next(row for row in read_jsonl(output / CLEANUP_LOG) if row["uri"] == paths["peer"])
         require(type(peer.get("monotonic_ns")) is int and type(barrier.get("monotonic_ns")) is int and
                 peer["monotonic_ns"] > barrier["monotonic_ns"], "peer native cleanup preceded reset/cancel barrier")
 
 
 def validate_live_cleanup_gate(output, paths, rows):
-    gate = json.loads((output / "upstream.json").read_text()).get("native_cleanup_gate", {})
+    gate = json.loads((output / UPSTREAM_PROOF).read_text()).get("native_cleanup_gate", {})
     require(gate.get("released") is True and gate.get("forced") is False and gate.get("error") is None,
             "live native target cleanup did not authorize peer release")
-    target = next(row for row in read_jsonl(output / "native-cleanup.jsonl") if row["uri"] == paths["target"])
+    target = next(row for row in read_jsonl(output / CLEANUP_LOG) if row["uri"] == paths["target"])
     peer_data = next(row for row in rows if row.get("name") == "peer" and row.get("event") == "first_data")
     peer_done = next(row for row in rows if row.get("name") == "peer" and row.get("event") == "completed")
     followup = next(row for row in rows if row.get("name") == "followup" and row.get("event") == "request_started")
@@ -339,13 +378,13 @@ def validate_bundle(output, case_id, paths):
     require(receipt.get("case_id") == case_id, "foreign bundle case identity")
     for name, expected in receipt.get("sha256", {}).items():
         require(Path(name).name == name and digest(output / name) == expected, "bundle digest mismatch")
-    require({"client.jsonl", "native-events.jsonl", "native-cleanup.jsonl", "cleanup.json", "access.jsonl", "upstream.json", "error.log"}
+    require({"client.jsonl", EVENTS_LOG, CLEANUP_LOG, CLEANUP_PROOF, ACCESS_LOG, UPSTREAM_PROOF, ERROR_LOG}
             <= set(receipt.get("sha256", {})), "required bundle digest missing")
     rows = read_jsonl(output / "client.jsonl")
     completed = client_completions(rows)
     generic_scenario = {"allow": "streaming", "phase1": "multiplex", "phase2": "multiplex"}.get(scenario, scenario.replace("_", "-"))
     _completed, _streams, _connections, reset = DRIVER.CONTRACT._client(rows, paths, "h2", generic_scenario)
-    DRIVER.CONTRACT._upstream({"upstream.json": (output / "upstream.json").read_bytes()}, paths, generic_scenario, rows, reset)
+    DRIVER.CONTRACT._upstream({UPSTREAM_PROOF: (output / UPSTREAM_PROOF).read_bytes()}, paths, generic_scenario, rows, reset)
     target = completed["target"]
     if scenario in {"phase1", "phase2", "phase3"}:
         require(target.get("curl_code") == 0 and target.get("status") == 403, "phase deny did not produce 403")
@@ -358,7 +397,7 @@ def validate_bundle(output, case_id, paths):
     proof = validate_native(output, paths, completed, scenario)
     validate_cleanup_barrier(output, paths, scenario, rows, reset)
     validate_live_cleanup_gate(output, paths, rows)
-    cleanup = json.loads((output / "cleanup.json").read_text())
+    cleanup = json.loads((output / CLEANUP_PROOF).read_text())
     require(cleanup.get("verified") is True, "owned Apache/upstream cleanup incomplete")
     return proof
 
@@ -386,7 +425,7 @@ def protocol_command(args, runtime, client, port, scenario, paths):
                        "phase1": "multiplex", "phase2": "multiplex",
                        "allow": "streaming", "client_cancel": "client-cancel"}.get(scenario, scenario)
     command = [str(client), "--protocol", "h2", "--base-url", f"https://127.0.0.1:{port}",
-               "--ca", str(runtime / "tls.crt"), "--scenario", client_scenario]
+               "--ca", str(runtime / TLS_CERTIFICATE), "--scenario", client_scenario]
     for name, path in paths.items():
         command.extend(("--" + name + "-path", path))
     if scenario == "phase2":
@@ -398,7 +437,7 @@ def protocol_command(args, runtime, client, port, scenario, paths):
 def await_native_cleanup(runtime):
     deadline = time.monotonic() + 3
     while time.monotonic() < deadline:
-        if len(read_jsonl(runtime / "worker/native-cleanup.jsonl")) == 3:
+        if len(read_jsonl(runtime / WORKER_CLEANUP_LOG)) == 3:
             break
         time.sleep(0.02)
 
@@ -409,15 +448,15 @@ def run_host_requests(args, runtime, backend, client, state):
     with DRIVER.MODERN.tls_material(runtime):
         (runtime / "rules.conf").write_text(rules(scenario))
         config = configuration(runtime, args.httpd_prefix, args.module, observer, port, backend.server_port, scenario)
-        (runtime / "httpd.conf").write_text(config)
-        (args.output / "httpd.conf").write_text(config)
-        shutil.copyfile(runtime / "tls.crt", args.output / "tls.crt")
-        argv = [str(args.httpd_prefix / "bin/httpd"), "-f", str(runtime / "httpd.conf")]
+        (runtime / HTTPD_CONFIG).write_text(config)
+        (args.output / HTTPD_CONFIG).write_text(config)
+        shutil.copyfile(runtime / TLS_CERTIFICATE, args.output / TLS_CERTIFICATE)
+        argv = [str(args.httpd_prefix / HTTPD_BINARY), "-f", str(runtime / HTTPD_CONFIG)]
         with (args.output / "configtest.log").open("xb") as log:
             result = subprocess.run([*argv, "-t"], env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=15)
             require(result.returncode == 0, "Apache H2 configuration rejected")
         with (args.output / "startup.stdout").open("xb") as stdout, (args.output / "startup.stderr").open("xb") as stderr:
-            state["process"] = subprocess.Popen([*argv, "-DFOREGROUND"], env=environment, stdout=stdout, stderr=stderr, stdin=subprocess.DEVNULL)
+            state["process"] = subprocess.Popen([*argv, "-DFOREGROUND"], env=environment, stdout=stdout, stderr=stderr, stdin=subprocess.DEVNULL, pass_fds=(state["observer_fd"],))
             state["roles"] = HOST.observe_roles(state["process"], args.run_id, port, args.output, state["handles"])
             command = protocol_command(args, runtime, client, port, scenario, paths)
             DRIVER.execute_client(command, args.output, backend)
@@ -428,6 +467,7 @@ def retire_resources(args, runtime, backend, thread, port, state):
     state["monitor_stop"].set()
     state["monitor"].join(timeout=2)
     cleanup = stop_host(state["process"], state["handles"], state["roles"], port)
+    os.close(state["observer_fd"])
     backend.release.set()
     if not backend.peer_release.is_set():
         backend.proof["native_cleanup_gate"]["forced"] = True
@@ -436,9 +476,9 @@ def retire_resources(args, runtime, backend, thread, port, state):
     backend.server_close()
     thread.join(timeout=3)
     cleanup["verified"] = cleanup["verified"] and not thread.is_alive() and not state["monitor"].is_alive() and not HOST.listener_open(backend.server_port)
-    for source, target in (("worker/native-events.jsonl", "native-events.jsonl"),
-                           ("worker/native-cleanup.jsonl", "native-cleanup.jsonl"),
-                           ("access.jsonl", "access.jsonl"), ("error.log", "error.log")):
+    for source, target in (("worker/native-events.jsonl", EVENTS_LOG),
+                           (WORKER_CLEANUP_LOG, CLEANUP_LOG),
+                           (ACCESS_LOG, ACCESS_LOG), (ERROR_LOG, ERROR_LOG)):
         if (runtime / source).is_file():
             (args.output / target).write_bytes(HOST.bounded_capture(runtime / source))
     shutil.rmtree(runtime)
@@ -448,10 +488,12 @@ def retire_resources(args, runtime, backend, thread, port, state):
 def execute(args):
     os.umask(0o077)
     require(args.case_id in CASES and re.fullmatch(r"[A-Za-z0-9_.-]{1,48}", args.run_id), "invalid case/run identity")
-    require(args.output.is_absolute() and not args.output.exists() and
+    args.output_ready = False
+    require(".." not in args.output.parts and args.output.is_absolute() and not args.output.exists() and
             HOST.BASE.AUTHORIZED_STORAGE_ROOT in args.output.parents and
             args.output.resolve() == args.output, "output must be a fresh absolute external path")
-    args.output.mkdir(parents=True, mode=0o700)
+    args.output = runtime_paths.verified_runtime_artifact_root(args.output)
+    args.output_ready = True
     record = selected_sources(args)
     library_dirs, modsecurity_library = admitted_library_dirs(args, record)
     source_paths = (Path(__file__), Path(__file__).with_name("apache_h2_observer.c"),
@@ -463,7 +505,9 @@ def execute(args):
     preflight(args.output)
     client = build_client(args.curl_prefix, args.client_build_root)
     observer = compile_observer(args.httpd_prefix, args.output)
-    runtime = Path(tempfile.mkdtemp(prefix="apache-h2-owned-", dir="/var/tmp/codex/ModSecurity-conector"))
+    runtime = HOST.BASE.AUTHORIZED_STORAGE_ROOT / ("apache-h2-owned-" + secrets.token_hex(16))
+    require(not runtime.exists(), "runtime directory must be fresh")
+    runtime = runtime_paths.verified_runtime_artifact_root(runtime)
     os.chown(runtime, 0, 65534)
     # Common's no-follow descriptor walk opens each directory for reading.
     # Grant only this owned root's worker group access; shared roots stay intact.
@@ -471,7 +515,7 @@ def execute(args):
     (runtime / "run").mkdir(mode=0o700)
     (runtime / "worker").mkdir(mode=0o700)
     os.chown(runtime / "worker", 65534, 65534)
-    for name in ("native-events.jsonl", "native-cleanup.jsonl"):
+    for name in (EVENTS_LOG, CLEANUP_LOG):
         path = runtime / "worker" / name
         path.touch(mode=0o600)
         os.chown(path, 65534, 65534)
@@ -482,10 +526,19 @@ def execute(args):
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]
-    environment = dict(os.environ, APACHE_ACCEPTANCE_OBSERVER_LOG=str(runtime / "worker/native-cleanup.jsonl"))
+    observer_parent = open_parent(runtime / WORKER_CLEANUP_LOG)
+    try:
+        observer_fd = os.open(CLEANUP_LOG, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW, dir_fd=observer_parent)
+    finally:
+        os.close(observer_parent)
+    observer_info = os.fstat(observer_fd)
+    require(stat.S_ISREG(observer_info.st_mode) and observer_info.st_uid == 65534 and
+            observer_info.st_nlink == 1 and stat.S_IMODE(observer_info.st_mode) == 0o600,
+            "unsafe inherited native cleanup descriptor")
+    environment = dict(os.environ, APACHE_ACCEPTANCE_OBSERVER_FD=str(observer_fd))
     environment["LD_LIBRARY_PATH"] = ":".join(map(str, library_dirs))
     state, error = {"process": None, "handles": {}, "roles": {}, "observer": observer, "port": port,
-                    "paths": paths, "environment": environment, "monitor_stop": threading.Event()}, None
+                    "paths": paths, "environment": environment, "monitor_stop": threading.Event(), "observer_fd": observer_fd}, None
     state["monitor"] = threading.Thread(target=observe_cleanup_gate,
         args=(backend, runtime, paths, state["monitor_stop"]), daemon=False)
     thread.start()
@@ -496,13 +549,13 @@ def execute(args):
         error = str(exc)
     finally:
         cleanup = retire_resources(args, runtime, backend, thread, port, state)
-    write_json(args.output / "cleanup.json", cleanup)
-    write_json(args.output / "upstream.json", backend.proof)
+    write_json(args.output / CLEANUP_PROOF, cleanup)
+    write_json(args.output / UPSTREAM_PROOF, backend.proof)
     write_json(args.output / "roles.json", state["roles"])
     receipt = {"case_id": args.case_id, "run_id": args.run_id, "parent_sha": args.parent_sha,
                "framework_sha": args.framework_sha, "mrts_sha": args.mrts_sha,
                "source_hash": record["source_hash"], "artifacts": {
-                   "httpd": digest(args.httpd_prefix / "bin/httpd"), "module": digest(args.module),
+                   "httpd": digest(args.httpd_prefix / HTTPD_BINARY), "module": digest(args.module),
                    "observer": digest(observer), "client": digest(client), "libmodsecurity": digest(modsecurity_library)},
                "source_sha256": source_hashes, "selected_source_state": record["selected_source_state"]}
     receipt["sha256"] = {path.name: digest(path) for path in args.output.iterdir() if path.is_file()}
@@ -529,7 +582,7 @@ def main():
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         result = {"status": "FAIL", "case_id": args.case_id, "reason": str(exc)}
         code = 1
-    if args.output.is_dir() and not (args.output / "source-result.json").exists():
+    if getattr(args, "output_ready", False) and not (args.output / "source-result.json").exists():
         write_json(args.output / "source-result.json", result)
     print(json.dumps(result), flush=True)
     return code

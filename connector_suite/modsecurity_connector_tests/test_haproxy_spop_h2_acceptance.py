@@ -4,8 +4,10 @@ import importlib.util
 from pathlib import Path
 import socket
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 PATH = Path(__file__).resolve().parents[1] / "adapters/haproxy/harness/haproxy_spop_h2_acceptance.py"
 SPEC = importlib.util.spec_from_file_location("spop_h2_acceptance", PATH)
@@ -14,6 +16,56 @@ SPEC.loader.exec_module(ADAPTER)
 
 
 class SPOPHTTP2AcceptanceTests(unittest.TestCase):
+    def test_failed_port_reservation_starts_no_upstream_listener(self):
+        allocated = []
+
+        class Upstream:
+            def __init__(self, scenario, paths):
+                self.listener = socket.socket()
+                self.listener.bind(("127.0.0.1", 0))
+                self.listener.listen()
+                self.stop = threading.Event()
+                allocated.append(self)
+
+            def serve_forever(self):
+                self.stop.wait(3)
+
+        shared = SimpleNamespace(SCENARIOS={"allow": "streaming"},
+                                 STREAM=SimpleNamespace(Upstream=Upstream))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args = SimpleNamespace()
+            try:
+                with patch.object(ADAPTER.subprocess, "run"), patch.object(
+                        ADAPTER, "free_port", side_effect=OSError("reservation failed")):
+                    with self.assertRaisesRegex(OSError, "reservation failed"):
+                        ADAPTER.run_case(args, "allow", root / "case", root / "socket", shared)
+            finally:
+                for upstream in allocated:
+                    upstream.stop.set()
+                    upstream.listener.close()
+            self.assertEqual(allocated, [], "a failed reservation created a live upstream")
+
+    def test_native_runtime_root_rejects_traversal_links_and_existing_state(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            candidate = root / "owned"
+            self.assertEqual(ADAPTER.reserve_runtime_root(candidate), candidate)
+            self.assertEqual(candidate.stat().st_mode & 0o777, 0o700)
+            (candidate / "sentinel").write_text("retained")
+            with self.assertRaises(ValueError):
+                ADAPTER.reserve_runtime_root(candidate)
+            self.assertEqual((candidate / "sentinel").read_text(), "retained")
+            traversal = root / ".." / "forbidden-runtime-root"
+            with self.assertRaises(ValueError):
+                ADAPTER.reserve_runtime_root(traversal)
+            link = root / "link"
+            link.symlink_to(candidate, target_is_directory=True)
+            linked_child = link / "child"
+            with self.assertRaises(ValueError):
+                ADAPTER.reserve_runtime_root(linked_child)
+            self.assertFalse((candidate / "child").exists())
+
     def fixture(self):
         access, native, agent, decisions, sent = [], [], [], [], []
         for index, (role, stream) in enumerate((("peer", 1), ("target", 3), ("followup", 5)), 1):

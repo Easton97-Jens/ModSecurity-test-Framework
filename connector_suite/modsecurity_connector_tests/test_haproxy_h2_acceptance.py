@@ -28,8 +28,9 @@ class ObserverContractTests(unittest.TestCase):
 
     def test_changed_anchor_rejected(self):
         source = (connector_root() / "connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c").read_text()
+        changed = source.replace('"haproxy-htx-%u", s->uniq_id);', '"changed", s->uniq_id);')
         with self.assertRaises(ValueError):
-            BUILDER.observe_filter(source.replace('"haproxy-htx-%u", s->uniq_id);', '"changed", s->uniq_id);'))
+            BUILDER.observe_filter(changed)
 
     def test_closed_inputs_include_build_and_registry(self):
         hashes = BUILDER.parent_source_hashes(connector_root())
@@ -75,22 +76,26 @@ class ArchiveAdmissionTests(unittest.TestCase):
 
     def test_extra_file(self):
         (self.source / "foreign").write_bytes(b"x")
+        archive = self.archive()
         with self.assertRaises(ValueError):
-            BUILDER.verify_source_archive(self.archive(), self.source)
+            BUILDER.verify_source_archive(archive, self.source)
 
     def test_duplicate_archive_member(self):
+        archive = self.archive(("upstream/a.c", "upstream/a.c"))
         with self.assertRaises(ValueError):
-            BUILDER.verify_source_archive(self.archive(("upstream/a.c", "upstream/a.c")), self.source)
+            BUILDER.verify_source_archive(archive, self.source)
 
     def test_traversal_archive_member(self):
+        archive = self.archive(("upstream/../outside",))
         with self.assertRaises(ValueError):
-            BUILDER.verify_source_archive(self.archive(("upstream/../outside",)), self.source)
+            BUILDER.verify_source_archive(archive, self.source)
 
     def test_escaping_symlink(self):
         (self.root / "outside").write_bytes(b"x")
         (self.source / "link").symlink_to("../outside")
+        archive = self.archive(link="../outside")
         with self.assertRaises(ValueError):
-            BUILDER.verify_source_archive(self.archive(link="../outside"), self.source)
+            BUILDER.verify_source_archive(archive, self.source)
 
 
 class ReaderContractTests(unittest.TestCase):

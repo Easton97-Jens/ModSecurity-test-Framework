@@ -59,6 +59,7 @@ STATUS_FILE="$LOG_DIR/status.txt"
 COMMANDS_FILE="$LOG_DIR/commands.txt"
 SOURCE_INFO_FILE="$LOG_DIR/source-info.txt"
 ARTIFACTS_FILE="$LOG_DIR/artifacts.txt"
+HTTPD_H2_PURGE_PATCH="$SCRIPT_DIR/patches/apache/h2-joined-stream-purge.patch"
 HTTPD_SOURCE_BUILT=0
 PCRE2_SOURCE_BUILT=0
 
@@ -526,6 +527,19 @@ resolve_pcre_config() {
     fi
 }
 
+apply_httpd_h2_purge_patch() {
+    # Keep the upstream archive pin separate from this versioned lifecycle fix.
+    require_command patch "apply versioned HTTPD HTTP/2 cleanup correction"
+    [ -f "$HTTPD_H2_PURGE_PATCH" ] || blocked "missing versioned HTTPD HTTP/2 patch"
+    httpd_h2_purge_patch_sha256=$(ci_trusted_sha256_file "$HTTPD_H2_PURGE_PATCH") || exit 77
+    printf '%s\n' "$httpd_h2_purge_patch_sha256" | grep -Eq '^[0-9a-f]{64}$' || \
+        blocked "invalid HTTPD HTTP/2 patch digest"
+    run_logged httpd-h2-joined-stream-purge-patch "$HTTPD_SOURCE_DIR" \
+        patch --batch --forward --fuzz=0 -p1 -i "$HTTPD_H2_PURGE_PATCH"
+    echo "httpd_h2_purge_patch=$HTTPD_H2_PURGE_PATCH" >> "$ARTIFACTS_FILE"
+    echo "httpd_h2_purge_patch_sha256=$httpd_h2_purge_patch_sha256" >> "$ARTIFACTS_FILE"
+}
+
 build_httpd_from_source() {
     require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
     require_absolute_generated_path "$HTTPD_BUILD_DIR" "HTTPD_BUILD_DIR"
@@ -566,6 +580,7 @@ build_httpd_from_source() {
 
     mkdir -p "$HTTPD_BUILD_DIR"
     extract_tar_strip httpd "$httpd_archive" "$HTTPD_SOURCE_DIR"
+    apply_httpd_h2_purge_patch
     extract_tar_strip apr "$apr_archive" "$HTTPD_SOURCE_DIR/srclib/apr"
     extract_tar_strip apr-util "$apr_util_archive" "$HTTPD_SOURCE_DIR/srclib/apr-util"
 

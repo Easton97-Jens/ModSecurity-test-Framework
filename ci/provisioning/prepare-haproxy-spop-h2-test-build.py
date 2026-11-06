@@ -104,9 +104,14 @@ def main():
     parent, framework, prefix = [path.resolve(strict=True) for path in
                                 (args.connector_root, args.framework_root, args.modsecurity_prefix)]
     root = args.build_root.absolute()
-    if not root.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector")) or root.exists() or any(path.is_symlink() for path in root.parents):
+    if ".." in root.parts or not root.is_relative_to(Path("/var/tmp/codex/ModSecurity-conector")) or root.exists() or any(path.is_symlink() for path in root.parents):
         parser.error("fresh private external build root required")
-    root.mkdir(mode=0o700, parents=True)
+    from modsecurity_connector_ci.lib.runtime_path_utils import verified_runtime_artifact_root
+    previous_mask = os.umask(0o077)
+    try:
+        verified_runtime_artifact_root(root)
+    finally:
+        os.umask(previous_mask)
     materialized = root / "source/connectors/haproxy"
     # Preserve product-relative include topology without pointing any copied
     # source at writable product files or altering native include contracts.

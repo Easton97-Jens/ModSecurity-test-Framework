@@ -5805,6 +5805,8 @@ def connector_input_paths(connector_root: Path, framework_root: Path, connector:
         paths.append(framework_script)
     if connector == "apache":
         paths.append(framework_root / "ci/provisioning/httpd-checksum-cache.py")
+        # Bind the native HTTPD dependency correction into Apache cache identity.
+        paths.append(framework_root / "ci/provisioning/patches/apache")
     if connector in {"apache", "nginx"}:
         # Both native modules use the canonical profile registry in addition to
         # its materialized adapter/Common sources.  Bind both files directly

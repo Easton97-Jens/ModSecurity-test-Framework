@@ -8,11 +8,13 @@ from pathlib import Path
 import runpy
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 PINS = runpy.run_path(str(ROOT / "ci/checks/security/connector_action_pins.py"))
 CANONICAL = runpy.run_path(str(ROOT / "ci/tools/check-common-versions.py"))
 SOURCE = ".github/workflows/connector-protected-nginx-exact-head.yml"
+AMENDED = ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml"
 
 
 class ConnectorActionPinsTests(unittest.TestCase):
@@ -149,3 +151,58 @@ class ConnectorActionPinsTests(unittest.TestCase):
                 for error in self.canonical_findings(root)
             )
         )
+
+    def test_current_amendment_retains_one_exact_immutable_migration_anchor(self):
+        amendments = PINS["REVIEWED_CURRENT_SOURCE_AMENDMENTS"]
+        self.assertEqual(set(amendments), {AMENDED})
+        lock = PINS["load_lock"](ROOT)
+        self.assertEqual(len(lock["sources"]), 24)
+        self.assertEqual(lock["sources"][AMENDED],
+                         "748352eec501d6c8220cb64b405ebbd5ba1e6e2aa10d265d59610894685372c3")
+        self.assertEqual(amendments[AMENDED]["baseline_sha256"], lock["sources"][AMENDED])
+        self.assertEqual(amendments[AMENDED]["current_sha256"],
+                         "44f207ba4d8d1b7e4e8a51a351c16613a566a21bb4a0c8ad00a0ebe24bb6654a")
+        self.assertEqual(PINS["validate_source"](ROOT, AMENDED), [])
+
+    def test_amended_source_cannot_return_to_baseline_without_diagnostics(self):
+        root = self.fixture()
+        path = root / AMENDED
+        current = path.read_text()
+        block = ("        path: |\n"
+                 "          ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json\n"
+                 "          ${{ env.VERIFIED_RUN_ROOT }}/apache-build-failure\n")
+        self.assertEqual(current.count(block), 1)
+        baseline = current.replace(block, "        path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json\n")
+        self.assertEqual(hashlib.sha256(baseline.encode()).hexdigest(),
+                         PINS["load_lock"](root)["sources"][AMENDED])
+        path.write_text(baseline)
+        self.assertTrue(PINS["validate_source"](root, AMENDED))
+
+    def test_amendment_cannot_broaden_paths_or_change_security_boundaries(self):
+        root = self.fixture()
+        path = root / AMENDED
+        original = path.read_text()
+        mutations = (
+            ("${{ env.VERIFIED_RUN_ROOT }}/apache-build-failure", "${{ env.VERIFIED_RUN_ROOT }}"),
+            ("${{ env.VERIFIED_RUN_ROOT }}/apache-build-failure",
+             "${{ env.VERIFIED_RUN_ROOT }}/apache-build-failure\n          /etc"),
+            ("steps.runtime.outcome != 'success'", "true"),
+            ("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+             "actions/upload-artifact@" + "0" * 40),
+        )
+        for before, after in mutations:
+            with self.subTest(mutation=before):
+                self.assertIn(before, original)
+                path.write_text(original.replace(before, after, 1))
+                self.assertTrue(PINS["validate_source"](root, AMENDED))
+        path.write_text(original)
+        self.assertEqual(PINS["validate_source"](root, AMENDED), [])
+
+    def test_current_amendment_rejects_wrong_immutable_baseline_anchor(self):
+        root = self.fixture()
+        namespace = PINS["validate_source"].__globals__
+        wrong = dict(PINS["REVIEWED_CURRENT_SOURCE_AMENDMENTS"][AMENDED],
+                     baseline_sha256="0" * 64)
+        with patch.dict(namespace["REVIEWED_CURRENT_SOURCE_AMENDMENTS"], {AMENDED: wrong}):
+            self.assertTrue(any("amendment baseline" in error
+                                for error in PINS["validate_source"](root, AMENDED)))

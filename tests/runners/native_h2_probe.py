@@ -95,7 +95,7 @@ class StatusDecoder:
         for _ in range(256):
             value, flags = HeaderValue(), ctypes.c_int()
             consumed = self.library.nghttp2_hd_inflate_hd2(self.inflater, ctypes.byref(value), ctypes.byref(flags),
-                        ctypes.byref(buffer, offset), len(block) - offset, 1)
+                        ctypes.c_void_p(ctypes.addressof(buffer) + offset), len(block) - offset, 1)
             require(0 <= consumed <= len(block) - offset, "invalid HPACK response")
             offset += consumed
             if flags.value & 2:
@@ -160,6 +160,65 @@ class WireClient:
                           "method": method or ("POST" if body else "GET"), "body_bytes": len(body),
                           "monotonic_ns": time.monotonic_ns()})
 
+    def _headers(self, kind, flags, stream, payload):
+        if kind == 1:
+            require(stream != 0 and not self.header_stream, "invalid HEADERS stream")
+            padding = payload[0] + 1 if flags & 8 else 0
+            start = (1 if flags & 8 else 0) + (5 if flags & 32 else 0)
+            require(start + (padding - 1 if padding else 0) <= len(payload), "invalid HEADERS padding/priority")
+            end = len(payload) - (padding - 1 if padding else 0)
+            self.header_block.extend(payload[start:end])
+            self.header_stream = stream
+        else:
+            require(self.header_stream == stream, "unexpected CONTINUATION")
+            self.header_block.extend(payload)
+        require(len(self.header_block) <= 65536, "HEADERS block bound exceeded")
+        if flags & 4:
+            self._finish_headers(stream)
+
+    def _finish_headers(self, stream):
+        statuses = self.decoder.decode(bytes(self.header_block))
+        if stream not in self.status:
+            require(len(statuses) == 1, "missing initial response :status")
+            if statuses[0] >= 200:
+                self.status[stream] = statuses[0]
+        else:
+            require(not statuses, "duplicate final response :status")
+        self.header_block.clear()
+        self.header_stream = 0
+
+    def _data(self, flags, stream, size, payload):
+        padding = payload[0] + 1 if flags & 8 else 0
+        require(padding <= len(payload), "invalid DATA padding")
+        self.bytes[stream] = self.bytes.get(stream, 0) + size - padding
+        if size:
+            self.socket.sendall(frame(8, 0, 0, struct.pack("!I", size)))
+        if stream not in self.terminal and size and not flags & 1:
+            self.socket.sendall(frame(8, 0, stream, struct.pack("!I", size)))
+
+    def _observe_frame(self, kind, flags, stream, payload):
+        size = len(payload)
+        observation = {"monotonic_ns": time.monotonic_ns(), "type": kind, "flags": flags,
+                       "stream_id": stream, "size": size}
+        require(len(self.records) < 8192, "wire observation bound exceeded")
+        self.records.append(observation)
+        require(not self.header_stream or kind == 9 and stream == self.header_stream, "interleaved CONTINUATION block")
+        if kind in (1, 9):
+            self._headers(kind, flags, stream, payload)
+        if kind == 4 and not flags & 1:
+            self.socket.sendall(frame(4, 1, 0))
+        if kind == 6 and not flags & 1:
+            self.socket.sendall(frame(6, 1, 0, payload))
+        require(kind != 7, "unexpected GOAWAY closes shared connection")
+        if kind == 0:
+            self._data(flags, stream, size, payload)
+        if kind == 3:
+            require(size == 4, "invalid RST_STREAM")
+            observation["reset_code"] = int.from_bytes(payload, "big")
+            self.terminal[stream] = observation
+        elif kind in (0, 1) and flags & 1:
+            self.terminal[stream] = observation
+
     def poll(self) -> None:
         try:
             chunk = self.socket.recv(65536)
@@ -176,53 +235,7 @@ class WireClient:
             stream = int.from_bytes(self.buffer[5:9], "big") & 0x7fffffff
             payload = bytes(self.buffer[9:9 + size])
             del self.buffer[:9 + size]
-            observation = {"monotonic_ns": time.monotonic_ns(), "type": kind, "flags": flags,
-                           "stream_id": stream, "size": size}
-            require(len(self.records) < 8192, "wire observation bound exceeded")
-            self.records.append(observation)
-            require(not self.header_stream or kind == 9 and stream == self.header_stream, "interleaved CONTINUATION block")
-            if kind in (1, 9):
-                if kind == 1:
-                    require(stream != 0 and not self.header_stream, "invalid HEADERS stream")
-                    padding = payload[0] + 1 if flags & 8 else 0
-                    start = (1 if flags & 8 else 0) + (5 if flags & 32 else 0)
-                    require(start + (padding - 1 if padding else 0) <= len(payload), "invalid HEADERS padding/priority")
-                    end = len(payload) - (padding - 1 if padding else 0)
-                    self.header_block.extend(payload[start:end])
-                    self.header_stream = stream
-                else:
-                    require(self.header_stream == stream, "unexpected CONTINUATION")
-                    self.header_block.extend(payload)
-                require(len(self.header_block) <= 65536, "HEADERS block bound exceeded")
-                if flags & 4:
-                    statuses = self.decoder.decode(bytes(self.header_block))
-                    if stream not in self.status:
-                        require(len(statuses) == 1, "missing initial response :status")
-                        if statuses[0] >= 200:
-                            self.status[stream] = statuses[0]
-                    else:
-                        require(not statuses, "duplicate final response :status")
-                    self.header_block.clear()
-                    self.header_stream = 0
-            if kind == 4 and not flags & 1:
-                self.socket.sendall(frame(4, 1, 0))
-            if kind == 6 and not flags & 1:
-                self.socket.sendall(frame(6, 1, 0, payload))
-            require(kind != 7, "unexpected GOAWAY closes shared connection")
-            if kind == 0:
-                padding = payload[0] + 1 if flags & 8 else 0
-                require(padding <= len(payload), "invalid DATA padding")
-                self.bytes[stream] = self.bytes.get(stream, 0) + size - padding
-                if size:
-                    self.socket.sendall(frame(8, 0, 0, struct.pack("!I", size)))
-                if stream not in self.terminal and size and not flags & 1:
-                    self.socket.sendall(frame(8, 0, stream, struct.pack("!I", size)))
-            if kind == 3:
-                require(size == 4, "invalid RST_STREAM")
-                observation["reset_code"] = int.from_bytes(payload, "big")
-                self.terminal[stream] = observation
-            elif kind in (0, 1) and flags & 1:
-                self.terminal[stream] = observation
+            self._observe_frame(kind, flags, stream, payload)
 
     def wait(self, predicate, timeout: float = 8) -> None:
         deadline = time.monotonic() + timeout
