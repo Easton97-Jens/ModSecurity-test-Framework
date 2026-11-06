@@ -14499,7 +14499,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.ApprovedSdkPreparationTests.test_symlinked_sdk_run_root_preserves_external_directory"
       ],
       "source": "framework/tests/security_regression/test_sonar_analysis_contract.py",
-      "source_sha256": "d7ee2324e87ac048ff78f718b4292dbb4c319f5880f1b76b5d80240f4420476c"
+      "source_sha256": "ecb333b374e714dc72690de951f34e4619092e1be1f8ae74abadf037e26b4a66"
     },
     {
       "contains_selected_definitions": [],

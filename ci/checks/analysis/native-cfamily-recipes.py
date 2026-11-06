@@ -92,6 +92,7 @@ NATIVE_UNITS = (
     "connector_suite/modsecurity_connector_tests/transaction_phase_contract_test.c",
     "connector_suite/modsecurity_connector_tests/transaction_phase_runtime_companion_test.c",
     "src/v3-api-smoke/v3_api_smoke.c",
+    "tests/runners/protocol_acceptance_client.c",
 )
 
 HOST_FUNCTIONS = (

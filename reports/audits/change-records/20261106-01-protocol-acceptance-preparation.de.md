@@ -175,3 +175,13 @@ betrifft Archivprojektion und Dokumentation ohne Runtimecode- oder
 Erwartungsänderung. Die Verifikation eines späteren Commitpaars bleibt separat;
 sie wird nicht aus den 5093/fa-Hostläufen abgeleitet. Exakte Folge-SHAs und
 CI-Belege bleiben extern erhalten.
+
+Die Framework-PR-CI lehnte danach den neu versionierten C-Client vor dem
+Scannerstart ab: Seine Quelle fehlte im geschlossenen nativen Compileinventar.
+Ausschließlich `tests/runners/protocol_acceptance_client.c` in die geprüften
+Rezepte aufnehmen und die exakte Offlineinventarassertion von 81 auf 82 Einheiten
+anpassen. Vollständige Mengengleichheit, Warnflags, Zugangsdatenabgrenzung und
+alle Analysegates bleiben erhalten. Generiertes Spezialtestarchiv wegen der
+geänderten Offlinetestquelle aktualisieren. Kein lokaler Scanner, keine
+Sonarinstallation oder Authentifizierung. Finale Folge-SHAs, gezielte
+Hostwiederholungen und aktuelle Head-CI-Ergebnisse bleiben extern dokumentiert.

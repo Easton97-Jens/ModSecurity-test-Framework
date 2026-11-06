@@ -450,7 +450,8 @@ class NativeAnalysisBoundaryTests(unittest.TestCase):
                 self.assertFalse(any(flag.startswith("-Wno-") for flag in flags))
             recipes = __import__("runpy").run_path(str(ROOT / "ci/checks/analysis/native-cfamily-recipes.py"))
             self.assertEqual({ROOT / name for name in recipes["NATIVE_UNITS"]}, NATIVE.native_inventory(ROOT))
-            self.assertEqual(len(recipes["NATIVE_UNITS"]), 81)
+            self.assertEqual(len(recipes["NATIVE_UNITS"]), 82)
+            self.assertIn("tests/runners/protocol_acceptance_client.c", recipes["NATIVE_UNITS"])
 
     def test_checkout_output_is_rejected_before_compile(self):
         with self.assertRaisesRegex(ValueError, "outside the checkout"):

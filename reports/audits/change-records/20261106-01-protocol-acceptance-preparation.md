@@ -166,3 +166,12 @@ source to the archive, changing 8096 to 8111. This follow-up changes the archive
 projection and documentation, with no runtime-code or expectation change.
 Verification of a later commit pair is separate and is not claimed from the
 5093/fa host runs. Exact follow-up SHAs and CI receipts remain external.
+
+Framework PR CI then rejected the newly tracked C client before scanner startup:
+its closed native compile inventory omitted the source. Add only
+`tests/runners/protocol_acceptance_client.c` to the reviewed recipes and update
+the exact offline inventory assertion from 81 to 82 units. Preserve complete
+set equality, warning flags, credential boundaries and every analysis gate.
+Refresh the generated specialist archive for the changed offline test source.
+No local scanner, Sonar installation or authentication is run. Final follow-up
+SHAs, targeted host repetitions and current-head CI results remain external.
