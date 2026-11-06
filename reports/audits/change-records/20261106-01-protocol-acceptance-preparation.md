@@ -175,3 +175,10 @@ set equality, warning flags, credential boundaries and every analysis gate.
 Refresh the generated specialist archive for the changed offline test source.
 No local scanner, Sonar installation or authentication is run. Final follow-up
 SHAs, targeted host repetitions and current-head CI results remain external.
+
+The native inventory-binding maintainer refreshes the two existing source
+digest slots for the reviewed compile recipe and its offline test. All 100
+standard cases, execution selectors and offline exceptions remain identical.
+The inventory digest changes only because those reviewed source bytes changed;
+its dependent generated archive is refreshed natively. Parent validation uses
+an explicit command-line Framework root to avoid an inherited host checkout.

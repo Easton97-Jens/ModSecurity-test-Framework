@@ -185,3 +185,10 @@ alle Analysegates bleiben erhalten. Generiertes Spezialtestarchiv wegen der
 geänderten Offlinetestquelle aktualisieren. Kein lokaler Scanner, keine
 Sonarinstallation oder Authentifizierung. Finale Folge-SHAs, gezielte
 Hostwiederholungen und aktuelle Head-CI-Ergebnisse bleiben extern dokumentiert.
+
+Der native Inventarbindungsaktualisierer erneuert die zwei bestehenden
+Quelldigestslots für das geprüfte Compilerezept und seinen Offlinetest. Alle
+100 Standardfälle, Ausführungsselektoren und Offlineausnahmen bleiben identisch.
+Der Inventardigest ändert sich ausschließlich wegen dieser geprüften Quellbytes;
+das abhängige generierte Archiv wird nativ aktualisiert. Die Parentprüfung setzt
+den Frameworkroot explizit als Makeargument gegen geerbte Hostcheckoutwerte.
