@@ -155,3 +155,11 @@ getrennt gewählte h2c-Fall nutzt bewusst Klartext auf Loopback. Der Nachweisrea
 liest vollständige Listenerdirektiven ohne quadratisches Regexbacktracking.
 Entfernte CI bewertet die gepflegten Quellen; kein lokaler Sonar-Scanner wird
 für diesen Vorbereitungsauftrag aufgerufen.
+
+Die abschließende C-Clientkorrektur setzt das vorhandene TLS-1.3-Minimum,
+Peer-/Hostprüfung und CA direkt nach der Easy-Handleinitialisierung durch
+geprüfte libcurl-Aufrufe. Eine echte TLS-1.2-Loopbackkontrolle weist alle drei
+Handshakes mit Protokollversionsalarm und ohne HTTP-Bytes zurück; eigener
+Listener, Thread und ephemere Schlüssel/Zertifikate werden entfernt. Veränderliche
+Callback-ABI, typisierte Streammetadaten und der ausdrückliche h2c-Testvertrag
+bleiben erhalten. Entfernte Gates am aktuellen Head bleiben getrennte Nachweise.

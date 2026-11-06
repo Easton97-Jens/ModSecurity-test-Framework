@@ -145,3 +145,11 @@ the separately selected h2c case intentionally uses plaintext on loopback.
 The evidence reader parses complete listener directives without quadratic regex
 backtracking. Remote CI evaluates the maintained source; no local Sonar scanner
 is invoked for this preparation task.
+
+The final C-client follow-up makes the existing TLS 1.3 minimum, peer/host
+verification and CA setup direct checked libcurl calls immediately after easy
+handle initialization. A real TLS-1.2-only loopback control rejects all three
+handshakes with a protocol-version alert and no HTTP bytes; its owned listener,
+thread and ephemeral key/certificate are removed. Mutable callback ABI, typed
+stream metadata and the explicit h2c test contract remain intact. Remote
+current-head gate results remain separate evidence.

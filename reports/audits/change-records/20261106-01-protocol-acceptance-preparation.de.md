@@ -204,3 +204,11 @@ mit fest typisierter JSON-Ausgabe geschrieben. Keine Sonarunterdrückung,
 Befunddisposition, Exklusion oder Gateabschwächung. Gezielte Unit-/Äquivalenz-/CLI-/
 Barrierekontrollen bestehen; frische Hostwiederholungen am eingecheckten Paar
 und die maßgebliche entfernte Headanalyse bleiben extern dokumentiert.
+
+Die abschließende C-Clientkorrektur setzt das vorhandene TLS-1.3-Minimum,
+Peer-/Hostprüfung und CA direkt nach der Easy-Handleinitialisierung durch
+geprüfte libcurl-Aufrufe. Eine echte TLS-1.2-Loopbackkontrolle weist alle drei
+Handshakes mit Protokollversionsalarm und ohne HTTP-Bytes zurück; eigener
+Listener, Thread und ephemere Schlüssel/Zertifikate werden entfernt. Veränderliche
+Callback-ABI, typisierte Streammetadaten und der ausdrückliche h2c-Testvertrag
+bleiben erhalten. Entfernte Gates am aktuellen Head bleiben getrennte Nachweise.

@@ -131,14 +131,14 @@ static int start(CURLM *multi, struct request *r, const char *base, const char *
   r->url = malloc(n);
   r->easy = curl_easy_init();
   if(!r->url || !r->easy) return 1;
+  if(curl_easy_setopt(r->easy, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_3) != CURLE_OK ||
+     curl_easy_setopt(r->easy, CURLOPT_SSL_VERIFYPEER, 1L) != CURLE_OK ||
+     curl_easy_setopt(r->easy, CURLOPT_SSL_VERIFYHOST, 2L) != CURLE_OK ||
+     curl_easy_setopt(r->easy, CURLOPT_CAINFO, ca) != CURLE_OK) return 1;
   snprintf(r->url, n, "%s%s", base, r->path);
 #define OPT(key, value) do { if(curl_easy_setopt(r->easy, key, value) != CURLE_OK) return 1; } while(0)
   OPT(CURLOPT_URL, r->url);
   OPT(CURLOPT_HTTP_VERSION, version);
-  OPT(CURLOPT_CAINFO, ca);
-  OPT(CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_3);
-  OPT(CURLOPT_SSL_VERIFYPEER, 1L);
-  OPT(CURLOPT_SSL_VERIFYHOST, 2L);
   OPT(CURLOPT_PROXY, "");
   OPT(CURLOPT_NOSIGNAL, 1L);
   OPT(CURLOPT_TIMEOUT_MS, 14000L);
@@ -181,8 +181,7 @@ struct session {
 };
 static int set_argument(const char *name, const char *value,
                         const struct option_binding *bindings, size_t count) {
-  size_t i;
-  for(i = 0; i < count; ++i) {
+  for(size_t i = 0; i < count; ++i) {
     if(!strcmp(name, bindings[i].name)) {
       *bindings[i].destination = value;
       return 0;
@@ -198,9 +197,8 @@ static int parse_arguments(int argc, char **argv, struct options *options,
     {"--target-path", &req[0].path}, {"--peer-path", &req[1].path},
     {"--followup-path", &req[2].path}
   };
-  int i;
   if(argc % 2 != 1) return 1;
-  for(i = 1; i < argc; i += 2) {
+  for(int i = 1; i < argc; i += 2) {
     if(set_argument(argv[i], argv[i+1], bindings,
                     sizeof(bindings) / sizeof(bindings[0]))) return 1;
   }
@@ -218,8 +216,7 @@ static int valid_protocol(struct options *options) {
   return 0;
 }
 static int valid_paths(const struct request *req) {
-  size_t i;
-  for(i = 0; i < 3; ++i) {
+  for(size_t i = 0; i < 3; ++i) {
     if(req[i].path[0] != '/' || strchr(req[i].path, '\r') ||
        strchr(req[i].path, '\n')) return 0;
   }
@@ -269,7 +266,7 @@ static int collect_completion(struct session *session, const CURLMsg *message) {
   return 0;
 }
 static int collect_completions(struct session *session) {
-  CURLMsg *message;
+  const CURLMsg *message;
   int remaining;
   while((message = curl_multi_info_read(session->multi, &remaining))) {
     if(collect_completion(session, message)) return 1;
@@ -317,8 +314,7 @@ static int run_requests(struct session *session, const struct options *options) 
   return session->results == 3 && !output_failed ? 0 : 1;
 }
 static int cleanup_session(struct session *session, int result) {
-  size_t i;
-  for(i = 0; i < 3; ++i) {
+  for(size_t i = 0; i < 3; ++i) {
     struct request *r = &session->req[i];
     if(r->active && session->multi &&
        curl_multi_remove_handle(session->multi, r->easy) != CURLM_OK) result = 1;
