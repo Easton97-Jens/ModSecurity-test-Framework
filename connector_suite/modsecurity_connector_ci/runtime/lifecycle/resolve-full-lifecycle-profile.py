@@ -98,8 +98,9 @@ PROFILE_METADATA: dict[str, dict[str, str]] = {
         "integration_mode": "ext_proc",
         "reason": (
             "The selected route is the streamed Envoy ext_proc listener with "
-            "a Common/libmodsecurity bridge; strict post-commit reset remains "
-            "unexecuted until a client-visible reset is proven."
+            "a Common/libmodsecurity bridge. The opt-in H2 adapter observes "
+            "the native late ImmediateResponse reset independently from the "
+            "service send; no capability is promoted without its matching run."
         ),
     },
     "traefik": {
@@ -151,6 +152,11 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "late_intervention",
         "late_intervention_log_only",
         "late_intervention_status_metadata",
+        "late_intervention_abort",
+        "http2_downstream",
+        "http2_tls_alpn",
+        "http2_multiplexing",
+        "http2_stream_reset",
         "no_full_response_buffering",
         "first_byte_before_response_end",
         "transaction_id",
@@ -176,6 +182,11 @@ IMPLEMENTED_NOT_ASSERTED: dict[str, tuple[str, ...]] = {
         "late_intervention",
         "late_intervention_log_only",
         "late_intervention_status_metadata",
+        "late_intervention_abort",
+        "http2_downstream",
+        "http2_tls_alpn",
+        "http2_multiplexing",
+        "http2_stream_reset",
         "no_full_response_buffering",
         "first_byte_before_response_end",
         "transaction_id",

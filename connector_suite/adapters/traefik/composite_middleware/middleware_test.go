@@ -944,3 +944,68 @@ func intsAsBytes(values []int) []byte {
 	}
 	return result
 }
+
+func TestCompanionSmallInspectedChunkFlushesBeforeEOS(t *testing.T) {
+	target := httptest.NewRecorder()
+	writer := &responseWriter{parent: &Middleware{config: Config{MaxResponseChunkBytes: 32768}}, writer: target, status: 200, committed: true, wroteHeader: true,
+		exchange: func(byte, []byte) (result, error) { return result{}, nil }}
+	if n, err := writer.writeChunks([]byte("first\n")); err != nil || n != 6 {
+		t.Fatalf("write=%d,%v", n, err)
+	}
+	if !target.Flushed || target.Body.String() != "first\n" {
+		t.Fatal("inspected chunk was retained until EOS")
+	}
+}
+
+func TestCompanionStrictAbortRecordsIntentThenNativeSentinel(t *testing.T) {
+	var ops []byte
+	writer := &responseWriter{status: 200, committed: true, exchange: func(op byte, payload []byte) (result, error) {
+		ops = append(ops, op)
+		if op == opOutcome && (len(payload) != 3 || payload[0] != 4 || payload[1] != 0 || payload[2] != 200) {
+			t.Fatal("abort intent changed committed status")
+		}
+		return result{}, nil
+	}}
+	defer func() {
+		if recover() != http.ErrAbortHandler {
+			t.Fatal("strict did not request native handler abort")
+		}
+		if len(ops) != 2 || ops[0] != opOutcome || ops[1] != opFinish || !writer.finished {
+			t.Fatal("retained lifecycle not closed before abort")
+		}
+	}()
+	writer.abortStrict(true)
+}
+
+func TestCompanionMidChunkStrictClosesTransportWithoutInventingEOS(t *testing.T) {
+	client, peer := net.Pipe()
+	defer peer.Close()
+	var ops []byte
+	writer := &responseWriter{status: 200, committed: true, proto: &protocolConn{conn: client}, exchange: func(op byte, _ []byte) (result, error) {
+		ops = append(ops, op)
+		return result{}, nil
+	}}
+	defer func() {
+		if recover() != http.ErrAbortHandler || len(ops) != 1 || ops[0] != opOutcome {
+			t.Fatal("mid-chunk abort fabricated Finish/EOS or lost native abort")
+		}
+		var byteValue [1]byte
+		if _, err := peer.Read(byteValue[:]); err != io.EOF {
+			t.Fatalf("actual private transport remains live: %v", err)
+		}
+	}()
+	writer.abortStrict(false)
+}
+
+func TestCompanionStrictFlagAcceptedOnlyForBodyReply(t *testing.T) {
+	for _, opcode := range []byte{opResponseHeaders, opClaim, opReserve, opOutcome, opFinish} {
+		if _, err := parseResult([]byte{opcode, 0, 0, resultFlagPostCommitStrictAbort, 0, 0, 0, 0}); err == nil {
+			t.Fatalf("strict flag accepted at opcode %d", opcode)
+		}
+	}
+	for _, opcode := range []byte{opResponseChunk, opResponseEOS} {
+		if _, err := parseResult([]byte{opcode, 0, 0, resultFlagPostCommitStrictAbort, 0, 0, 0, 0}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

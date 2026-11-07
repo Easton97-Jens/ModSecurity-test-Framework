@@ -717,6 +717,10 @@ func TestCommonRuntimeCloseObservedCompositeRestartKeepsNativeTerminal(t *testin
 	testCommonRuntimeObservedCompositeClose(t, "restart", "connector_error", "MSCONN_EVENT_CONNECTOR_ERROR", nil)
 }
 
+func TestCommonRuntimeCloseObservedCompanionTransportDoesNotInventEOS(t *testing.T) {
+	testCommonRuntimeObservedCompositeClose(t, "companion_transport_closed", "protocol_error", "MSCONN_EVENT_PROTOCOL_ERROR", nil)
+}
+
 func testCommonRuntimeObservedCompositeClose(t *testing.T, reason, eventType, messageID string, timeoutStage any) {
 	t.Helper()
 	engine, eventPath := newCommonRuntimeEngineForTest(t, 4096, "Reject", 8192, "Reject")
