@@ -11,6 +11,8 @@ import re
 import stat
 from urllib.parse import urlsplit
 
+SHA256_SUFFIX = ".sha256"
+
 
 def approved_contract():
     source = (Path(__file__).resolve().parents[1] / "lib/common.sh").read_text()
@@ -31,7 +33,7 @@ HTTPD_METADATA_SHA256 = "7351aea97f61589f9803d432dc59e1002ba06e3b344fdba9ca281c2
 
 
 def reviewed_archive_name():
-    return HTTPD_METADATA_URL.rsplit("/", 1)[1].removesuffix(".sha256")
+    return HTTPD_METADATA_URL.rsplit("/", 1)[1].removesuffix(SHA256_SUFFIX)
 
 
 def is_reviewed_release(source_url):
@@ -41,7 +43,7 @@ def is_reviewed_release(source_url):
 def metadata_source(source_url, checksum_url, expected_sha):
     approved_url, approved_sha = approved_contract()
     if (not is_reviewed_release(approved_url)
-            or source_url != approved_url or checksum_url != approved_url + ".sha256"
+            or source_url != approved_url or checksum_url != approved_url + SHA256_SUFFIX
             or expected_sha != approved_sha):
         raise ValueError("HTTPD immutable metadata source requires its reviewed release tuple")
     return HTTPD_METADATA_URL
@@ -77,7 +79,7 @@ def file_identity(info):
 
 def require_provider_identity(archive, checksum, source_url, checksum_url, expected_sha, approved_url, approved_sha):
     filename = approved_url.rsplit("/", 1)[1]
-    if (source_url != approved_url or checksum_url != approved_url + ".sha256" or expected_sha != approved_sha
+    if (source_url != approved_url or checksum_url != approved_url + SHA256_SUFFIX or expected_sha != approved_sha
             or archive.name != filename or checksum.name != "httpd.sha256" or archive.parent != checksum.parent):
         raise ValueError("cached HTTPD provider/filename/current-pin identity mismatch")
 
@@ -145,7 +147,7 @@ def main():
             return 0
         if args.print_download_url or args.print_archive_url:
             selected_url = metadata_source(args.source_url, args.checksum_url, args.expected_sha)
-            print(selected_url.removesuffix(".sha256") if args.print_archive_url else selected_url)
+            print(selected_url.removesuffix(SHA256_SUFFIX) if args.print_archive_url else selected_url)
             return 0
         result = verify_cache(args.archive, args.checksum, args.source_url, args.checksum_url, args.expected_sha,
                               args.downloaded_from)

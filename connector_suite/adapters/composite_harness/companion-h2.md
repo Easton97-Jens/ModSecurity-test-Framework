@@ -5,6 +5,11 @@
 P1/P2/P3 deny, late P4 Safe/Strict, client cancellation and upstream reset.
 The automatic default inventory remains unchanged.
 
+The host and service arguments must name absolute regular executable files.
+Relative executable names are rejected before execution so PATH lookup cannot
+select bytes different from the hash-admitted file. This admission does not
+make caller-selected binaries or checkout configuration a sandbox.
+
 Select `--adapter envoy_ext_authz_h2` or `--adapter traefik_forwardauth_h2`,
 one `--case`, both source roots and full revisions, a fresh external runtime
 root, the native host and its independently admitted `--host-sha256`, and

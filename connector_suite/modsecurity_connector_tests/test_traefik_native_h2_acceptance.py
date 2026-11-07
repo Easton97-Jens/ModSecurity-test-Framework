@@ -132,6 +132,11 @@ class NativeH2ContractTests(unittest.TestCase):
 
     def test_complete_strict_evidence_is_accepted(self):
         self.assertEqual(self.validate()["status"], "PASS")
+        self.assertEqual(harness.selected_cases("strict"), ("phase4_strict",))
+        self.assertEqual(
+            harness.selected_cases("safe"),
+            tuple(case for case in harness.CASES if case != "phase4_strict"),
+        )
 
     def test_zero_native_rows_fail(self):
         self.events.clear()

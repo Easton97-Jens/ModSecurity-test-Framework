@@ -98,6 +98,7 @@ MANAGEMENT_PLANE_PHASE = "Management-plane only; independent of P1–P4 transact
 ENVOY_EXT_AUTHZ_CONFIGURATION = "examples/envoy/compatibility-ext-authz/envoy-ext-authz.yaml"
 ALLOWED_VALUES_TRAEFIK_UDS_CHUNK = "positive; uds maximum 32768"
 ALLOWED_VALUES_TRAEFIK_ENGINE_MODE = "uds"
+ALLOWED_VALUES_TRAEFIK_PHASE4_MODE = "safe | strict"
 DEFAULT_SOURCE_TRAEFIK_CREATE_CONFIG = "connectors/traefik/native_middleware/middleware.go:CreateConfig"
 TRAEFIK_PLUGIN_CONFIGURATION_PATH = "http.middlewares.<name>.plugin.modsecurityNative"
 TRAEFIK_FORWARDAUTH_VALIDATION = "Validate as a Traefik forwardAuth compatibility configuration."
@@ -2888,7 +2889,7 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
         },
         "phase4Mode": {
             "type": "native middleware late-response policy enum",
-            "values": "safe | strict",
+            "values": ALLOWED_VALUES_TRAEFIK_PHASE4_MODE,
             "default": "safe",
             "effect": "Selects Safe log-only acknowledgement or Strict native handler abort after a committed disruptive Phase 4 decision.",
             "phase": "P4 committed-response intervention; pre-commit decisions retain their normal HTTP status mapping.",
@@ -3547,7 +3548,7 @@ GERMAN_TEXT: dict[str, str] = {
     "Loads rules from a local file.": "Lädt Regeln aus einer lokalen Datei.",
     "Loads rules with msc_rules_add_file during filter initialisation.": "Lädt bei der Filterinitialisierung Regeln mit msc_rules_add_file.",
     "native middleware late-response policy enum": "Enum für die späte Antwortrichtlinie der nativen Middleware",
-    "safe | strict": "safe | strict",
+    ALLOWED_VALUES_TRAEFIK_PHASE4_MODE: ALLOWED_VALUES_TRAEFIK_PHASE4_MODE,
     "Selects Safe log-only acknowledgement or Strict native handler abort after a committed disruptive Phase 4 decision.": "Wählt Safe mit Log-only-Bestätigung oder Strict mit nativem Handler-Abbruch bei einer disruptiven Phase-4-Entscheidung nach dem Antwort-Commit.",
     "P4 committed-response intervention; pre-commit decisions retain their normal HTTP status mapping.": "P4-Intervention nach dem Antwort-Commit; Entscheidungen vor dem Commit behalten ihre normale HTTP-Statuszuordnung.",
     "Strict requests the host abort path; independent native protocol and cleanup evidence must establish its effect.": "Strict fordert den Host-Abbruchpfad an; unabhängige native Protokoll- und Freigabenachweise müssen dessen Wirkung belegen.",

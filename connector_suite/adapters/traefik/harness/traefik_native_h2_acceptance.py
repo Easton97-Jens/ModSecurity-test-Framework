@@ -29,6 +29,7 @@ from connector_suite.adapters.envoy.harness.envoy_h2_acceptance import (
 )
 
 FRAMEWORK = Path(__file__).resolve().parents[4]
+OBSERVER_SOURCE = "native_h2_observer.c"
 
 CASES = (
     "allow",
@@ -414,26 +415,29 @@ def validate_native_upstream(case, upstream, wire):
                     "actual native upstream reset missing",
                 )
         else:
-            eos = [
-                row
-                for row in selected
-                if row.get("event") == "upstream_eos" and row.get("eos_sent") is True
-            ]
-            require(len(eos) == 1, "native peer/followup upstream EOS missing")
-            if role == "peer":
-                paused = [
-                    row
-                    for row in selected
-                    if row.get("event") == "upstream_paused"
-                    and row.get("eos_sent") is False
-                ]
-                require(
-                    len(paused) == 1
-                    and paused[0].get("monotonic_ns", 0)
-                    < barrier.get("monotonic_ns", 0)
-                    < eos[0].get("monotonic_ns", 0),
-                    "native upstream live peer/cleanup chronology missing",
-                )
+            validate_completed_upstream_role(role, selected, barrier)
+
+
+def validate_completed_upstream_role(role, selected, barrier):
+    eos = [
+        row
+        for row in selected
+        if row.get("event") == "upstream_eos" and row.get("eos_sent") is True
+    ]
+    require(len(eos) == 1, "native peer/followup upstream EOS missing")
+    if role == "peer":
+        paused = [
+            row
+            for row in selected
+            if row.get("event") == "upstream_paused" and row.get("eos_sent") is False
+        ]
+        require(
+            len(paused) == 1
+            and paused[0].get("monotonic_ns", 0)
+            < barrier.get("monotonic_ns", 0)
+            < eos[0].get("monotonic_ns", 0),
+            "native upstream live peer/cleanup chronology missing",
+        )
 
 
 def validate(case, wire, events, upstream, access):
@@ -487,7 +491,7 @@ def source_identity(parent):
     )
     for path in (
         Path(__file__),
-        Path(__file__).with_name("native_h2_observer.c"),
+        Path(__file__).with_name(OBSERVER_SOURCE),
         Path(__file__).with_name("native-h2-rules.conf"),
         FRAMEWORK / "tests/runners/native_h2_probe.py",
         FRAMEWORK / "connector_suite/adapters/traefik/scripts/runtime_native_smoke.py",
@@ -578,7 +582,7 @@ def await_tls(port, ca):
                     "TLS readiness did not negotiate H2",
                 )
             break
-        except OSError, ssl.SSLError:
+        except OSError:
             require(
                 time.monotonic() < deadline,
                 "TLS file-provider readiness deadline exceeded",
@@ -601,7 +605,7 @@ def compile_observer(args, smoke):
         "-I",
         str(args.modsecurity_prefix / "include"),
         "-c",
-        str(Path(__file__).with_name("native_h2_observer.c")),
+        str(Path(__file__).with_name(OBSERVER_SOURCE)),
         "-o",
         str(observer),
     ]
@@ -611,7 +615,7 @@ def compile_observer(args, smoke):
         {
             "command": command,
             "exit_code": completed.returncode,
-            "source_sha256": digest(Path(__file__).with_name("native_h2_observer.c")),
+            "source_sha256": digest(Path(__file__).with_name(OBSERVER_SOURCE)),
             "object_sha256": digest(observer),
         },
     )
@@ -700,6 +704,23 @@ def collect_results(cases, root, event_path):
         wire = json.loads((root / f"wire-{case}.json").read_text())
         results.append(validate(case, wire, events, upstream, access))
     return results
+
+
+def selected_cases(mode):
+    if mode == "strict":
+        return ("phase4_strict",)
+    return tuple(case for case in CASES if case != "phase4_strict")
+
+
+def verify_source_heads(identities):
+    for identity in identities.values():
+        require(
+            subprocess.check_output(
+                ["git", "-C", identity["root"], "rev-parse", "HEAD"], text=True
+            ).strip()
+            == identity["head"],
+            "source HEAD changed during run/cleanup",
+        )
 
 
 def main():
@@ -815,14 +836,7 @@ def main():
         ):
             built_artifacts = artifact_identity(args, observer)
             await_tls(setup.traefik_port, ca)
-            for case in CASES:
-                if (case == "phase4_strict") != (args.mode == "strict") and case in (
-                    "phase4_safe",
-                    "phase4_strict",
-                ):
-                    continue
-                if args.mode == "strict" and case != "phase4_strict":
-                    continue
+            for case in selected_cases(args.mode):
                 results.append(
                     exercise(
                         setup.traefik_port,
@@ -874,14 +888,7 @@ def main():
         before == source_identity(smoke.REPO_ROOT),
         "source/build input changed during run/cleanup",
     )
-    for identity in identities.values():
-        require(
-            subprocess.check_output(
-                ["git", "-C", identity["root"], "rev-parse", "HEAD"], text=True
-            ).strip()
-            == identity["head"],
-            "source HEAD changed during run/cleanup",
-        )
+    verify_source_heads(identities)
     validated = collect_results(results, args.root, artifacts.event_path)
     result_payload = {
         "status": "PASS",

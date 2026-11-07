@@ -6,6 +6,11 @@ ausdrücklich gewählte Zusatzfälle: Allow, P1/P2/P3-Deny, spätes P4 Safe/Stri
 Client-Abbruch und Upstream-Reset. Das automatische Standardinventar bleibt
 unverändert.
 
+Host- und Service-Argumente müssen absolute reguläre ausführbare Dateien
+benennen. Relative Programmnamen werden vor der Ausführung abgelehnt, damit
+eine PATH-Suche keine anderen Bytes als die per Hash zugelassene Datei wählt.
+Diese Zulassung bildet keine Sandbox für ausgewählte Programme oder Checkout-Konfiguration.
+
 Auszuwählen sind `--adapter envoy_ext_authz_h2` oder
 `--adapter traefik_forwardauth_h2`, ein `--case`, beide Quellverzeichnisse und
 vollständigen Revisionen, ein frisches externes Laufverzeichnis, der native

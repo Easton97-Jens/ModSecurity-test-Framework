@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "d90f1cb8c8837264973561719db6a35ad0c28a571a1357a99c0f73cd2e09d6d1",
+  "inventory_sha256": "001952ae0e44356cb37657b16061af954141c7959fd9a2634d64bc670e692b33",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8241,
+  "on_demand_definition_count": 8244,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -1363,7 +1363,10 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/adapters/composite_harness/test_companion_h2_acceptance.py",
       "on_demand_definitions": [
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_executable_admission_rejects_path_search_and_nonexecutables",
         "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_post_cleanup_source_or_artifact_change_cannot_publish_pass",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_final_report_replaces_cleanup_intermediate_atomically",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_foreign_linked_or_changed_final_report_is_not_replaced",
         "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_cleanup_failure_discards_validated_results",
         "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_actual_native_allow_metadata",
         "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_missing_traffic_fails",
@@ -1378,7 +1381,7 @@
         "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_safe_target_requires_confirmed_eos_and_no_abort"
       ],
       "source": "framework/connector_suite/adapters/composite_harness/test_companion_h2_acceptance.py",
-      "source_sha256": "d175c7a9372d8f4162dae79380cf4689032e3a1413c5521bbae4991d5ca6137d"
+      "source_sha256": "ed9d005e57bd6c57a77223f10a2c720d9208656e357330a8f3a563ccde94fd3b"
     },
     {
       "contains_selected_definitions": [],
@@ -11513,7 +11516,7 @@
         "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_phase2_requires_native_method_uri_and_actual_entity"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_traefik_native_h2_acceptance.py",
-      "source_sha256": "02e3b0cd5f57bbc006842fc4fcf0cda2dc37e4d841555313414d7425811f4231"
+      "source_sha256": "8527fb438631045e5048c88e75e56181fedd3806646564926c54113a86365b0e"
     },
     {
       "contains_selected_definitions": [],

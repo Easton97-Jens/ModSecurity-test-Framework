@@ -15,6 +15,23 @@ from connector_suite.adapters.composite_harness import (
 
 
 class CompanionReaderTests(unittest.TestCase):
+    def test_executable_admission_rejects_path_search_and_nonexecutables(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            executable = Path(temporary) / "host"
+            executable.write_text("#!/bin/sh\nexit 0\n")
+            executable.chmod(0o700)
+            harness.validate_executable(executable)
+            for invalid in (
+                Path("host"),
+                executable.parent,
+                executable.parent / "missing",
+            ):
+                with self.subTest(path=str(invalid)), self.assertRaises(ValueError):
+                    harness.validate_executable(invalid)
+            executable.chmod(0o600)
+            with self.assertRaises(ValueError):
+                harness.validate_executable(executable)
+
     def test_post_cleanup_source_or_artifact_change_cannot_publish_pass(self):
         for failing_check in ("validate_sources", "admit_build"):
             with (
@@ -41,6 +58,72 @@ class CompanionReaderTests(unittest.TestCase):
                 saved = json.loads((root / "report.json").read_text())
                 self.assertEqual(saved["status"], "FAIL")
                 self.assertEqual(saved["results"], [])
+
+    def test_final_report_replaces_cleanup_intermediate_atomically(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            report = {
+                "status": "VALIDATED",
+                "cleanup": "PASS",
+                "uds_cleanup": "PASS",
+                "results": [{"status": "PASS"}],
+            }
+            harness.native.write_json(root / "report.json", report)
+            with (
+                mock.patch.object(harness, "validate_sources"),
+                mock.patch.object(harness, "admit_build"),
+            ):
+                harness.finalize_report(None, root, report)
+            self.assertEqual(
+                json.loads((root / "report.json").read_text())["status"], "PASS"
+            )
+            self.assertFalse((root / "final-report.pending.json").exists())
+
+    def test_foreign_linked_or_changed_final_report_is_not_replaced(self):
+        for kind in ("foreign", "symlink", "hardlink", "changed"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                report = {
+                    "status": "VALIDATED",
+                    "cleanup": "PASS",
+                    "uds_cleanup": "PASS",
+                    "results": [{"status": "PASS"}],
+                }
+                destination = root / "report.json"
+                other = root / "other.json"
+                harness.native.write_json(other, report)
+                if kind == "symlink":
+                    destination.symlink_to(other)
+                elif kind == "hardlink":
+                    destination.hardlink_to(other)
+                else:
+                    harness.native.write_json(
+                        destination, {"foreign": True} if kind == "foreign" else report
+                    )
+                original = destination.read_bytes()
+                write = harness.native.write_json
+
+                def write_and_change(path, value):
+                    write(path, value)
+                    if kind == "changed":
+                        destination.unlink()
+                        destination.write_text('{"changed": true}')
+
+                with (
+                    mock.patch.object(harness, "validate_sources"),
+                    mock.patch.object(harness, "admit_build"),
+                    mock.patch.object(
+                        harness.native, "write_json", side_effect=write_and_change
+                    ),
+                ):
+                    harness.finalize_report(None, root, report)
+                self.assertEqual(report["status"], "FAIL")
+                self.assertEqual(report["results"], [])
+                self.assertEqual(
+                    destination.read_bytes(),
+                    b'{"changed": true}' if kind == "changed" else original,
+                )
+                self.assertFalse((root / "final-report.pending.json").exists())
 
     def test_cleanup_failure_discards_validated_results(self):
         with tempfile.TemporaryDirectory() as temporary:

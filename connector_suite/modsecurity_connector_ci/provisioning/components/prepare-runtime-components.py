@@ -2918,6 +2918,18 @@ def prepare_archive_with_lock(
         return record
 
 
+def record_archive_acquisition(record: dict[str, Any], url: str, acquired_url: str | None) -> None:
+    if acquired_url is None:
+        return
+    record["download_url"] = acquired_url
+    if acquired_url != url:
+        record["source_recovery"] = (
+            "official_httpd_immutable_distribution_after_direct_404"
+            if acquired_url.startswith("https://dist.apache.org/repos/dist/!svn/bc/")
+            else "official_httpd_archive_after_direct_404"
+        )
+
+
 def prepare_archive_unlocked(
     record: dict[str, Any],
     name: str,
@@ -2955,14 +2967,7 @@ def prepare_archive_unlocked(
         verify_digest_before_archive_list=verify_digest_before_archive_list,
         allow_httpd_source_recovery=allow_httpd_source_recovery,
     )
-    if acquired_url is not None:
-        record["download_url"] = acquired_url
-        if acquired_url != url:
-            record["source_recovery"] = (
-                "official_httpd_immutable_distribution_after_direct_404"
-                if acquired_url.startswith("https://dist.apache.org/repos/dist/!svn/bc/")
-                else "official_httpd_archive_after_direct_404"
-            )
+    record_archive_acquisition(record, url, acquired_url)
     size = path.stat().st_size
     if size <= 0:
         return corrupt_archive_record(record, path, managed_root, "empty_archive")

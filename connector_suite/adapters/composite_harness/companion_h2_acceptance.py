@@ -17,6 +17,7 @@ import shutil
 import resource
 import socket
 import struct
+import stat
 import subprocess
 import sys
 import time
@@ -268,6 +269,48 @@ def validate_retained(adapter, case, role, retained):
     native.require(ordered == expected, "retained phase chronology changed")
 
 
+def validate_request_lifecycle(
+    adapter, case, role, stream, request, wire, records, decision_id
+):
+    retained = [row for row in records if row.get("decision_id") == decision_id]
+    binding = hashlib.sha256(
+        (request["method"] + "\x00" + request["path"]).encode()
+    ).hexdigest()
+    native.require(
+        all(
+            row.get("request_sha256") == binding
+            for row in retained
+            if row.get("phase") != "reservation"
+        ),
+        "wire/native retained request binding crossed or missing",
+    )
+    native.require(
+        retained
+        and all(
+            row.get("connector")
+            == ("envoy" if adapter.startswith("envoy") else "traefik")
+            for row in retained
+        ),
+        "cross-profile retained identity",
+    )
+    validate_retained(adapter, case, role, retained)
+    terminals = [row for row in retained if row.get("phase") == "terminal"]
+    native.require(
+        len(terminals) == 1 and terminals[0].get("cleanup_outcome") == "closed",
+        "missing/duplicate/failed actual retained cleanup",
+    )
+    if role != "target":
+        native.require(
+            wire.get("status", {}).get(str(stream)) == 200
+            and wire.get("body_bytes", {}).get(str(stream)) == 10,
+            "peer/follow-up contaminated",
+        )
+        native.require(
+            wire.get("terminal", {}).get(str(stream), {}).get("flags", 0) & 1,
+            "peer/follow-up not complete",
+        )
+
+
 def validate_requests(adapter, case, wire, records, mapping, access):
     native.require(adapter in PROFILES and case in CASES, "unknown opt-in profile/case")
     native.require(
@@ -307,7 +350,7 @@ def validate_requests(adapter, case, wire, records, mapping, access):
             and request.get("body_bytes") == body_size,
             "wire method/entity mismatch",
         )
-        host, connection, native_stream, status = select_host(adapter, request, access)
+        _, connection, native_stream, status = select_host(adapter, request, access)
         connections.add(connection)
         host_streams.add(native_stream)
         joins[role] = {
@@ -321,43 +364,9 @@ def validate_requests(adapter, case, wire, records, mapping, access):
                 status == wire.get("status", {}).get(str(stream)),
                 "wire/native response mapping mismatch",
             )
-        retained = [row for row in records if row.get("decision_id") == mapping[role]]
-        binding = hashlib.sha256(
-            (request["method"] + "\x00" + request["path"]).encode()
-        ).hexdigest()
-        native.require(
-            all(
-                row.get("request_sha256") == binding
-                for row in retained
-                if row.get("phase") != "reservation"
-            ),
-            "wire/native retained request binding crossed or missing",
+        validate_request_lifecycle(
+            adapter, case, role, stream, request, wire, records, mapping[role]
         )
-        native.require(
-            retained
-            and all(
-                row.get("connector")
-                == ("envoy" if adapter.startswith("envoy") else "traefik")
-                for row in retained
-            ),
-            "cross-profile retained identity",
-        )
-        validate_retained(adapter, case, role, retained)
-        terminals = [row for row in retained if row.get("phase") == "terminal"]
-        native.require(
-            len(terminals) == 1 and terminals[0].get("cleanup_outcome") == "closed",
-            "missing/duplicate/failed actual retained cleanup",
-        )
-        if role != "target":
-            native.require(
-                wire.get("status", {}).get(str(stream)) == 200
-                and wire.get("body_bytes", {}).get(str(stream)) == 10,
-                "peer/follow-up contaminated",
-            )
-            native.require(
-                wire.get("terminal", {}).get(str(stream), {}).get("flags", 0) & 1,
-                "peer/follow-up not complete",
-            )
     native.require(
         len(connections) == 1 and None not in connections and "None" not in connections,
         "native physical connection changed",
@@ -533,6 +542,25 @@ def validate_target_eos(case, selected):
     )
 
 
+def validate_peer_chronology(selected, wire):
+    paused = [
+        row
+        for row in selected
+        if row.get("event") == "upstream_paused" and row.get("eos_sent") is False
+    ]
+    eos = [row for row in selected if row.get("event") == "upstream_eos"]
+    barrier = next(
+        row for row in wire["frames"] if row.get("type") == COMPLETION_BARRIER
+    )
+    native.require(
+        len(paused) == 1
+        and paused[0].get("monotonic_ns", 0)
+        < barrier.get("monotonic_ns", 0)
+        < eos[0].get("monotonic_ns", 0),
+        "upstream active peer/cleanup chronology missing",
+    )
+
+
 def validate_upstream(adapter, case, upstream, wire):
     native.require(
         upstream and not any(row.get("event") == "fixture_error" for row in upstream),
@@ -565,23 +593,7 @@ def validate_upstream(adapter, case, upstream, wire):
                 "peer/follow-up upstream EOS missing/duplicated",
             )
         if role == "peer":
-            paused = [
-                row
-                for row in selected
-                if row.get("event") == "upstream_paused"
-                and row.get("eos_sent") is False
-            ]
-            eos = [row for row in selected if row.get("event") == "upstream_eos"]
-            barrier = next(
-                row for row in wire["frames"] if row.get("type") == COMPLETION_BARRIER
-            )
-            native.require(
-                len(paused) == 1
-                and paused[0].get("monotonic_ns", 0)
-                < barrier.get("monotonic_ns", 0)
-                < eos[0].get("monotonic_ns", 0),
-                "upstream active peer/cleanup chronology missing",
-            )
+            validate_peer_chronology(selected, wire)
         if role == "target" and case == "upstream_reset":
             native.require(
                 sum(
@@ -755,16 +767,16 @@ def wait_tls(port, cert, processes):
             "native host process exited",
         )
         try:
-            with socket.create_connection(("127.0.0.1", port), 0.2) as connection:
-                with context.wrap_socket(
-                    connection, server_hostname="127.0.0.1"
-                ) as tls:
-                    native.require(
-                        tls.selected_alpn_protocol() == "h2",
-                        "native listener did not negotiate H2",
-                    )
-                    return
-        except OSError, ssl.SSLError:
+            with (
+                socket.create_connection(("127.0.0.1", port), 0.2) as connection,
+                context.wrap_socket(connection, server_hostname="127.0.0.1") as tls,
+            ):
+                native.require(
+                    tls.selected_alpn_protocol() == "h2",
+                    "native listener did not negotiate H2",
+                )
+                return
+        except OSError:
             time.sleep(0.1)
     raise ValueError("verified TLS/H2 host readiness deadline exceeded")
 
@@ -868,6 +880,14 @@ def validate_host_version(args, report):
     report["native_host_release"] = releases[0]
 
 
+def validate_executable(path):
+    """Bind executable selection to the file admitted by hash, never PATH lookup."""
+    native.require(
+        path.is_absolute() and path.is_file() and os.access(path, os.X_OK),
+        "native executable must be an absolute executable file",
+    )
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adapter", choices=PROFILES, required=True)
@@ -886,7 +906,10 @@ def parse_arguments():
     parser.add_argument("--case", choices=CASES, required=True)
     parser.add_argument("--require-clean", action="store_true")
     parser.add_argument("--completion-writer-fault", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    validate_executable(args.host)
+    validate_executable(args.service)
+    return args
 
 
 def validate_sources(args, report):
@@ -920,8 +943,52 @@ def validate_sources(args, report):
         report.setdefault("source_worktree_dirty", {})[str(checkout)] = dirty
 
 
+def report_preimage(path, expected=None):
+    if not path.exists() and not path.is_symlink():
+        return None
+    metadata = path.lstat()
+    native.require(
+        stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1,
+        "final report preimage is not a private regular file",
+    )
+    content = native.read_text(path).encode("utf-8")
+    if expected is not None:
+        native.require(
+            native.load_json(content.decode("utf-8")) == expected,
+            "foreign final report preimage",
+        )
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+        hashlib.sha256(content).hexdigest(),
+    )
+
+
+def publish_final_report(root, report, preimage):
+    destination = root / "report.json"
+    pending = root / "final-report.pending.json"
+    # Exclusive creation leaves an existing foreign pending object untouched.
+    native.write_json(pending, report)
+    try:
+        native.require(
+            report_preimage(destination) == preimage,
+            "final report preimage changed before publication",
+        )
+        os.replace(pending, destination)
+    finally:
+        pending.unlink(missing_ok=True)
+
+
 def finalize_report(args, root, report):
     """Publish success only after cleanup and unchanged source/artifact admission."""
+    try:
+        preimage = report_preimage(root / "report.json", report)
+    except Exception as exc:
+        report.update(status="FAIL", results=[], error=f"{type(exc).__name__}: {exc}")
+        return
     try:
         if report["status"] == "VALIDATED":
             native.require(
@@ -937,7 +1004,10 @@ def finalize_report(args, root, report):
     if report["status"] != "PASS":
         report["status"] = "FAIL"
         report["results"] = []
-    native.write_json(root / "report.json", report)
+    try:
+        publish_final_report(root, report, preimage)
+    except Exception as exc:
+        report.update(status="FAIL", results=[], error=f"{type(exc).__name__}: {exc}")
 
 
 def main():

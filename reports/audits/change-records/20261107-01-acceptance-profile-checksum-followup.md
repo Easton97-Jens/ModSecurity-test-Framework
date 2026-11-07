@@ -63,6 +63,15 @@ by the external product. A test-only link wrapper enables native cleanup
 metadata; independent host/wire records prove the physical connection.
 The new C observer is included in the closed native compile inventory.
 
+Hosted findings prompted bounded reader/provenance helper extraction and
+shared literals, preserving every validation predicate. Absolute regular
+executable admission prevents host/service digest checks from selecting a
+different file than PATH or changed-cwd process execution. Final companion
+reports replace only their checked owned preimage after native cleanup and
+source/artifact admission; intermediate VALIDATED records never qualify PASS.
+Publication, changed-object and executable-path regressions remain explicit
+failures. Canonical release/version values are read from their single owner.
+
 ## Changed files and tests
 
 - Apache provisioning helper, checksum reader and focused source-recovery tests.
@@ -106,8 +115,10 @@ local Sonar scanner, merge or administrative change is performed.
 ## Limitations and residual risk
 
 The existing Sonar connection permits GET but rejects issue POST transitions.
-All 23 existing occurrences were independently reassessed; local proposals do
-not close server findings or pass a hosted Gate. Current delivered-head Sonar
+The 23 earlier and subsequent hosted occurrences are individually reconciled
+in the external report, including real source corrections and remaining
+technical proposals. Local proposals do not close server findings or pass a
+hosted Gate. Current delivered-head Sonar
 and Apache CRS/aggregate readbacks remain mandatory. Existing advisory and
 legacy inventory findings are reported separately.
 

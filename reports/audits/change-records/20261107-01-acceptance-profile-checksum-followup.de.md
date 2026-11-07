@@ -66,6 +66,16 @@ aktiviert native Cleanupmetadaten; unabhängige Host-/Wirerecords belegen die
 physische Verbindung. Der neue C-Observer gehört zum geschlossenen nativen
 Compilerinventar.
 
+Gehostete Befunde veranlassten begrenzte Reader-/Provenienz-Helferextraktionen
+und gemeinsame Literale; jede Validierungsbedingung bleibt erhalten. Die
+Zulassung absoluter regulärer ausführbarer Dateien verhindert, dass Hashprüfung
+und PATH- beziehungsweise Cwd-basierte Host-/Service-Ausführung verschiedene
+Dateien wählen. Finale Companion-Berichte ersetzen nur ihr geprüftes eigenes
+Vorabbild nach nativem Cleanup und Quellen-/Artefaktzulassung; zwischenzeitliche
+VALIDATED-Records qualifizieren keinen PASS. Publikations-, Objektwechsel- und
+Programmpfad-Regressionen bleiben explizite Fehler. Kanonische Release-/Versions-
+werte stammen aus ihrem einzigen Eigentümer.
+
 ## Geänderte Dateien und Tests
 
 - Apache-Provisionierung, Prüfsummenleser und gezielte Source-Recovery-Tests.
@@ -112,8 +122,10 @@ Die umfassende Gesamtabnahme bleibt **NOT_RUN**. Keine MRTS-Ausführung oder
 ## Einschränkungen und Restrisiko
 
 Der vorhandene Sonar-Anschluss erlaubt GET, weist Issue-POST-Transitionen jedoch
-zurück. Alle 23 bisherigen Vorkommen wurden unabhängig neu bewertet; lokale
-Vorschläge schließen keine Serverbefunde und bestehen kein gehostetes Gate.
+zurück. Die 23 früheren und nachfolgenden gehosteten Vorkommen werden im externen
+Bericht einzeln abgeglichen, einschließlich echter Quellkorrekturen und noch
+offener technischer Vorschläge. Lokale Vorschläge schließen keine Serverbefunde
+und bestehen kein gehostetes Gate.
 Readbacks von Sonar und Apache-CRS/Aggregate am tatsächlich gelieferten Head
 bleiben verpflichtend. Bestehende Advisory- und Legacyinventarbefunde werden
 getrennt ausgewiesen.
