@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import os
 from pathlib import Path
@@ -17,6 +18,7 @@ PAYLOAD = b"reviewed HTTPD test archive\n"
 DIGEST = hashlib.sha256(PAYLOAD).hexdigest()
 ARCHIVE_NAME = "httpd-2.4.999.tar.bz2"
 SOURCE_URL = f"https://downloads.apache.org/httpd/{ARCHIVE_NAME}"
+METADATA_URL = f"https://dist.apache.org/repos/dist/!svn/bc/89000/release/httpd/{ARCHIVE_NAME}.sha256"
 BASELINE_COMMIT = "9181dc77dfb0685d87fa109e6800dc6052d77cc9"
 
 
@@ -35,7 +37,27 @@ class HttpdSourceRecoveryTests(unittest.TestCase):
         self.payload = self.root / "payload"
         self.payload.write_bytes(PAYLOAD)
         self.metadata = self.root / "metadata"
-        self.metadata.write_text(DIGEST + "  httpd-test.tar.bz2\n")
+        self.metadata.write_text(DIGEST + " *" + ARCHIVE_NAME + "\n")
+        # Project only the reviewed immutable-object constants into a private
+        # synthetic-release fixture. Production has no tuple/endpoint override.
+        helper_tree = ast.parse((ROOT / "ci/provisioning/httpd-checksum-cache.py").read_text())
+        replacements = {
+            "HTTPD_METADATA_CANONICAL_URL": SOURCE_URL,
+            "HTTPD_METADATA_URL": METADATA_URL,
+            "HTTPD_METADATA_SHA256": hashlib.sha256(self.metadata.read_bytes()).hexdigest(),
+        }
+        replaced = set()
+        for node in helper_tree.body:
+            if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                name = node.targets[0].id
+                if name in replacements:
+                    node.value = ast.Constant(replacements[name])
+                    replaced.add(name)
+        self.assertEqual(replaced, set(replacements))
+        helper = self.common.parents[1] / "provisioning/httpd-checksum-cache.py"
+        helper.parent.mkdir()
+        helper.write_text(ast.unparse(ast.fix_missing_locations(helper_tree)))
+        self.checksum_helper = helper
         self.downloads = self.root / "build/downloads"
         self.downloads.mkdir(parents=True)
         self.archive = self.downloads / ARCHIVE_NAME
@@ -58,7 +80,7 @@ case "$url" in
             rm -f "$CACHE_ARCHIVE"
             ln -s "$SOURCE_REPLACEMENT" "$CACHE_ARCHIVE"
         fi
-        cp "$METADATA" "$out"; printf '200|1|100|0.1\\n'; exit 0 ;;
+        cp "$METADATA" "$out"; printf '200|0|100|0.1\\n'; exit 0 ;;
     https://downloads.apache.org/apr/*) mode=200 ;;
     https://archive.apache.org/*) mode=$ALTERNATE_MODE ;;
     *) mode=$PRIMARY_MODE ;;
@@ -82,6 +104,10 @@ esac
                 cwd=ROOT, text=True,
             )
         functions = source[source.index("blocked() {"):source.index("resolve_apache_tools() {")]
+        helper_reference = '"$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py"'
+        if os.environ.get("HTTPD_RECOVERY_BASELINE") != "1":
+            self.assertEqual(functions.count(helper_reference), 4)
+            functions = functions.replace(helper_reference, '"' + str(self.checksum_helper) + '"')
         self.functions = self.root / "functions.sh"
         self.functions.write_text(functions)
 
@@ -91,6 +117,9 @@ esac
     def run_helper(self, before="", *, primary="404", alternate="200", dest=None,
                    metadata=False, build=False, source_replacement=None,
                    metadata_mode="200"):
+        # Match the real downloader's private mktemp-created archive cache.
+        if self.archive.is_file() and not self.archive.is_symlink():
+            self.archive.chmod(0o600)
         env = os.environ.copy()
         for key in tuple(env):
             if key.startswith(("HTTPD_", "CI_ACTIVE_PIN_", "CI_INHERITED_")):
@@ -107,7 +136,7 @@ esac
             "LOG_DIR": str(self.root / "logs"), "STATUS_FILE": str(self.root / "status"),
             "ARTIFACTS_FILE": str(self.root / "artifacts"), "DEST": str(dest or self.archive),
             "SOURCE_REPLACEMENT": str(source_replacement or ""),
-            "CACHE_ARCHIVE": str(self.archive), "HTTPD_METADATA_URL": SOURCE_URL + ".sha256",
+            "CACHE_ARCHIVE": str(self.archive), "HTTPD_METADATA_URL": METADATA_URL,
             "METADATA_MODE": metadata_mode,
         })
         # The legacy function call ensures both primary regressions fail on
@@ -269,7 +298,7 @@ build_httpd_from_source
         result = self.run_helper(build=True)
         self.assertEqual(result.returncode, 77, result.stderr)
         self.assertNotIn("extraction-permitted", result.stdout)
-        self.assertEqual(self.urls(), [SOURCE_URL + ".sha256"])
+        self.assertEqual(self.urls(), [METADATA_URL])
         self.assertFalse((self.root / "build/apache/verified-archives").exists())
 
     def test_metadata_success_accepts_verified_cache(self):

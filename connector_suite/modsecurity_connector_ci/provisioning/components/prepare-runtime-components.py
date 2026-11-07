@@ -2536,6 +2536,15 @@ def httpd_archive_recovery_url(url: str, expected_sha: str) -> str:
     )
     if match is None:
         raise RuntimeError("httpd_source_recovery_requires_canonical_release_url")
+    # The current retired release has a separately reviewed immutable official
+    # distribution object. Other release recovery retains its existing policy.
+    from modsecurity_test_framework.connector_context import load_source
+    metadata = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
+    if url == metadata.HTTPD_METADATA_CANONICAL_URL:
+        try:
+            return metadata.metadata_source(url, url + ".sha256", expected_sha).removesuffix(".sha256")
+        except ValueError as error:
+            raise RuntimeError("httpd_immutable_distribution_identity_mismatch") from error
     return f"https://archive.apache.org/dist/httpd/{match.group(1)}"
 
 
@@ -2549,6 +2558,8 @@ def download_httpd_source_archive(url: str, dest: Path, expected_sha: str) -> st
             with opener.open(selected_url, timeout=60) as response:
                 if response.geturl() != selected_url:
                     raise RuntimeError("httpd_source_redirect_forbidden")
+                if response.status != 200:
+                    raise RuntimeError("httpd_source_requires_direct_http_200")
                 return response.read()
         except urllib.error.HTTPError as error:
             error.close()
@@ -2947,7 +2958,11 @@ def prepare_archive_unlocked(
     if acquired_url is not None:
         record["download_url"] = acquired_url
         if acquired_url != url:
-            record["source_recovery"] = "official_httpd_archive_after_direct_404"
+            record["source_recovery"] = (
+                "official_httpd_immutable_distribution_after_direct_404"
+                if acquired_url.startswith("https://dist.apache.org/repos/dist/!svn/bc/")
+                else "official_httpd_archive_after_direct_404"
+            )
     size = path.stat().st_size
     if size <= 0:
         return corrupt_archive_record(record, path, managed_root, "empty_archive")

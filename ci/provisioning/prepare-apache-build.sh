@@ -322,11 +322,22 @@ download_httpd_source_archive() {
             [ "$RUNTIME_COMPONENT_HTTP_STATUS" = 404 ] && \
             [ "$RUNTIME_COMPONENT_REDIRECTS" = 0 ]; then
             # Only a direct retired-release 404 permits the same filename at
-            # Apache's official archive. TLS, bounds and redirects stay strict.
+            # Apache's reviewed distribution recovery. TLS, bounds and redirects stay strict.
             httpd_download_url="https://archive.apache.org/dist/httpd/$HTTPD_ARCHIVE_NAME"
+            if [ "$HTTPD_VERSION" = 2.4.69 ]; then
+                httpd_download_url=$("${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+                    --archive "$httpd_download_dest" --checksum "$DOWNLOAD_DIR/httpd.sha256" \
+                    --source-url "$HTTPD_SOURCE_URL" --checksum-url "$HTTPD_SHA256_URL" \
+                    --expected-sha "$HTTPD_SHA256" --print-archive-url) || \
+                    blocked "HTTPD immutable distribution archive is not approved"
+            fi
             download_runtime_artifact_without_redirects_under_root \
                 httpd "$httpd_download_url" "$httpd_download_dest" "$DOWNLOAD_DIR" >/dev/null || \
                 blocked "could not download the reviewed archived HTTPD release"
+            if [ "$HTTPD_VERSION" = 2.4.69 ]; then
+                [ "$RUNTIME_COMPONENT_HTTP_STATUS" = 200 ] && [ "$RUNTIME_COMPONENT_REDIRECTS" = 0 ] || \
+                    blocked "HTTPD immutable archive must be a direct official HTTP 200 response"
+            fi
         else
             blocked "could not download the reviewed HTTPD artifact"
         fi
@@ -378,6 +389,35 @@ verify_sha256_url() {
             > "$LOG_DIR/httpd-checksum-cache.json"; then
         echo "httpd_remote_checksum_source=cached_verified_metadata" >> "$ARTIFACTS_FILE"
         echo "pass: httpd cached checksum and archive match reviewed provider and literal pin" >> "$STATUS_FILE"
+        return 0
+    fi
+    if [ "$label" = httpd ]; then
+        # The current retired release redirects to an unreachable archive host.
+        # Use its independently reviewed immutable official distribution object;
+        # neither archive presence nor its calculated hash selects this source.
+        httpd_metadata_url=$("${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+            --archive "$file" --checksum "$sha_file" --source-url "$HTTPD_SOURCE_URL" \
+            --checksum-url "$sha_url" --expected-sha "$HTTPD_SHA256" --print-download-url) || \
+            blocked "HTTPD metadata source is not approved for this release"
+        download_runtime_artifact_without_redirects_under_root \
+            httpd-sha256 "$httpd_metadata_url" "$sha_file" "$DOWNLOAD_DIR" >/dev/null || \
+            blocked "could not download the reviewed immutable HTTPD checksum object"
+        [ "$RUNTIME_COMPONENT_HTTP_STATUS" = 200 ] && [ "$RUNTIME_COMPONENT_REDIRECTS" = 0 ] || \
+            blocked "HTTPD metadata must be a direct official HTTP 200 response"
+        "${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+            --archive "$file" --checksum "$sha_file" --source-url "$HTTPD_SOURCE_URL" \
+            --checksum-url "$sha_url" --expected-sha "$HTTPD_SHA256" \
+            --downloaded-from "$httpd_metadata_url" > "$LOG_DIR/httpd-checksum-download.json" || \
+            blocked "HTTPD immutable metadata or archive failed independent pin verification"
+        {
+            echo "httpd_remote_checksum_source=official_immutable_distribution_revision"
+            echo "httpd_remote_checksum_url=$httpd_metadata_url"
+            echo "httpd_remote_checksum_http_status=$RUNTIME_COMPONENT_HTTP_STATUS"
+            echo "httpd_remote_checksum_redirects=$RUNTIME_COMPONENT_REDIRECTS"
+            echo "httpd_remote_checksum_bytes=$RUNTIME_COMPONENT_BYTES"
+            echo "httpd_remote_checksum_tls_verification=verified"
+        } >> "$ARTIFACTS_FILE"
+        echo "pass: httpd official immutable metadata and archive match independent reviewed pins" >> "$STATUS_FILE"
         return 0
     fi
     download_file "$label-sha256" "$sha_url" "$sha_file"

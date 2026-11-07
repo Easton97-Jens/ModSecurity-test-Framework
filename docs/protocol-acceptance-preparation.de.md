@@ -3,7 +3,8 @@
 **Sprache:** [English](protocol-acceptance-preparation.md) | Deutsch
 
 Diese separat auswählbaren Adapter ergänzen native NGINX-Pfade für H2/H3/h2c
-sowie Apache-, HAProxy-HTX/SPOP-Companion- und Envoy-ext_proc-H2-Pfade.
+sowie separate H2-Pfade für Apache, HAProxy-HTX/SPOP-Companion, Envoy ext_proc,
+Envoy-ext_authz-Companion, Traefik-ForwardAuth-Companion und natives Traefik.
 Die 100 Standardfälle bleiben unverändert.
 Die Gesamtabnahme bleibt **NOT_RUN**. Dieses Dokument erklärt weder
 `READY_FOR_FULL_ACCEPTANCE` noch eine Connector-Capability als erreicht.
@@ -113,7 +114,7 @@ bleiben getrennte Nachweise.
 
 ## Separate Nicht-NGINX-H2-Registry
 
-`tests/runners/non_nginx_h2_acceptance.py:CASES` registriert **32** zusätzliche
+`tests/runners/non_nginx_h2_acceptance.py:CASES` registriert **56** zusätzliche
 Opt-in-IDs, getrennt von den 25 NGINX-IDs und den 100 Standardfällen.
 Jedes folgende Präfix hat acht Suffixe: `allow`, `phase1`, `phase2`, `phase3`,
 `phase4_safe`, `phase4_strict`, `client_cancel`, `upstream_reset`.
@@ -124,6 +125,17 @@ Jedes folgende Präfix hat acht Suffixe: `allow`, `phase1`, `phase2`, `phase3`,
 | `haproxy_htx_h2_` | Lokaler nativer HTX-Filter | `connector_suite/adapters/haproxy/harness/haproxy_h2_acceptance.py` |
 | `haproxy_spop_htx_h2_` | SPOP-Requestphasen plus nativer HTX-Response-Companion | `connector_suite/adapters/haproxy/harness/haproxy_spop_h2_acceptance.py` |
 | `envoy_h2_` | Natives gestreamtes ext_proc | `connector_suite/adapters/envoy/harness/envoy_h2_acceptance.py` |
+| `envoy_ext_authz_h2_` | ext_authz plus Response-Companion | `connector_suite/adapters/composite_harness/companion_h2_acceptance.py --adapter envoy_ext_authz_h2` |
+| `traefik_forwardauth_h2_` | ForwardAuth plus Response-Companion | `connector_suite/adapters/composite_harness/companion_h2_acceptance.py --adapter traefik_forwardauth_h2` |
+| `traefik_native_h2_` | Native UDS-Middleware | `connector_suite/adapters/traefik/harness/traefik_native_h2_acceptance.py` |
+
+Die ursprünglichen 32 IDs bleiben ausgewählt. Die drei getrennten Profilpfade
+ergänzen 24 IDs; ihre Registrierung belegt keinen erfolgreichen Hostlauf.
+Mit den 25 NGINX-IDs und acht bestehenden H2-/H3-Nachbarprüfungen umfasst die
+Vorbereitung 89 verlangte Hostausführungen und 85 unterschiedliche bloße Fall-IDs
+sowie drei getrennt gezählte Apache-H1-Regressionen. Vier NGINX-Namen stehen in
+beiden Executor-Katalogen; ihre Testverträge und Trafficvarianten müssen explizit
+benannt werden. Wiederholte Ausführungen sind keine zusätzlichen eindeutigen Fälle.
 
 `--help` jedes Adapters über RTK im oben beschriebenen expliziten Quellkontext
 prüfen. Apache akzeptiert eine vollständige `--case-id`; die übrigen Adapter
@@ -202,10 +214,12 @@ rechtzeitigem Cleanup. Dies stuft weder ext_authz noch andere Versionen/Profile 
 Alle zehn logischen Profile behalten getrennte Aussagen. Die ausgewählten
 Stock-/Patched-lighttpd-Verträge bleiben H1-only. Envoy ext_authz und Traefik
 ForwardAuth benötigen eigene Response-Companions und erben keine direkten
-ext_proc-/nativen Ergebnisse. Moderne Protokoll- und Strict-Pfade von Traefik
-native benötigen weiterhin eigene Qualifizierung; diese Pflichten bleiben in
-der Abschlussmatrix sichtbar. Neue Unsupported-Markierungen oder entfernte
-Fälle schließen keinen fehlenden Pflichtpfad.
+ext_proc-/nativen Ergebnisse. Die Registry stellt nun getrennte vollständige
+Companion- und Traefik-native-H2-Pfade bereit. Die eigene Ausführung am finalen
+Commitpaar, die Quell-/Buildzulassung und die aktuellen Prüfungen entscheiden die
+Qualifikation; ein Adapter oder diagnostisches PASS schließt diese Pflichten
+allein nicht. Neue Unsupported-Markierungen oder entfernte Fälle schließen
+keinen fehlenden Pflichtpfad.
 
 Der Vorbereitungsclient erlaubt nur eigene IPv4-Loopback-Origins, verifiziert CA,
 Peer und Host, setzt die geprüfte TLS-1.3-Mindestversion vor Netzwerkzugriff und

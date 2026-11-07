@@ -1,5 +1,5 @@
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_source
 
 import hashlib
 import io
@@ -1124,6 +1124,50 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 self.assertEqual(record["status"], "blocked", record)
                 network.assert_not_called()
                 self.assertFalse((root / "cache").exists())
+
+    def test_current_httpd_404_uses_reviewed_immutable_distribution_and_native_marker(self) -> None:
+        metadata = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
+        url = metadata.HTTPD_METADATA_CANONICAL_URL
+        recovered = metadata.HTTPD_METADATA_URL.removesuffix(".sha256")
+        payload = self.httpd_fixture_archive()
+        digest = hashlib.sha256(payload).hexdigest()
+        requests = []
+        with tempfile.TemporaryDirectory(prefix="httpd-current-distribution-") as temporary, \
+                mock.patch.object(metadata, "approved_contract", return_value=(url, digest)), \
+                mock.patch("modsecurity_test_framework.connector_context.load_source", return_value=metadata), \
+                mock.patch.object(components.urllib.request.HTTPSHandler, "https_open",
+                                  side_effect=self.httpd_transport(requests, {url: (404, {}, b""), recovered: payload})):
+            root = Path(temporary)
+            record = self.prepare_httpd_fixture(root, digest, url=url)
+            self.assertEqual(record["status"], "present", record)
+            self.assertEqual(requests, [url, recovered])
+            self.assertEqual(record["download_url"], recovered)
+            self.assertEqual(record["source_recovery"], "official_httpd_immutable_distribution_after_direct_404")
+            self.assertTrue(components.cache_entry_marker_valid(Path(record["path"]), root / "cache"))
+            self.assertEqual(Path(record["path"]).read_bytes(), payload)
+
+    def test_current_httpd_distribution_rejects_redirect_non200_corruption_and_wrong_pin(self) -> None:
+        metadata = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
+        url = metadata.HTTPD_METADATA_CANONICAL_URL
+        recovered = metadata.HTTPD_METADATA_URL.removesuffix(".sha256")
+        payload = self.httpd_fixture_archive()
+        digest = hashlib.sha256(payload).hexdigest()
+        for label, response, expected in (
+                ("redirect", (302, {"Location": "https://foreign.invalid/source"}, b""), digest),
+                ("http201", (201, {}, payload), digest), ("http403", (403, {}, b""), digest),
+                ("corrupt", payload + b"changed", digest), ("wrong pin", payload, "0" * 64)):
+            requests = []
+            with self.subTest(label=label), tempfile.TemporaryDirectory(prefix="httpd-current-negative-") as temporary, \
+                    mock.patch.object(metadata, "approved_contract", return_value=(url, digest)), \
+                    mock.patch("modsecurity_test_framework.connector_context.load_source", return_value=metadata), \
+                    mock.patch.object(components.urllib.request.HTTPSHandler, "https_open",
+                                      side_effect=self.httpd_transport(requests, {url: (404, {}, b""), recovered: response})), \
+                    mock.patch.object(components, "archive_can_list", wraps=components.archive_can_list) as inspect_archive:
+                record = self.prepare_httpd_fixture(Path(temporary), expected, url=url)
+                self.assertIn(record["status"], {"blocked", "corrupt"}, record)
+                self.assertFalse(Path(record["path"]).exists())
+                self.assertEqual(inspect_archive.call_count, 0)
+                self.assertEqual(requests, [] if label == "wrong pin" else [url, recovered])
 
     def test_httpd_source_recovery_is_an_explicit_single_component_policy(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

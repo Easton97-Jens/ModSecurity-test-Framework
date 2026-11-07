@@ -19,11 +19,19 @@ ADAPTERS = {
     "haproxy_htx_h2": ("haproxy-htx", "connector_suite/adapters/haproxy/harness/haproxy_h2_acceptance.py"),
     "haproxy_spop_htx_h2": ("haproxy-spoe-spop", "connector_suite/adapters/haproxy/harness/haproxy_spop_h2_acceptance.py"),
     "envoy_h2": ("envoy-ext-proc", "connector_suite/adapters/envoy/harness/envoy_h2_acceptance.py"),
+    "envoy_ext_authz_h2": ("envoy-ext-authz", "connector_suite/adapters/composite_harness/companion_h2_acceptance.py"),
+    "traefik_forwardauth_h2": ("traefik-forwardauth", "connector_suite/adapters/composite_harness/companion_h2_acceptance.py"),
+    "traefik_native_h2": ("traefik-native-uds", "connector_suite/adapters/traefik/harness/traefik_native_h2_acceptance.py"),
+}
+ADAPTER_ARGUMENTS = {
+    "envoy_ext_authz_h2": ("--adapter", "envoy_ext_authz_h2"),
+    "traefik_forwardauth_h2": ("--adapter", "traefik_forwardauth_h2"),
 }
 CASES = {
     prefix + "_" + scenario: {
         "profile": profile, "adapter": adapter, "scenario": scenario, "protocol": "h2",
         "selection": "opt_in",
+        "adapter_arguments": list(ADAPTER_ARGUMENTS.get(prefix, ())),
     }
     for prefix, (profile, adapter) in ADAPTERS.items()
     for scenario in SCENARIOS

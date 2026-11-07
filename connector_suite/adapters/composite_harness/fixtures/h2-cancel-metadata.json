@@ -1,0 +1,555 @@
+{
+  "access": [
+    {
+      "connection_id": 2,
+      "protocol": "HTTP/2",
+      "request_id": "envoy_ext_authz_h2-client_cancel-target",
+      "status": 200,
+      "stream_id": "387656e7-8efa-4351-93ac-bc05e952d7c3"
+    },
+    {
+      "connection_id": 2,
+      "protocol": "HTTP/2",
+      "request_id": "envoy_ext_authz_h2-client_cancel-peer",
+      "status": 200,
+      "stream_id": "adf668f2-0770-4fca-a696-4ec3970b9773"
+    },
+    {
+      "connection_id": 2,
+      "protocol": "HTTP/2",
+      "request_id": "envoy_ext_authz_h2-client_cancel-followup",
+      "status": 200,
+      "stream_id": "0ea05a38-195c-4a0f-a1bb-39ddd8da346a"
+    }
+  ],
+  "adapter": "envoy_ext_authz_h2",
+  "case": "client_cancel",
+  "common": [
+    {
+      "action": "error",
+      "actual_action": "",
+      "body_bytes_inspected": 6,
+      "body_bytes_seen": 6,
+      "body_started": true,
+      "body_truncated": false,
+      "cancelled": false,
+      "client_disconnected": false,
+      "client_ip": "",
+      "connection_aborted": false,
+      "connector": "envoy",
+      "content_type": "text/plain",
+      "eos_seen": false,
+      "event": "protocol_error",
+      "event_hash": 3440304482109585367,
+      "headers_sent": true,
+      "http_default_message": "Internal error",
+      "http_reason_phrase": "Internal Server Error",
+      "http_status": 500,
+      "integration_mode": "ext_proc",
+      "late_intervention": false,
+      "level": "error",
+      "message": "Connector protocol processing failed.",
+      "message_id": "MSCONN_EVENT_PROTOCOL_ERROR",
+      "method": "",
+      "original_http_status": 200,
+      "phase": "response_body",
+      "previous_event_hash": 0,
+      "reason": "protocol_error",
+      "redacted": false,
+      "requested_action": "error",
+      "response_committed": true,
+      "response_started": true,
+      "rule_id": "",
+      "sequence": 1,
+      "status": "error",
+      "timestamp": "2026-11-07T05:16:38Z",
+      "transaction_id": "qkuVeQSTt5hkh5AftCbqqZt6tiPDOJMWF3iE7359XA8",
+      "transport_result": "",
+      "truncated": false,
+      "upstream_disconnected": false,
+      "uri": "",
+      "visible_http_status": 200
+    }
+  ],
+  "mapping": {
+    "followup": "Q0yoNOZCkk_6mf1OMP4pISqPFb-HU-TuzDtsMjdy5hE",
+    "peer": "kENB2-7bZfK-lSjsZIFnSUiuUE41p56j1TlLd3Og010",
+    "target": "qkuVeQSTt5hkh5AftCbqqZt6tiPDOJMWF3iE7359XA8"
+  },
+  "records": [
+    {
+      "connector": "envoy",
+      "decision_id": "kENB2-7bZfK-lSjsZIFnSUiuUE41p56j1TlLd3Og010",
+      "event_time": "2026-11-07T05:16:38.767576559Z",
+      "outcome": "observed",
+      "phase": "P1",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ef4dbaca43bfae336fe2bbc93a245f1414769ce30824893d6632d364c94b2fdd",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "kENB2-7bZfK-lSjsZIFnSUiuUE41p56j1TlLd3Og010",
+      "event_time": "2026-11-07T05:16:38.767683657Z",
+      "outcome": "observed",
+      "phase": "P2",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ef4dbaca43bfae336fe2bbc93a245f1414769ce30824893d6632d364c94b2fdd",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "kENB2-7bZfK-lSjsZIFnSUiuUE41p56j1TlLd3Og010",
+      "event_time": "2026-11-07T05:16:38.767718894Z",
+      "outcome": "issued",
+      "phase": "lease",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ef4dbaca43bfae336fe2bbc93a245f1414769ce30824893d6632d364c94b2fdd",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "kENB2-7bZfK-lSjsZIFnSUiuUE41p56j1TlLd3Og010",
+      "event_time": "2026-11-07T05:16:38.779450739Z",
+      "outcome": "accepted",
+      "phase": "claim",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ef4dbaca43bfae336fe2bbc93a245f1414769ce30824893d6632d364c94b2fdd",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "kENB2-7bZfK-lSjsZIFnSUiuUE41p56j1TlLd3Og010",
+      "event_time": "2026-11-07T05:16:38.77964914Z",
+      "outcome": "observed",
+      "phase": "P3",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ef4dbaca43bfae336fe2bbc93a245f1414769ce30824893d6632d364c94b2fdd",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "qkuVeQSTt5hkh5AftCbqqZt6tiPDOJMWF3iE7359XA8",
+      "event_time": "2026-11-07T05:16:38.861010169Z",
+      "outcome": "observed",
+      "phase": "P1",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "b390b2c0cb06c3e69e5b16a693a1ba9ffbc328a3b57705720d831086c335eca0",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "qkuVeQSTt5hkh5AftCbqqZt6tiPDOJMWF3iE7359XA8",
+      "event_time": "2026-11-07T05:16:38.861100644Z",
+      "outcome": "observed",
+      "phase": "P2",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "b390b2c0cb06c3e69e5b16a693a1ba9ffbc328a3b57705720d831086c335eca0",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "qkuVeQSTt5hkh5AftCbqqZt6tiPDOJMWF3iE7359XA8",
+      "event_time": "2026-11-07T05:16:38.861118577Z",
+      "outcome": "issued",
+      "phase": "lease",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "b390b2c0cb06c3e69e5b16a693a1ba9ffbc328a3b57705720d831086c335eca0",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "qkuVeQSTt5hkh5AftCbqqZt6tiPDOJMWF3iE7359XA8",
+      "event_time": "2026-11-07T05:16:38.864923716Z",
+      "outcome": "accepted",
+      "phase": "claim",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "b390b2c0cb06c3e69e5b16a693a1ba9ffbc328a3b57705720d831086c335eca0",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "qkuVeQSTt5hkh5AftCbqqZt6tiPDOJMWF3iE7359XA8",
+      "event_time": "2026-11-07T05:16:38.865045075Z",
+      "outcome": "observed",
+      "phase": "P3",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "b390b2c0cb06c3e69e5b16a693a1ba9ffbc328a3b57705720d831086c335eca0",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "cleanup_outcome": "closed",
+      "connector": "envoy",
+      "decision_id": "qkuVeQSTt5hkh5AftCbqqZt6tiPDOJMWF3iE7359XA8",
+      "event_time": "2026-11-07T05:16:38.949046722Z",
+      "outcome": "closed",
+      "phase": "terminal",
+      "reason": "companion_transport_closed",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "b390b2c0cb06c3e69e5b16a693a1ba9ffbc328a3b57705720d831086c335eca0",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "kENB2-7bZfK-lSjsZIFnSUiuUE41p56j1TlLd3Og010",
+      "event_time": "2026-11-07T05:16:39.108490938Z",
+      "outcome": "observed",
+      "phase": "P4",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ef4dbaca43bfae336fe2bbc93a245f1414769ce30824893d6632d364c94b2fdd",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "actual_host_action": "allow",
+      "connector": "envoy",
+      "decision_id": "kENB2-7bZfK-lSjsZIFnSUiuUE41p56j1TlLd3Og010",
+      "event_time": "2026-11-07T05:16:39.108525005Z",
+      "outcome": "allow",
+      "phase": "neutral_outcome",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ef4dbaca43bfae336fe2bbc93a245f1414769ce30824893d6632d364c94b2fdd",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc",
+      "visible_status": 200
+    },
+    {
+      "cleanup_outcome": "closed",
+      "connector": "envoy",
+      "decision_id": "kENB2-7bZfK-lSjsZIFnSUiuUE41p56j1TlLd3Og010",
+      "event_time": "2026-11-07T05:16:39.108840486Z",
+      "outcome": "closed",
+      "phase": "terminal",
+      "reason": "response_end_of_stream",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ef4dbaca43bfae336fe2bbc93a245f1414769ce30824893d6632d364c94b2fdd",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "Q0yoNOZCkk_6mf1OMP4pISqPFb-HU-TuzDtsMjdy5hE",
+      "event_time": "2026-11-07T05:16:39.111123863Z",
+      "outcome": "observed",
+      "phase": "P1",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ac3073f3250afe67e89842288a69539538d1511e3a10dffe9d9b5e3df81091d8",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "Q0yoNOZCkk_6mf1OMP4pISqPFb-HU-TuzDtsMjdy5hE",
+      "event_time": "2026-11-07T05:16:39.11119549Z",
+      "outcome": "observed",
+      "phase": "P2",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ac3073f3250afe67e89842288a69539538d1511e3a10dffe9d9b5e3df81091d8",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "Q0yoNOZCkk_6mf1OMP4pISqPFb-HU-TuzDtsMjdy5hE",
+      "event_time": "2026-11-07T05:16:39.111214766Z",
+      "outcome": "issued",
+      "phase": "lease",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ac3073f3250afe67e89842288a69539538d1511e3a10dffe9d9b5e3df81091d8",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "Q0yoNOZCkk_6mf1OMP4pISqPFb-HU-TuzDtsMjdy5hE",
+      "event_time": "2026-11-07T05:16:39.112956283Z",
+      "outcome": "accepted",
+      "phase": "claim",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ac3073f3250afe67e89842288a69539538d1511e3a10dffe9d9b5e3df81091d8",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "Q0yoNOZCkk_6mf1OMP4pISqPFb-HU-TuzDtsMjdy5hE",
+      "event_time": "2026-11-07T05:16:39.113086979Z",
+      "outcome": "observed",
+      "phase": "P3",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ac3073f3250afe67e89842288a69539538d1511e3a10dffe9d9b5e3df81091d8",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "connector": "envoy",
+      "decision_id": "Q0yoNOZCkk_6mf1OMP4pISqPFb-HU-TuzDtsMjdy5hE",
+      "event_time": "2026-11-07T05:16:39.15317695Z",
+      "outcome": "observed",
+      "phase": "P4",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ac3073f3250afe67e89842288a69539538d1511e3a10dffe9d9b5e3df81091d8",
+      "requested_action": "allow",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    },
+    {
+      "actual_host_action": "allow",
+      "connector": "envoy",
+      "decision_id": "Q0yoNOZCkk_6mf1OMP4pISqPFb-HU-TuzDtsMjdy5hE",
+      "event_time": "2026-11-07T05:16:39.15318971Z",
+      "outcome": "allow",
+      "phase": "neutral_outcome",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ac3073f3250afe67e89842288a69539538d1511e3a10dffe9d9b5e3df81091d8",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc",
+      "visible_status": 200
+    },
+    {
+      "cleanup_outcome": "closed",
+      "connector": "envoy",
+      "decision_id": "Q0yoNOZCkk_6mf1OMP4pISqPFb-HU-TuzDtsMjdy5hE",
+      "event_time": "2026-11-07T05:16:39.153427383Z",
+      "outcome": "closed",
+      "phase": "terminal",
+      "reason": "response_end_of_stream",
+      "request_path": "envoy.ext_authz",
+      "request_sha256": "ac3073f3250afe67e89842288a69539538d1511e3a10dffe9d9b5e3df81091d8",
+      "response_path": "envoy.ext_proc",
+      "transport": "envoy_ext_authz_ext_proc_grpc"
+    }
+  ],
+  "upstream": [
+    {
+      "event": "upstream_request",
+      "monotonic_ns": 55670306287497,
+      "request_body_bytes": 0,
+      "transaction_id": "envoy_ext_authz_h2-client_cancel-peer"
+    },
+    {
+      "eos_sent": false,
+      "event": "upstream_paused",
+      "monotonic_ns": 55670306763787,
+      "transaction_id": "envoy_ext_authz_h2-client_cancel-peer"
+    },
+    {
+      "event": "upstream_request",
+      "monotonic_ns": 55670393181026,
+      "request_body_bytes": 0,
+      "transaction_id": "envoy_ext_authz_h2-client_cancel-target"
+    },
+    {
+      "eos_sent": false,
+      "event": "upstream_paused",
+      "monotonic_ns": 55670393603636,
+      "transaction_id": "envoy_ext_authz_h2-client_cancel-target"
+    },
+    {
+      "eos_sent": true,
+      "event": "upstream_eos",
+      "monotonic_ns": 55670637152802,
+      "transaction_id": "envoy_ext_authz_h2-client_cancel-target"
+    },
+    {
+      "eos_sent": true,
+      "event": "upstream_eos",
+      "monotonic_ns": 55670637495708,
+      "transaction_id": "envoy_ext_authz_h2-client_cancel-peer"
+    },
+    {
+      "event": "upstream_request",
+      "monotonic_ns": 55670641550821,
+      "request_body_bytes": 0,
+      "transaction_id": "envoy_ext_authz_h2-client_cancel-followup"
+    },
+    {
+      "eos_sent": true,
+      "event": "upstream_eos",
+      "monotonic_ns": 55670641882660,
+      "transaction_id": "envoy_ext_authz_h2-client_cancel-followup"
+    }
+  ],
+  "wire": {
+    "alpn": "h2",
+    "body_bytes": {
+      "1": 10,
+      "3": 6,
+      "5": 10
+    },
+    "frames": [
+      {
+        "flags": 0,
+        "monotonic_ns": 55670294847256,
+        "size": 24,
+        "stream_id": 0,
+        "type": 4
+      },
+      {
+        "flags": 1,
+        "monotonic_ns": 55670295036901,
+        "size": 0,
+        "stream_id": 0,
+        "type": 4
+      },
+      {
+        "flags": 0,
+        "monotonic_ns": 55670295068138,
+        "size": 4,
+        "stream_id": 0,
+        "type": 8
+      },
+      {
+        "flags": 4,
+        "monotonic_ns": 55670310116950,
+        "size": 65,
+        "stream_id": 1,
+        "type": 1
+      },
+      {
+        "flags": 0,
+        "monotonic_ns": 55670347968298,
+        "size": 6,
+        "stream_id": 1,
+        "type": 0
+      },
+      {
+        "flags": 4,
+        "monotonic_ns": 55670394950081,
+        "size": 7,
+        "stream_id": 3,
+        "type": 1
+      },
+      {
+        "flags": 0,
+        "monotonic_ns": 55670434988488,
+        "size": 6,
+        "stream_id": 3,
+        "type": 0
+      },
+      {
+        "monotonic_ns": 55670435199076,
+        "peer_held": true,
+        "target_eos_held": true,
+        "type": "first_byte_before_eos"
+      },
+      {
+        "reset_code": 8,
+        "stream_id": 3,
+        "type": "client_rst_stream"
+      },
+      {
+        "decision_id": "qkuVeQSTt5hkh5AftCbqqZt6tiPDOJMWF3iE7359XA8",
+        "monotonic_ns": 55670636723808,
+        "peer_held": true,
+        "target_eos_held": true,
+        "type": "native_completion_observed"
+      },
+      {
+        "flags": 0,
+        "monotonic_ns": 55670638199764,
+        "size": 4,
+        "stream_id": 1,
+        "type": 0
+      },
+      {
+        "flags": 1,
+        "monotonic_ns": 55670638591255,
+        "size": 0,
+        "stream_id": 1,
+        "type": 0
+      },
+      {
+        "flags": 4,
+        "monotonic_ns": 55670643062162,
+        "size": 31,
+        "stream_id": 5,
+        "type": 1
+      },
+      {
+        "flags": 0,
+        "monotonic_ns": 55670683091378,
+        "size": 10,
+        "stream_id": 5,
+        "type": 0
+      },
+      {
+        "flags": 1,
+        "monotonic_ns": 55670683218902,
+        "size": 0,
+        "stream_id": 5,
+        "type": 0
+      }
+    ],
+    "requests": [
+      {
+        "body_bytes": 0,
+        "method": "GET",
+        "monotonic_ns": 55670255978953,
+        "path": "/client_cancel/peer",
+        "stream_id": 1,
+        "transaction_id": "envoy_ext_authz_h2-client_cancel-peer"
+      },
+      {
+        "body_bytes": 0,
+        "method": "GET",
+        "monotonic_ns": 55670349226909,
+        "path": "/client_cancel/target",
+        "stream_id": 3,
+        "transaction_id": "envoy_ext_authz_h2-client_cancel-target"
+      },
+      {
+        "body_bytes": 0,
+        "method": "GET",
+        "monotonic_ns": 55670639604554,
+        "path": "/client_cancel/followup",
+        "stream_id": 5,
+        "transaction_id": "envoy_ext_authz_h2-client_cancel-followup"
+      }
+    ],
+    "status": {
+      "1": 200,
+      "3": 200,
+      "5": 200
+    },
+    "terminal": {
+      "1": {
+        "flags": 1,
+        "monotonic_ns": 55670638591255,
+        "size": 0,
+        "stream_id": 1,
+        "type": 0
+      },
+      "5": {
+        "flags": 1,
+        "monotonic_ns": 55670683218902,
+        "size": 0,
+        "stream_id": 5,
+        "type": 0
+      }
+    },
+    "tls_verified": true,
+    "tls_version": "TLSv1.3"
+  }
+}

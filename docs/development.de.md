@@ -29,9 +29,9 @@ einen PASS verwandeln.
 Der Apache-Preparer behält die kanonische HTTPD-Version, Source-URL und Prüfsumme
 aus `ci/lib/common.sh`. Ein reguläres HTTPD-Archiv im zulässigen Download-Root
 darf nur nach erneuter Prüfung seiner erforderlichen literalen SHA-256
-wiederverwendet werden. Die kanonischen Prüfsummenmetadaten werden weiterhin
-vor der Extraktion abgerufen und geprüft; Cache-Wiederverwendung belegt weder
-einen Netzwerkdownload noch Host-Runtime.
+wiederverwendet werden. Geprüfte Prüfsummenmetadaten werden vor der Extraktion
+verifiziert; ein validierter privater Metadatencache darf wiederverwendet werden.
+Cache-Wiederverwendung belegt weder einen Netzwerkdownload noch Host-Runtime.
 Nach beiden Prüfsummenprüfungen wird das Archiv in den privaten Apache-Build-Root
 kopiert und dort erneut gehasht; ausschließlich diese geprüfte Kopie wird
 extrahiert.
@@ -47,6 +47,28 @@ No-Redirect-Grenze von APR-util bleiben unverändert.
 
 `make test-httpd-source-recovery` führt die fokussierte Offline-Regressionssuite
 aus. Sie prüft den Quellenbezug, nicht die Runtime-Reife eines Connectors.
+
+Die HTTPD-2.4.69-Prüfsumme wird direkt ohne Redirects von der unveränderlichen
+offiziellen Distributionsrevision
+`https://dist.apache.org/repos/dist/!svn/bc/89000/release/httpd/httpd-2.4.69.tar.bz2.sha256`
+abgerufen. Die kanonische Metadaten-URL des abgelösten Releases leitet auf
+`archive.apache.org` um; ein reproduzierter TCP-Verbindungs-Timeout dort begründet
+diese geprüfte Quellenauswahl. TLS-Prüfungen, Wiederholungsgrenzen und Timeouts
+bleiben erhalten. Exakte Release-URL, SHA-256 der Metadatenbytes, Dateiname und
+unabhängiger Archiv-Pin aus `common.sh` müssen vor der Extraktion übereinstimmen.
+Eine neue Version erfordert eine geprüfte Revision-/Objektanpassung. Der echte
+direkte HTTP-200-/TLS-Transfer und beide Hashes werden getrennt von der kanonischen
+Quellidentität aufbewahrt; ein gültiger privater Metadatencache belegt geprüfte
+Bytes, keinen frischen Netzwerktransfer.
+
+Beim unabhängig geprüften HTTPD-2.4.69-Tupel wählt dasselbe direkte primäre 404
+stattdessen das nachgewiesene unveränderliche Source-Archiv der
+Distributionsrevision 89000, passend zum obigen Prüfsummenobjekt. Nativer
+Python-Cacheproducer und eigenständiger Apache-Preparer verlangen direktes HTTP
+200 ohne Redirect sowie den unveränderten unabhängigen Archiv-Pin. Der native
+Producer erstellt vor dem Bezug seinen eigenen Cachemarker; kopierte Dateien
+dürfen nicht durch erfundene Marker adoptiert werden. Andere Release-Tupel
+behalten die bisherige Archiv-Wiederherstellung bei.
 
 ### Konfigurierte NGINX-Header für C-Prüfungen
 

@@ -1797,3 +1797,72 @@ func TestRemovedResponseBodyOptionIsRejected(t *testing.T) {
 		t.Fatal("host decoder legacy response option accepted")
 	}
 }
+
+// This opt-in regression distinguishes a policy-requested host abort from a
+// fabricated acknowledgement. Real Yaegi/H2 transport is tested separately.
+func TestStrictLateResponseRequestsHostAbort(t *testing.T) {
+	transaction := &recordingTransaction{bodyDecision: func(direction Direction, _ []byte, end bool) Decision {
+		if direction == DirectionResponse && end {
+			return Decision{Action: ActionDeny, Status: 403}
+		}
+		return allowDecision()
+	}}
+	config := CreateConfig()
+	config.EngineSocketPath = "/private/engine.sock"
+	config.Phase4Mode = "strict"
+	handler, err := newWithEngine(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("first")) }), config, "strict", &recordingEngine{transaction: transaction})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if got := recover(); got != http.ErrAbortHandler {
+			t.Errorf("ServeHTTP(strict late deny) panic = %v, want ErrAbortHandler", got)
+		}
+		if len(transaction.closed) != 1 {
+			t.Fatalf("Close(strict) calls = %d, want 1", len(transaction.closed))
+		}
+		summary := transaction.closed[0]
+		if !summary.ResponseIncomplete || summary.LateAction != "strict_abort_requested" {
+			t.Errorf("Close(strict) summary = %+v, want incomplete strict_abort_requested", summary)
+		}
+	}()
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://example.test/", nil).WithContext(context.Background()))
+}
+
+func TestPhase4ModeRejectsUnknownPolicy(t *testing.T) {
+	config := CreateConfig()
+	config.EngineSocketPath = "/private/engine.sock"
+	config.Phase4Mode = "typo"
+	if _, err := normalizedConfig(config); err == nil {
+		t.Error("normalizedConfig(typo) error = nil, want invalid policy")
+	}
+}
+
+func TestCompleteDenialSurvivesDownstreamAbort(t *testing.T) {
+	transaction := &recordingTransaction{headerDecision: func(direction Direction, _ []Header, _ bool) Decision {
+		if direction == DirectionResponse {
+			return Decision{Action: ActionDeny, Status: 403}
+		}
+		return allowDecision()
+	}}
+	handler := newTestMiddleware(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		panic(http.ErrAbortHandler)
+	}), transaction)
+	writer := httptest.NewRecorder()
+	handler.ServeHTTP(writer, httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
+	if writer.Code != 403 {
+		t.Errorf("ServeHTTP(complete denial then abort) status = %d, want 403", writer.Code)
+	}
+}
+
+func TestUnrelatedDownstreamPanicEscapes(t *testing.T) {
+	transaction := &recordingTransaction{}
+	handler := newTestMiddleware(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("unrelated") }), transaction)
+	defer func() {
+		if got := recover(); got != "unrelated" {
+			t.Errorf("ServeHTTP(unrelated panic) = %v, want unrelated", got)
+		}
+	}()
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "http://example.test/", nil))
+}

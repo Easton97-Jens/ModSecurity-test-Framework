@@ -23,6 +23,22 @@ def approved_contract():
     return url, values["HTTPD_SHA256"]
 
 
+# Immutable official release-distribution object, observed over verified TLS.
+# A version update requires an independently reviewed object and metadata digest.
+HTTPD_METADATA_CANONICAL_URL = "https://downloads.apache.org/httpd/httpd-2.4.69.tar.bz2"
+HTTPD_METADATA_URL = "https://dist.apache.org/repos/dist/!svn/bc/89000/release/httpd/httpd-2.4.69.tar.bz2.sha256"
+HTTPD_METADATA_SHA256 = "7351aea97f61589f9803d432dc59e1002ba06e3b344fdba9ca281c2e82cf0b08"
+
+
+def metadata_source(source_url, checksum_url, expected_sha):
+    approved_url, approved_sha = approved_contract()
+    if (approved_url != HTTPD_METADATA_CANONICAL_URL
+            or source_url != approved_url or checksum_url != approved_url + ".sha256"
+            or expected_sha != approved_sha):
+        raise ValueError("HTTPD immutable metadata source requires its reviewed release tuple")
+    return HTTPD_METADATA_URL
+
+
 def private_file(path, limit):
     path = Path(path)
     if not path.is_absolute() or ".." in path.parts:
@@ -80,7 +96,7 @@ def hash_archive(descriptor, info):
     return digest.hexdigest()
 
 
-def verify_cache(archive, checksum, source_url, checksum_url, expected_sha):
+def verify_cache(archive, checksum, source_url, checksum_url, expected_sha, downloaded_from=None):
     approved_url, approved_sha = approved_contract()
     archive, checksum = Path(archive), Path(checksum)
     require_provider_identity(archive, checksum, source_url, checksum_url, expected_sha, approved_url, approved_sha)
@@ -88,13 +104,17 @@ def verify_cache(archive, checksum, source_url, checksum_url, expected_sha):
     archive_descriptor, archive_info = None, None
     try:
         metadata = checked_metadata(metadata_descriptor, approved_sha, archive.name)
+        immutable_url = metadata_source(source_url, checksum_url, expected_sha)
+        if (hashlib.sha256(metadata).hexdigest() != HTTPD_METADATA_SHA256
+                or downloaded_from is not None and downloaded_from != immutable_url):
+            raise ValueError("HTTPD metadata does not match the reviewed immutable official object")
         archive_descriptor, archive_info = private_file(archive, 512 * 1024 * 1024)
         archive_sha = hash_archive(archive_descriptor, archive_info)
         if (archive_sha != approved_sha
                 or file_identity(os.fstat(metadata_descriptor)) != file_identity(metadata_info)):
             raise ValueError("cached HTTPD archive/metadata integrity mismatch")
-        return {"schema_version": 1, "provenance": "cached_verified_metadata", "source_url": approved_url,
-                "checksum_url": checksum_url, "archive_sha256": archive_sha,
+        return {"schema_version": 1, "provenance": "downloaded_verified_metadata" if downloaded_from is not None else "cached_verified_metadata", "source_url": approved_url,
+                "checksum_url": checksum_url, "downloaded_from": downloaded_from, "archive_sha256": archive_sha,
                 "checksum_sha256": hashlib.sha256(metadata).hexdigest(), "archive": str(archive), "checksum": str(checksum)}
     finally:
         os.close(metadata_descriptor)
@@ -106,9 +126,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("archive", "checksum", "source-url", "checksum-url", "expected-sha"):
         parser.add_argument("--" + name, required=True)
+    parser.add_argument("--print-download-url", action="store_true")
+    parser.add_argument("--print-archive-url", action="store_true")
+    parser.add_argument("--downloaded-from")
     args = parser.parse_args()
     try:
-        result = verify_cache(args.archive, args.checksum, args.source_url, args.checksum_url, args.expected_sha)
+        if args.print_download_url or args.print_archive_url:
+            selected_url = metadata_source(args.source_url, args.checksum_url, args.expected_sha)
+            print(selected_url.removesuffix(".sha256") if args.print_archive_url else selected_url)
+            return 0
+        result = verify_cache(args.archive, args.checksum, args.source_url, args.checksum_url, args.expected_sha,
+                              args.downloaded_from)
     except (OSError, ValueError):
         return 1
     print(json.dumps(result, sort_keys=True))

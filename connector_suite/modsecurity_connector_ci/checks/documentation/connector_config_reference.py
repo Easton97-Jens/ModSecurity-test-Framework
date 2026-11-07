@@ -2875,7 +2875,7 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
             "values": ALLOWED_VALUES_TRAEFIK_UDS_CHUNK,
             "default": "32768",
             "effect": "Caps each streamed response-body chunk offered to the native middleware engine.",
-            "phase": "P4 response-body callback bound; a late disruptive result remains log-only after response commitment.",
+            "phase": "P4 response-body callback bound; late intervention follows the selected native middleware phase4Mode.",
             "security": "The UDS wire contract rejects values above 32768; retain the bound for response-stream resource control.",
         },
         "transactionIDHeader": {
@@ -2885,6 +2885,14 @@ def _traefik_plugin_option(path: str, source_file: str, example_file: str) -> di
             "effect": "Selects the incoming request header used to correlate middleware and engine transaction metadata.",
             "phase": "P1 request-header metadata selection; the value is carried through later lifecycle summaries, not used as a policy rule by itself.",
             "security": "Do not put credentials or arbitrary sensitive payload into a correlation header; event/log consumers must protect it.",
+        },
+        "phase4Mode": {
+            "type": "native middleware late-response policy enum",
+            "values": "safe | strict",
+            "default": "safe",
+            "effect": "Selects Safe log-only acknowledgement or Strict native handler abort after a committed disruptive Phase 4 decision.",
+            "phase": "P4 committed-response intervention; pre-commit decisions retain their normal HTTP status mapping.",
+            "security": "Strict requests the host abort path; independent native protocol and cleanup evidence must establish its effect.",
         },
         "engineMode": {
             "type": "native middleware engine-mode enum",
@@ -2922,7 +2930,7 @@ def traefik_yaml_options(root: Path, static_source: str, dynamic_source: str) ->
     options: list[dict[str, Any]] = []
     paths = [(static_source, path) for path in extract_yaml_paths(root / static_source)] + [(dynamic_source, path) for path in extract_yaml_paths(root / dynamic_source)]
     seen: set[str] = set()
-    plugin_leaves = {"maxHeaderCount", "maxHeaderBytes", "maxRequestChunkBytes", "requestBodyIdleTimeoutMillis", "maxResponseChunkBytes", "transactionIDHeader", "engineMode", "engineSocketPath"}
+    plugin_leaves = {"maxHeaderCount", "maxHeaderBytes", "maxRequestChunkBytes", "requestBodyIdleTimeoutMillis", "maxResponseChunkBytes", "transactionIDHeader", "phase4Mode", "engineMode", "engineSocketPath"}
     values_by_source = {static_source: extract_yaml_example_values(root / static_source), dynamic_source: extract_yaml_example_values(root / dynamic_source)}
     for source, path in paths:
         if path in seen:
@@ -3023,7 +3031,7 @@ def _assert_traefik_defaults(root: Path, by_key: dict[tuple[str, str], str]) -> 
             raise ValueError(f"Traefik plugin default source changed: expected {token!r}")
     for suffix, expected in {
         "maxHeaderCount": "128", "maxHeaderBytes": "65536", "maxRequestChunkBytes": "32768",
-        "requestBodyIdleTimeoutMillis": "1000", "maxResponseChunkBytes": "32768", "transactionIDHeader": "X-Request-Id", "engineMode": "uds",
+        "requestBodyIdleTimeoutMillis": "1000", "maxResponseChunkBytes": "32768", "transactionIDHeader": "X-Request-Id", "phase4Mode": "safe", "engineMode": "uds",
     }.items():
         matches = [value for (connector, name), value in by_key.items() if connector == "traefik" and name.endswith(suffix)]
         if not matches or any(value != expected for value in matches):
@@ -3287,7 +3295,6 @@ GERMAN_TEXT: dict[str, str] = {
     "Engine-specific; not a host connector merge setting.": "Engine-spezifisch; keine Merge-Einstellung des Hostconnectors.",
     "Host YAML/API defined; not a Common Runtime merge setting.": "Durch Host-YAML/API bestimmt; keine Common-Runtime-Merge-Einstellung.",
     "Host-defined compatibility behavior; not native plugin inheritance.": "Hostdefiniertes Kompatibilitätsverhalten; keine native Plugin-Vererbung.",
-    HOST_DEFINED_NOT_IMPLEMENTED: "Hostdefiniert; nicht durch diesen Connector implementiert.",
     "No connector-local inheritance callback is registered; each filter declaration owns one filter configuration.": "Es ist kein Connector-lokaler Vererbungs-Callback registriert; jede Filterdeklaration besitzt eine Filterkonfiguration.",
     "No file-level inheritance; host integrations may merge their own configuration before starting Common Runtime.": "Keine Vererbung auf Dateiebene; Hostintegrationen können ihre eigene Konfiguration vor dem Start der Common Runtime zusammenführen.",
     "No inheritance; one JSON object is decoded with unknown fields rejected.": "Keine Vererbung; ein JSON-Objekt wird dekodiert, unbekannte Felder werden abgewiesen.",
@@ -3304,7 +3311,6 @@ GERMAN_TEXT: dict[str, str] = {
     "not applicable to native plugin": "nicht auf das native Plugin anwendbar",
     "not documented as native inheritance": "nicht als native Vererbung dokumentiert",
     "not part of ext_proc configuration": "nicht Teil der ext_proc-Konfiguration",
-    NOT_PART_OF_NATIVE_MIDDLEWARE: "nicht Teil der nativen Middleware",
 
     "--listen overrides listen_address after JSON decoding; other flags are direct process inputs.": "--listen überschreibt listen_address nach dem JSON-Dekodieren; andere Optionen sind direkte Prozesseingaben.",
     "Common scalar values use child-over-parent merge; rule sets are merged through msc_rules_merge. Transaction-id expression/static-id are mutually exclusive.": "Common-Skalarwerte verwenden einen Kind-vor-Eltern-Merge; Regelsätze werden über msc_rules_merge zusammengeführt. Transaktions-ID-Ausdruck und statische ID schließen sich gegenseitig aus.",
@@ -3540,6 +3546,12 @@ GERMAN_TEXT: dict[str, str] = {
     "Loads optional engine configuration/rules if present.": "Lädt optionale Engine-Konfiguration/Regeln, sofern vorhanden.",
     "Loads rules from a local file.": "Lädt Regeln aus einer lokalen Datei.",
     "Loads rules with msc_rules_add_file during filter initialisation.": "Lädt bei der Filterinitialisierung Regeln mit msc_rules_add_file.",
+    "native middleware late-response policy enum": "Enum für die späte Antwortrichtlinie der nativen Middleware",
+    "safe | strict": "safe | strict",
+    "Selects Safe log-only acknowledgement or Strict native handler abort after a committed disruptive Phase 4 decision.": "Wählt Safe mit Log-only-Bestätigung oder Strict mit nativem Handler-Abbruch bei einer disruptiven Phase-4-Entscheidung nach dem Antwort-Commit.",
+    "P4 committed-response intervention; pre-commit decisions retain their normal HTTP status mapping.": "P4-Intervention nach dem Antwort-Commit; Entscheidungen vor dem Commit behalten ihre normale HTTP-Statuszuordnung.",
+    "Strict requests the host abort path; independent native protocol and cleanup evidence must establish its effect.": "Strict fordert den Host-Abbruchpfad an; unabhängige native Protokoll- und Freigabenachweise müssen dessen Wirkung belegen.",
+    "P4 response-body callback bound; late intervention follows the selected native middleware phase4Mode.": "P4-Response-Body-Callback-Grenze; späte Interventionen folgen dem ausgewählten phase4Mode der nativen Middleware.",
     "Names the private UDS path used by native middleware when engineMode is uds.": "Benennt den privaten UDS-Pfad, den die native Middleware bei engineMode=uds verwendet.",
     "Passes the key/URL pair to libmodsecurity's remote-rule loader.": "Übergibt das Schlüssel-/URL-Paar an den Remote-Regel-Loader von libmodsecurity.",
     "Provides surrounding host setup used by the selected connector example.": "Stellt die umgebende Hosteinrichtung bereit, die vom ausgewählten Connector-Beispiel verwendet wird.",

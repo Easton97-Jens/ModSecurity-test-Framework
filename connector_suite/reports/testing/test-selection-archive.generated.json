@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "0c593b006b65702dd59f31e5bfb858aeb7fa1e11a51f8713be498c5710710569",
+  "inventory_sha256": "4c5f7b17058822fbcbb5598d1f11daa202ff8b9088191b36131ffccdb8b36773",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -990,6 +990,11 @@
       "source_sha256": "a8fa48f1098654971056a2da8486db25675a6c349c84d34d201f57ad2bef464a"
     },
     {
+      "framework_path": "connector_suite/adapters/traefik/harness/native_h2_observer.c",
+      "source": "framework/connector_suite/adapters/traefik/harness/native_h2_observer.c",
+      "source_sha256": "6d34687e4bcd2d5bb5b63dd3ef25c3ba484ca496657e3f0ee8cffffc6f65137e"
+    },
+    {
       "framework_path": "connector_suite/adapters/traefik/src/traefik_forwardauth_response_companion_test.c",
       "source": "connectors/traefik/src/traefik_forwardauth_response_companion_test.c",
       "source_sha256": "4dc0e345996e969707d3ae941db5f9472809e2380b05941bcb3b071d2adea324"
@@ -1350,10 +1355,31 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8190,
+  "on_demand_definition_count": 8241,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/adapters/composite_harness/test_companion_h2_acceptance.py",
+      "on_demand_definitions": [
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_post_cleanup_source_or_artifact_change_cannot_publish_pass",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_cleanup_failure_discards_validated_results",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_actual_native_allow_metadata",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_missing_traffic_fails",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_actual_native_binding_corruptions_fail",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_failed_cleanup_is_rejected",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_phase2_entity_and_common_rule_required",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_held_case_requires_real_first_data_and_cleanup_barriers",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_unattributed_cancel_cannot_substitute_ordinary_eos",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_real_strict_metadata_and_corruption_controls",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_real_cancel_requires_typed_transport_cleanup",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_target_eos_absence_and_confounding_reset_are_rejected",
+        "connector_suite.adapters.composite_harness.test_companion_h2_acceptance.CompanionReaderTests.test_safe_target_requires_confirmed_eos_and_no_abort"
+      ],
+      "source": "framework/connector_suite/adapters/composite_harness/test_companion_h2_acceptance.py",
+      "source_sha256": "d175c7a9372d8f4162dae79380cf4689032e3a1413c5521bbae4991d5ca6137d"
+    },
     {
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/adapters/composite_harness/test_verify_matrix_evidence.py",
@@ -1521,10 +1547,12 @@
         "TestNeutralOutcomeRequiresCommittedResponseEnd",
         "TestDispatcherDoesNotReplayFailedObserver",
         "TestCoordinatorReportsCleanupFailureWithoutDuplicateTerminal",
-        "TestCoordinatorReportsCleanupFailureAfterAdmissionClosesDuringOpen"
+        "TestCoordinatorReportsCleanupFailureAfterAdmissionClosesDuringOpen",
+        "TestCompositeStrictRequiresNativePolicyAdmission",
+        "TestCompositeStrictIntentRequiresCommitAndDisruptiveP4"
       ],
       "source": "connectors/envoy/ext_proc/internal/composite/coordinator_test.go",
-      "source_sha256": "50659c11650976d144603a07dddfaa696959db98539e189570d469c7639d9846"
+      "source_sha256": "98a8627d754e2d4384f3603e6c7ec7012e6b1399632a71eead0f3bc34f60beda"
     },
     {
       "contains_selected_definitions": [],
@@ -1673,10 +1701,11 @@
         "TestCommonRuntimeCloseReportsTerminalEventSinkFailure",
         "TestCommonRuntimeCloseObservedCompositeTimeoutKeepsNativeTerminal",
         "TestCommonRuntimeCloseObservedCompositeRestartKeepsNativeTerminal",
+        "TestCommonRuntimeCloseObservedCompanionTransportDoesNotInventEOS",
         "TestCommonRuntimeCloseIncompleteHealthySinkKeepsSequenceEvent"
       ],
       "source": "connectors/envoy/ext_proc/internal/processor/common_runtime_engine_test.go",
-      "source_sha256": "7e9a89cb1e233dcbc23c740a8636786c4bd65f57aa6fae6efe07f2aacbcac455"
+      "source_sha256": "a314e337b64631653dfd72994598f90fe83efbb105eacf320565f5513ef13599"
     },
     {
       "contains_selected_definitions": [],
@@ -2253,10 +2282,14 @@
         "TestMiddlewareRejectsProtocolSwitchBeforeP3",
         "TestParseResultRejectsUnexpectedTerminalFlag",
         "TestParseResultAcceptsPostCommitLogOnlyFlagOnlyAtP4",
-        "TestNewRejectsUnsafeSocketPath"
+        "TestNewRejectsUnsafeSocketPath",
+        "TestCompanionSmallInspectedChunkFlushesBeforeEOS",
+        "TestCompanionStrictAbortRecordsIntentThenNativeSentinel",
+        "TestCompanionMidChunkStrictClosesTransportWithoutInventingEOS",
+        "TestCompanionStrictFlagAcceptedOnlyForBodyReply"
       ],
       "source": "connectors/traefik/composite_middleware/middleware_test.go",
-      "source_sha256": "c1e8a3881b216a7105830e6b408150b38f5d65ac59f75f4c68052021daa376c5"
+      "source_sha256": "ef4465a5996333bafe0fe1978addd5dec874cfe18d0eb572e1d8cef3eb7a789a"
     },
     {
       "contains_selected_definitions": [],
@@ -2425,10 +2458,14 @@
         "TestEngineErrorAfterCommittedResponseDoesNotInventResponseEOS",
         "TestCreateConfigFailsClosedUntilUDSEngineIsConfigured",
         "TestRemovedBodyOptionJSONIsRejected",
-        "TestRemovedResponseBodyOptionIsRejected"
+        "TestRemovedResponseBodyOptionIsRejected",
+        "TestStrictLateResponseRequestsHostAbort",
+        "TestPhase4ModeRejectsUnknownPolicy",
+        "TestCompleteDenialSurvivesDownstreamAbort",
+        "TestUnrelatedDownstreamPanicEscapes"
       ],
       "source": "connectors/traefik/native_middleware/middleware_test.go",
-      "source_sha256": "66d5b4acc9662920a9d4e45167c1fe0ce9e2d15b04c73d791d38bad608cf71ff"
+      "source_sha256": "6bcc7dcac61e7a2d12c52045350c26bd27ea104a40a13ab2bd00650c2dd437db"
     },
     {
       "contains_selected_definitions": [],
@@ -6466,11 +6503,14 @@
         "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_valid_private_cache_rechecks_actual_bytes_without_network",
         "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_wrong_provider_pin_or_filename_cannot_authorize_cache_reuse",
         "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_wrong_actual_source_or_cached_checksum_fails",
+        "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_immutable_source_is_exact_current_release_and_cannot_be_replaced",
+        "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_downloaded_object_requires_exact_source_and_independent_metadata_digest",
+        "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_shell_download_failure_and_redirect_do_not_reach_metadata_verifier",
         "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_symlink_hardlink_fifo_and_public_files_are_rejected",
         "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_symlinked_ancestor_does_not_redirect_private_cache_read"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_httpd_checksum_cache.py",
-      "source_sha256": "6eb5e231079e3e65aa3cc41101691d660f768ffea388413917668b5b5d9cf95f"
+      "source_sha256": "902ac6b098e9c99362d80c1e3de881e71218f9f3a6981b1dd7a75a13a12fc0b4"
     },
     {
       "contains_selected_definitions": [],
@@ -9579,6 +9619,8 @@
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_httpd_recovery_rejects_redirects_non404_and_foreign404",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_httpd_recovery_rejects_archived_redirect_and_corruption_before_archive_listing",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_httpd_recovery_rejects_noncanonical_or_unpinned_inputs_before_side_effects",
+        "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_current_httpd_404_uses_reviewed_immutable_distribution_and_native_marker",
+        "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_current_httpd_distribution_rejects_redirect_non200_corruption_and_wrong_pin",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_httpd_source_recovery_is_an_explicit_single_component_policy",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_nginx_archive_records_reject_invalid_provenance_before_side_effects",
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_required_runtime_component_sources_scopes_nginx_preflight_to_nginx_targets",
@@ -9653,7 +9695,7 @@
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root"
       ],
       "source": "tests/test_prepare_runtime_components.py",
-      "source_sha256": "a561cf89ad81bfa15268d5891478307a937b92efda3927aa798ae98da3b3109e"
+      "source_sha256": "2939ede8a3067b80ed7ba828b9a63c65e1c7417af4f2c1dfde1888bad1536254"
     },
     {
       "contains_selected_definitions": [],
@@ -11442,6 +11484,36 @@
       ],
       "source": "tests/test_traefik_i12_tls.py",
       "source_sha256": "26525ac7203946623fbf2b55e6b6ad6657657dec458dbfe124df10a740062daa"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_traefik_native_h2_acceptance.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_complete_strict_evidence_is_accepted",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_zero_native_rows_fail",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_missing_wire_traffic_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_wrong_reset_code_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_foreign_transaction_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_duplicate_cleanup_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_wrong_rule_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_protocol_fallback_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_reset_peer_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_cleanup_without_held_peer_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_strict_mislabeled_log_only_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_wrong_response_byte_count_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_incomplete_native_writer_record_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_strict_without_target_upstream_eos_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_strict_upstream_reset_confounds_fail",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_duplicate_peer_missing_followup_access_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_crossed_native_request_id_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_wrong_native_status_or_bytes_fail",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_native_rule_wrong_uri_or_method_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_wrong_actual_wire_method_or_entity_fails",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_native_writer_terminal_states_fail_closed",
+        "modsecurity_connector_tests.test_traefik_native_h2_acceptance.NativeH2ContractTests.test_phase2_requires_native_method_uri_and_actual_entity"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_traefik_native_h2_acceptance.py",
+      "source_sha256": "02e3b0cd5f57bbc006842fc4fcf0cda2dc37e4d841555313414d7425811f4231"
     },
     {
       "contains_selected_definitions": [],
@@ -13563,7 +13635,7 @@
         "modsecurity_test_framework.selftests.no_crs.test_non_nginx_h2_registry.NativeH2RegistryTests.test_missing_duplicate_foreign_zero_and_failed_results_rejected"
       ],
       "source": "framework/tests/no_crs/test_non_nginx_h2_registry.py",
-      "source_sha256": "3132e540f23db3feb9633ff158a9fda6d0d69317df59c0b8734bc3be38c0b67f"
+      "source_sha256": "7ad4a6ddd19f93b251e877bd0be2d20a4fce35366eda42cd6fba208da18e4062"
     },
     {
       "contains_selected_definitions": [],
@@ -14109,7 +14181,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.HttpdSourceRecoveryTests.test_build_consumes_private_verified_archive_before_extraction"
       ],
       "source": "framework/tests/security_regression/test_httpd_source_recovery.py",
-      "source_sha256": "eb778af718e1c1e2bd9218c88fa45eb5c79c28c6124153dd6602b691531d9db9"
+      "source_sha256": "548c74d2632fbd4972063a107ae0b0cbef54759ff4c185cd190d37e99b9b8b76"
     },
     {
       "contains_selected_definitions": [],

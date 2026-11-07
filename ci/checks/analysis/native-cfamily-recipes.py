@@ -20,6 +20,7 @@ NATIVE_UNITS = (
     "connector_suite/adapters/traefik/harness/i12/native/acceptance_faults.c",
     "connector_suite/adapters/traefik/harness/i12/native/acceptance_syscalls.c",
     "connector_suite/adapters/traefik/harness/i12_file/sdk_capability.c",
+    "connector_suite/adapters/traefik/harness/native_h2_observer.c",
     "connector_suite/adapters/traefik/src/traefik_forwardauth_response_companion_test.c",
     "connector_suite/common/scripts/modsecurity_targeted_eval.cc",
     "connector_suite/common/src/test_result.c",

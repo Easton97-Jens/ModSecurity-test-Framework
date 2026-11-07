@@ -1028,3 +1028,42 @@ func waitForRecordedLifecycleEvent(log *eventLog) {
 		time.Sleep(time.Millisecond)
 	}
 }
+
+type admittedStrictEngine struct{ fakeEngine }
+
+func (*admittedStrictEngine) ValidateLateActionPolicy(processor.LateActionPolicy) error { return nil }
+
+func TestCompositeStrictRequiresNativePolicyAdmission(t *testing.T) {
+	if c, err := New("envoy", make([]byte, 32), Limits{LateActionPolicy: processor.LateActionStrict}, &fakeEngine{}, nil); err == nil {
+		c.Close()
+		t.Fatal("nonvalidating engine admitted Strict")
+	}
+}
+
+func TestCompositeStrictIntentRequiresCommitAndDisruptiveP4(t *testing.T) {
+	c, err := New("envoy", make([]byte, 32), Limits{LateActionPolicy: processor.LateActionStrict}, &admittedStrictEngine{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	response := claimedResponse(t, c, "session")
+	if err := response.RecordLateAbortRequested(context.Background(), "strict_immediate_response_sent", 200); err == nil {
+		t.Fatal("uncommitted Allow forged abort")
+	}
+	if err := response.MarkResponseCommitted(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := response.RecordLateAbortRequested(context.Background(), "strict_immediate_response_sent", 200); err == nil {
+		t.Fatal("committed Allow forged abort")
+	}
+	response.e.p4Disruptive = true
+	if err := response.RecordLateAbortRequested(context.Background(), "strict_immediate_response_sent", 200); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.e.tx.(*fakeTx).actions) != 0 {
+		t.Fatal("transport intent fabricated Common host confirmation")
+	}
+	if err := response.RecordLateAbortRequested(context.Background(), "strict_immediate_response_sent", 200); err == nil {
+		t.Fatal("duplicate abort intent admitted")
+	}
+}

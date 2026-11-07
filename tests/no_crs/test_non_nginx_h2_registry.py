@@ -10,16 +10,22 @@ from tests.runners import protocol_acceptance_contract as nginx
 class NativeH2RegistryTests(unittest.TestCase):
     def test_registered_adapters_exist_without_default_or_nginx_collision(self):
         root = Path(__file__).resolve().parents[2]
-        self.assertEqual(len(registry.CASES), 32)
+        self.assertEqual(len(registry.CASES), 56)
         self.assertEqual(len(nginx.CASES), 25)
         self.assertFalse(set(registry.CASES) & set(nginx.CASES))
         for adapter in {case["adapter"] for case in registry.CASES.values()}:
             self.assertTrue((root / adapter).is_file(), adapter)
         self.assertTrue(all(case["selection"] == "opt_in" for case in registry.CASES.values()))
+        # Preserve the original four qualified profile selections and distinguish
+        # the two integration modes sharing a companion executor.
+        for prefix in ("apache_h2", "haproxy_htx_h2", "haproxy_spop_htx_h2", "envoy_h2"):
+            self.assertEqual(sum(case.startswith(prefix + "_") for case in registry.CASES), 8)
+        for prefix in ("envoy_ext_authz_h2", "traefik_forwardauth_h2"):
+            self.assertEqual(registry.CASES[prefix + "_allow"]["adapter_arguments"], ["--adapter", prefix])
 
     def test_missing_duplicate_foreign_zero_and_failed_results_rejected(self):
         rows = [{"case_id": case, "status": "PASS"} for case in registry.CASES]
-        self.assertEqual(registry.validate_results(rows)["evaluated"], 32)
+        self.assertEqual(registry.validate_results(rows)["evaluated"], 56)
         corruptions = [[], rows[:-1], rows + [rows[0]], None, [{"status": "PASS"}]]
         for key, value in (("case_id", "foreign"), ("status", "FAIL"), ("status", "BLOCKED")):
             changed = deepcopy(rows)
