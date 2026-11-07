@@ -1127,7 +1127,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
 
     def test_current_httpd_404_uses_reviewed_immutable_distribution_and_native_marker(self) -> None:
         metadata = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
-        url = metadata.HTTPD_METADATA_CANONICAL_URL
+        url, _ = metadata.approved_contract()
         recovered = metadata.HTTPD_METADATA_URL.removesuffix(".sha256")
         payload = self.httpd_fixture_archive()
         digest = hashlib.sha256(payload).hexdigest()
@@ -1148,7 +1148,7 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
 
     def test_current_httpd_distribution_rejects_redirect_non200_corruption_and_wrong_pin(self) -> None:
         metadata = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
-        url = metadata.HTTPD_METADATA_CANONICAL_URL
+        url, _ = metadata.approved_contract()
         recovered = metadata.HTTPD_METADATA_URL.removesuffix(".sha256")
         payload = self.httpd_fixture_archive()
         digest = hashlib.sha256(payload).hexdigest()

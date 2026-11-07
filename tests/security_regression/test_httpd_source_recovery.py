@@ -42,7 +42,6 @@ class HttpdSourceRecoveryTests(unittest.TestCase):
         # synthetic-release fixture. Production has no tuple/endpoint override.
         helper_tree = ast.parse((ROOT / "ci/provisioning/httpd-checksum-cache.py").read_text())
         replacements = {
-            "HTTPD_METADATA_CANONICAL_URL": SOURCE_URL,
             "HTTPD_METADATA_URL": METADATA_URL,
             "HTTPD_METADATA_SHA256": hashlib.sha256(self.metadata.read_bytes()).hexdigest(),
         }
@@ -82,7 +81,7 @@ case "$url" in
         fi
         cp "$METADATA" "$out"; printf '200|0|100|0.1\\n'; exit 0 ;;
     https://downloads.apache.org/apr/*) mode=200 ;;
-    https://archive.apache.org/*) mode=$ALTERNATE_MODE ;;
+    https://archive.apache.org/*|https://dist.apache.org/repos/dist/*) mode=$ALTERNATE_MODE ;;
     *) mode=$PRIMARY_MODE ;;
 esac
 case "$mode" in
@@ -106,7 +105,7 @@ esac
         functions = source[source.index("blocked() {"):source.index("resolve_apache_tools() {")]
         helper_reference = '"$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py"'
         if os.environ.get("HTTPD_RECOVERY_BASELINE") != "1":
-            self.assertEqual(functions.count(helper_reference), 4)
+            self.assertEqual(functions.count(helper_reference), 5)
             functions = functions.replace(helper_reference, '"' + str(self.checksum_helper) + '"')
         self.functions = self.root / "functions.sh"
         self.functions.write_text(functions)
@@ -189,8 +188,18 @@ build_httpd_from_source
         self.assertEqual(self.archive.read_bytes(), PAYLOAD)
         self.assertEqual(self.urls(), [
             SOURCE_URL,
-            f"https://archive.apache.org/dist/httpd/{ARCHIVE_NAME}",
+            METADATA_URL.removesuffix(".sha256"),
         ])
+        # A different reviewed immutable filename does not change the existing
+        # retired-release policy for another canonical version.
+        self.archive.unlink()
+        self.network.unlink()
+        self.checksum_helper.write_text(self.checksum_helper.read_text().replace(
+            METADATA_URL, METADATA_URL.replace("2.4.999", "2.4.998")))
+        result = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(self.archive.read_bytes(), PAYLOAD)
+        self.assertEqual(self.urls(), [SOURCE_URL, f"https://archive.apache.org/dist/httpd/{ARCHIVE_NAME}"])
 
     def test_verified_cache_survives_without_network(self):
         self.archive.write_bytes(PAYLOAD)

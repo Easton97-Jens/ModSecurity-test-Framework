@@ -12,7 +12,7 @@ from unittest import mock
 from modsecurity_test_framework.connector_context import load_source, test_root
 
 HELPER = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
-URL = "https://downloads.apache.org/httpd/httpd-2.4.69.tar.bz2"
+URL, _ = HELPER.approved_contract()
 PAYLOAD = b"controlled source archive fixture"
 DIGEST = hashlib.sha256(PAYLOAD).hexdigest()
 
@@ -74,6 +74,16 @@ class HttpdChecksumCacheTests(unittest.TestCase):
                         (approved_url, approved_url + ".sha256", "0" * 64)):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 HELPER.metadata_source(*changes)
+        for changed_url in (approved_url.replace("downloads.apache.org", "foreign.invalid"),
+                            approved_url.replace("https://", "http://"),
+                            approved_url.replace("downloads.apache.org", "downloads.apache.org:443"),
+                            approved_url + "?mirror=other", approved_url + "#fragment",
+                            approved_url.replace("/httpd/", "/other/"),
+                            approved_url.replace("2.4.69", "2.4.70")):
+            with self.subTest(changed_url=changed_url), \
+                    mock.patch.object(HELPER, "approved_contract", return_value=(changed_url, approved_sha)), \
+                    self.assertRaises(ValueError):
+                HELPER.metadata_source(changed_url, changed_url + ".sha256", approved_sha)
 
     def test_downloaded_object_requires_exact_source_and_independent_metadata_digest(self):
         with tempfile.TemporaryDirectory(prefix="httpd-metadata-object-") as temporary:

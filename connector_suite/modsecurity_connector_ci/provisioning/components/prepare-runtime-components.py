@@ -2540,7 +2540,7 @@ def httpd_archive_recovery_url(url: str, expected_sha: str) -> str:
     # distribution object. Other release recovery retains its existing policy.
     from modsecurity_test_framework.connector_context import load_source
     metadata = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
-    if url == metadata.HTTPD_METADATA_CANONICAL_URL:
+    if metadata.is_reviewed_release(url):
         try:
             return metadata.metadata_source(url, url + ".sha256", expected_sha).removesuffix(".sha256")
         except ValueError as error:

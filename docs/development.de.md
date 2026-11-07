@@ -69,6 +69,10 @@ Python-Cacheproducer und eigenständiger Apache-Preparer verlangen direktes HTTP
 Producer erstellt vor dem Bezug seinen eigenen Cachemarker; kopierte Dateien
 dürfen nicht durch erfundene Marker adoptiert werden. Andere Release-Tupel
 behalten die bisherige Archiv-Wiederherstellung bei.
+Der geprüfte Dateiname stammt vom unveränderlichen Metadatenobjekt; Verbraucher
+lesen das aktuelle kanonische Tupel aus `common.sh` und prüfen dessen exakten
+HTTPS-Ursprung und Pfad sowie das Fehlen von Query und Fragment, ohne Versions-
+oder URL-Pin zu kopieren.
 
 ### Konfigurierte NGINX-Header für C-Prüfungen
 

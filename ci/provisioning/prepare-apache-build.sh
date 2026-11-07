@@ -324,7 +324,14 @@ download_httpd_source_archive() {
             # Only a direct retired-release 404 permits the same filename at
             # Apache's reviewed distribution recovery. TLS, bounds and redirects stay strict.
             httpd_download_url="https://archive.apache.org/dist/httpd/$HTTPD_ARCHIVE_NAME"
-            if [ "$HTTPD_VERSION" = 2.4.69 ]; then
+            httpd_reviewed_archive_name=$("${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+                --archive "$httpd_download_dest" --checksum "$DOWNLOAD_DIR/httpd.sha256" \
+                --source-url "$HTTPD_SOURCE_URL" --checksum-url "$HTTPD_SHA256_URL" \
+                --expected-sha "$HTTPD_SHA256" --print-reviewed-archive-name) || \
+                blocked "could not identify the reviewed HTTPD distribution object"
+            httpd_immutable_archive=no
+            if [ "$HTTPD_ARCHIVE_NAME" = "$httpd_reviewed_archive_name" ]; then
+                httpd_immutable_archive=yes
                 httpd_download_url=$("${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
                     --archive "$httpd_download_dest" --checksum "$DOWNLOAD_DIR/httpd.sha256" \
                     --source-url "$HTTPD_SOURCE_URL" --checksum-url "$HTTPD_SHA256_URL" \
@@ -334,7 +341,7 @@ download_httpd_source_archive() {
             download_runtime_artifact_without_redirects_under_root \
                 httpd "$httpd_download_url" "$httpd_download_dest" "$DOWNLOAD_DIR" >/dev/null || \
                 blocked "could not download the reviewed archived HTTPD release"
-            if [ "$HTTPD_VERSION" = 2.4.69 ]; then
+            if [ "$httpd_immutable_archive" = yes ]; then
                 [ "$RUNTIME_COMPONENT_HTTP_STATUS" = 200 ] && [ "$RUNTIME_COMPONENT_REDIRECTS" = 0 ] || \
                     blocked "HTTPD immutable archive must be a direct official HTTP 200 response"
             fi

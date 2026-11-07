@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "4c5f7b17058822fbcbb5598d1f11daa202ff8b9088191b36131ffccdb8b36773",
+  "inventory_sha256": "d90f1cb8c8837264973561719db6a35ad0c28a571a1357a99c0f73cd2e09d6d1",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -6510,7 +6510,7 @@
         "modsecurity_connector_tests.test_httpd_checksum_cache.HttpdChecksumCacheTests.test_symlinked_ancestor_does_not_redirect_private_cache_read"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_httpd_checksum_cache.py",
-      "source_sha256": "902ac6b098e9c99362d80c1e3de881e71218f9f3a6981b1dd7a75a13a12fc0b4"
+      "source_sha256": "67f6e61c1cdea32c11ad074ff27bc28d7048c2c2a72aa2e5c4727dcf97b9d2a1"
     },
     {
       "contains_selected_definitions": [],
@@ -9695,7 +9695,7 @@
         "modsecurity_connector_tests.test_prepare_runtime_components.PrepareRuntimeComponentsTest.test_haproxy_prepare_rejects_shared_cache_runtime_with_separate_build_root"
       ],
       "source": "tests/test_prepare_runtime_components.py",
-      "source_sha256": "2939ede8a3067b80ed7ba828b9a63c65e1c7417af4f2c1dfde1888bad1536254"
+      "source_sha256": "50265ce5fb7359527d24456130c28c7b777c29a8ccf5c255dd77fe358e75f515"
     },
     {
       "contains_selected_definitions": [],
@@ -14181,7 +14181,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.HttpdSourceRecoveryTests.test_build_consumes_private_verified_archive_before_extraction"
       ],
       "source": "framework/tests/security_regression/test_httpd_source_recovery.py",
-      "source_sha256": "548c74d2632fbd4972063a107ae0b0cbef54759ff4c185cd190d37e99b9b8b76"
+      "source_sha256": "97f14f3f1e3b6c894814e78d11918d73fa181f59aa447f34e3f0fe40bc94bf34"
     },
     {
       "contains_selected_definitions": [],

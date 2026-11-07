@@ -63,6 +63,9 @@ producer and standalone Apache preparer require direct HTTP 200, no redirect,
 and the unchanged independent archive pin. The native producer creates its own
 cache marker before acquisition; copied files cannot be adopted by inventing
 markers. Other release tuples retain the existing archive recovery policy.
+The reviewed filename comes from the immutable metadata object; consumers read
+the current canonical tuple from `common.sh` and check its exact HTTPS origin,
+path and absence of query or fragment, without copying its version or URL pin.
 
 ### Configured NGINX headers for C checks
 

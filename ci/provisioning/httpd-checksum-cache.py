@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import stat
+from urllib.parse import urlsplit
 
 
 def approved_contract():
@@ -25,14 +26,21 @@ def approved_contract():
 
 # Immutable official release-distribution object, observed over verified TLS.
 # A version update requires an independently reviewed object and metadata digest.
-HTTPD_METADATA_CANONICAL_URL = "https://downloads.apache.org/httpd/httpd-2.4.69.tar.bz2"
 HTTPD_METADATA_URL = "https://dist.apache.org/repos/dist/!svn/bc/89000/release/httpd/httpd-2.4.69.tar.bz2.sha256"
 HTTPD_METADATA_SHA256 = "7351aea97f61589f9803d432dc59e1002ba06e3b344fdba9ca281c2e82cf0b08"
 
 
+def reviewed_archive_name():
+    return HTTPD_METADATA_URL.rsplit("/", 1)[1].removesuffix(".sha256")
+
+
+def is_reviewed_release(source_url):
+    return urlsplit(source_url) == ("https", "downloads.apache.org", "/httpd/" + reviewed_archive_name(), "", "")
+
+
 def metadata_source(source_url, checksum_url, expected_sha):
     approved_url, approved_sha = approved_contract()
-    if (approved_url != HTTPD_METADATA_CANONICAL_URL
+    if (not is_reviewed_release(approved_url)
             or source_url != approved_url or checksum_url != approved_url + ".sha256"
             or expected_sha != approved_sha):
         raise ValueError("HTTPD immutable metadata source requires its reviewed release tuple")
@@ -128,9 +136,13 @@ def main():
         parser.add_argument("--" + name, required=True)
     parser.add_argument("--print-download-url", action="store_true")
     parser.add_argument("--print-archive-url", action="store_true")
+    parser.add_argument("--print-reviewed-archive-name", action="store_true")
     parser.add_argument("--downloaded-from")
     args = parser.parse_args()
     try:
+        if args.print_reviewed_archive_name:
+            print(reviewed_archive_name())
+            return 0
         if args.print_download_url or args.print_archive_url:
             selected_url = metadata_source(args.source_url, args.checksum_url, args.expected_sha)
             print(selected_url.removesuffix(".sha256") if args.print_archive_url else selected_url)
