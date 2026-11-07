@@ -311,6 +311,20 @@ def validate_request_lifecycle(
         )
 
 
+def validate_wire_request(adapter, case, role, request):
+    native.require(
+        request.get("path") == f"/{case}/{role}"
+        and request.get("transaction_id") == f"{adapter}-{case}-{role}",
+        "wire identity mismatch",
+    )
+    body_size = 26 if role == "target" and case == "phase2" else 0
+    native.require(
+        request.get("method") == ("POST" if body_size else "GET")
+        and request.get("body_bytes") == body_size,
+        "wire method/entity mismatch",
+    )
+
+
 def validate_requests(adapter, case, wire, records, mapping, access):
     native.require(adapter in PROFILES and case in CASES, "unknown opt-in profile/case")
     native.require(
@@ -339,17 +353,7 @@ def validate_requests(adapter, case, wire, records, mapping, access):
     )
     for role, stream in (("peer", 1), ("target", 3), ("followup", 5)):
         request = next(row for row in wire["requests"] if row["stream_id"] == stream)
-        native.require(
-            request.get("path") == f"/{case}/{role}"
-            and request.get("transaction_id") == f"{adapter}-{case}-{role}",
-            "wire identity mismatch",
-        )
-        body_size = 26 if role == "target" and case == "phase2" else 0
-        native.require(
-            request.get("method") == ("POST" if body_size else "GET")
-            and request.get("body_bytes") == body_size,
-            "wire method/entity mismatch",
-        )
+        validate_wire_request(adapter, case, role, request)
         _, connection, native_stream, status = select_host(adapter, request, access)
         connections.add(connection)
         host_streams.add(native_stream)

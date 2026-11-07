@@ -75,6 +75,10 @@ Vorabbild nach nativem Cleanup und Quellen-/Artefaktzulassung; zwischenzeitliche
 VALIDATED-Records qualifizieren keinen PASS. Publikations-, Objektwechsel- und
 Programmpfad-Regressionen bleiben explizite Fehler. Kanonische Release-/Versions-
 werte stammen aus ihrem einzigen Eigentümer.
+Die abschließende Request-Join-Extraktion verschiebt zusätzlich die unveränderten
+Wire-Identitäts- und Methoden-/Entity-Prüfungen aus der Rollenschleife in einen
+Helfer. Ihre Reihenfolge vor nativer Hostauswahl und alle folgenden
+Lebenszyklusprüfungen bleiben erhalten.
 
 ## Geänderte Dateien und Tests
 

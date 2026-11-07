@@ -71,6 +71,9 @@ reports replace only their checked owned preimage after native cleanup and
 source/artifact admission; intermediate VALIDATED records never qualify PASS.
 Publication, changed-object and executable-path regressions remain explicit
 failures. Canonical release/version values are read from their single owner.
+The final request-join refactor also extracts the unchanged wire identity and
+method/entity checks from the per-role loop, keeping their order before native
+host selection and all subsequent lifecycle checks.
 
 ## Changed files and tests
 
