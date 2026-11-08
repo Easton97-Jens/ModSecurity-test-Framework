@@ -59,7 +59,7 @@ Private Reviewartefakte liegen unter `$RUN_ROOT/followup-review/`; Belege unter 
 
 ## Nicht ausgeführte Prüfungen
 
-Die frische gehostete Analyse dieser Folgekorrektur ist **NOT_RUN**. Die endgültige Prüfung des veröffentlichten Paars und ein neuer vollständiger nativer Quick-Check bleiben koordinierte Auslieferungsprüfungen. Vollständige Abnahmekampagne und endgültige Prüfung des veröffentlichten Paars bleiben außerhalb dieser lokalen Ergebnisse.
+Der vollständige native Quick-Check unter Python 3.15.2 und PyYAML 6.0.3 bestand anschließend bei Framework `6cda017b77f2588cfac4a67009b27d174982b4a7` mit Exit 0 nach 1438,323 Sekunden und unveränderten Quellen-, Index-, HEAD- und Parent-Projektionsprüfungen. Auch die gehostete Analyse dieses Commits bestand. Frische gehostete Ruff- und Sonar-Prüfungen der unten beschriebenen Formatkorrektur stehen noch aus. Die endgültige Prüfung des veröffentlichten Paars und die vollständige Abnahmekampagne bleiben **NOT_RUN**.
 
 ## Einschränkungen und Restrisiko
 
@@ -68,3 +68,5 @@ Native Äquivalenz belegt keinen gehosteten Parser- oder Befundabschluss. FIFO-/
 ## Finaler Diff- und Review-Status
 
 Der unabhängige lokale semantische Review bestand für die gebundenen Quellen. Dieser Datensatz beschreibt geprüfte lokale Vorbereitung und erklärt keine Gesamtbereitschaft. Der Koordinator verantwortet Abschlussprüfungen, native Metadatenerzeugung, EN/DE-Integration, reguläre Git-Auslieferung und gehosteten Readback am exakten Head. Bestehende Datensätze bleiben historisch.
+
+Ruff 0.17.3 akzeptierte anschließend Lint, verlangte jedoch vier Zeilenumbruchkorrekturen im FIFO-Test. Diese Layouts erhalten den vollständigen Python-AST der Datei, jeden Ausdruck, alle kritischen Zeitbudgets und sämtliche Methodenidentitäten. Das native Inventar bleibt byteidentisch; die native Archivregeneration ändert ausschließlich den Quellhash dieser Testdatei. Der abgeschlossene native Lauf oben bleibt seinem tatsächlichen Commit zugeordnet; ein zusätzlicher vollständiger Runtime-Lauf wird für diese AST-identische Formatkorrektur nicht behauptet. Gehostetes Ruff am aktuellen Head bleibt der erforderliche Formatierungsnachweis.

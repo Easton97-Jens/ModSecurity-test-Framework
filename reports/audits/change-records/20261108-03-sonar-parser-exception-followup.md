@@ -59,7 +59,7 @@ Private review artifacts are under `$RUN_ROOT/followup-review/`; receipts are un
 
 ## Checks not run
 
-Fresh hosted analysis of this follow-up is **NOT_RUN**. Final published-pair verification and a new full native quick-check remain coordinating delivery checks. The complete acceptance campaign and final published-pair verification remain outside these local results.
+The complete native quick-check under Python 3.15.2 and PyYAML 6.0.3 subsequently passed at Framework `6cda017b77f2588cfac4a67009b27d174982b4a7` with exit 0 after 1438.323 seconds and unchanged source, index, HEAD and Parent projection guards. The hosted analysis at that commit also passed. Fresh hosted Ruff and Sonar checks for the formatting follow-up described below remain pending. Final published-pair verification and the complete acceptance campaign remain **NOT_RUN**.
 
 ## Limitations and residual risk
 
@@ -68,3 +68,5 @@ Native equivalence does not prove hosted parser or finding closure. FIFO/JSON an
 ## Final diff and review status
 
 The independent local semantic review passed for the bound sources. This record describes verified local preparation and does not declare overall readiness. The coordinator owns final checks, native metadata generation, EN/DE integration, ordinary Git delivery and exact-head hosted readback. Existing records remain historical.
+
+Ruff 0.17.3 subsequently accepted lint but required four line-wrap corrections in the FIFO test. Those layouts preserve the complete file's Python AST, every expression, all critical timeout budgets and all method identities. The native inventory remains byte-identical; native archive regeneration changes only that test file's source hash. The completed native runtime run above is retained at its actual commit; an additional full runtime replay is not claimed for this AST-identical formatting change. Current-head hosted Ruff remains the required formatter proof.

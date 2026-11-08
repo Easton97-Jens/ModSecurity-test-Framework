@@ -12402,7 +12402,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_five_connector_with_crs_no_mrts_contract.FiveConnectorWorkflowSecurityContractTest.test_workflow_is_a_read_only_portable_contract_gate"
       ],
       "source": "framework/tests/ci_security/test_five_connector_with_crs_no_mrts_contract.py",
-      "source_sha256": "0bdeeedbfaa6a7f5a6aad47eb4b2d73fa4c2618855774e5e77a6358bb9eb104e"
+      "source_sha256": "771369a860c054ded26d368e60bd48bdd69d06cb469e0307a8586a9dcfc3c051"
     },
     {
       "contains_selected_definitions": [],

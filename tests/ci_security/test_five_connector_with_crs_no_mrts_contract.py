@@ -487,13 +487,18 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                     else:
                         bootstrap_ready = bootstrap_message == ("bootstrap-ready",)
                         if not bootstrap_ready:
-                            result_message = ("invalid-bootstrap-message", bootstrap_message)
+                            result_message = (
+                                "invalid-bootstrap-message",
+                                bootstrap_message,
+                            )
                 else:
                     bootstrap_timed_out = True
                     result_message = ("bootstrap-timeout",)
 
                 if bootstrap_ready:
-                    ready_deadline = time.monotonic() + FIFO_PREOPEN_READY_TIMEOUT_SECONDS
+                    ready_deadline = (
+                        time.monotonic() + FIFO_PREOPEN_READY_TIMEOUT_SECONDS
+                    )
                     while time.monotonic() < ready_deadline:
                         remaining = max(0.0, ready_deadline - time.monotonic())
                         if not ready_receiver.poll(remaining):
@@ -505,7 +510,9 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                         if isinstance(message, tuple):
                             ready_messages.append(message)
                         else:
-                            ready_messages.append(("invalid-ready-message", repr(message)))
+                            ready_messages.append(
+                                ("invalid-ready-message", repr(message))
+                            )
                         if ready_messages[-1][0] == "fifo-open":
                             break
 
@@ -530,7 +537,11 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 elif bootstrap_ready:
                     result_message = ("fifo-open-not-observed",)
             finally:
-                if started and (timed_out or not bootstrap_ready) and process.is_alive():
+                if (
+                    started
+                    and (timed_out or not bootstrap_ready)
+                    and process.is_alive()
+                ):
                     process.terminate()
                 if started:
                     process.join(FIFO_PREOPEN_JOIN_TIMEOUT_SECONDS)
