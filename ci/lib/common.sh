@@ -2624,6 +2624,9 @@ ci_modsecurity_v3_require_host_git() {
             ci_blocked "ModSecurity v3 host Git must not be group- or world-writable: $ci_v3_host_git_bin"
             return 77
             ;;
+        *)
+            :
+            ;;
     esac
     return 0
 }
@@ -2781,10 +2784,15 @@ ci_modsecurity_v3_create_private_fresh_root() {
         ci_blocked "ModSecurity v3 private source root must be owned by the current user: $ci_v3_private_root"
         return 77
     fi
-    if [ "$((0$ci_v3_private_mode & 077))" -ne 0 ]; then
-        ci_blocked "ModSecurity v3 private source root must not grant group or other access: $ci_v3_private_root"
-        return 77
-    fi
+    case "$ci_v3_private_mode" in
+        *[1-7]|*[1-7][0-7])
+            ci_blocked "ModSecurity v3 private source root must not grant group or other access: $ci_v3_private_root"
+            return 77
+            ;;
+        *)
+            :
+            ;;
+    esac
     return 0
 }
 

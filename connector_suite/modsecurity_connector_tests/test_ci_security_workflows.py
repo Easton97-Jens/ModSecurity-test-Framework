@@ -1664,15 +1664,19 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                     # Enforce the closed caller/job/callee interface as well as
                     # an immutable SHA; arbitrary same-owner paths are unsafe.
                     raw = path.read_text(encoding="utf-8")
+                    framework_root = test_root()
+                    mutated_source = raw.replace(
+                        reference, reference.rsplit("@", 1)[0] + "@" + "0" * 40, 1
+                    )
                     expand_workflow_source(
-                        raw, framework_root=test_root(),
+                        raw, framework_root=framework_root,
                         framework_revision=WITH_CRS_NO_MRTS_FRAMEWORK_SHA,
                         workflow_name=path.name,
                     )
                     with self.assertRaises(WorkflowSourceError):
                         expand_workflow_source(
-                            raw.replace(reference, reference.rsplit("@", 1)[0] + "@" + "0" * 40, 1),
-                            framework_root=test_root(),
+                            mutated_source,
+                            framework_root=framework_root,
                             framework_revision=WITH_CRS_NO_MRTS_FRAMEWORK_SHA,
                             workflow_name=path.name,
                         )

@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "71f81dcdc46ac79d19cba0c2c2d9bbcb6a5dda1366a756aaf546053d9ff6bc86",
+  "inventory_sha256": "aadf51dfc8b06acc0961fb40c87878fe9f306d1918616ab57fc52bc91e0463c0",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -4576,7 +4576,7 @@
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "2c2d21681353a350088858aad9ed0e989159968e0c325dbcd09b6b8587c50bab"
+      "source_sha256": "f6230a3f205c4f33f3900461bec50751d467c866f4dd3ca60a8ad7dc3f62e66c"
     },
     {
       "contains_selected_definitions": [],
@@ -12402,7 +12402,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_five_connector_with_crs_no_mrts_contract.FiveConnectorWorkflowSecurityContractTest.test_workflow_is_a_read_only_portable_contract_gate"
       ],
       "source": "framework/tests/ci_security/test_five_connector_with_crs_no_mrts_contract.py",
-      "source_sha256": "9b2b2b61b9ae2badcf25100f41204f07633f4b33f04b288fcd8dd8090ad6717d"
+      "source_sha256": "0bdeeedbfaa6a7f5a6aad47eb4b2d73fa4c2618855774e5e77a6358bb9eb104e"
     },
     {
       "contains_selected_definitions": [],

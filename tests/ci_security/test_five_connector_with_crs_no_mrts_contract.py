@@ -67,6 +67,8 @@ RUNNER_SPEC.loader.exec_module(make_runner)
 
 
 FIFO_PREOPEN_REGRESSION_ATTEMPTS = 3
+# Spawn/import startup is bounded separately from the unchanged reader budgets.
+FIFO_PREOPEN_BOOTSTRAP_TIMEOUT_SECONDS = 10.0
 FIFO_PREOPEN_READY_TIMEOUT_SECONDS = 2.0
 FIFO_PREOPEN_RESULT_TIMEOUT_SECONDS = 1.0
 FIFO_PREOPEN_JOIN_TIMEOUT_SECONDS = 1.0
@@ -112,6 +114,7 @@ def _fifo_preopen_regression_child(
         return original_open(name, flags, mode, dir_fd=dir_fd)
 
     try:
+        ready_sender.send(("bootstrap-ready",))
         setattr(contract, "_relative_path", replace_after_path_validation)
         contract.os.open = observe_leaf_open
         path, content, digest = contract._bounded_evidence_file(
@@ -459,6 +462,9 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 ),
             )
             ready_messages: list[tuple[object, ...]] = []
+            bootstrap_message: object | None = None
+            bootstrap_ready = False
+            bootstrap_timed_out = False
             result_message: object | None = None
             timed_out = False
             alive_at_deadline = False
@@ -473,21 +479,35 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 process_pid = process.pid
                 ready_sender.close()
                 result_sender.close()
-                ready_deadline = time.monotonic() + FIFO_PREOPEN_READY_TIMEOUT_SECONDS
-                while time.monotonic() < ready_deadline:
-                    remaining = max(0.0, ready_deadline - time.monotonic())
-                    if not ready_receiver.poll(remaining):
-                        break
+                if ready_receiver.poll(FIFO_PREOPEN_BOOTSTRAP_TIMEOUT_SECONDS):
                     try:
-                        message = ready_receiver.recv()
+                        bootstrap_message = ready_receiver.recv()
                     except EOFError:
-                        break
-                    if isinstance(message, tuple):
-                        ready_messages.append(message)
+                        result_message = ("bootstrap-pipe-closed",)
                     else:
-                        ready_messages.append(("invalid-ready-message", repr(message)))
-                    if ready_messages[-1][0] == "fifo-open":
-                        break
+                        bootstrap_ready = bootstrap_message == ("bootstrap-ready",)
+                        if not bootstrap_ready:
+                            result_message = ("invalid-bootstrap-message", bootstrap_message)
+                else:
+                    bootstrap_timed_out = True
+                    result_message = ("bootstrap-timeout",)
+
+                if bootstrap_ready:
+                    ready_deadline = time.monotonic() + FIFO_PREOPEN_READY_TIMEOUT_SECONDS
+                    while time.monotonic() < ready_deadline:
+                        remaining = max(0.0, ready_deadline - time.monotonic())
+                        if not ready_receiver.poll(remaining):
+                            break
+                        try:
+                            message = ready_receiver.recv()
+                        except EOFError:
+                            break
+                        if isinstance(message, tuple):
+                            ready_messages.append(message)
+                        else:
+                            ready_messages.append(("invalid-ready-message", repr(message)))
+                        if ready_messages[-1][0] == "fifo-open":
+                            break
 
                 open_messages = [
                     message
@@ -507,10 +527,10 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                     else:
                         timed_out = True
                         alive_at_deadline = process.is_alive()
-                else:
+                elif bootstrap_ready:
                     result_message = ("fifo-open-not-observed",)
             finally:
-                if started and timed_out and process.is_alive():
+                if started and (timed_out or not bootstrap_ready) and process.is_alive():
                     process.terminate()
                 if started:
                     process.join(FIFO_PREOPEN_JOIN_TIMEOUT_SECONDS)
@@ -556,7 +576,8 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 and "must reference a regular file" in result_message[1]
             )
             rejected = (
-                len(ready_messages) >= 2
+                bootstrap_ready
+                and len(ready_messages) >= 2
                 and ready_messages[0][0] == "fifo-created"
                 and bool(open_messages)
                 and uses_read_only
@@ -570,7 +591,9 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 and process.exitcode == 0
             )
             details = (
-                f"attempt={attempt}; ready={ready_messages!r}; "
+                f"attempt={attempt}; bootstrap={bootstrap_message!r}; "
+                f"bootstrap_ready={bootstrap_ready}; "
+                f"bootstrap_timed_out={bootstrap_timed_out}; ready={ready_messages!r}; "
                 f"result={result_message!r}; "
                 f"timed_out={timed_out}; alive_at_deadline={alive_at_deadline}; "
                 f"fifo_was_present={fifo_was_present}; "
