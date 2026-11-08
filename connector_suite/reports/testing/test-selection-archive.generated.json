@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "0603c00f438400e5d5c05deaabf49235c502d94bf02f95f6ac042539e1b830f7",
+  "inventory_sha256": "71f81dcdc46ac79d19cba0c2c2d9bbcb6a5dda1366a756aaf546053d9ff6bc86",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -4576,7 +4576,7 @@
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "800bcb0be6cbc1f7cf1b7fd3db259650a7a216fa2f82719de8647ff19035385e"
+      "source_sha256": "2c2d21681353a350088858aad9ed0e989159968e0c325dbcd09b6b8587c50bab"
     },
     {
       "contains_selected_definitions": [],
