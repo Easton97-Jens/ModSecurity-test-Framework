@@ -58,6 +58,16 @@ POST_MIGRATION_SOURCES = frozenset({
     "connectors/traefik/scripts/runtime_native_informational.py",
     "connectors/traefik/scripts/native-informational-rules.conf",
 })
+# This fixture was first added in the Framework, after the immutable migration.
+# Registration is finite and validated against both repositories; an arbitrary
+# missing historical source must still fail original_sources below.
+POST_MIGRATION_PROVENANCE = {
+    "tests/fixtures/nginx_root_broker/caller-f5523da.yml.fixture": {
+        "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/nginx_root_broker/caller-f5523da.yml.fixture",
+        "introduced_revision": "ff7cae78e085e179950c4b871bbf1d5327c69069",
+        "introduced_blob": "7def118b24373d36b379c0dcb5bb5b4879180029",
+    },
+}
 INVENTORY = "config/testing/active-cases.json"
 NAMESPACES = (
     ("tests.", "modsecurity_connector_tests."),
@@ -648,13 +658,31 @@ def mapped_file_records(mapping, framework, product, initial_blobs, updated_blob
     return files
 
 
+def regular_framework_source(framework, physical):
+    """Admit a regular source contained in the explicit unsymlinked tree."""
+    root = framework.resolve(strict=True)
+    relative = Path(physical)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("mapped Framework source path is not relative: " + physical)
+    file = root / relative
+    if file.is_symlink() or not file.is_file():
+        raise ValueError("mapped Framework source is not regular: " + physical)
+    if not file.resolve(strict=True).is_relative_to(root):
+        raise ValueError("mapped Framework source is outside its root: " + physical)
+    current = root
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("mapped Framework source has a symlink ancestor: " + physical)
+    return file
+
+
 def post_migration_file_records(mapping, framework, product):
     records = []
-    for logical in sorted(POST_MIGRATION_SOURCES.intersection(mapping)):
+    registered = POST_MIGRATION_SOURCES.union(POST_MIGRATION_PROVENANCE)
+    for logical in sorted(registered.intersection(mapping)):
         physical = mapping[logical]
-        file = framework / physical
-        if file.is_symlink() or not file.is_file():
-            raise ValueError("mapped Framework file is missing or linked: " + physical)
+        file = regular_framework_source(framework, physical)
         if (product / logical).exists():
             raise ValueError("unexpected duplicate Connector test source: " + logical)
         records.append({"logical_path": logical, "framework_path": physical,
@@ -880,6 +908,37 @@ def original_sources(root, revision, paths):
     if cursor != len(raw):
         raise ValueError("unexpected Git batch output")
     return result
+
+
+def historical_source_mapping(mapping, framework, product):
+    """Exclude only explicitly registered, proven Framework introductions.
+
+    Keep the original four post-migration sources unchanged. Every additional
+    registration must prove its exact mapping, original blob, addition commit,
+    Framework ancestry, and absence from both immutable Product baselines.
+    """
+    for logical, provenance in POST_MIGRATION_PROVENANCE.items():
+        physical = provenance["framework_path"]
+        introduced = provenance["introduced_revision"]
+        blob = provenance["introduced_blob"]
+        if mapping.get(logical) != physical:
+            raise ValueError("post-migration source mapping differs: " + logical)
+        regular_framework_source(framework, physical)
+        if (product / logical).exists() or (product / logical).is_symlink():
+            raise ValueError("unexpected duplicate Connector test source: " + logical)
+        git(framework, "merge-base", "--is-ancestor", FRAMEWORK_BASE, introduced)
+        git(framework, "merge-base", "--is-ancestor", introduced, "HEAD")
+        actual = git(framework, "ls-tree", "-z", introduced, "--", physical)
+        expected = ("100644 blob " + blob + "\t" + physical + "\0").encode()
+        if actual != expected:
+            raise ValueError("post-migration introduction blob differs: " + logical)
+        if git(framework, "ls-tree", "-z", introduced + "^", "--", physical):
+            raise ValueError("post-migration source was not added at introduction: " + logical)
+        for baseline in (INITIAL_BASE, UPDATED_BASE):
+            if git(product, "ls-tree", "-z", baseline, "--", logical):
+                raise ValueError("post-migration source exists in Product baseline: " + logical)
+    excluded = POST_MIGRATION_SOURCES.union(POST_MIGRATION_PROVENANCE)
+    return {name: path for name, path in mapping.items() if name not in excluded}
 
 
 def flatten(inventory):
@@ -1451,8 +1510,7 @@ def generate():
             or name.decode().endswith("Makefile")
         )
     ]
-    historical_mapping = {name: path for name, path in mapping.items()
-                          if name not in POST_MIGRATION_SOURCES}
+    historical_mapping = historical_source_mapping(mapping, framework, product)
     updated_blobs = original_sources(
         product, UPDATED_BASE, [*historical_mapping, INVENTORY, *originals]
     )

@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "rules": ["common-host-neutral", "product-without-test-infrastructure", "no-parent-gitlink"],
+  "ownership": {"common": "common", "product": ["common", "connectors"], "framework_gitlink": "modules/ModSecurity-test-Framework"},
+  "external_header_namespaces": ["modsecurity/"],
+  "contracts": {"connector": ["docs/architecture.md", "docs/test-ownership-migration.md"], "framework": ["docs/architecture.md"]}
+}

@@ -20,6 +20,64 @@ unreviewed payload data. A connector adapter translates its host state into the
 selected test and evidence contracts, then translates observed results back
 into host-specific behavior.
 
+## Native repository architecture contract
+
+The strict [repository architecture model](../connector_suite/config/testing/repository-architecture.json)
+defines three mandatory dependency rules from this document and the selected
+Connector's versioned architecture and test-ownership contracts:
+
+- Common C-family sources must keep host SDK includes in adapters. Local Common
+  includes are resolved recursively; missing local and nonliteral include operands
+  fail. Known Apache, NGINX, HAProxy, Envoy, lighttpd and Traefik SDK header
+  signatures are rejected. External standard-library and `modsecurity/` engine
+  headers remain valid and are not traversed as local sources.
+- Product sources, libraries and production launchers must not depend on
+  Framework test infrastructure. The checker inspects literal C-family
+  include/load operands, Python imports and selected literal loading calls, Go
+  imports and selected loading/linker operands, direct shell commands, and native
+  build inputs. Make source/link variables, include directives, prerequisites and
+  known compile/link commands are checked separately from pure test delegation.
+  Framework test runners, harness/smoke/check entrypoints, lock/rule data inputs,
+  thin Parent test delegation and explicitly bound Framework product-source
+  readers remain valid. A data-looking suffix cannot exempt a known linker or
+  compiler input.
+- The Framework must not introduce a Parent gitlink. The explicit Framework root
+  must be its Git top-level. Canonical Parent repository URLs and local/file URLs
+  to the selected Product repository, including alternate worktrees of the same
+  Git repository, are checked without fetching remote repositories.
+
+The selected source scope is `common/` and `connectors/`: C/C++ headers and
+sources, Python, Go, shell, shebang-bearing `.in` templates, `.mk`, `.m4`,
+`go.mod`, Makefiles, `Makefile.am`, `configure.ac`, NGINX `config`, CMake, meson
+and BUILD files. This is a bounded literal check, not a compiler, POSIX shell or
+Make evaluator. Computed commands/imports, arbitrary remote repository aliases,
+complete transitive language graphs, binary contents and object lifetimes need
+separate review and native build/runtime evidence. Harmless explanation and log
+strings do not constitute a dependency in the supported language forms.
+
+The Parent's `check-repository-architecture` target is included in its delegated
+lint. The direct check requires explicit roots:
+
+```sh
+"$PYTHON" "$FRAMEWORK_ROOT/connector_suite/modsecurity_connector_ci/checks/common/check-repository-architecture.py" \
+  --connector-root "$CONNECTOR_ROOT" --framework-root "$FRAMEWORK_ROOT"
+```
+
+Exit `0` means `PASS`, `1` means a detected contract violation and `2` means an
+invalid or incomplete check. Missing/empty models and required source scopes
+cannot pass. The explicit on-demand `test_repository_architecture.py` module
+exercises accepted inputs and deliberate violations without adding standard
+Connector cases. This native check does not activate a Sonar architecture sensor
+or claim that an inactive boundary check ran.
+
+Migration provenance separately distinguishes original Product sources from
+explicitly registered later Framework introductions. A registered introduction
+must match its source-map route, Git introduction commit/blob, Framework ancestry
+and absence from both immutable Product baselines. Current sources must be
+regular, stay within the Framework root and have no symlink ancestors. Unknown
+missing historical sources and Git errors remain failures; registration does not
+turn them into later additions.
+
 ## Transaction and lifecycle model
 
 The Framework represents a transaction through case metadata and bounded

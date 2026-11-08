@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "aadf51dfc8b06acc0961fb40c87878fe9f306d1918616ab57fc52bc91e0463c0",
+  "inventory_sha256": "7876847da0b8d0a8a612724d6afddcfb4e8ca4a0468216385b87939398c37fd7",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8245,
+  "on_demand_definition_count": 8289,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -7432,6 +7432,23 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_migration_source_provenance.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_migration_source_provenance.MigrationSourceProvenanceTests.test_registered_fixture_and_real_legacy_blob",
+        "modsecurity_connector_tests.test_migration_source_provenance.MigrationSourceProvenanceTests.test_unknown_missing_source_stays_strict",
+        "modsecurity_connector_tests.test_migration_source_provenance.MigrationSourceProvenanceTests.test_mapping_typo_and_missing_registration_reject",
+        "modsecurity_connector_tests.test_migration_source_provenance.MigrationSourceProvenanceTests.test_wrong_introduction_or_blob_reject",
+        "modsecurity_connector_tests.test_migration_source_provenance.MigrationSourceProvenanceTests.test_later_existing_blob_is_not_an_introduction",
+        "modsecurity_connector_tests.test_migration_source_provenance.MigrationSourceProvenanceTests.test_git_error_rejects",
+        "modsecurity_connector_tests.test_migration_source_provenance.MigrationSourceProvenanceTests.test_presence_in_either_product_baseline_rejects",
+        "modsecurity_connector_tests.test_migration_source_provenance.MigrationSourceProvenanceTests.test_current_missing_or_symlink_source_rejects",
+        "modsecurity_connector_tests.test_migration_source_provenance.MigrationSourceProvenanceTests.test_symlink_ancestor_and_root_escape_reject_before_records"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_migration_source_provenance.py",
+      "source_sha256": "b344c45d2cebafd9d857f44644422b71bcd25ce2406cbbd94593a73a28a58f56"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_modsecurity_request_body_limit_status_contract.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_modsecurity_request_body_limit_status_contract.NativeRequestLimitStatusContractTest.test_exact_signature_preserves_403_and_413",
@@ -10044,6 +10061,49 @@
       ],
       "source": "tests/test_reported_security_regressions.py",
       "source_sha256": "f938f5b82f0001e6bd13bd122bc64182e60f443bea1b639dd894217ae82c83ac"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_repository_architecture.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_valid_neutral_and_test_delegation_and_bound_reader",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_external_engine_sdk_is_neutral",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_nginx_and_apache_sdk_headers",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_continued_host_sdk_include",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_nonliteral_common_include",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_product_make_link_dependency_and_variable_edge",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_product_make_compile_recipe",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_make_include_and_prerequisite_dependencies",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_make_comment_and_mixed_recipe_do_not_exempt_product_edges",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_harmless_python_c_and_go_mentions",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_harmless_shell_and_build_messages",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_recipe_environment_is_not_global_make_assignment",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_python_literal_import_aliases_and_keyword",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_go_raw_imports",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_data_extension_does_not_exempt_make_compile_or_link_sink",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_shell_template_and_autotools_build_dependencies",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_product_configure_and_nginx_build_dependency",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_spaced_host_sdk_include",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_nested_host_sdk_include",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_product_python_framework_dependency",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_product_dynamic_literal_framework_dependency",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_product_c_framework_dependency",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_product_go_framework_dependency",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_product_launcher_framework_dependency",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_reverse_parent_gitlink",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_reverse_parent_local_path_and_file_url",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_reverse_parent_alternate_worktree_identity",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_framework_subdirectory_is_not_repository_root",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_undeclared_gitlink",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_missing_model",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_invalid_empty_and_weakened_model",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_model_duplicate_key",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_empty_required_source_scope",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_unresolved_common_dependency",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_unresolved_angle_local_dependency"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_repository_architecture.py",
+      "source_sha256": "45479dffea3600c690bc8f146f831156acad5aadcf5d859f8c0d9d0a27fcbaa7"
     },
     {
       "contains_selected_definitions": [],

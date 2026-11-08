@@ -20,6 +20,70 @@ oder ungeprüfte Payload-Daten besitzen. Ein Connector-Adapter übersetzt seinen
 Host-Zustand in die gewählten Test- und Evidence-Verträge und übersetzt
 beobachtete Ergebnisse zurück in host-spezifisches Verhalten.
 
+## Nativer Repository-Architekturvertrag
+
+Das strikte [Repository-Architekturmodell](../connector_suite/config/testing/repository-architecture.json)
+definiert drei verpflichtende Abhängigkeitsregeln aus diesem Dokument und den
+versionierten Architektur- und Testzuständigkeitsverträgen des gewählten
+Connectors:
+
+- Common-C-Familienquellen müssen Host-SDK-Includes in den Adaptern belassen.
+  Lokale Common-Includes werden rekursiv aufgelöst; fehlende lokale und nicht
+  literale Include-Operanden schlagen fehl. Bekannte SDK-Headersignaturen für
+  Apache, NGINX, HAProxy, Envoy, lighttpd und Traefik werden abgewiesen. Externe
+  Standardbibliotheks- und `modsecurity/`-Engine-Header bleiben zulässig und werden
+  nicht als lokale Quellen durchlaufen.
+- Produktquellen, Bibliotheken und produktive Launcher dürfen nicht von der
+  Framework-Testinfrastruktur abhängen. Der Checker untersucht literale
+  Include-/Ladeoperanden der C-Familie, Python-Imports und ausgewählte literale
+  Ladeaufrufe, Go-Imports und ausgewählte Lade-/Linkeroperanden, direkte
+  Shellbefehle und native Build-Eingaben. Make-Quell-/Linkvariablen,
+  Include-Direktiven, Voraussetzungen und bekannte Compile-/Linkbefehle werden
+  getrennt von reiner Testdelegation geprüft. Framework-Testrunner,
+  Harness-/Smoke-/Check-Einstiege, Lock-/Regeldaten, dünne Parent-Testdelegation
+  und explizit gebundene Framework-Leser von Produktquellen bleiben zulässig.
+  Eine datenähnliche Endung befreit keine bekannte Linker- oder Compiler-Eingabe.
+- Das Framework darf keinen Parent-Gitlink einführen. Die explizite
+  Framework-Wurzel muss dessen Git-Top-Level sein. Kanonische Parent-Repository-
+  URLs und lokale/file-URLs auf das gewählte Produktrepository einschließlich
+  alternativer Worktrees desselben Git-Repositorys werden ohne Abruf entfernter
+  Repositorys geprüft.
+
+Der ausgewählte Quellumfang ist `common/` und `connectors/`: C/C++-Header und
+Quellen, Python, Go, Shell, `.in`-Templates mit Shebang, `.mk`, `.m4`, `go.mod`,
+Makefiles, `Makefile.am`, `configure.ac`, NGINX-`config`, CMake-, meson- und
+BUILD-Dateien. Dies ist eine begrenzte literale Prüfung, kein Compiler,
+POSIX-Shell- oder Make-Auswerter. Berechnete Befehle/Imports, beliebige entfernte
+Repository-Aliase, vollständige transitive Sprachgraphen, Binärinhalte und
+Objektlebenszeiten benötigen gesondertes Review sowie native Build-/Runtime-
+Evidenz. Harmlose Erklärungs- und Logstrings bilden in den unterstützten
+Sprachformen keine Abhängigkeit.
+
+Das Parent-Ziel `check-repository-architecture` gehört zum delegierten Lint.
+Der direkte Check benötigt explizite Wurzeln:
+
+```sh
+"$PYTHON" "$FRAMEWORK_ROOT/connector_suite/modsecurity_connector_ci/checks/common/check-repository-architecture.py" \
+  --connector-root "$CONNECTOR_ROOT" --framework-root "$FRAMEWORK_ROOT"
+```
+
+Exit `0` bedeutet `PASS`, `1` einen erkannten Vertragsverstoß und `2` eine
+ungültige oder unvollständige Prüfung. Fehlende/leere Modelle und erforderliche
+Quellumfänge können nicht bestehen. Das explizite On-Demand-Modul
+`test_repository_architecture.py` prüft zulässige Eingaben und absichtliche
+Verstöße, ohne Standardfälle des Connectors hinzuzufügen. Diese native Prüfung
+aktiviert keinen Sonar-Architektursensor und behauptet keinen Lauf einer
+inaktiven Grenzprüfung.
+
+Die Migrationsherkunft unterscheidet gesondert ursprüngliche Produktquellen von
+explizit registrierten späteren Framework-Erstaufnahmen. Eine registrierte
+Erstaufnahme muss ihrer Source-Map-Route, ihrem Git-Erstaufnahmecommit/-Blob,
+der Framework-Abstammung und der Abwesenheit in beiden unveränderlichen
+Produktbaselines entsprechen. Aktuelle Quellen müssen regulär sein, innerhalb
+der Framework-Wurzel bleiben und dürfen keine symlinkenden Vorfahren besitzen.
+Unbekannte fehlende historische Quellen und Git-Fehler bleiben Fehler; eine
+Registrierung erklärt sie nicht zu späteren Ergänzungen.
+
 ## Transaktions- und Lifecycle-Modell
 
 Das Framework repräsentiert eine Transaktion über Fallmetadaten und begrenzte
