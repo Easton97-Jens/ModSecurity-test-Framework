@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "001952ae0e44356cb37657b16061af954141c7959fd9a2634d64bc670e692b33",
+  "inventory_sha256": "0603c00f438400e5d5c05deaabf49235c502d94bf02f95f6ac042539e1b830f7",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8244,
+  "on_demand_definition_count": 8245,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -4558,6 +4558,7 @@
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_secret_in_shell",
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_other_action",
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_standard_matrix_rejects_decisive_higher_standards",
+        "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_standard_matrix_rejects_context_overrides",
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_sonar_secret_contract_rejects_alternate_secret_access",
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_cleanup_jobs_do_not_checkout_or_execute_project_code",
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_ci_security_contracts_run_the_local_submodule_git_regressions",
@@ -4575,7 +4576,7 @@
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "6850538850ecdf6507cfda7f8e8b53faa49b66d34a5586e309ffad5542de3526"
+      "source_sha256": "800bcb0be6cbc1f7cf1b7fd3db259650a7a216fa2f82719de8647ff19035385e"
     },
     {
       "contains_selected_definitions": [],
