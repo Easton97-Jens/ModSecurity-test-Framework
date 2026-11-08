@@ -1355,7 +1355,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8289,
+  "on_demand_definition_count": 8292,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -10067,6 +10067,9 @@
       "framework_path": "connector_suite/modsecurity_connector_tests/test_repository_architecture.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_valid_neutral_and_test_delegation_and_bound_reader",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_shell_grammar_preserves_ascii_and_unicode_boundaries",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_ascii_make_identifiers_preserve_non_ascii_tail_exclusion",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_host_header_filename_and_directory_boundaries",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_external_engine_sdk_is_neutral",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_nginx_and_apache_sdk_headers",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_continued_host_sdk_include",
@@ -10103,7 +10106,7 @@
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_unresolved_angle_local_dependency"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_repository_architecture.py",
-      "source_sha256": "45479dffea3600c690bc8f146f831156acad5aadcf5d859f8c0d9d0a27fcbaa7"
+      "source_sha256": "29244f974be56f7dc4bf2697c802fde6e82a0df254d82f0bd5b51a4bb6915eca"
     },
     {
       "contains_selected_definitions": [],

@@ -34,6 +34,8 @@ from modsecurity_test_framework.connector_context import (
     load_source,
 )
 
+DUPLICATE_CONNECTOR_SOURCE = "unexpected duplicate Connector test source: "
+
 _ACTIVE_INVENTORY_SOURCE = (
     "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py"
 )
@@ -641,7 +643,7 @@ def mapped_file_records(mapping, framework, product, initial_blobs, updated_blob
             raise ValueError("mapped Framework file is missing or linked: " + new)
         retained = (product / old).exists()
         if retained and old not in SHIMS:
-            raise ValueError("unexpected duplicate Connector test source: " + old)
+            raise ValueError(DUPLICATE_CONNECTOR_SOURCE + old)
         files.append(
             {
                 "old_path": old,
@@ -684,7 +686,7 @@ def post_migration_file_records(mapping, framework, product):
         physical = mapping[logical]
         file = regular_framework_source(framework, physical)
         if (product / logical).exists():
-            raise ValueError("unexpected duplicate Connector test source: " + logical)
+            raise ValueError(DUPLICATE_CONNECTOR_SOURCE + logical)
         records.append({"logical_path": logical, "framework_path": physical,
                         "sha256_framework_source": digest(file.read_bytes()),
                         "migration_source": False})
@@ -925,7 +927,7 @@ def historical_source_mapping(mapping, framework, product):
             raise ValueError("post-migration source mapping differs: " + logical)
         regular_framework_source(framework, physical)
         if (product / logical).exists() or (product / logical).is_symlink():
-            raise ValueError("unexpected duplicate Connector test source: " + logical)
+            raise ValueError(DUPLICATE_CONNECTOR_SOURCE + logical)
         git(framework, "merge-base", "--is-ancestor", FRAMEWORK_BASE, introduced)
         git(framework, "merge-base", "--is-ancestor", introduced, "HEAD")
         actual = git(framework, "ls-tree", "-z", introduced, "--", physical)

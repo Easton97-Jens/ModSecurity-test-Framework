@@ -7,7 +7,7 @@
     "native_sources": 90,
     "python_go_source_sets": 656,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "53de69223029d05311584c93e81db7d975a7b5413a5c10cbc50e7b81e27f73eb"
+    "sha256": "c08a1292cc04444c464c7259595467d3a6a4d5a69f743f89e444931387a9f308"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -153084,6 +153084,7 @@
       "archive_source": "framework/connector_suite/modsecurity_connector_tests/test_repository_architecture.py",
       "automatic_selection": "not inferred; source-owned load_tests and the Connector inventory remain authoritative",
       "definition_ids": [
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_ascii_make_identifiers_preserve_non_ascii_tail_exclusion",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_continued_host_sdk_include",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_data_extension_does_not_exempt_make_compile_or_link_sink",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_empty_required_source_scope",
@@ -153092,6 +153093,7 @@
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_go_raw_imports",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_harmless_python_c_and_go_mentions",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_harmless_shell_and_build_messages",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_host_header_filename_and_directory_boundaries",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_invalid_empty_and_weakened_model",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_make_comment_and_mixed_recipe_do_not_exempt_product_edges",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_make_include_and_prerequisite_dependencies",
@@ -153113,6 +153115,7 @@
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_reverse_parent_alternate_worktree_identity",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_reverse_parent_gitlink",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_reverse_parent_local_path_and_file_url",
+        "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_shell_grammar_preserves_ascii_and_unicode_boundaries",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_shell_template_and_autotools_build_dependencies",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_spaced_host_sdk_include",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_undeclared_gitlink",
@@ -168322,7 +168325,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "53de69223029d05311584c93e81db7d975a7b5413a5c10cbc50e7b81e27f73eb",
+      "sha256_framework_source": "c08a1292cc04444c464c7259595467d3a6a4d5a69f743f89e444931387a9f308",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {

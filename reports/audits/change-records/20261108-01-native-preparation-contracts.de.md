@@ -52,6 +52,13 @@ Erstaufnahmecommit und Blob registrieren; Abstammung und beide Produktbaselines
 vor gesonderter Einordnung prüfen. Aktuelle Symlinks, symlinkende Vorfahren und
 Root-Escapes vor dem Hashen von Records ablehnen.
 
+Der Qualitätsnachtrag trennt Make-, Sprachlader-, Include- und Gitlink-Prüfungen
+in benannte Hilfsfunktionen. Lexikalische Shell-Stufen bewahren die geordneten
+Rückfälle; ASCII-Bezeichnerenden behalten ihren bisherigen Umfang durch lokale
+Regex-Flags. Host-Header-Prüfungen bewahren exakte Datei- und Verzeichnisgrenzen.
+Die wiederholte Migrationsdiagnose für doppelte Produktquellen verwendet jetzt
+eine gemeinsame Konstante.
+
 ## Geänderte Dateien und Tests
 
 Neues Architekturmodell/Checker und `test_repository_architecture.py` ergänzen
@@ -67,7 +74,7 @@ Die folgenden Befehle verwenden portable Interpreter-/Root-Platzhalter.
 
 | Befehl oder Prüfung | Exit-Code | Kurzes Ergebnis |
 | --- | --- | --- |
-| `python -m unittest discover -s connector_suite/modsecurity_connector_tests -p test_repository_architecture.py -v` | 0 | 35 CLI-Regressionsmethoden bestanden |
+| `python -m unittest discover -s connector_suite/modsecurity_connector_tests -p test_repository_architecture.py -v` | 0 | 38 Regressionsmethoden bestanden: 35 bestehende Methoden und 3 zusätzliche Grammatik-/Grenzkontrollen |
 | `python -m unittest discover -s connector_suite/modsecurity_connector_tests -p test_migration_source_provenance.py -v` | 0 | 9 Herkunftsmethoden mit echtem Git bestanden |
 | `check-repository-architecture.py --connector-root "$CONNECTOR_ROOT" --framework-root "$FRAMEWORK_ROOT"` | 0 | Begrenzte Quell-/Build-Abhängigkeitsprüfung bestanden |
 | `update-inventory-bindings.py --check` | 0 | Bestehende Quellbindungen stimmen; Standardauswahl bleibt bei 100 |

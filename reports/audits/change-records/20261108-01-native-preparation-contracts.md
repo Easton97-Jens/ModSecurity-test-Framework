@@ -47,6 +47,12 @@ later fixture with exact logical/physical routes, introduction commit and blob;
 verify ancestry and both Product baselines before classifying it separately.
 Reject current symlinks, symlink ancestors and root escapes before record hashing.
 
+The quality follow-up separates Make, language-loader, include and Gitlink checks
+into named helpers. Shell lexical stages preserve ordered fallback behavior, and
+ASCII identifier tails retain their original scope through local regex flags.
+Host-header checks preserve exact filename and directory boundaries. The repeated
+migration duplicate-source diagnostic now uses one shared constant.
+
 ## Changed files and tests
 
 New architecture model/checker and `test_repository_architecture.py` accompany
@@ -62,7 +68,7 @@ Commands below use portable interpreter/root placeholders.
 
 | Command or check | Exit code | Concise result |
 | --- | --- | --- |
-| `python -m unittest discover -s connector_suite/modsecurity_connector_tests -p test_repository_architecture.py -v` | 0 | 35 CLI regression methods passed |
+| `python -m unittest discover -s connector_suite/modsecurity_connector_tests -p test_repository_architecture.py -v` | 0 | 38 regression methods passed: 35 existing methods and 3 additional grammar/boundary controls |
 | `python -m unittest discover -s connector_suite/modsecurity_connector_tests -p test_migration_source_provenance.py -v` | 0 | 9 real-Git provenance methods passed |
 | `check-repository-architecture.py --connector-root "$CONNECTOR_ROOT" --framework-root "$FRAMEWORK_ROOT"` | 0 | Bounded source/build dependency check passed |
 | `update-inventory-bindings.py --check` | 0 | Existing source bindings match; standard selection stays at 100 |

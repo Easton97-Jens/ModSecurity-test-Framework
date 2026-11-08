@@ -1,6 +1,7 @@
 """On-demand controls exercise the real repository architecture CLI."""
 
 import os
+import runpy
 from pathlib import Path
 import subprocess
 import sys
@@ -91,6 +92,59 @@ class RepositoryArchitectureTests(unittest.TestCase):
             "FRAMEWORK_ROOT = modules/ModSecurity-test-Framework\nACTIVE_TEST_RUNNER = $(PYTHON) -P -m modsecurity_test_framework.connector\ntest:\n\t$(MAKE) -C $(FRAMEWORK_ROOT) test\ncheck-config:\n\t$(ACTIVE_TEST_RUNNER) --check\nruntime-smoke:\n\tsh $(FRAMEWORK_ROOT)/connector_suite/adapters/example/harness/run_smoke.sh\n",
         )
         self.run_cli(0, "PASS")
+
+    def test_shell_grammar_preserves_ascii_and_unicode_boundaries(self):
+        dependencies = runpy.run_path(str(CLI))["shell_dependencies"]
+        for text, expected in (
+            ("; python x", ["x"]),
+            ("\n; python x", ["x"]),
+            ("exec ", ["exec"]),
+            ("A=x ", ["A=x"]),
+            ("python -P ", ["-P"]),
+            ("sh -e -x ", ["-x"]),
+            ("exec A=x python -P fixture.py", ["fixture.py"]),
+            ("A_1=x python fixture.py", ["fixture.py"]),
+            ("Aé=x python fixture.py", ["Aé=x"]),
+            ("A١=x python fixture.py", ["A١=x"]),
+            ("éthen python fixture.py", ["éthen"]),
+            ("thené python fixture.py", ["thené"]),
+            ("echo x; then python fixture.py", ["echo", "then"]),
+            ("\n", []),
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(dependencies(text), expected)
+
+    def test_ascii_make_identifiers_preserve_non_ascii_tail_exclusion(self):
+        for identifier, expected in (("A_1", 1), ("Aé", 0), ("A١", 0), ("_A", 1)):
+            with self.subTest(identifier=identifier):
+                self.write(
+                    self.product,
+                    "connectors/example/Makefile",
+                    f"{identifier} = modules/ModSecurity-test-Framework\nLDADD = $({identifier})/runtime.a\n",
+                )
+                self.run_cli(
+                    expected,
+                    "product-without-test-infrastructure" if expected else "PASS",
+                )
+
+    def test_host_header_filename_and_directory_boundaries(self):
+        check_header = runpy.run_path(str(CLI))["host_header"]
+        for name, expected in (
+            ("nginx.h", True),
+            ("nested/nginx.h", True),
+            ("nginx.h.extra", False),
+            ("nginx.h\n", False),
+            ("ngx_é.h", True),
+            ("ngx_\n.h", True),
+            ("http_config.h", True),
+            ("http_é.h", False),
+            ("apache/a.h", True),
+            ("apache2/a.h", True),
+            ("apache22/a.h", False),
+            ("envoy", False),
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(check_header(name), expected)
 
     def test_external_engine_sdk_is_neutral(self):
         self.write(
