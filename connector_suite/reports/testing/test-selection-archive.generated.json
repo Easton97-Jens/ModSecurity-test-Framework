@@ -12769,7 +12769,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_native_helper_is_orchestrated_only_by_canonical_maintenance"
       ],
       "source": "framework/tests/ci_security/test_update_workflow_tools.py",
-      "source_sha256": "d44ba6dcd699d6846efed17c530c64880f35b99d8bcaff2c35e541b3ac148845"
+      "source_sha256": "e1b5c34aafb6853639a2c0f92b9ef93c7e629eb85a2e93fa141e4594bd3c86fe"
     },
     {
       "contains_selected_definitions": [],

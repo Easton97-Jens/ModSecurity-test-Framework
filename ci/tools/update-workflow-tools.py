@@ -135,6 +135,10 @@ INTEGRATION_READONLY_INPUT_PATHS = frozenset(
         "ci/tooling/connector-actions.lock.json",
     }
 )
+PROPOSED_PACKAGE_INPUT_PATHS = (
+    "modsecurity_test_framework/__init__.py",
+    "modsecurity_test_framework/sonar_diagnostics_contract.py",
+)
 PROPOSED_VALIDATION_INPUT_PATHS = frozenset(
     {
         *ALLOWED_UPDATE_PATHS,
@@ -143,8 +147,7 @@ PROPOSED_VALIDATION_INPUT_PATHS = frozenset(
         "ci/tools/install-hash-locked-ci-dependencies.sh",
         "ci/tools/install_hash_locked_ci_dependencies.py",
         "ci/pyyaml-build-tools.lock.json",
-        "modsecurity_test_framework/__init__.py",
-        "modsecurity_test_framework/sonar_diagnostics_contract.py",
+        *PROPOSED_PACKAGE_INPUT_PATHS,
     }
 )
 WORKFLOW_UPDATE_PATHS = tuple(
@@ -1309,6 +1312,47 @@ def snapshot_update_validation_inputs(root: Path, output_dir: Path) -> Path:
     return destination
 
 
+def run_proposed_python(
+    script: Path, arguments: tuple[str, ...], proposed_root: Path
+) -> subprocess.CompletedProcess[str]:
+    """Use only the genuine copied package in a fresh isolated interpreter."""
+
+    root = resolve_root(proposed_root)
+    if root != proposed_root:
+        raise UpdateError("proposed interpreter root must be canonical")
+    source_root = framework_root()
+    for relative_text in PROPOSED_PACKAGE_INPUT_PATHS:
+        relative = Path(relative_text)
+        trusted = resolve_regular_file(source_root, relative)
+        copied = resolve_regular_file(root, relative)
+        if copied.read_bytes() != trusted.read_bytes():
+            raise UpdateError("proposed read-only package differs from trusted inputs")
+    environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+    bootstrap = (
+        "import runpy, sys; root, script = sys.argv[1:3]; "
+        "sys.path.insert(0, root); sys.argv = sys.argv[2:]; "
+        "runpy.run_path(script, run_name='__main__')"
+    )
+    return subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-B",
+            "-c",
+            bootstrap,
+            str(root),
+            str(script),
+            *arguments,
+        ],
+        cwd=root,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
 def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
     """Run fixed trusted checkers against the candidate-only proposed tree."""
 
@@ -1332,13 +1376,7 @@ def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
     )
     for relative, arguments, description in checks:
         checker = resolve_regular_file(source_root, relative)
-        result = subprocess.run(
-            [sys.executable, str(checker), *arguments],
-            cwd=proposed_root,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        result = run_proposed_python(checker, arguments, proposed_root)
         if result.returncode != 0:
             output = f"{result.stdout}{result.stderr}".strip()
             raise UpdateError(
@@ -1360,18 +1398,8 @@ def regenerate_canonical_generated_views(proposed_root: Path) -> None:
     synchronizer = resolve_regular_file(
         source_root, Path("ci/tools/sync-canonical-workflow-pins.py")
     )
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(synchronizer),
-            "--write",
-            "--root",
-            str(proposed_root),
-        ],
-        cwd=source_root,
-        check=False,
-        capture_output=True,
-        text=True,
+    result = run_proposed_python(
+        synchronizer, ("--write", "--root", str(proposed_root)), proposed_root
     )
     if result.returncode != 0:
         output = f"{result.stdout}{result.stderr}".strip()

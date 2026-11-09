@@ -328,6 +328,18 @@ CI_SECURITY_TOOL_REQUIRED_FIELDS = frozenset(
 )
 
 
+def _diagnostic_source_name_errors(names: set[str]) -> list[str]:
+    unexpected = sorted(
+        name
+        for name in names
+        if name.startswith("CI_SONAR_DIAGNOSTIC_")
+        and name not in CI_DIAGNOSTIC_SOURCE_VARIABLES
+    )
+    if unexpected:
+        return ["unsupported diagnostic source fields: " + ", ".join(unexpected)]
+    return []
+
+
 def canonical_ci_group_inventory(
     entries: dict[str, "VariableEntry"] | None = None,
 ) -> tuple[tuple[str, ...], list[str]]:
@@ -337,14 +349,7 @@ def canonical_ci_group_inventory(
         return (), []
     names = {name for name in entries if name.startswith("CI_")}
     groups: dict[tuple[str, str], set[str]] = {}
-    errors: list[str] = []
-    unexpected_source_names = sorted(
-        name for name in names
-        if name.startswith("CI_SONAR_DIAGNOSTIC_")
-        and name not in CI_DIAGNOSTIC_SOURCE_VARIABLES
-    )
-    if unexpected_source_names:
-        errors.append("unsupported diagnostic source fields: " + ", ".join(unexpected_source_names))
+    errors = _diagnostic_source_name_errors(names)
     for name in sorted(names):
         group_info = _canonical_group_prefix(name)
         if group_info is None:
@@ -1425,6 +1430,18 @@ def _canonical_assignment_errors(
     return errors
 
 
+def _diagnostic_source_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
+    if not all(name in entries for name in CI_DIAGNOSTIC_SOURCE_VARIABLES):
+        return []
+    try:
+        _diagnostic_source_reference(
+            {name: entries[name].resolved for name in CI_DIAGNOSTIC_SOURCE_VARIABLES}
+        )
+    except ValueError as exc:
+        return [str(exc)]
+    return []
+
+
 def _canonical_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
     errors: list[str] = []
     missing_values = validate_entries(entries)
@@ -1478,11 +1495,7 @@ def _canonical_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
     )
     if unresolved:
         errors.append("unresolved canonical derivations: " + ", ".join(unresolved))
-    if all(name in entries for name in CI_DIAGNOSTIC_SOURCE_VARIABLES):
-        try:
-            _diagnostic_source_reference({name: entries[name].resolved for name in CI_DIAGNOSTIC_SOURCE_VARIABLES})
-        except ValueError as exc:
-            errors.append(str(exc))
+    errors.extend(_diagnostic_source_value_errors(entries))
     return errors
 
 
