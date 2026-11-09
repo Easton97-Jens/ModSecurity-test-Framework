@@ -165,7 +165,7 @@ function emptyDiagnostics() {
     warnings: {total: 0, parse: 0, invalid_location: 0, signature_trust: 0, unmapped: 0},
     errors: {total: 0, unmapped: 0}, parser_lines: 0, unmapped_parser_lines: 0,
     overlong_lines: 0, facts_truncated: 0, unmapped_counters: 0, locations: [], file_failures: [], counters: {},
-    signals: {document_limits: [], llvm_errors: 0, top_level_drops: null, ir_methods: null, unmapped: 0},
+    signals: {document_limits: [], document_limit_associations: [], llvm_errors: 0, top_level_drops: null, ir_methods: null, unmapped: 0},
     cfamily_version: null, cfamily_version_status: 'NOT_OBSERVED',
     visibility: {version_unmapped: 0, decoder_loss_lines: 0,
       overlong_markers: Object.fromEntries(Object.keys(LINE_MARKERS).map(key => [key, 0])),
@@ -224,11 +224,12 @@ function recordCFamilyVersion(result, line) {
   const text = scannerPayload(line);
   const prefix = 'CFamily plugin version: ';
   if (!text.startsWith(prefix)) return;
-  const value = text.slice(prefix.length);
-  if (!/^\d{1,6}(?:\.\d{1,6}){3}$/.test(value)) {
+  const match = /^(\d{1,6}(?:\.\d{1,6}){3})(?: \([a-f0-9]{40}\))?$/.exec(text.slice(prefix.length));
+  if (!match) {
     result.visibility.version_unmapped++;
     return;
   }
+  const value = match[1];
   if (result.cfamily_version_status === 'CONFLICT') return;
   if (result.cfamily_version !== null && result.cfamily_version !== value) {
     result.cfamily_version = null;
@@ -409,7 +410,91 @@ function recordTruncatedLine(result, line, flags, parsing, cannotParse) {
   if (parsing) result.parser_lines++;
   if (parsing || cannotParse) result.unmapped_parser_lines++;
 }
+// Prospective native IaC three-event layout. A correlation is additional
+// evidence, never a replacement for unbound signals or warning accounting.
+function nativeEvent(line) {
+  const text = line.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,9}Z /, '').replace(/\r?\n$/, '');
+  const match = /^\d{2}:\d{2}:\d{2}\.\d{3} (WARN|DEBUG|INFO|ERROR) +(.+)$/.exec(text);
+  if (!match) return null;
+  const identity = /^\[([\w.-]{1,64})\] (org\.sonar\.iac\.common\.extension\.analyzer\.AbstractAnalyzer) - (.*)$/.exec(match[2]);
+  return {level: match[1], context: identity ? identity[1] + '\0' + identity[2] : null,
+    payload: identity ? identity[3] : match[2]};
+}
+function eventFile(payload, prefix, sources) {
+  if (!payload.startsWith(prefix)) return null;
+  const match = /^'([^'\r\n]+)'$/.exec(payload.slice(prefix.length));
+  return match ? sourceLocation(match[1], sources) : null;
+}
+function finishNativeSequence(result, state) {
+  const item = state.nativeSequence;
+  state.nativeSequence = null;
+  if (!item || item.phase !== 'STACK' || !item.convertFrame || !item.analyzerFrame) return;
+  const facts = result.signals.document_limit_associations;
+  const status = item.context === null ? 'SEQUENCE_CORRELATED' : 'LOGGER_THREAD_MATCHED';
+  const found = facts.find(fact => fact.repository === item.fact.repository && fact.path === item.fact.path &&
+    fact.limit === item.limit && fact.association_status === status);
+  if (found) found.occurrences++;
+  else if (facts.length < 8) facts.push({...item.fact, category: 'DOCUMENT_CODEPOINT_LIMIT',
+    limit: item.limit, association_status: status, occurrences: 1});
+  else result.signals.unmapped++;
+}
+function nativeStackLine(line) {
+  return line.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,9}Z /, '').replace(/\r?\n$/, '');
+}
+function advanceNativeStack(line, item) {
+  const text = nativeStackLine(line);
+  if (!javaStackContinuation(text)) return false;
+  item.convertFrame ||= /^\s+at org\.sonar\.iac\.common\.extension\.ParseException\.toParseException\(ParseException\.java:\d{1,6}\)$/.test(text);
+  item.analyzerFrame ||= /^\s+at org\.sonar\.iac\.common\.extension\.analyzer\.AbstractAnalyzer\.parse\(AbstractAnalyzer\.java:\d{1,6}\)$/.test(text);
+  return true;
+}
+function advanceNativeDetails(event, item) {
+  const match = /^The incoming YAML document exceeds the limit: (\d{1,10}) code points\.$/.exec(event.payload);
+  const limit = match && boundedCounter(match[1]);
+  if (!limit) return false;
+  item.limit = limit;
+  item.phase = 'HEADER';
+  return true;
+}
+function advanceNativeHeader(event, item, sources) {
+  const fact = eventFile(event.payload, 'org.sonar.iac.common.extension.ParseException: Cannot parse ', sources);
+  if (!fact || fact.repository !== item.fact.repository || fact.path !== item.fact.path) return false;
+  item.phase = 'STACK';
+  return true;
+}
+function nativeContextLost(line, flags) {
+  return flags.truncated || flags.decoderLoss || line.includes('\uFFFD') ||
+    /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(line);
+}
+function advanceNativeSequence(result, line, sources, flags, state) {
+  if (nativeContextLost(line, flags)) {
+    state.nativeSequence = null;
+    return;
+  }
+  const event = nativeEvent(line);
+  let item = state.nativeSequence;
+  if (event && item?.phase === 'STACK') {
+    finishNativeSequence(result, state);
+    item = null;
+  }
+  if (!item) {
+    const fact = event?.level === 'WARN' && eventFile(event.payload, 'Cannot parse ', sources);
+    state.nativeSequence = fact ? {fact, context: event.context, phase: 'DETAILS', lines: 1, bytes: Buffer.byteLength(line)} : null;
+    return;
+  }
+  item.lines++;
+  item.bytes += Buffer.byteLength(line);
+  if (documentBudgetReason(item)) { state.nativeSequence = null; return; }
+  if (item.phase === 'STACK') {
+    if (!advanceNativeStack(line, item)) state.nativeSequence = null;
+    return;
+  }
+  if (!event || event.level !== 'DEBUG' || event.context !== item.context) { state.nativeSequence = null; return; }
+  const valid = item.phase === 'DETAILS' ? advanceNativeDetails(event, item) : advanceNativeHeader(event, item, sources);
+  if (!valid) state.nativeSequence = null;
+}
 function acceptLine(result, line, sources, flags = {}, state = {}) {
+  advanceNativeSequence(result, line, sources, flags, state);
   recordSeverity(result, line, flags);
   const loss = flags.decoderLoss ?? line.includes('\uFFFD');
   if (loss) result.visibility.decoder_loss_lines++;
@@ -470,6 +555,9 @@ function diagnostics(filename, sources) {
       }
     }
     if (pending || discarded) finish();
+    // This point is reached only after successful EOF; a failed read must not
+    // promote an incomplete private capture into correlated evidence.
+    finishNativeSequence(result, state);
   } finally { resetDocumentContext(result, state, 'END_OF_INPUT'); fs.closeSync(descriptor); }
   return result;
 }

@@ -353,6 +353,106 @@ test('adversarial digit runs and property whitespace finish within a hard deadli
   assert.ok(!result.stdout.includes(canary) && !result.stderr.includes(canary));
 }));
 const documentLimit = 'The incoming YAML document exceeds the limit: 3145728 code points.';
+const nativeLogger = 'org.sonar.iac.common.extension.analyzer.AbstractAnalyzer';
+const nativeConvertFrame = '\tat org.sonar.iac.common.extension.ParseException.toParseException(ParseException.java:67)';
+const nativeAnalyzerFrame = '\tat org.sonar.iac.common.extension.analyzer.AbstractAnalyzer.parse(AbstractAnalyzer.java:81)';
+function nativeLines(context = '', source = 'data/a.json') {
+  return [`12:34:56.789 WARN ${context}Cannot parse '${source}'`,
+    `12:34:56.790 DEBUG ${context}${documentLimit}`,
+    `12:34:56.791 DEBUG ${context}org.sonar.iac.common.extension.ParseException: Cannot parse '${source}'`,
+    nativeConvertFrame, nativeAnalyzerFrame];
+}
+test('native three-event sequence correlates only a complete bounded stack and successful EOF', () => temporary(root => {
+  for (const [context, status] of [['', 'SEQUENCE_CORRELATED'],
+    [`[worker-1] ${nativeLogger} - `, 'LOGGER_THREAD_MATCHED']]) {
+    const result = logDiagnostics(root, nativeLines(context));
+    assert.deepEqual(result.signals.document_limit_associations, [{repository: 'framework', path: 'data/a.json',
+      category: 'DOCUMENT_CODEPOINT_LIMIT', limit: 3145728, association_status: status, occurrences: 1}]);
+    assert.equal(result.signals.document_limits[0].source_binding, 'UNBOUND');
+    assert.equal(result.signals.document_limits[0].occurrences, 1);
+    assert.equal(result.diagnosis_complete, false);
+  }
+  const nextEvent = logDiagnostics(root, [...nativeLines(), '12:34:56.792 INFO Sensor finished']);
+  assert.equal(nextEvent.signals.document_limit_associations.length, 1);
+  const filename = path.join(root, 'no-final-newline.log');
+  fs.writeFileSync(filename, nativeLines().join('\n'), {mode: 0o600});
+  assert.equal(api.diagnostics(filename, jsonSources()).signals.document_limit_associations.length, 1);
+  assert.throws(() => api.diagnostics(root, jsonSources()), {code: 'EISDIR'});
+}));
+test('native correlation rejects missing reordered interleaved and conflicting contexts', () => temporary(root => {
+  const original = nativeLines();
+  const wrongHeader = original[2].replace('data/a.json', 'data/b.json');
+  const known = `[worker-1] ${nativeLogger} - `;
+  const explicit = nativeLines(known);
+  const cases = [original.slice(1), original.filter((_, i) => i !== 1), original.filter((_, i) => i !== 2),
+    original.filter((_, i) => i !== 3), original.filter((_, i) => i !== 4),
+    [original[0], original[2], original[1], ...original.slice(3)],
+    [original[0], original[1], wrongHeader, ...original.slice(3)],
+    [original[0], original[1] + ' ' + canary, ...original.slice(2)],
+    [original[0], original[1].replace('3145728', '2147483648'), ...original.slice(2)],
+    [original[0], explicit[1], ...original.slice(2)],
+    [explicit[0], explicit[1].replace('worker-1', 'worker-2'), ...explicit.slice(2)],
+    [explicit[0], explicit[1], explicit[2].replace(nativeLogger, 'untrusted.Logger'), ...explicit.slice(3)]];
+  for (const interruption of ['12:34:56.790 INFO Sensor other', '12:34:56.790 DEBUG ' + canary,
+    '', canary, '\u001b[31m', '\uFFFD']) {
+    cases.push([original[0], interruption, ...original.slice(1)]);
+    cases.push([...original.slice(0, 3), interruption, ...original.slice(3)]);
+  }
+  for (const lines of cases) {
+    const result = logDiagnostics(root, lines);
+    assert.deepEqual(result.signals.document_limit_associations, []);
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+}));
+test('native correlation honors line byte overlong and decoder-loss boundaries', () => temporary(root => {
+  const original = nativeLines();
+  for (const middle of [new Array(28).fill(stackFrame),
+    new Array(20).fill('\tat ' + 'a'.repeat(900) + '.method(Scanner.java:42)'),
+    ['x'.repeat(70000)], ['\t' + '\uFFFD' + canary]]) {
+    const result = logDiagnostics(root, [...original.slice(0, 3), ...middle, ...original.slice(3)]);
+    assert.deepEqual(result.signals.document_limit_associations, []);
+    assert.equal(result.signals.document_limits[0].source_binding, 'UNBOUND');
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+  const truncated = logDiagnostics(root, [original[0], original[1] + 'x'.repeat(70000), ...original.slice(2)]);
+  assert.deepEqual(truncated.signals.document_limit_associations, []);
+  assert.equal(truncated.overlong_lines, 1);
+}));
+test('native correlation preserves warning visibility transport boundaries and redaction', () => temporary(root => {
+  const identity = `[${canary}] ${nativeLogger} - `;
+  const lines = nativeLines(identity, '/fixture/data/a.json');
+  const transport = lines.map(line => '2026-11-09T12:34:56.7890000Z ' + line);
+  const result = logDiagnostics(root, [...transport,
+    '12:34:56.792 WARN Dropping internal.debug finding: primary location ' + canary,
+    '12:34:56.793 WARN Dropping internal.debug finding: primary location ' + canary], '\r\n', 'x'.repeat(65520) + '\r\n');
+  assert.equal(result.signals.document_limit_associations[0].association_status, 'LOGGER_THREAD_MATCHED');
+  assert.equal(result.signals.document_limit_associations[0].path, 'data/a.json');
+  assert.equal(result.warnings.invalid_location, 2);
+  assert.equal(result.warnings.total, 3);
+  assert.ok(!JSON.stringify(result).includes(canary));
+  assert.ok(!JSON.stringify(result).includes(nativeLogger));
+}));
+test('CFamily version accepts only optional exact lowercase build metadata and emits numeric version', () => temporary(root => {
+  const build = '829eaa25b0b1054f587bbeeb168e51409c72f905';
+  for (const suffix of ['', ` (${build})`]) {
+    const result = logDiagnostics(root, [cfamilyVersionLine + suffix]);
+    assert.equal(result.cfamily_version, cfamilyVersion);
+    assert.equal(result.cfamily_version_status, 'OBSERVED');
+    assert.ok(!JSON.stringify(result).includes(build));
+  }
+  for (const suffix of [` (${build.slice(1)})`, ` (${build}a)`, ` (${build.toUpperCase()})`,
+    ` (${build.slice(1)}g)`, `  (${build})`, ` (${build}) ${canary}`, '\u001b[0m', '\t',
+    ' (' + 'a'.repeat(50000) + ')', ' (Linux)']) {
+    const result = logDiagnostics(root, [cfamilyVersionLine + suffix]);
+    assert.equal(result.cfamily_version, null);
+    assert.equal(result.cfamily_version_status, 'NOT_OBSERVED');
+    assert.equal(result.visibility.version_unmapped, 1);
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+  const conflict = logDiagnostics(root, [cfamilyVersionLine + ` (${build})`, 'CFamily plugin version: 6.87.0.1']);
+  assert.equal(conflict.cfamily_version_status, 'CONFLICT');
+  assert.equal(conflict.cfamily_version, null);
+}));
 const engineLimit = 'org.snakeyaml.engine.v2.exceptions.YamlEngineException: ' + documentLimit;
 const classicLimit = 'Caused by: org.yaml.snakeyaml.error.YAMLException: ' + documentLimit;
 const stackFrame = '\tat org.snakeyaml.engine.v2.scanner.ScannerImpl.fetchMoreTokens(ScannerImpl.java:42)';
