@@ -1,0 +1,416 @@
+'use strict';
+// This executable must be loaded by GitHub from a previously reviewed immutable
+// remote action commit. A token-bearing PR-head local action is forbidden.
+const fs = require('node:fs');
+const path = require('node:path');
+const {spawn, execFileSync} = require('node:child_process');
+const MAX_LOG = 128 * 1024 * 1024;
+const MAX_LINE = 65536;
+const MAX_FACTS = 10000;
+const MAX_COUNTER = 2147483647;
+const SHA = /^[a-f0-9]{40}$/;
+const FIXTURE = 'cfd5e49cada3fc793ef50993147e3796a0907443';
+const ENV_KEYS = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'RUNNER_TEMP',
+  'RUNNER_TOOL_CACHE', 'RUNNER_OS', 'RUNNER_ARCH', 'CI', 'GITHUB_ACTIONS',
+  'GITHUB_ACTION', 'GITHUB_WORKSPACE', 'GITHUB_EVENT_NAME', 'GITHUB_EVENT_PATH',
+  'GITHUB_REF', 'GITHUB_REF_NAME', 'GITHUB_HEAD_REF', 'GITHUB_BASE_REF',
+  'GITHUB_SHA', 'GITHUB_REPOSITORY', 'GITHUB_REPOSITORY_OWNER', 'GITHUB_RUN_ID',
+  'GITHUB_RUN_NUMBER', 'GITHUB_SERVER_URL', 'GITHUB_API_URL'];
+function demand(value) { if (!value) throw new Error('invalid diagnostic boundary'); }
+function realDirectory(value) {
+  demand(typeof value === 'string' && path.isAbsolute(value));
+  demand(fs.realpathSync(value) === path.resolve(value) && fs.lstatSync(value).isDirectory());
+  return value;
+}
+function privateFile(directory, name) {
+  return fs.openSync(path.join(directory, name), fs.constants.O_WRONLY |
+    fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+}
+function privateEnv(original, directory, authentication = false) {
+  const result = {};
+  for (const key of ENV_KEYS) if (original[key] !== undefined) result[key] = original[key];
+  result.GIT_CONFIG_NOSYSTEM = '1';
+  result.GIT_CONFIG_GLOBAL = '/dev/null';
+  result.GIT_TERMINAL_PROMPT = '0';
+  for (const key of ['GITHUB_ENV', 'GITHUB_PATH', 'GITHUB_OUTPUT', 'GITHUB_STATE', 'GITHUB_STEP_SUMMARY']) {
+    const name = `${authentication ? 'scanner' : 'bootstrap'}-${key}`;
+    fs.closeSync(privateFile(directory, name));
+    result[key] = path.join(directory, name);
+  }
+  if (authentication) {
+    demand(typeof original.SONAR_TOKEN === 'string' && original.SONAR_TOKEN.length > 0);
+    result.SONAR_TOKEN = original.SONAR_TOKEN;
+    result.SONAR_USER_HOME = original.SONAR_USER_HOME;
+  }
+  return result;
+}
+function runCaptured(command, args, descriptor, env, options = {}) {
+  return new Promise((resolve, reject) => {
+    let child, killTimer;
+    let failed = false;
+    // The same descriptor captures bootstrap and scanner children. The limit
+    // applies to the complete raw file, never separately to each child.
+    let size = fs.fstatSync(descriptor).size;
+    const kill = signal => {
+      try { if (Number.isInteger(child?.pid)) process.kill(-child.pid, signal); } catch {}
+    };
+    const stop = () => {
+      failed = true;
+      kill('SIGTERM');
+      killTimer ??= setTimeout(() => kill('SIGKILL'), 1000);
+    };
+    try {
+      child = spawn(command, args, {env, cwd: options.cwd, detached: true,
+        stdio: ['ignore', 'pipe', 'pipe']});
+    } catch { reject(new Error('captured child failed')); return; }
+    const timer = setTimeout(stop, options.timeout ?? 40 * 60 * 1000);
+    process.on('SIGINT', stop);
+    process.on('SIGTERM', stop);
+    const copy = chunk => {
+      size += chunk.length;
+      if (size > (options.limit ?? MAX_LOG)) { stop(); return; }
+      try { fs.writeSync(descriptor, chunk); } catch { stop(); }
+    };
+    child.stdout.on('data', copy);
+    child.stderr.on('data', copy);
+    child.on('error', () => { failed = true; });
+    child.on('close', (code, signal) => {
+      // Descendants may close stdio and outlive an otherwise successful leader.
+      kill('SIGKILL');
+      clearTimeout(timer);
+      clearTimeout(killTimer);
+      process.off('SIGINT', stop);
+      process.off('SIGTERM', stop);
+      if (failed || signal || !Number.isInteger(code)) reject(new Error('captured child failed'));
+      else resolve(code);
+    });
+  });
+}
+async function withPrivateRun(temporaryRoot, callback) {
+  realDirectory(temporaryRoot);
+  const directory = fs.mkdtempSync(path.join(temporaryRoot, 'sonar-private-'));
+  fs.chmodSync(directory, 0o700);
+  try { return await callback(directory); }
+  finally { fs.rmSync(directory, {recursive: true, force: true}); }
+}
+function gitOutput(root, args, env) {
+  return execFileSync('git', ['-c', 'credential.helper=', '-C', root, ...args], {
+    env, encoding: 'utf8', timeout: 15000, maxBuffer: 16 * 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe']});
+}
+function inventory(root, revision, role, env) {
+  realDirectory(root);
+  demand(SHA.test(revision) && gitOutput(root, ['rev-parse', 'HEAD'], env).trim() === revision);
+  demand(gitOutput(root, ['status', '--porcelain=v1', '--untracked-files=all'], env) === '');
+  const result = new Map();
+  result.roots = [root];
+  for (const relative of gitOutput(root, ['ls-files', '-z'], env).split('\0')) {
+    if (!relative || relative.length > 512 || !/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/.test(relative) ||
+        relative.split('/').some(part => part === '.' || part === '..')) continue;
+    const absolute = path.join(root, relative);
+    if (!fs.existsSync(absolute) || !fs.lstatSync(absolute).isFile() || fs.realpathSync(absolute) !== absolute) continue;
+    const fact = {repository: role, path: relative};
+    result.set(absolute, fact);
+    if (role !== 'product_fixture') result.set(relative, fact);
+  }
+  return result;
+}
+function sourceLocation(raw, sources) {
+  if (/[\x00-\x1f\x7f]/.test(raw)) return undefined;
+  if (sources.has(raw)) return sources.get(raw);
+  if (!path.posix.isAbsolute(raw)) return undefined;
+  for (const root of sources.roots ?? []) {
+    if (!raw.startsWith(root + '/')) continue;
+    let depth = 0;
+    for (const part of raw.slice(root.length + 1).split('/')) {
+      if (part === '..') { if (--depth < 0) return undefined; }
+      else if (part !== '' && part !== '.') depth++;
+    }
+    return sources.get(path.posix.normalize(raw));
+  }
+  return undefined;
+}
+function emptyDiagnostics() {
+  return {schema: 'private-sonar-diagnostics-v2', diagnosis_complete: false,
+    warnings: {total: 0, parse: 0, invalid_location: 0, signature_trust: 0, unmapped: 0},
+    errors: {total: 0, unmapped: 0}, parser_lines: 0, unmapped_parser_lines: 0,
+    overlong_lines: 0, facts_truncated: 0, unmapped_counters: 0, locations: [], counters: {},
+    signals: {document_limits: [], llvm_errors: 0, top_level_drops: null, ir_methods: null, unmapped: 0}};
+}
+function boundedCounter(raw, grouping = false) {
+  if (typeof raw !== 'string' || !(grouping ? /^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(raw) : /^[0-9]+$/.test(raw))) return null;
+  const value = Number(raw.replaceAll(',', ''));
+  return Number.isSafeInteger(value) && value >= 0 && value <= MAX_COUNTER ? value : null;
+}
+function recordSignals(result, line) {
+  if (line.includes('LLVM ERROR')) result.signals.llvm_errors++;
+  const budget = line.match(/The incoming YAML document exceeds the limit: ([0-9]{1,10}) code points\./);
+  if (budget) {
+    const limit = boundedCounter(budget[1]);
+    if (limit !== null && limit > 0) {
+      const found = result.signals.document_limits.find(item => item.limit === limit);
+      if (found) found.occurrences++;
+      else if (result.signals.document_limits.length < 8) result.signals.document_limits.push({
+        category: 'DOCUMENT_CODEPOINT_LIMIT', limit, occurrences: 1, source_binding: 'UNBOUND'});
+      else result.signals.unmapped++;
+    } else result.signals.unmapped++;
+  }
+  const dropped = line.match(/Top-level declarations dropped decoding, encoding: ([0-9]+), ([0-9]+)\s*$/);
+  if (dropped) {
+    const values = dropped.slice(1).map(value => boundedCounter(value));
+    if (values.every(value => value !== null)) result.signals.top_level_drops = {decoding: values[0], encoding: values[1]};
+    else result.unmapped_counters++;
+  } else if (line.includes('Top-level declarations dropped decoding, encoding:')) result.unmapped_counters++;
+  const methods = line.match(/IR generation: ([0-9,]+) skipped out of ([0-9,]+) total methods\s*$/);
+  if (methods) {
+    const values = methods.slice(1).map(value => boundedCounter(value, true));
+    if (values.every(value => value !== null) && values[0] <= values[1]) {
+      result.signals.ir_methods = {skipped: values[0], total: values[1]};
+    } else result.unmapped_counters++;
+  } else if (line.includes('IR generation:') && line.includes('total methods')) result.unmapped_counters++;
+  const mode = line.match(/CFamily analysis configuration mode: (AutoConfig|Compile-Commands)/i);
+  if (mode) result.observed_cfamily_mode = mode[1].toLowerCase() === 'autoconfig' ? 'AUTO_CONFIG' : 'COMPILE_COMMANDS';
+}
+function diagnosticCategory(message) {
+  if (/file not found|No such file or directory|cannot open.*include/i.test(message)) return 'MISSING_INCLUDE';
+  if (/unknown type name/i.test(message)) return 'UNKNOWN_TYPE';
+  if (/undeclared identifier|not declared in this scope/i.test(message)) return 'UNDECLARED_IDENTIFIER';
+  if (/expected /i.test(message)) return 'EXPECTED_TOKEN';
+  return 'OTHER_PARSE';
+}
+function acceptLine(result, line, sources, flags = {}) {
+  const warning = flags.warning ?? /\bWARN(?:ING)?\b/i.test(line);
+  const error = flags.error ?? /\bERROR\b/i.test(line);
+  if (warning) {
+    result.warnings.total++;
+    if (flags.truncated) result.warnings.unmapped++;
+    else if (/Cannot parse/.test(line)) result.warnings.parse++;
+    else if (/Dropping internal\.debug finding: primary location/.test(line)) result.warnings.invalid_location++;
+    else if (/gpg: WARNING:/.test(line)) result.warnings.signature_trust++;
+    else result.warnings.unmapped++;
+  }
+  if (error) { result.errors.total++; result.errors.unmapped++; }
+  const parsing = flags.parsing ?? line.includes('[ParsingError]');
+  const cannotParse = flags.cannotParse ?? line.includes('Cannot parse');
+  if (flags.truncated) {
+    if (parsing) result.parser_lines++;
+    if (parsing || cannotParse) result.unmapped_parser_lines++;
+    return;
+  }
+  recordSignals(result, line);
+  for (const [label, expression] of [
+    ['full_translation_units', /(\d+) compilation units were fully analyzed/],
+    ['partial_translation_units', /(\d+) compilation units were partially analyzed/],
+  ]) {
+    const match = line.match(expression);
+    if (match) {
+      const value = boundedCounter(match[1]);
+      if (value === null) result.unmapped_counters++;
+      else result.counters[label] = value;
+    }
+  }
+  const ratio = line.match(/of (functions|statements) were parsed successfully \((\d+) out of (\d+) have parsing errors\)/);
+  if (ratio) {
+    const errors = boundedCounter(ratio[2]);
+    const total = boundedCounter(ratio[3]);
+    if (errors === null || total === null || errors > total) result.unmapped_counters++;
+    else result.counters[ratio[1]] = {errors, total};
+  }
+  if (!parsing && !cannotParse) return;
+  if (parsing) result.parser_lines++;
+  const payload = parsing ? line.split('[ParsingError]').slice(1).join('[ParsingError]').trim() :
+    line.slice(line.indexOf('Cannot parse') + 'Cannot parse'.length).trim();
+  const match = payload.match(/^'?(.+?):([0-9]+)(?::([0-9]+))?(?:[':\s]|$)(.*)$/);
+  const fact = match && sourceLocation(match[1], sources);
+  const lineNumber = match && Number(match[2]);
+  const column = match?.[3] ? Number(match[3]) : 0;
+  if (!fact || !Number.isSafeInteger(lineNumber) || lineNumber < 1 || lineNumber > 10000000 ||
+      !Number.isSafeInteger(column) || column < 0 || column > 1000000) { result.unmapped_parser_lines++; return; }
+  if (result.locations.length >= MAX_FACTS) { result.facts_truncated++; return; }
+  result.locations.push({...fact, line: lineNumber, column,
+    category: parsing ? diagnosticCategory(match[4]) : 'CANNOT_PARSE', translation_unit: 'UNKNOWN'});
+}
+function diagnostics(filename, sources) {
+  const result = emptyDiagnostics();
+  const descriptor = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  const buffer = Buffer.alloc(65536);
+  let pending = '', word = '', tail = '';
+  let discarded = false;
+  let flags = {warning: false, error: false, parsing: false, cannotParse: false};
+  const flushWord = () => {
+    if (/^WARN(?:ING)?$/i.test(word)) flags.warning = true;
+    if (/^ERROR$/i.test(word)) flags.error = true;
+    word = '';
+  };
+  const track = fragment => {
+    for (const character of fragment) {
+      if (/[A-Za-z0-9_]/.test(character)) { if (word.length < 8) word += character; }
+      else flushWord();
+    }
+    const markers = tail + fragment;
+    flags.parsing ||= markers.includes('[ParsingError]');
+    flags.cannotParse ||= markers.includes('Cannot parse');
+    tail = markers.slice(-32);
+  };
+  const finish = () => {
+    flushWord();
+    if (discarded) result.overlong_lines++;
+    acceptLine(result, pending, sources, {...flags, truncated: discarded});
+    pending = ''; word = ''; tail = ''; discarded = false;
+    flags = {warning: false, error: false, parsing: false, cannotParse: false};
+  };
+  let bytes;
+  try {
+    while ((bytes = fs.readSync(descriptor, buffer, 0, buffer.length, null)) > 0) {
+      for (const fragment of buffer.subarray(0, bytes).toString('utf8').split(/(?<=\n)/)) {
+        track(fragment);
+        if (pending.length + fragment.length <= MAX_LINE) pending += fragment;
+        else { discarded = true; pending = (pending + fragment).slice(0, MAX_LINE); }
+        if (fragment.endsWith('\n')) finish();
+      }
+    }
+    if (pending || discarded) finish();
+  } finally { fs.closeSync(descriptor); }
+  return result;
+}
+function validateArguments(args, temporaryRoot, revision) {
+  demand(SHA.test(revision));
+  const expected = `-Dsonar.scm.revision=${revision} ` +
+    `-Dsonar.working.directory=${path.join(temporaryRoot, 'framework-sonar-work')} ` +
+    `-Dsonar.cfamily.compile-commands=${path.join(temporaryRoot, 'framework-sonar-native/compile_commands.json')}`;
+  demand(args.trim().replace(/\s+/g, ' ') === expected);
+  return expected + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=false';
+}
+function parentIncludes(temporaryRoot, revision) {
+  const context = realDirectory(path.join(temporaryRoot, 'sonar-native-context'));
+  const filename = path.join(context, 'manifest.json');
+  demand(fs.lstatSync(filename).isFile() && !fs.lstatSync(filename).isSymbolicLink() && fs.statSync(filename).size <= 1048576);
+  const manifest = JSON.parse(fs.readFileSync(filename, 'utf8'));
+  demand(manifest.revision === revision && manifest.uncommitted_changes === false);
+  demand(Array.isArray(manifest.includes) && manifest.includes.length > 0 && manifest.includes.length <= 128);
+  for (const include of manifest.includes) {
+    demand(typeof include === 'string' && include.length <= 4096 && /^[A-Za-z0-9_./+-]+$/.test(include));
+    demand(include === path.resolve(include) && include.startsWith(context + path.sep));
+    realDirectory(include);
+    demand(fs.realpathSync(include).startsWith(context + path.sep));
+  }
+  demand(manifest.include_value === manifest.includes.join(','));
+  return manifest.include_value + ',/usr/include,/usr/include/apache2,/usr/include/apr-1.0';
+}
+function profileArguments(original, temporaryRoot, revision) {
+  const mode = original['INPUT_OWNER-MODE'];
+  if (mode === 'framework') {
+    demand(original.GITHUB_REPOSITORY === 'Easton97-Jens/ModSecurity-test-Framework');
+    demand(original.CONNECTOR_REVISION === FIXTURE && original.SONAR_USER_HOME === path.join(temporaryRoot, 'framework-sonar-cache'));
+    return {mode, args: validateArguments(original.INPUT_ARGS ?? '', temporaryRoot, revision),
+      project: 'Easton97-Jens_ModSecurity-test-Framework', work_directory: path.join(temporaryRoot, 'framework-sonar-work'),
+      source_role: 'framework', configured_mode: 'COMPILE_COMMANDS', fixture_revision: FIXTURE};
+  }
+  const parent = /^parent-cpp(17|20|23)$/.exec(mode ?? '');
+  demand(parent && original.GITHUB_REPOSITORY === 'Easton97-Jens/ModSecurity-conector');
+  demand(original.SONAR_USER_HOME === path.join(temporaryRoot, 'sonar-cache'));
+  const standard = parent[1];
+  const project = 'Easton97-Jens_ModSecurity-conector' + (standard === '17' ? '' : `_cpp${standard}_advisory`);
+  const includes = parentIncludes(temporaryRoot, revision);
+  const expected = `-Dsonar.projectKey=${project} -Dsonar.cfamily.reportingCppStandardOverride=c++${standard} ` +
+    `-Dsonar.scm.revision=${revision} -Dsonar.working.directory=${path.join(temporaryRoot, 'sonar-work')} ` +
+    `-Dsonar.cfamily.customCIncludes=${includes} -Dsonar.cfamily.customCppIncludes=${includes} ` +
+    '-Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=600';
+  demand((original.INPUT_ARGS ?? '').trim().replace(/\s+/g, ' ') === expected);
+  return {mode, args: expected + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=false',
+    project, work_directory: path.join(temporaryRoot, 'sonar-work'),
+    source_role: 'parent', configured_mode: 'AUTO_CONFIG', fixture_revision: null};
+}
+function readBoundedRegular(filename, limit) {
+  const descriptor = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  try {
+    const stat = fs.fstatSync(descriptor);
+    demand(stat.isFile() && stat.size <= limit);
+    const buffer = Buffer.alloc(limit + 1);
+    let filled = 0;
+    let count;
+    while (filled < buffer.length && (count = fs.readSync(descriptor, buffer, filled, buffer.length - filled, null)) > 0) filled += count;
+    demand(filled <= limit);
+    return buffer.subarray(0, filled).toString('utf8');
+  } finally { fs.closeSync(descriptor); }
+}
+function validateProjectBinding(root, profile) {
+  const content = readBoundedRegular(path.join(root, 'sonar-project.properties'), 65536);
+  // The current checked-in contracts use literal keys. Refuse escape syntax
+  // instead of implementing an incomplete Java-properties escape interpreter.
+  demand(!content.includes('\\'));
+  const values = content.split(/\r?\n/).map(line => /^\s*sonar\.projectKey\s*[=:]\s*(.*?)\s*$/.exec(line)).filter(Boolean);
+  const expected = profile.source_role === 'parent' ? 'Easton97-Jens_ModSecurity-conector' : profile.project;
+  demand(values.length === 1 && values[0][1] === expected);
+}
+function reportTaskIdentity(workDirectory, project) {
+  try {
+    realDirectory(workDirectory);
+    const lines = readBoundedRegular(path.join(workDirectory, 'report-task.txt'), 8192).split(/\r?\n/);
+    const projects = lines.filter(line => line.startsWith('projectKey='));
+    const tasks = lines.filter(line => line.startsWith('ceTaskId='));
+    if (projects.length !== 1 || projects[0] !== `projectKey=${project}` || tasks.length !== 1 ||
+        !/^ceTaskId=[A-Za-z0-9_-]{8,128}$/.test(tasks[0])) return {status: 'INVALID', ce_task_id: null};
+    return {status: 'VALID', ce_task_id: tasks[0].slice('ceTaskId='.length)};
+  } catch { return {status: 'NOT_PUBLISHED_OR_UNREADABLE', ce_task_id: null}; }
+}
+function validatedRunId(raw) {
+  if (!/^[1-9][0-9]{0,19}$/.test(raw ?? '')) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? value : null;
+}
+async function main() {
+  process.umask(0o077);
+  demand(process.versions.node.split('.')[0] === '24' && process.platform === 'linux');
+  const original = process.env;
+  const root = realDirectory(original.GITHUB_WORKSPACE);
+  const temporaryRoot = realDirectory(original.RUNNER_TEMP);
+  demand(!temporaryRoot.startsWith(root + path.sep) && !root.startsWith(temporaryRoot + path.sep));
+  const upstream = /^SonarSource\/sonarqube-scan-action@([a-f0-9]{40})$/.exec(original['INPUT_UPSTREAM-ACTION'] ?? '');
+  demand(upstream && original.INPUT_SCANNERVERSION === '8.2.0.6438');
+  await withPrivateRun(temporaryRoot, async directory => {
+    const descriptor = privateFile(directory, 'raw.log');
+    try {
+      const clean = privateEnv(original, directory);
+      const revision = gitOutput(root, ['rev-parse', 'HEAD'], clean).trim();
+      const profile = profileArguments(original, temporaryRoot, revision);
+      validateProjectBinding(root, profile);
+      const sources = inventory(root, revision, profile.source_role, clean);
+      if (profile.fixture_revision) {
+        const fixture = inventory(original.CONNECTOR_ROOT, profile.fixture_revision, 'product_fixture', clean);
+        for (const [name, fact] of fixture) sources.set(name, fact);
+        sources.roots.push(...fixture.roots);
+      }
+      const action = path.join(directory, 'upstream');
+      for (const args of [['init', action], ['-C', action, '-c', 'credential.helper=', 'fetch', '--depth=1', '--no-tags',
+        'https://github.com/SonarSource/sonarqube-scan-action.git', upstream[1]], ['-C', action, 'checkout', '--detach', upstream[1]]]) {
+        demand(await runCaptured('git', args, descriptor, clean, {timeout: 120000}) === 0);
+      }
+      demand(gitOutput(action, ['rev-parse', 'HEAD'], clean).trim() === upstream[1]);
+      const metadata = fs.readFileSync(path.join(action, 'action.yml'), 'utf8');
+      demand(/using: node24/.test(metadata) && /main: dist\/index\.js/.test(metadata));
+      const env = privateEnv(original, directory, true);
+      Object.assign(env, {INPUT_ARGS: profile.args, INPUT_SCANNERVERSION: '8.2.0.6438', INPUT_PROJECTBASEDIR: root,
+        INPUT_SCANNERBINARIESURL: 'https://binaries.sonarsource.com/Distribution/sonar-scanner-cli',
+        INPUT_SKIPSIGNATUREVERIFICATION: 'false', INPUT_SCANNERBINARIESAUTHHEADER: '', PYTHONDONTWRITEBYTECODE: '1'});
+      if (profile.source_role === 'parent') Object.assign(env, {GOTOOLCHAIN: 'local', GOWORK: 'off'});
+      const scannerExit = await runCaptured(process.execPath, [path.join(action, 'dist/index.js')], descriptor, env, {cwd: root});
+      fs.fsyncSync(descriptor);
+      const result = diagnostics(path.join(directory, 'raw.log'), sources);
+      const identity = reportTaskIdentity(profile.work_directory, profile.project);
+      Object.assign(result, {revision, fixture_revision: profile.fixture_revision, owner_mode: profile.mode,
+        project: profile.project, scanner_version: '8.2.0.6438', run_id: validatedRunId(original.GITHUB_RUN_ID),
+        report_identity_status: identity.status, ce_task_id: identity.ce_task_id,
+        configured_cfamily_mode: profile.configured_mode, scanner_exit: scannerExit, action_commit: upstream[1]});
+      process.stdout.write(JSON.stringify(result) + '\n');
+      process.exitCode = scannerExit === 0 && identity.status === 'VALID' ? 0 : 1;
+    } finally { fs.closeSync(descriptor); }
+  });
+}
+module.exports = {privateEnv, privateFile, runCaptured, withPrivateRun, diagnostics, acceptLine,
+  emptyDiagnostics, validateArguments, inventory, sourceLocation, parentIncludes, profileArguments,
+  boundedCounter, readBoundedRegular, validateProjectBinding, reportTaskIdentity, validatedRunId};
+if (require.main === module) main().catch(() => {
+  process.stderr.write('Private Sonar diagnostics failed; raw output was not published.\n');
+  process.exitCode = 1;
+});
