@@ -52,7 +52,7 @@ SAFE_EXPANSION = re.compile(
     r"\$\{(?P<braced>CI_[A-Z0-9_]+)(?:#(?P<prefix>[A-Za-z0-9._+-]+))?\}|\$(?P<bare>CI_[A-Z0-9_]+)"
 )
 REMOTE_USE = re.compile(
-    r"(?P<prefix>\buses:\s*)(?P<quote>[\"']?)(?P<ref>[^\s\"']+)(?P=quote)"
+    r"(?P<prefix>\b(?:uses|upstream-action):\s*)(?P<quote>[\"']?)(?P<ref>[^\s\"']+)(?P=quote)"
 )
 NODE_VERSION_LINE = re.compile(
     r"^(?P<prefix>\s*node-version:\s*)(?P<quote>[\"']?)(?P<value>[^\s#\"']+)(?P=quote)(?P<suffix>\s*(?:#.*)?)$"
@@ -194,6 +194,9 @@ def canonical_names(source: str | None = None) -> list[str]:
         action_suffixes = _discover_groups(source, "CI_ACTION", ACTION_FIELDS)
         tool_suffixes = _discover_groups(source, "CI_SECURITY_TOOL", TOOL_FIELDS)
     names = [
+        "CI_SONAR_DIAGNOSTIC_REPOSITORY",
+        "CI_SONAR_DIAGNOSTIC_ACTION_PATH",
+        "CI_SONAR_DIAGNOSTIC_COMMIT",
         "CI_CANONICAL_PYTHON_VERSION",
         "CI_CANONICAL_PYYAML_VERSION",
         "CI_CANONICAL_PYYAML_SHA256",
@@ -512,6 +515,17 @@ def lock_values(root: Path, values: dict[str, str]) -> bytes:
             ("sha256", digest),
         ):
             text = replace_record_field(text, "tools", tool, field, value)
+    from modsecurity_test_framework.sonar_diagnostics_contract import canonical_role
+    canonical_role(values)
+    diagnostic = {"repository": values["CI_SONAR_DIAGNOSTIC_REPOSITORY"],
+                  "action_path": values["CI_SONAR_DIAGNOSTIC_ACTION_PATH"],
+                  "immutable_commit": values["CI_SONAR_DIAGNOSTIC_COMMIT"]}
+    existing_role = parsed.get("diagnostic_actions")
+    if existing_role is not None:
+        if existing_role != {"sonar-private": diagnostic}:
+            raise PinError("diagnostic action lock differs from the fixed reviewed role")
+    else:
+        text = text.rstrip() + "\n" + yaml.safe_dump({"diagnostic_actions": {"sonar-private": diagnostic}}, sort_keys=False)
     return text.encode("utf-8")
 
 
@@ -565,6 +579,11 @@ def _rewrite_remote_action_line(
         return line, None
     ref = match.group("ref")
     action, at, _ = ref.rpartition("@")
+    from modsecurity_test_framework.sonar_diagnostics_contract import canonical_role
+    if action.startswith("Easton97-Jens/ModSecurity-test-Framework/"):
+        if ref != canonical_role(values):
+            return line, "unknown or changed private diagnostic Action"
+        return line, None
     action_suffix = action_suffix_for_reference(action, values)
     if not at or action_suffix is None:
         if action.startswith(("./", "docker://", "Docker://")):

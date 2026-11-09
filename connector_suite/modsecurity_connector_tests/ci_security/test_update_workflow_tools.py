@@ -1631,6 +1631,97 @@ jobs:
         self.assertNotRegex(workflow, r"git push\s+--force(?:\s|$)")
 
 
+class FrozenPrivateSonarUpdaterTests(WorkflowToolUpdaterFixtures, unittest.TestCase):
+    def scanner(self, document):
+        return next(step for step in document["jobs"]["analysis"]["steps"] if step.get("id") == "scan")
+
+    def frozen_block(self, text):
+        return re.search(r"(?m)^      - name: Analyze exact revision and await Quality Gate\n(?:(?!      - ).*\n)*", text).group()
+
+    def test_actual_inventory_keeps_central_upstream_coverage(self):
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        UPDATER.ensure_locked_action_workflow_coverage(ROOT, lock)
+        references = UPDATER.locked_action_workflow_references(ROOT, lock)
+        self.assertIn(UPDATER.PRIVATE_SONAR_WORKFLOW, references[UPDATER.PRIVATE_SONAR_UPSTREAM_NAME])
+        text = (ROOT / UPDATER.PRIVATE_SONAR_WORKFLOW).read_text()
+        values = UPDATER.workflow_uses_values(text, "workflow " + UPDATER.PRIVATE_SONAR_WORKFLOW)
+        self.assertIn(UPDATER.PRIVATE_SONAR_REFERENCE, values)
+        self.assertIn(UPDATER.PRIVATE_SONAR_UPSTREAM_NAME + "@" + UPDATER.PRIVATE_SONAR_UPSTREAM_SHA, values)
+
+    def test_wrong_role_path_pin_inputs_and_duplicate_are_rejected(self):
+        text = (ROOT / UPDATER.PRIVATE_SONAR_WORKFLOW).read_text()
+        original = UPDATER.yaml.safe_load(text)
+        self.assertEqual(self.scanner(original), UPDATER.private_sonar_step())
+        mutations = []
+        for key, value in (("uses", UPDATER.PRIVATE_SONAR_REFERENCE[:-40] + "a" * 40),
+                           ("run", "echo unsafe"), ("env", {"SONAR_TOKEN": "different"})):
+            document = deepcopy(original); self.scanner(document)[key] = value; mutations.append(document)
+        for key, value in (("owner-mode", "framework"), ("scannerVersion", "latest"),
+                           ("upstream-action", "other/scanner@" + "a" * 40),
+                           ("args", "-Dsonar.exclusions=**")):
+            document = deepcopy(original); self.scanner(document)["with"][key] = value; mutations.append(document)
+        duplicate = deepcopy(original); duplicate["jobs"]["analysis"]["steps"].append(deepcopy(self.scanner(duplicate)))
+        mutations.append(duplicate)
+        for document in mutations:
+            with self.assertRaises(UPDATER.UpdateError):
+                UPDATER.workflow_uses_values(UPDATER.yaml.safe_dump(document), "workflow " + UPDATER.PRIVATE_SONAR_WORKFLOW)
+        for description in ("workflow sonarqube.yml", "workflow .github/other/sonarqube.yml", "workflow .github/workflows/other.yml"):
+            with self.assertRaises(UPDATER.UpdateError): UPDATER.workflow_uses_values(text, description)
+        unbound = "jobs:\n  unsafe:\n    steps:\n      - uses: actions/checkout@" + "a" * 40 + "\n        with:\n          upstream-action: " + UPDATER.PRIVATE_SONAR_UPSTREAM_NAME + "@" + UPDATER.PRIVATE_SONAR_UPSTREAM_SHA
+        with self.assertRaises(UPDATER.UpdateError):
+            UPDATER.workflow_uses_values(unbound, "workflow " + UPDATER.PRIVATE_SONAR_WORKFLOW)
+
+    def test_exact_role_does_not_admit_other_framework_targets(self):
+        description = "workflow " + UPDATER.PRIVATE_SONAR_WORKFLOW
+        self.assertIsNone(UPDATER.managed_workflow_action_name(UPDATER.PRIVATE_SONAR_REFERENCE, set(), description))
+        for reference in (UPDATER.PRIVATE_SONAR_REFERENCE.replace("sonar-private", "unreviewed-node"),
+                          UPDATER.PRIVATE_SONAR_REFERENCE.replace("sonar-private", "sonar-private-alias"),
+                          UPDATER.PRIVATE_SONAR_REFERENCE[:-40] + "a" * 40,
+                          UPDATER.PRIVATE_SONAR_REFERENCE[:-40] + "master"):
+            with self.assertRaises(UPDATER.UpdateError): UPDATER.managed_workflow_action_name(reference, set(), description)
+
+    def test_mixed_candidate_is_rejected_before_any_write(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.copied_update_root(Path(temporary))
+            _path, lock, _digest = UPDATER.load_lock(root)
+            candidate = self.candidate_for(root, {
+                "actions/checkout": self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40),
+                UPDATER.PRIVATE_SONAR_UPSTREAM_NAME: self.changed_action(lock, UPDATER.PRIVATE_SONAR_UPSTREAM_NAME, "v99.0.0", "c" * 40),
+            })
+            before = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
+            for operation in (lambda: UPDATER.apply_candidate(root, candidate),
+                              lambda: UPDATER.update_workflow_references(root, lock, candidate)):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "separate reviewed contract change"): operation()
+                self.assertEqual({path: path.read_bytes() for path in before}, before)
+            target = root / UPDATER.PRIVATE_SONAR_WORKFLOW
+            patterns = UPDATER.action_reference_patterns(UPDATER.PRIVATE_SONAR_UPSTREAM_NAME, lock["actions"][UPDATER.PRIVATE_SONAR_UPSTREAM_NAME])
+            with self.assertRaisesRegex(UPDATER.UpdateError, "separate reviewed contract change"):
+                UPDATER.update_action_references_in_workflow(target, Path(UPDATER.PRIVATE_SONAR_WORKFLOW),
+                    UPDATER.PRIVATE_SONAR_UPSTREAM_NAME, candidate["actions"][UPDATER.PRIVATE_SONAR_UPSTREAM_NAME], *patterns)
+            self.assertEqual(target.read_bytes(), before[target])
+
+    def test_checkout_and_tool_updates_preserve_exact_frozen_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = self.copied_update_root(Path(temporary))
+            workflow = root / UPDATER.PRIVATE_SONAR_WORKFLOW
+            frozen = self.frozen_block(workflow.read_text())
+            _path, lock, _digest = UPDATER.load_lock(root)
+            candidate = self.candidate_for(root, {"actions/checkout": self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)})
+            changed = UPDATER.apply_candidate(root, candidate)
+            self.assertIn(UPDATER.PRIVATE_SONAR_WORKFLOW, changed)
+            self.assertEqual(self.frozen_block(workflow.read_text()), frozen)
+            _path, lock, _digest = UPDATER.load_lock(root)
+            identity = UPDATER.release_identity(lock["tools"]["actionlint"], "actionlint")
+            version = "v9.9.9"; asset = "actionlint_9.9.9_linux_amd64.tar.gz"
+            tool = {"version": version, "immutable_commit": "c" * 40,
+                    "upstream_release": f"https://github.com/{identity.slug}/releases/tag/{version}",
+                    "asset": asset, "asset_url": f"https://github.com/{identity.slug}/releases/download/{version}/{asset}",
+                    "sha256": "d" * 64}
+            changed = UPDATER.apply_candidate(root, self.candidate_for(root, tools={"actionlint": tool}))
+            self.assertIn("ci/tooling/security-tools.lock.yml", changed)
+            self.assertEqual(self.frozen_block(workflow.read_text()), frozen)
+
+
 class WorkflowToolUpdaterIntegrationTests(WorkflowToolUpdaterFixtures, unittest.TestCase):
     def test_proposed_tree_validation_runs_the_real_ci_security_contract(self) -> None:
         """A bounded candidate must pass its real copied-tree contract checks."""

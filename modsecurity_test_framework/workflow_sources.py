@@ -17,6 +17,7 @@ import stat
 import yaml
 from yaml.nodes import MappingNode, ScalarNode, SequenceNode
 from yaml.tokens import AliasToken, AnchorToken, TagToken
+from .sonar_diagnostics_contract import ACTION_PATH as SONAR_ACTION_PATH, REFERENCE as SONAR_REFERENCE, scanner_step
 
 
 OWNER = "Easton97-Jens/ModSecurity-test-Framework/"
@@ -592,9 +593,20 @@ def _job_action_edits(
     steps = _field(job, "steps")
     if not isinstance(steps, SequenceNode):
         return []
+    if sum((_scalar(step, "uses") or "").startswith(OWNER + SONAR_ACTION_PATH)
+           for step in steps.value) > 1:
+        raise WorkflowSourceError("private Sonar role must occur only once")
     for step in steps.value:
         uses = _scalar(step, "uses") or ""
         if not uses.startswith(OWNER):
+            continue
+        if uses.startswith(OWNER + SONAR_ACTION_PATH):
+            value = yaml.load("".join(lines[step.start_mark.line:step.end_mark.line]), Loader=yaml.BaseLoader)
+            if isinstance(value, list) and len(value) == 1:
+                value = value[0]
+            if (workflow_name != "sonarqube.yml" or jobkey.value != "analysis"
+                    or uses != SONAR_REFERENCE or value != scanner_step("parent")):
+                raise WorkflowSourceError("private Sonar call differs from its frozen complete contract")
             continue
         relative = _framework_action_path(
             uses, step, jobkey, steps, framework_revision, workflow_name

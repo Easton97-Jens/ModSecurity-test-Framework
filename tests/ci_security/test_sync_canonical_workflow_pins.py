@@ -53,6 +53,34 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
         self.assertIn("  a:\n    version: new", result)
         self.assertIn("  b:\n    version: keep", result)
 
+    def test_diagnostic_role_is_exact_and_separate_from_release_actions(self):
+        from modsecurity_test_framework.sonar_diagnostics_contract import (
+            ACTION_PATH, COMMIT, REFERENCE, REPOSITORY,
+        )
+        values = {"CI_SONAR_DIAGNOSTIC_REPOSITORY": REPOSITORY,
+                  "CI_SONAR_DIAGNOSTIC_ACTION_PATH": ACTION_PATH,
+                  "CI_SONAR_DIAGNOSTIC_COMMIT": COMMIT}
+        line = "        uses: " + REFERENCE + "\n"
+        self.assertEqual(MODULE._rewrite_remote_action_line(line, values), (line, None))
+        for reference in (REFERENCE.replace(COMMIT, "a" * 40),
+                          REFERENCE.replace("sonar-private", "other-node"),
+                          REFERENCE.replace(COMMIT, "main")):
+            self.assertIsNotNone(MODULE._rewrite_remote_action_line("uses: " + reference, values)[1])
+        self.assertIsNone(MODULE.action_suffix_for_reference(REPOSITORY + "/other", values))
+
+    def test_native_lock_producer_emits_and_checks_diagnostic_role(self):
+        values = MODULE.source_common(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            lock = root / "ci/tooling/security-tools.lock.yml"
+            lock.parent.mkdir(parents=True)
+            lock.write_bytes((ROOT / "ci/tooling/security-tools.lock.yml").read_bytes())
+            expected = MODULE.lock_values(root, values)
+            lock.write_bytes(expected)
+            self.assertEqual(MODULE.lock_values(root, values), expected)
+            lock.write_bytes(expected.replace(b"action_path: .github/actions/sonar-private", b"action_path: .github/actions/other"))
+            with self.assertRaises(MODULE.PinError): MODULE.lock_values(root, values)
+
     def test_source_discovery_rejects_incomplete_new_group(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

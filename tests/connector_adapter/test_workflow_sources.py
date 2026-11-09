@@ -428,6 +428,77 @@ jobs:
 
 
 
+class FrozenNodeActionAdmissionTests(unittest.TestCase):
+    def setUp(self):
+        import runpy
+        self.temporary = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"))
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.framework = self.root / "framework"
+        self.output = self.root / "output"; self.output.mkdir(mode=0o700)
+        self.role = self.framework / ".github/actions/sonar-private"
+        self.role.mkdir(parents=True)
+        source = files("modsecurity_test_framework").parent
+        for name in ("action.yml", "main.cjs"):
+            (self.role / name).write_bytes((source / ".github/actions/sonar-private" / name).read_bytes())
+        other = self.framework / ".github/actions/example/action.yml"
+        other.parent.mkdir()
+        other.write_text("name: Example\ndescription: Fixture\nruns:\n  using: composite\n  steps:\n    - shell: bash\n      run: echo literal\n")
+        (self.framework / ".github/actionlint.yaml").write_text("{}\n")
+        common = self.framework / "ci/lib/common.sh"; common.parent.mkdir(parents=True); common.write_text("# declared inventory\n")
+        self.tool = runpy.run_path(str(source / "ci/checks/security/check-connector-composite-actions.py"))
+        self.shellcheck = self.root / "shellcheck"; self.shellcheck.write_text("#!/bin/sh\nexit 0\n"); self.shellcheck.chmod(0o700)
+
+    def invoke(self):
+        argv = ["check-composites", "--framework-root", str(self.framework), "--output-root", str(self.output),
+                "--actionlint", "selected-actionlint", "--shellcheck", str(self.shellcheck)]
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+            return self.tool["main"]()
+
+    def test_reviewed_node_retains_actual_composite_shellcheck_input(self):
+        with patch.object(self.tool["subprocess"], "run", return_value=SimpleNamespace(returncode=0)) as process:
+            self.assertEqual(self.invoke(), 0)
+        command = process.call_args.args[0]
+        generated = [Path(value) for value in command if value.endswith(".yml")]
+        self.assertEqual(len(generated), 1)
+        self.assertIn("echo literal", generated[0].read_text())
+        self.assertIn("-shellcheck=" + str(self.shellcheck), command)
+
+    def test_mutated_node_type_or_bytes_never_fall_back_to_composite(self):
+        for name, replacement in (("action.yml", b"runs:\n  using: composite\n  steps: []\n"),
+                                  ("main.cjs", b"console.log('unreviewed')\n")):
+            path = self.role / name; original = path.read_bytes(); path.write_bytes(replacement)
+            with patch.object(self.tool["subprocess"], "run") as process, self.assertRaises(ValueError): self.invoke()
+            process.assert_not_called(); path.write_bytes(original)
+
+    def test_metadata_aliases_missing_role_and_symlink_sources_fail(self):
+        metadata = self.role / "action.yml"; original = metadata.read_bytes()
+        for mutation in ("yaml-alias", "renamed", "missing", "linked-main"):
+            with self.subTest(mutation=mutation):
+                if mutation == "yaml-alias": (self.role / "action.yaml").write_bytes(original)
+                elif mutation == "renamed": metadata.rename(self.role / "renamed.yml")
+                elif mutation == "missing": metadata.unlink()
+                else:
+                    main = self.role / "main.cjs"; main.rename(self.role / "saved.cjs"); main.symlink_to(self.role / "saved.cjs")
+                with patch.object(self.tool["subprocess"], "run") as process, self.assertRaises((ValueError, OSError)): self.invoke()
+                process.assert_not_called()
+                if mutation == "yaml-alias": (self.role / "action.yaml").unlink()
+                elif mutation == "renamed": (self.role / "renamed.yml").rename(metadata)
+                elif mutation == "missing": metadata.write_bytes(original)
+                else: main.unlink(); (self.role / "saved.cjs").rename(main)
+
+    def test_unknown_node_docker_and_renamed_frozen_action_fail(self):
+        other = self.framework / ".github/actions/other/action.yml"; other.parent.mkdir()
+        for using in ("node24", "docker"):
+            other.write_text("name: Unknown\nruns:\n  using: " + using + "\n  main: main.cjs\n")
+            with patch.object(self.tool["subprocess"], "run") as process, self.assertRaises(ValueError): self.invoke()
+            process.assert_not_called()
+        other.unlink(); other.parent.rmdir()
+        self.role.rename(self.role.with_name("renamed-node"))
+        with patch.object(self.tool["subprocess"], "run") as process, self.assertRaises(ValueError): self.invoke()
+        process.assert_not_called()
+
+
 class CompositeShellcheckAdmissionTests(unittest.TestCase):
     VALID_VARIANTS = ("absolute", "path-name", "space-containing-literal", "command-shaped-literal")
     INVALID_VARIANTS = ("missing", "not-executable", "directory", "command-string")

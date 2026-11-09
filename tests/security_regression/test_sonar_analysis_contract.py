@@ -79,7 +79,8 @@ class SonarSecretBoundaryTests(unittest.TestCase):
         mutations.append(("changed approved SDK producer", document))
         for name, document in mutations:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
-                path = Path(temporary) / "sonarqube.yml"
+                path = Path(temporary) / ".github/workflows/sonarqube.yml"
+                path.parent.mkdir(parents=True)
                 serialized = CHECKER.yaml.safe_dump(document, sort_keys=False)
                 if name == "workflow shell replaces source":
                     serialized = "\n".join(
@@ -126,8 +127,8 @@ class SonarSecretBoundaryTests(unittest.TestCase):
                 changed = step["run"].replace(before, after, 1)
                 self.assertNotEqual(changed, step["run"])
                 step["run"] = changed
-                self.assertFalse(CHECKER.sonar_pr_secret_allowed(Path("sonarqube.yml"), document))
-                self.assertTrue(CHECKER.validate_permissions(Path("sonarqube.yml"), document))
+                self.assertFalse(CHECKER.sonar_pr_secret_allowed(Path(".github/workflows/sonarqube.yml"), document))
+                self.assertTrue(CHECKER.validate_permissions(Path(".github/workflows/sonarqube.yml"), document))
 
     def test_canonical_action_update_requires_matching_source_and_lock(self):
         document = valid_document()
@@ -138,21 +139,28 @@ class SonarSecretBoundaryTests(unittest.TestCase):
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / relative, destination)
             common = root / "ci/lib/common.sh"
-            original = document["jobs"]["sonarqube"]["steps"][-1]["uses"].split("@")[1]
+            original = document["jobs"]["sonarqube"]["steps"][-1]["with"]["upstream-action"].split("@")[1]
             common.write_text(common.read_text().replace(original, "a" * 40))
             with patch.object(CHECKER, "__file__", str(root / "ci/checks/security/check-github-actions-workflows.py")):
-                self.assertFalse(CHECKER.sonar_pr_secret_allowed(Path("sonarqube.yml"), document))
+                self.assertFalse(CHECKER.sonar_pr_secret_allowed(Path(".github/workflows/sonarqube.yml"), document))
                 spec = importlib.util.spec_from_file_location("updated_canonical", root / "ci/tools/sync-canonical-workflow-pins.py")
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
                 values = module.source_common(root)
                 (root / "ci/tooling/security-tools.lock.yml").write_bytes(module.lock_values(root, values))
-                document["jobs"]["sonarqube"]["steps"][-1]["uses"] = "SonarSource/sonarqube-scan-action@" + "a" * 40
-                self.assertTrue(CHECKER.sonar_pr_secret_allowed(Path("sonarqube.yml"), document))
+                document["jobs"]["sonarqube"]["steps"][-1]["with"]["upstream-action"] = "SonarSource/sonarqube-scan-action@" + "a" * 40
+                self.assertTrue(CHECKER.sonar_pr_secret_allowed(Path(".github/workflows/sonarqube.yml"), document))
 
     def test_reviewed_same_repository_scanner_is_allowed(self):
-        self.assertEqual(CHECKER.validate_workflow_trust_boundary(
-            Path("sonarqube.yml"), valid_document(), True), [])
+        from modsecurity_test_framework.sonar_diagnostics_contract import scanner_step
+        for wrapped in (False, True):
+            document = valid_document()
+            document["jobs"]["sonarqube"]["steps"][-1] = scanner_step("framework", wrapped=wrapped)
+            self.assertEqual(CHECKER.validate_workflow_trust_boundary(
+                Path(".github/workflows/sonarqube.yml"), document, True), [])
+            if wrapped:
+                for path in ("sonarqube.yml", "elsewhere/sonarqube.yml", ".github/other/sonarqube.yml"):
+                    self.assertFalse(CHECKER.sonar_pr_secret_allowed(Path(path), document))
 
     def test_mutated_trust_boundaries_are_rejected(self):
         cases = []
@@ -216,7 +224,7 @@ class SonarSecretBoundaryTests(unittest.TestCase):
         for name, document in cases:
             with self.subTest(name=name):
                 self.assertTrue(CHECKER.validate_workflow_trust_boundary(
-                    Path("sonarqube.yml"), document, True))
+                    Path(".github/workflows/sonarqube.yml"), document, True))
 
     def test_exception_does_not_apply_to_other_workflows(self):
         self.assertTrue(CHECKER.validate_workflow_trust_boundary(
@@ -450,7 +458,8 @@ class NativeAnalysisBoundaryTests(unittest.TestCase):
                 self.assertFalse(any(flag.startswith("-Wno-") for flag in flags))
             recipes = __import__("runpy").run_path(str(ROOT / "ci/checks/analysis/native-cfamily-recipes.py"))
             self.assertEqual({ROOT / name for name in recipes["NATIVE_UNITS"]}, NATIVE.native_inventory(ROOT))
-            self.assertEqual(len(recipes["NATIVE_UNITS"]), 83)
+            self.assertEqual(len(recipes["NATIVE_UNITS"]), 84)
+            self.assertIn("connector_suite/adapters/traefik/harness/native_h2_observer.c", recipes["NATIVE_UNITS"])
             self.assertIn("tests/runners/protocol_acceptance_client.c", recipes["NATIVE_UNITS"])
             self.assertIn("connector_suite/adapters/apache/harness/apache_h2_observer.c", recipes["NATIVE_UNITS"])
 

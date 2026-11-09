@@ -14,6 +14,7 @@ from hashlib import sha256
 from pathlib import Path
 
 import yaml
+from modsecurity_test_framework.sonar_diagnostics_contract import REFERENCE as SONAR_PRIVATE_REFERENCE, scanner_allowed
 from modsecurity_test_framework.workflow_sources import (
     WorkflowSourceError, expand_workflow_source, read_connector_workflow,
 )
@@ -1570,7 +1571,7 @@ def sonar_pr_secret_errors(text: str) -> list[str]:
         },
         "secret must be on one immutable scanner action": (
             len(scanner_steps) == 1
-            and scanner.get("uses") == locked_action_pin("SonarSource/sonarqube-scan-action")
+            and scanner_allowed(scanner, "parent", locked_action_pin("SonarSource/sonarqube-scan-action"))
             and "run" not in scanner
         ),
         "scanner secret mapping must be exact": scanner.get("env") == {
@@ -1655,6 +1656,10 @@ class CiSecurityWorkflowTest(unittest.TestCase):
                 reference = line.split("uses:", 1)[1].strip()
                 framework_owner = "Easton97-Jens/ModSecurity-test-Framework/"
                 if reference.startswith(framework_owner):
+                    if reference == SONAR_PRIVATE_REFERENCE:
+                        self.assertEqual(path.name, "sonarqube.yml")
+                        self.assertEqual(sonar_pr_secret_errors(path.read_text(encoding="utf-8")), [])
+                        continue
                     self.assertRegex(
                         reference,
                         re.escape(framework_owner)
@@ -2997,7 +3002,10 @@ jobs:
 
     def test_sonar_secret_contract_rejects_other_action(self) -> None:
         text = self.workflow("sonarqube.yml")
-        unsafe = text.replace("uses: SonarSource/sonarqube-scan-action@", "uses: unknown/scanner@", 1)
+        workflow = yaml.load(text, Loader=yaml.BaseLoader)
+        scanner = next(step for step in workflow["jobs"]["analysis"]["steps"] if step.get("id") == "scan")
+        scanner["uses"] = "unknown/scanner@" + "a" * 40
+        unsafe = yaml.safe_dump(workflow)
         self.assertNotEqual(sonar_pr_secret_errors(unsafe), [])
 
     def test_sonar_standard_matrix_keeps_full_parent_scope(self) -> None:

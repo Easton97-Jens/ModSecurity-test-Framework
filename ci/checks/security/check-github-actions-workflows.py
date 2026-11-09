@@ -331,6 +331,11 @@ def validate_pins(path: Path) -> list[str]:
     action_uses, source_errors = source_uses(path)
     errors.extend(source_errors)
     for line_number, reference, comment in action_uses:
+        from modsecurity_test_framework.sonar_diagnostics_contract import REFERENCE
+        if tuple(path.parts[-3:]) == (".github", "workflows", "sonarqube.yml") and reference == REFERENCE:
+            # This reviewed source commit has no release tag. The complete
+            # scanner call is independently bound by the secret contract.
+            continue
         if reference.startswith("./"):
             continue
         if not REMOTE_ACTION_RE.fullmatch(reference):
@@ -473,12 +478,15 @@ def canonical_sonar_actions() -> dict[str, str]:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     values = module.source_common(root)
+    from modsecurity_test_framework.sonar_diagnostics_contract import canonical_role
+    private_action = canonical_role(values)
     lock = root / "ci/tooling/security-tools.lock.yml"
     if module.lock_values(root, values) != lock.read_bytes():
         raise ValueError("Action lock differs from canonical source")
     repositories = {"CHECKOUT": "actions/checkout", "SETUP_PYTHON": "actions/setup-python",
                     "SONARQUBE_SCAN": "SonarSource/sonarqube-scan-action"}
     result = {}
+    result["SONAR_PRIVATE"] = private_action
     for suffix, repository in repositories.items():
         if values[f"CI_ACTION_{suffix}_REPOSITORY"] != repository:
             raise ValueError("unexpected canonical Sonar workflow Action repository")
@@ -614,7 +622,13 @@ def sonar_pr_secret_allowed(path: Path, document: Mapping[str, Any]) -> bool:
                        '}} -Dsonar.working.directory=${{ runner.temp }}/framework-sonar-work '
                        '-Dsonar.cfamily.compile-commands=${{ runner.temp '
                        '}}/framework-sonar-native/compile_commands.json'}}]
-    return list(as_sequence(job.get("steps"))) == expected_steps
+    actual_steps = list(as_sequence(job.get("steps")))
+    if actual_steps == expected_steps:
+        return True
+    from modsecurity_test_framework.sonar_diagnostics_contract import scanner_step
+    expected_steps[-1] = scanner_step("framework", actions["SONARQUBE_SCAN"])
+    return (tuple(path.parts[-3:]) == (".github", "workflows", "sonarqube.yml")
+            and actual_steps == expected_steps)
 
 
 def validate_workflow_trust_boundary(

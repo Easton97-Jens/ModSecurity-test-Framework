@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "7876847da0b8d0a8a612724d6afddcfb4e8ca4a0468216385b87939398c37fd7",
+  "inventory_sha256": "b438d7733cfa950d1ce4ddc28a31f6f69cb00f44f0ab5b1976ddb396d4023b35",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8292,
+  "on_demand_definition_count": 8308,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -3122,10 +3122,15 @@
         "modsecurity_connector_tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_existing_branch_rejects_a_manually_modified_publisher_blob",
         "modsecurity_connector_tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_existing_branch_accepts_exact_trusted_base_derived_blobs",
         "modsecurity_connector_tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterTests.test_publisher_workflow_keeps_resolver_validator_publisher_and_outcome_separate",
+        "modsecurity_connector_tests.ci_security.test_update_workflow_tools.FrozenPrivateSonarUpdaterTests.test_actual_inventory_keeps_central_upstream_coverage",
+        "modsecurity_connector_tests.ci_security.test_update_workflow_tools.FrozenPrivateSonarUpdaterTests.test_wrong_role_path_pin_inputs_and_duplicate_are_rejected",
+        "modsecurity_connector_tests.ci_security.test_update_workflow_tools.FrozenPrivateSonarUpdaterTests.test_exact_role_does_not_admit_other_framework_targets",
+        "modsecurity_connector_tests.ci_security.test_update_workflow_tools.FrozenPrivateSonarUpdaterTests.test_mixed_candidate_is_rejected_before_any_write",
+        "modsecurity_connector_tests.ci_security.test_update_workflow_tools.FrozenPrivateSonarUpdaterTests.test_checkout_and_tool_updates_preserve_exact_frozen_bytes",
         "modsecurity_connector_tests.ci_security.test_update_workflow_tools.WorkflowToolUpdaterIntegrationTests.test_proposed_tree_validation_runs_the_real_ci_security_contract"
       ],
       "source": "tests/ci_security/test_update_workflow_tools.py",
-      "source_sha256": "b2e28515151eef9badc7202d42708f916686d60247ec12ce9dc71ababa585f16"
+      "source_sha256": "112efa3db838a19d187cffabbca311867f84ee7f6fdb279d9c8c961fcf6b0cfc"
     },
     {
       "contains_selected_definitions": [],
@@ -4576,7 +4581,7 @@
         "modsecurity_connector_tests.test_ci_security_workflows.CiSecurityWorkflowTest.test_permission_contract_fixtures_reject_unsafe_and_accept_safe"
       ],
       "source": "tests/test_ci_security_workflows.py",
-      "source_sha256": "f6230a3f205c4f33f3900461bec50751d467c866f4dd3ca60a8ad7dc3f62e66c"
+      "source_sha256": "ae7b71dde7bf7c6deae2582b64e59bef81613ace9a51e7f040b1e1d01dabc757"
     },
     {
       "contains_selected_definitions": [],
@@ -5252,6 +5257,7 @@
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_all_registered_refs_and_inputs_follow_identity_without_other_byte_changes",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_early_gate_inventory_is_closed_and_projects_round_trip",
+        "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_private_sonar_role_remains_frozen_and_rejects_contract_mutations",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_early_gate_missing_stale_extra_or_malformed_pin_fails_without_writes",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_early_gate_proves_selected_action_identity_before_checked_out_verifier",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_stale_symbolic_duplicate_or_missing_reference_rejected_without_writes",
@@ -5262,7 +5268,7 @@
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_ci_validation_bridge_rejects_framework_checkout_pin_mismatch"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_framework_workflow_pin_projection.py",
-      "source_sha256": "bbdd9613646bc9ec4414d0377ebc7977c6c9a4e3c9abd1ace6fceb8e294a7d17"
+      "source_sha256": "84c0f44e54db9de3771e8a88a39bd23bd35a7a08d90cb79597f6ba7f2b06f650"
     },
     {
       "contains_selected_definitions": [],
@@ -12620,6 +12626,8 @@
       "framework_path": "tests/ci_security/test_sync_canonical_workflow_pins.py",
       "on_demand_definitions": [
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_record_field_replacement_is_scoped_to_record",
+        "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_diagnostic_role_is_exact_and_separate_from_release_actions",
+        "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_native_lock_producer_emits_and_checks_diagnostic_role",
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_source_discovery_rejects_incomplete_new_group",
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_workflow_generation_updates_pin_and_comment",
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_unknown_remote_action_is_rejected",
@@ -12633,7 +12641,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_write_rejects_symlinked_generated_output"
       ],
       "source": "framework/tests/ci_security/test_sync_canonical_workflow_pins.py",
-      "source_sha256": "345630c875959ba2106c57df94d8fa2fcde5c6b9df074ced22ed8edfb1d8d8ca"
+      "source_sha256": "c45334827254dcb3f976e35386344aca175a1e45a79ac2c7f8b082c12f2614fc"
     },
     {
       "contains_selected_definitions": [],
@@ -12863,12 +12871,16 @@
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_callee_contract_changes_are_rejected",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_lighttpd_dispatch_default_is_the_only_permitted_interface_difference",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.WorkflowSourcesTests.test_protected_reusable_missing_or_symlinked_source_has_no_fallback",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.FrozenNodeActionAdmissionTests.test_reviewed_node_retains_actual_composite_shellcheck_input",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.FrozenNodeActionAdmissionTests.test_mutated_node_type_or_bytes_never_fall_back_to_composite",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.FrozenNodeActionAdmissionTests.test_metadata_aliases_missing_role_and_symlink_sources_fail",
+        "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.FrozenNodeActionAdmissionTests.test_unknown_node_docker_and_renamed_frozen_action_fail",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.CompositeShellcheckAdmissionTests.test_shellcheck_accepts_one_literal_executable",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.CompositeShellcheckAdmissionTests.test_shellcheck_invalid_value_rejected_before_allocation_or_process",
         "modsecurity_test_framework.selftests.connector_adapter.test_workflow_sources.CompositeShellcheckAdmissionTests.test_shellcheck_rechecked_before_actionlint_process"
       ],
       "source": "framework/tests/connector_adapter/test_workflow_sources.py",
-      "source_sha256": "06f6abf08875e00fd7226fda147a61c6e966344639620208dc09d35cd4231bb5"
+      "source_sha256": "79f648e9d232805fc3bc9dc102f708f24c5701d15e1be6afa85527e2451d298d"
     },
     {
       "contains_selected_definitions": [],
@@ -14786,7 +14798,19 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.ApprovedSdkPreparationTests.test_symlinked_sdk_run_root_preserves_external_directory"
       ],
       "source": "framework/tests/security_regression/test_sonar_analysis_contract.py",
-      "source_sha256": "82b3fc5a89c60925c30c49febf1a7d10297c5b48ac2bf845131a4947bf4ddc97"
+      "source_sha256": "3649ec3de687848bee761b40c2b2b7f8d8d4449dcbc0d46d54de8d1ba0a38056"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "tests/security_regression/test_sonar_diagnostics_callers.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_diagnostics_callers.DiagnosticCallerTests.test_two_complete_paths_preserve_original_scope",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_diagnostics_callers.DiagnosticCallerTests.test_role_is_not_a_generic_repository_pin",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_diagnostics_callers.DiagnosticCallerTests.test_frozen_metadata_and_main_are_exact",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_diagnostics_callers.DiagnosticCallerTests.test_expander_preserves_only_the_complete_parent_role"
+      ],
+      "source": "framework/tests/security_regression/test_sonar_diagnostics_callers.py",
+      "source_sha256": "4df8ea8e0b55482a0e768d538d79cbd2687bc495460461cdcedb51b6eb7e9550"
     },
     {
       "contains_selected_definitions": [],
