@@ -262,7 +262,11 @@ function recordParserLocation(result, line, sources, parsing, cannotParse, fileF
 function fileOnlyFailure(line, sources) {
   // Only a complete, unambiguous warning envelope establishes a file identity.
   // The optional ISO timestamp is the outer hosted-log transport timestamp.
-  const match = /^(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,9}Z )?\d{2}:\d{2}:\d{2}\.\d{3} WARN +Cannot parse '([^'\r\n]+)'\.?[ \t]*\r?\n?$/.exec(line);
+  const transport = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,9}Z /.exec(line);
+  const message = transport ? line.slice(transport[0].length) : line;
+  const logger = /^\d{2}:\d{2}:\d{2}\.\d{3} WARN +Cannot parse /.exec(message);
+  if (!logger) return undefined;
+  const match = /^'([^'\r\n]+)'\.?[ \t]*\r?\n?$/.exec(message.slice(logger[0].length));
   return match && sourceLocation(match[1], sources);
 }
 function recordFileFailure(result, fact) {

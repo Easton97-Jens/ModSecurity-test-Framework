@@ -390,7 +390,9 @@ test('file bindings remain distinct and never retroactively bind earlier excepti
 test('unknown, escaping, partial and ambiguous warning identities never bind or disclose', () => temporary(root => {
   for (const warning of [jsonWarning('../data/a.json'), jsonWarning('/fixture/../fixture/data/a.json'),
     jsonWarning('data/' + canary + '.json'), jsonWarning().slice(0, -1), jsonWarning() + " 'data/b.json'",
-    jsonWarning() + ' ' + canary, '12:34:56.789 WARN Cannot parse "data/a.json"']) {
+    jsonWarning() + ' ' + canary, '12:34:56.789 WARN Cannot parse "data/a.json"',
+    '2026-11-09T12:34:56.78Z ' + jsonWarning(), '2026-11-09T12:34:56.7890000000Z ' + jsonWarning(),
+    '2026-11-09T12:34:56.789Z  ' + jsonWarning(), '12:34:56.78 WARN Cannot parse \'data/a.json\'']) {
     const result = logDiagnostics(root, [warning, engineLimit]);
     assert.deepEqual(result.file_failures, []);
     assert.equal(result.signals.document_limits[0].source_binding, 'UNBOUND');
@@ -416,15 +418,15 @@ test('new logger events, sensors, interleaving, unknown source and decoder loss 
   }
 }));
 test('context expires at line and byte budgets and on overlong log lines', () => temporary(root => {
-  for (const middle of [[...Array(31).fill(stackFrame)],
-    [...Array(20).fill('\tat ' + 'a'.repeat(900) + '.method(Scanner.java:42)')], ['x'.repeat(70000) + canary]]) {
+  for (const middle of [[...new Array(31).fill(stackFrame)],
+    [...new Array(20).fill('\tat ' + 'a'.repeat(900) + '.method(Scanner.java:42)')], ['x'.repeat(70000) + canary]]) {
     const result = logDiagnostics(root, [jsonWarning(),
       'org.snakeyaml.engine.v2.exceptions.YamlEngineException: preliminary exception', ...middle, classicLimit]);
     assert.equal(result.signals.document_limits[0].source_binding, 'UNBOUND');
     assert.ok(!JSON.stringify(result).includes(canary));
   }
   const boundary = logDiagnostics(root, [jsonWarning(),
-    'org.snakeyaml.engine.v2.exceptions.YamlEngineException: preliminary exception', ...Array(29).fill(stackFrame), classicLimit]);
+    'org.snakeyaml.engine.v2.exceptions.YamlEngineException: preliminary exception', ...new Array(29).fill(stackFrame), classicLimit]);
   assert.equal(boundary.signals.document_limits[0].source_binding, 'INVENTORY');
 }));
 test('CRLF and read-chunk boundaries preserve bounded association and privacy', () => temporary(root => {

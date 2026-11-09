@@ -35,6 +35,8 @@ A private streaming context permits prospective Java exception headers for the u
 
 The first recognized exception must be a root header. Subsequent recognized headers must be explicit `Caused by` continuations. An initial cause header or a second bare root header clears association instead of inheriting a previous file identity.
 
+A follow-up source correction after published wrapper commit `0f6239f26ba648c53c86ae418502149d5ee412f7` separates the same exact transport timestamp, inner logger prefix and quoted payload grammar into anchored checks. Boundary fixtures use explicit `new Array()` constructors. No accepted envelope, event bound or analysis setting is widened; hosted verification of the successor and its separate immutable caller freeze remain pending.
+
 ## Changed files and tests
 
 Changed `.github/actions/sonar-private/main.cjs`, `tests/security_regression/sonar-private-diagnostics.test.cjs` and this paired record. Six additional test groups cover prospective binding, distinct and repeated files, unbound-first ordering, unsafe paths and quote ambiguity, context reset and lifetime, root/cause ordering, CRLF, read-chunk boundaries and actual UTF-8 decoding loss. Existing argument tests now cover verbose true and override rejection for all four profiles; GPG warning accounting and the adversarial deadline test are strengthened. The real deadline workload retains 10,000 file identities, repeats the last identity 50,000 times through exported `acceptLine` without stream state, and verifies ordering, exact occurrence counts, overflow accounting and result isolation.
