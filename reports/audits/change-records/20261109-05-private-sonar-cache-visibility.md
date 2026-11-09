@@ -40,6 +40,8 @@ The published payload changes `.github/actions/sonar-private/main.cjs`, its diag
 
 ## Commands and results
 
+Hosted caller revision `4e7f359ace6a8fed9bbe7e692fe86d3c7dd8472c` completed CI and server analysis; all five Gate conditions passed and no hotspots remained. The preceding S5906 finding closed as fixed. One new S7780 finding requested String.raw for an escaped backslash in the cache-path denial test. This source correction uses the equivalent raw suffix with the same seven codepoints and preserves every assertion and all 28 test groups. The action implementation, metadata and caller pin are unchanged; exact-head hosted confirmation of this style correction remains pending.
+
 Node 24 syntax checks passed for both JavaScript files. Actual integrated validation passed 28 tests with zero failures or skips in 1631.655 ms; the adversarial group completed in 619.873 ms within its hard 2500 ms deadline. All original 23 groups remain, including the 10,000-identity and 50,000-repeat subprocess. No canary appeared in the test output. Exact integrated JavaScript postimages passed Secrets qualification. The separate full-native result of 19 cohorts and 703 methods belongs to the earlier committed `d521ea718149e6b5fc719a0dc4fecf07eb733e7f` and does not establish this payload's hosted behavior.
 
 ## Security impact
@@ -52,7 +54,7 @@ Normal commit and push published `5181cedba82af8d83de4b123080fb80ff414de15` on r
 
 ## Checks not run
 
-Hosted execution through the new immutable caller remains pending. Current-head Cloud readback, observed cache reuse, exact deployed CFamily version and causal closure of Shell, JSON and CFamily gaps remain unverified. The preceding assertion-style S5906 fix also awaits new-head Cloud confirmation. No project or quality-profile setting was changed.
+Exact-head hosted confirmation of the S7780 source correction and causal closure of Shell, JSON and CFamily gaps remain pending. Offline checks and a passing Gate do not establish cache reuse or parser completeness. No project or quality-profile setting was changed.
 
 ## Limitations and residual risk
 
@@ -60,4 +62,4 @@ Empty private cache storage can increase runtime and disk use. Literal overlong 
 
 ## Final diff and review status
 
-The payload was copied exactly, independently reviewed and normally published. The separate caller migration selects its published revision; its publication, matching Parent target and hosted diagnostic verification remain pending. Overall integration and analyzer-gap closure are not claimed.
+The payload and caller migration were independently reviewed and normally published. Publication and hosted confirmation of this test-style follow-up, the matching Parent target and remaining causal diagnostic verification are pending. Overall integration and analyzer-gap closure are not claimed.

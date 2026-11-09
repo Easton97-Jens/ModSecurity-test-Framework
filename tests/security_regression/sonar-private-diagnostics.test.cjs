@@ -494,7 +494,7 @@ test('private cache creation rejects aliases, preexisting entries and argument t
   assert.throws(() => api.privateCacheArguments('', root)); fs.unlinkSync(cache);
   fs.mkdirSync(cache);
   assert.throws(() => api.privateCacheArguments('', root)); fs.rmdirSync(cache);
-  for (const suffix of [' space', "'quote", '"quote', '\\escape', '\tcontrol']) {
+  for (const suffix of [' space', "'quote", '"quote', String.raw`\escape`, '\tcontrol']) {
     const unsafe = root + suffix; fs.mkdirSync(unsafe);
     assert.throws(() => api.privateCacheArguments('', unsafe));
     assert.equal(fs.existsSync(path.join(unsafe, cacheName)), false);

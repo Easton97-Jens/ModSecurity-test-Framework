@@ -40,6 +40,8 @@ Die veröffentlichte Implementierung ändert `.github/actions/sonar-private/main
 
 ## Befehle und Ergebnisse
 
+Die gehostete Aufruferrevision `4e7f359ace6a8fed9bbe7e692fe86d3c7dd8472c` beendete CI und Serveranalyse; alle fünf Gate-Bedingungen bestanden, ohne verbleibende Hotspots. Der vorherige S5906-Befund wurde als behoben geschlossen. Ein neuer S7780-Befund verlangte String.raw für einen maskierten Backslash im Cachepfad-Ablehnungstest. Diese Quellkorrektur verwendet das gleichwertige rohe Suffix mit denselben sieben Codepoints und bewahrt jede Assertion sowie alle 28 Testgruppen. Aktionsimplementierung, Metadaten und Aufrufer-Pin bleiben unverändert; die gehostete Bestätigung dieser Stilkorrektur am exakten Head steht aus.
+
 Node-24-Syntaxprüfungen bestanden für beide JavaScript-Dateien. Die tatsächliche integrierte Prüfung bestand 28 Tests ohne Fehler oder Skips in 1631.655 ms; die adversariale Gruppe dauerte 619.873 ms innerhalb ihrer harten Frist von 2500 ms. Alle ursprünglichen 23 Gruppen bleiben erhalten, einschließlich des Kindprozesses mit 10.000 Identitäten und 50.000 Wiederholungen. Kein Canary erschien in der Testausgabe. Exakte integrierte JavaScript-Postimages bestanden die Secrets-Qualifikation. Das getrennte vollständige native Ergebnis mit 19 Gruppen und 703 Methoden gilt für den früheren committeten Stand `d521ea718149e6b5fc719a0dc4fecf07eb733e7f` und belegt das gehostete Verhalten dieser Implementierung nicht.
 
 ## Sicherheitsauswirkung
@@ -52,7 +54,7 @@ Regulärer Commit und Push veröffentlichten `5181cedba82af8d83de4b123080fb80ff4
 
 ## Nicht ausgeführte Prüfungen
 
-Gehostete Ausführung über den neuen unveränderlichen Aufrufer steht aus. Cloud-Prüfung am aktuellen Head, beobachtete Cachewiederverwendung, exakte eingesetzte CFamily-Version und kausale Schließung der Shell-, JSON- und CFamily-Lücken bleiben ungeprüft. Auch die vorherige S5906-Korrektur des Assertionsstils wartet auf Cloud-Bestätigung am neuen Head. Keine Projekt- oder Qualitätsprofileinstellung wurde geändert.
+Gehostete Bestätigung der S7780-Quellkorrektur am exakten Head und kausale Schließung der Shell-, JSON- und CFamily-Lücken stehen aus. Offline-Prüfungen und ein bestandenes Gate belegen weder Cachewiederverwendung noch Parser-Vollständigkeit. Keine Projekt- oder Qualitätsprofileinstellung wurde geändert.
 
 ## Einschränkungen und Restrisiko
 
@@ -60,4 +62,4 @@ Leerer privater Cachespeicher kann Laufzeit und Plattenbedarf erhöhen. Literalm
 
 ## Finaler Diff- und Review-Status
 
-Die Implementierung wurde exakt kopiert, unabhängig geprüft und regulär veröffentlicht. Die getrennte Aufrufermigration wählt ihre veröffentlichte Revision aus; deren Veröffentlichung, passender Parent-Zielstand und gehostete Diagnoseverifikation stehen aus. Übergreifende Integration und geschlossene Analyzer-Lücken werden nicht behauptet.
+Implementierung und Aufrufermigration wurden unabhängig geprüft und regulär veröffentlicht. Veröffentlichung und gehostete Bestätigung dieser Teststil-Folgeänderung, der passende Parent-Zielstand und verbleibende kausale Diagnoseverifikation stehen aus. Übergreifende Integration und geschlossene Analyzer-Lücken werden nicht behauptet.
