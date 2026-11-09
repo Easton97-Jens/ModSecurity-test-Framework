@@ -3,9 +3,9 @@ schema_version: 1
 actions:
   SonarSource/sonarqube-scan-action:
     name: SonarSource/sonarqube-scan-action
-    version: v8.4.0
-    immutable_commit: 4d1dc0c91ee400dcf8a6dddf2f705ac36542e304
-    upstream_release: https://github.com/SonarSource/sonarqube-scan-action/releases/tag/v8.4.0
+    version: v8.4.1
+    immutable_commit: e805d875275f728fac1885b413934be6d7c63f65
+    upstream_release: https://github.com/SonarSource/sonarqube-scan-action/releases/tag/v8.4.1
     release_resolution: latest-release
     license: LGPL-3.0
     purpose: Analyze maintained Framework languages and wait for the terminal SonarQube Cloud Quality Gate.
@@ -83,9 +83,9 @@ actions:
     update_procedure: Verify the upstream tag-to-commit identity, repository scope, required installation permissions, default token revocation, and MIT license, then update this record, every matching version comment, and the contract test together.
   peter-evans/create-pull-request:
     name: peter-evans/create-pull-request
-    version: v8.1.1
-    immutable_commit: 5f6978faf089d4d20b00c7766989d076bb2fc7f1
-    upstream_release: https://github.com/peter-evans/create-pull-request/releases/tag/v8.1.1
+    version: v8.1.2
+    immutable_commit: 15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8
+    upstream_release: https://github.com/peter-evans/create-pull-request/releases/tag/v8.1.2
     release_resolution: latest-release
     license: MIT
     purpose: Create constrained scheduled version-maintenance Draft pull requests.
@@ -93,9 +93,9 @@ actions:
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   github/codeql-action:
     name: github/codeql-action
-    version: v4.39.1
-    immutable_commit: 9b3254085494b55a0f7c4c2b3d2d52cc712ce370
-    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.39.1
+    version: v4.39.3
+    immutable_commit: 33d7b85da1a04171e211befe2c739303b9a4c066
+    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.39.3
     release_resolution: same-major-release
     license: MIT
     purpose: Initialize, analyze, and upload SARIF for bounded CodeQL jobs.
@@ -132,12 +132,12 @@ tools:
   osv-scanner:
     name: osv-scanner
     repository: google/osv-scanner
-    version: v2.7.0
-    immutable_commit: bfe2f84abd2f09fe0b83ba7f6dad40d296762f40
-    upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.7.0
+    version: v2.7.1
+    immutable_commit: 02f96a40691c2d155fdda799af436e111231e365
+    upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.7.1
     asset: osv-scanner_linux_amd64
-    asset_url: https://github.com/google/osv-scanner/releases/download/v2.7.0/osv-scanner_linux_amd64
-    sha256: 160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b
+    asset_url: https://github.com/google/osv-scanner/releases/download/v2.7.1/osv-scanner_linux_amd64
+    sha256: fb7dab19a8bd9bbe5c3189f09d4b7ee1820c9553a23bac202648a56efd2f6ee8
     archive_type: raw
     layout: executable
     executable: osv-scanner
@@ -182,12 +182,12 @@ tools:
   zizmor:
     name: zizmor
     repository: zizmorcore/zizmor
-    version: v1.31.1
-    immutable_commit: effdb35fa7868863f11655db256d9008922fa427
-    upstream_release: https://github.com/zizmorcore/zizmor/releases/tag/v1.31.1
+    version: v1.32.0
+    immutable_commit: 21bd300700d43d9ba04b0c1fce72a89391ac80b4
+    upstream_release: https://github.com/zizmorcore/zizmor/releases/tag/v1.32.0
     asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-unknown-linux-gnu.tar.gz
-    sha256: d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99
+    asset_url: https://github.com/zizmorcore/zizmor/releases/download/v1.32.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
+    sha256: bb110cc765eca9cd7efb2e284a956be5974c60027b0970f16397d86208a9957b
     archive_type: tar.gz
     layout: executable
     archive_member: zizmor
@@ -216,12 +216,12 @@ tools:
   ruff:
     name: ruff
     repository: astral-sh/ruff
-    version: 0.17.3
-    immutable_commit: ba65abf8ba7bfbcc059f7fb9712be5ba9cab6abc
-    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.17.3
+    version: 0.17.4
+    immutable_commit: 05cdc36a45a29e078c2af9358969d0f576408bef
+    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.17.4
     asset: ruff-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/astral-sh/ruff/releases/download/0.17.3/ruff-x86_64-unknown-linux-gnu.tar.gz
-    sha256: 2b0890f5a55900af741f133918c2656919bbf18c2ab7741b4ca8403a90e647a9
+    asset_url: https://github.com/astral-sh/ruff/releases/download/0.17.4/ruff-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 3ab2b34aeacdbc1ea5c529cdbda3e05792633d587228123fd09f3b5a0facb27a
     archive_type: tar.gz
     layout: executable
     archive_member: ruff-x86_64-unknown-linux-gnu/ruff

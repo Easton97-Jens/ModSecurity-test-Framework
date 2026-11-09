@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "ad8465845ffc0a1bc326a104e6d7ca46ed18782b8252db207d2a200aeed515bd",
+  "inventory_sha256": "4fc4250acad1a690fe32617f585fcb2bd255884589050ecfaa2914a7cb601d86",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
