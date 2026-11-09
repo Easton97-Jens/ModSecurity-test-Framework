@@ -121,8 +121,8 @@ test('Parent profiles retain exact AutoConfig/includes/std/project/wait without 
   fs.writeFileSync(path.join(context, 'manifest.json'), JSON.stringify(manifest));
   assert.throws(() => api.parentIncludes(root, revision));
 }));
-test('timeout and log overflow remove private raw captures', () => temporary(async root => {
-  for (const options of [{timeout: 30}, {timeout: 2000, limit: 128}]) {
+for (const options of [{timeout: 30}, {timeout: 2000, limit: 128}]) {
+  test(`timeout/log overflow cleanup (${options.limit ? 'overflow' : 'timeout'})`, () => temporary(async root => {
     let owned;
     await assert.rejects(api.withPrivateRun(root, async directory => {
       owned = directory;
@@ -133,11 +133,21 @@ test('timeout and log overflow remove private raw captures', () => temporary(asy
       } finally { fs.closeSync(fd); }
     }), /captured child failed/);
     assert.equal(fs.existsSync(owned), false);
-  }
-}));
+  }));
+}
 function active(pid) {
   try { const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8'); return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[0] !== 'Z'; }
   catch { return false; }
+}
+function waitForExit(pid) {
+  return new Promise(resolve => {
+    let attempts = 0;
+    const poll = () => {
+      if (!active(pid) || attempts++ >= 20) resolve();
+      else setTimeout(poll, 10);
+    };
+    poll();
+  });
 }
 test('a leader exit terminates inherited-group descendants with closed stdio', () => temporary(async root => {
   const pidFile = path.join(root, 'descendant.pid');
@@ -151,7 +161,7 @@ test('a leader exit terminates inherited-group descendants with closed stdio', (
           `fs.writeFileSync(${JSON.stringify(pidFile)},String(child.pid));child.unref();process.exit(0);`;
         assert.equal(await api.runCaptured(process.execPath, ['-e', program], fd, {}, {timeout: 2000}), 0);
         pid = Number(fs.readFileSync(pidFile, 'utf8'));
-        for (let count = 0; count < 20 && active(pid); count++) await new Promise(resolve => setTimeout(resolve, 10));
+        await waitForExit(pid);
         assert.equal(active(pid), false);
       } finally { fs.closeSync(fd); }
     });
@@ -231,4 +241,62 @@ test('checked-in literal project binding cannot silently disagree with owner', (
   api.validateProjectBinding(root, profile);
   fs.writeFileSync(filename, `sonar.projectKey=${profile.project}\nsonar.projectKey=other\n`);
   assert.throws(() => api.validateProjectBinding(root, profile));
+}));
+test('fixed system Git ignores a hostile PATH and reads the actual repository', () => temporary(root => {
+  const sentinel = path.join(root, 'shadow-executed');
+  fs.writeFileSync(path.join(root, 'git'), `#!/bin/sh\n/usr/bin/touch '${sentinel}'\nexit 99\n`, {mode: 0o700});
+  const repository = path.resolve(__dirname, '../..');
+  const expected = spawnSync('/usr/bin/git', ['-C', repository, 'rev-parse', 'HEAD'], {encoding: 'utf8'});
+  assert.equal(expected.status, 0);
+  assert.equal(api.gitOutput(repository, ['rev-parse', 'HEAD'], {PATH: root}).trim(), expected.stdout.trim());
+  assert.equal(fs.existsSync(sentinel), false);
+}));
+test('adversarial digit runs and property whitespace finish within a hard deadline without disclosure', () => temporary(root => {
+  const modulePath = path.resolve(__dirname, '../../.github/actions/sonar-private/main.cjs');
+  const program = String.raw`
+    const assert = require('node:assert/strict');
+    const fs = require('node:fs');
+    const api = require(${JSON.stringify(modulePath)});
+    const root = ${JSON.stringify(root)};
+    const canary = ${JSON.stringify(canary)};
+    const result = api.emptyDiagnostics();
+    const digits = '9'.repeat(60000);
+    api.acceptLine(result, digits + ' not a compilation counter WARN ' + canary, new Map());
+    api.acceptLine(result, digits + ' compilation units were fully analyzed', new Map());
+    api.acceptLine(result, 'x compilation units were fully analyzed 85 compilation units were fully analyzed', new Map());
+    api.acceptLine(result, 'INFO 0 compilation units were partially analyzed', new Map());
+    assert.equal(result.warnings.total, 1);
+    assert.equal(result.warnings.unmapped, 1);
+    assert.equal(result.unmapped_counters, 1);
+    assert.equal(result.counters.full_translation_units, 85);
+    assert.equal(result.counters.partial_translation_units, 0);
+    const project = 'Easton97-Jens_ModSecurity-test-Framework';
+    const filename = root + '/sonar-project.properties';
+    fs.writeFileSync(filename, 'sonar.projectKey=' + ' '.repeat(60000) + project + '\n');
+    api.validateProjectBinding(root, {source_role: 'framework', project});
+    fs.writeFileSync(filename, 'sonar.projectKey' + ' '.repeat(60000) + canary + '\n');
+    assert.throws(() => api.validateProjectBinding(root, {source_role: 'framework', project}));
+    fs.writeFileSync(filename, '  sonar.projectKey :  ' + project + '  \r\n');
+    api.validateProjectBinding(root, {source_role: 'framework', project});
+    fs.writeFileSync(filename, 'sonar.projectKey=' + project + '\n sonar.projectKey : ' + project + '\n');
+    assert.throws(() => api.validateProjectBinding(root, {source_role: 'framework', project}));
+    const log = root + '/adversarial.log';
+    fs.writeFileSync(log, digits.repeat(4) + ' WARN ERROR [ParsingError] Cannot parse ' + canary + '\n');
+    const tail = api.diagnostics(log, new Map());
+    assert.equal(tail.overlong_lines, 1);
+    assert.equal(tail.warnings.total, 1);
+    assert.equal(tail.errors.total, 1);
+    assert.equal(tail.parser_lines, 1);
+    assert.equal(tail.unmapped_parser_lines, 1);
+    assert.equal(tail.diagnosis_complete, false);
+    assert.ok(!JSON.stringify({result, tail}).includes(canary));
+    process.stdout.write('bounded parsing passed\n');
+  `;
+  const result = spawnSync(process.execPath, ['-e', program], {encoding: 'utf8', timeout: 2500, env: {}});
+  assert.equal(result.error, undefined);
+  assert.equal(result.signal, null);
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, 'bounded parsing passed\n');
+  assert.equal(result.stderr, '');
+  assert.ok(!result.stdout.includes(canary) && !result.stderr.includes(canary));
 }));

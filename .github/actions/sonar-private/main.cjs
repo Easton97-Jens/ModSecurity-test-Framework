@@ -4,6 +4,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {spawn, execFileSync} = require('node:child_process');
+// Ubuntu hosted runners provide system Git here; never resolve workspace PATH.
+const GIT = '/usr/bin/git';
 const MAX_LOG = 128 * 1024 * 1024;
 const MAX_LINE = 65536;
 const MAX_FACTS = 10000;
@@ -94,7 +96,7 @@ async function withPrivateRun(temporaryRoot, callback) {
   finally { fs.rmSync(directory, {recursive: true, force: true}); }
 }
 function gitOutput(root, args, env) {
-  return execFileSync('git', ['-c', 'credential.helper=', '-C', root, ...args], {
+  return execFileSync(GIT, ['-c', 'credential.helper=', '-C', root, ...args], {
     env, encoding: 'utf8', timeout: 15000, maxBuffer: 16 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe']});
 }
@@ -115,17 +117,23 @@ function inventory(root, revision, role, env) {
   }
   return result;
 }
+function staysWithinRoot(relative) {
+  let depth = 0;
+  for (const part of relative.split('/')) {
+    if (part === '..') {
+      depth--;
+      if (depth < 0) return false;
+    } else if (part !== '' && part !== '.') depth++;
+  }
+  return true;
+}
 function sourceLocation(raw, sources) {
   if (/[\x00-\x1f\x7f]/.test(raw)) return undefined;
   if (sources.has(raw)) return sources.get(raw);
   if (!path.posix.isAbsolute(raw)) return undefined;
   for (const root of sources.roots ?? []) {
     if (!raw.startsWith(root + '/')) continue;
-    let depth = 0;
-    for (const part of raw.slice(root.length + 1).split('/')) {
-      if (part === '..') { if (--depth < 0) return undefined; }
-      else if (part !== '' && part !== '.') depth++;
-    }
+    if (!staysWithinRoot(raw.slice(root.length + 1))) return undefined;
     return sources.get(path.posix.normalize(raw));
   }
   return undefined;
@@ -138,13 +146,12 @@ function emptyDiagnostics() {
     signals: {document_limits: [], llvm_errors: 0, top_level_drops: null, ir_methods: null, unmapped: 0}};
 }
 function boundedCounter(raw, grouping = false) {
-  if (typeof raw !== 'string' || !(grouping ? /^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(raw) : /^[0-9]+$/.test(raw))) return null;
+  if (typeof raw !== 'string' || !(grouping ? /^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(raw) : /^\d+$/.test(raw))) return null;
   const value = Number(raw.replaceAll(',', ''));
   return Number.isSafeInteger(value) && value >= 0 && value <= MAX_COUNTER ? value : null;
 }
-function recordSignals(result, line) {
-  if (line.includes('LLVM ERROR')) result.signals.llvm_errors++;
-  const budget = line.match(/The incoming YAML document exceeds the limit: ([0-9]{1,10}) code points\./);
+function recordDocumentLimit(result, line) {
+  const budget = line.match(/The incoming YAML document exceeds the limit: (\d{1,10}) code points\./);
   if (budget) {
     const limit = boundedCounter(budget[1]);
     if (limit !== null && limit > 0) {
@@ -155,12 +162,16 @@ function recordSignals(result, line) {
       else result.signals.unmapped++;
     } else result.signals.unmapped++;
   }
-  const dropped = line.match(/Top-level declarations dropped decoding, encoding: ([0-9]+), ([0-9]+)\s*$/);
+}
+function recordDroppedDeclarations(result, line) {
+  const dropped = line.match(/Top-level declarations dropped decoding, encoding: (\d+), (\d+)\s*$/);
   if (dropped) {
     const values = dropped.slice(1).map(value => boundedCounter(value));
     if (values.every(value => value !== null)) result.signals.top_level_drops = {decoding: values[0], encoding: values[1]};
     else result.unmapped_counters++;
   } else if (line.includes('Top-level declarations dropped decoding, encoding:')) result.unmapped_counters++;
+}
+function recordIrMethods(result, line) {
   const methods = line.match(/IR generation: ([0-9,]+) skipped out of ([0-9,]+) total methods\s*$/);
   if (methods) {
     const values = methods.slice(1).map(value => boundedCounter(value, true));
@@ -168,6 +179,12 @@ function recordSignals(result, line) {
       result.signals.ir_methods = {skipped: values[0], total: values[1]};
     } else result.unmapped_counters++;
   } else if (line.includes('IR generation:') && line.includes('total methods')) result.unmapped_counters++;
+}
+function recordSignals(result, line) {
+  if (line.includes('LLVM ERROR')) result.signals.llvm_errors++;
+  recordDocumentLimit(result, line);
+  recordDroppedDeclarations(result, line);
+  recordIrMethods(result, line);
   const mode = line.match(/CFamily analysis configuration mode: (AutoConfig|Compile-Commands)/i);
   if (mode) result.observed_cfamily_mode = mode[1].toLowerCase() === 'autoconfig' ? 'AUTO_CONFIG' : 'COMPILE_COMMANDS';
 }
@@ -178,7 +195,20 @@ function diagnosticCategory(message) {
   if (/expected /i.test(message)) return 'EXPECTED_TOKEN';
   return 'OTHER_PARSE';
 }
-function acceptLine(result, line, sources, flags = {}) {
+// Search fixed delimiters and inspect only their preceding digit runs. This
+// avoids retrying an unanchored digit quantifier on every nonmatching digit.
+function precedingDigits(line, marker) {
+  let offset = 0;
+  let end;
+  while ((end = line.indexOf(marker, offset)) !== -1) {
+    let start = end;
+    while (start > 0 && /\d/.test(line[start - 1])) start--;
+    if (start < end) return line.slice(start, end);
+    offset = end + marker.length;
+  }
+  return null;
+}
+function recordSeverity(result, line, flags) {
   const warning = flags.warning ?? /\bWARN(?:ING)?\b/i.test(line);
   const error = flags.error ?? /\bERROR\b/i.test(line);
   if (warning) {
@@ -190,24 +220,17 @@ function acceptLine(result, line, sources, flags = {}) {
     else result.warnings.unmapped++;
   }
   if (error) { result.errors.total++; result.errors.unmapped++; }
-  const parsing = flags.parsing ?? line.includes('[ParsingError]');
-  const cannotParse = flags.cannotParse ?? line.includes('Cannot parse');
-  if (flags.truncated) {
-    if (parsing) result.parser_lines++;
-    if (parsing || cannotParse) result.unmapped_parser_lines++;
-    return;
-  }
-  recordSignals(result, line);
-  for (const [label, expression] of [
-    ['full_translation_units', /(\d+) compilation units were fully analyzed/],
-    ['partial_translation_units', /(\d+) compilation units were partially analyzed/],
+}
+function recordCounters(result, line) {
+  for (const [label, marker] of [
+    ['full_translation_units', ' compilation units were fully analyzed'],
+    ['partial_translation_units', ' compilation units were partially analyzed'],
   ]) {
-    const match = line.match(expression);
-    if (match) {
-      const value = boundedCounter(match[1]);
-      if (value === null) result.unmapped_counters++;
-      else result.counters[label] = value;
-    }
+    const raw = precedingDigits(line, marker);
+    if (raw === null) continue;
+    const value = boundedCounter(raw);
+    if (value === null) result.unmapped_counters++;
+    else result.counters[label] = value;
   }
   const ratio = line.match(/of (functions|statements) were parsed successfully \((\d+) out of (\d+) have parsing errors\)/);
   if (ratio) {
@@ -216,11 +239,13 @@ function acceptLine(result, line, sources, flags = {}) {
     if (errors === null || total === null || errors > total) result.unmapped_counters++;
     else result.counters[ratio[1]] = {errors, total};
   }
+}
+function recordParserLocation(result, line, sources, parsing, cannotParse) {
   if (!parsing && !cannotParse) return;
   if (parsing) result.parser_lines++;
   const payload = parsing ? line.split('[ParsingError]').slice(1).join('[ParsingError]').trim() :
     line.slice(line.indexOf('Cannot parse') + 'Cannot parse'.length).trim();
-  const match = payload.match(/^'?(.+?):([0-9]+)(?::([0-9]+))?(?:[':\s]|$)(.*)$/);
+  const match = payload.match(/^'?(.+?):(\d+)(?::(\d+))?(?:[':\s]|$)(.*)$/);
   const fact = match && sourceLocation(match[1], sources);
   const lineNumber = match && Number(match[2]);
   const column = match?.[3] ? Number(match[3]) : 0;
@@ -229,6 +254,19 @@ function acceptLine(result, line, sources, flags = {}) {
   if (result.locations.length >= MAX_FACTS) { result.facts_truncated++; return; }
   result.locations.push({...fact, line: lineNumber, column,
     category: parsing ? diagnosticCategory(match[4]) : 'CANNOT_PARSE', translation_unit: 'UNKNOWN'});
+}
+function acceptLine(result, line, sources, flags = {}) {
+  recordSeverity(result, line, flags);
+  const parsing = flags.parsing ?? line.includes('[ParsingError]');
+  const cannotParse = flags.cannotParse ?? line.includes('Cannot parse');
+  if (flags.truncated) {
+    if (parsing) result.parser_lines++;
+    if (parsing || cannotParse) result.unmapped_parser_lines++;
+    return;
+  }
+  recordSignals(result, line);
+  recordCounters(result, line);
+  recordParserLocation(result, line, sources, parsing, cannotParse);
 }
 function diagnostics(filename, sources) {
   const result = emptyDiagnostics();
@@ -244,7 +282,7 @@ function diagnostics(filename, sources) {
   };
   const track = fragment => {
     for (const character of fragment) {
-      if (/[A-Za-z0-9_]/.test(character)) { if (word.length < 8) word += character; }
+      if (/\w/.test(character)) { if (word.length < 8) word += character; }
       else flushWord();
     }
     const markers = tail + fragment;
@@ -339,9 +377,14 @@ function validateProjectBinding(root, profile) {
   // The current checked-in contracts use literal keys. Refuse escape syntax
   // instead of implementing an incomplete Java-properties escape interpreter.
   demand(!content.includes('\\'));
-  const values = content.split(/\r?\n/).map(line => /^\s*sonar\.projectKey\s*[=:]\s*(.*?)\s*$/.exec(line)).filter(Boolean);
+  const values = [];
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    const key = /^sonar\.projectKey\s*[=:]/.exec(trimmed);
+    if (key) values.push(trimmed.slice(key[0].length).trim());
+  }
   const expected = profile.source_role === 'parent' ? 'Easton97-Jens_ModSecurity-conector' : profile.project;
-  demand(values.length === 1 && values[0][1] === expected);
+  demand(values.length === 1 && values[0] === expected);
 }
 function reportTaskIdentity(workDirectory, project) {
   try {
@@ -355,7 +398,7 @@ function reportTaskIdentity(workDirectory, project) {
   } catch { return {status: 'NOT_PUBLISHED_OR_UNREADABLE', ce_task_id: null}; }
 }
 function validatedRunId(raw) {
-  if (!/^[1-9][0-9]{0,19}$/.test(raw ?? '')) return null;
+  if (!/^[1-9]\d{0,19}$/.test(raw ?? '')) return null;
   const value = Number(raw);
   return Number.isSafeInteger(value) ? value : null;
 }
@@ -382,10 +425,12 @@ async function main() {
         sources.roots.push(...fixture.roots);
       }
       const action = path.join(directory, 'upstream');
-      for (const args of [['init', action], ['-C', action, '-c', 'credential.helper=', 'fetch', '--depth=1', '--no-tags',
-        'https://github.com/SonarSource/sonarqube-scan-action.git', upstream[1]], ['-C', action, 'checkout', '--detach', upstream[1]]]) {
-        demand(await runCaptured('git', args, descriptor, clean, {timeout: 120000}) === 0);
-      }
+      // Initialization, fetch and checkout each depend on the previous success.
+      demand(await runCaptured(GIT, ['init', action], descriptor, clean, {timeout: 120000}) === 0);
+      demand(await runCaptured(GIT, ['-C', action, '-c', 'credential.helper=', 'fetch', '--depth=1', '--no-tags',
+        'https://github.com/SonarSource/sonarqube-scan-action.git', upstream[1]], descriptor, clean, {timeout: 120000}) === 0);
+      demand(await runCaptured(GIT, ['-C', action, 'checkout', '--detach', upstream[1]],
+        descriptor, clean, {timeout: 120000}) === 0);
       demand(gitOutput(action, ['rev-parse', 'HEAD'], clean).trim() === upstream[1]);
       const metadata = fs.readFileSync(path.join(action, 'action.yml'), 'utf8');
       demand(/using: node24/.test(metadata) && /main: dist\/index\.js/.test(metadata));
@@ -407,7 +452,7 @@ async function main() {
     } finally { fs.closeSync(descriptor); }
   });
 }
-module.exports = {privateEnv, privateFile, runCaptured, withPrivateRun, diagnostics, acceptLine,
+module.exports = {gitOutput, privateEnv, privateFile, runCaptured, withPrivateRun, diagnostics, acceptLine,
   emptyDiagnostics, validateArguments, inventory, sourceLocation, parentIncludes, profileArguments,
   boundedCounter, readBoundedRegular, validateProjectBinding, reportTaskIdentity, validatedRunId};
 if (require.main === module) main().catch(() => {
