@@ -86,7 +86,7 @@ class DiagnosticSourceProvenanceTest(unittest.TestCase):
         checker = self.checker
         source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
         for old, new in (
-            ("5181cedba82af8d83de4b123080fb80ff414de15", "a" * 40),
+            ("865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a", "a" * 40),
             (".github/actions/sonar-private", ".github/actions/other-node"),
         ):
             with self.subTest(old=old):

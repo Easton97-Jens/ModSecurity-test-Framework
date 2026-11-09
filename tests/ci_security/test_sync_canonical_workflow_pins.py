@@ -112,6 +112,10 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 expected.replace(record, b"    immutable_commit: " + b"a" * 40),
                 expected.replace(
                     record,
+                    b"    immutable_commit: 0f3889fd2f9d6f8d4fc6c3ec82d44f6859ed32f3",
+                ),
+                expected.replace(
+                    record,
                     b"    immutable_commit: 15588933f5f5456bb07f5eef12d7ce236e651c5c",
                 ),
                 expected.replace(

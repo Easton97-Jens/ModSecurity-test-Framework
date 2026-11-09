@@ -251,4 +251,4 @@ diagnostic_actions:
   sonar-private:
     repository: Easton97-Jens/ModSecurity-test-Framework
     action_path: .github/actions/sonar-private
-    immutable_commit: 5181cedba82af8d83de4b123080fb80ff414de15
+    immutable_commit: 865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a

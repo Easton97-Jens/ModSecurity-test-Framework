@@ -124,7 +124,7 @@ jobs:
             --nginx-source "$nginx_source" --nginx-build "$nginx_source/objs"
 
       - name: Analyze maintained languages and wait for the Quality Gate
-        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/sonar-private@5181cedba82af8d83de4b123080fb80ff414de15
+        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/sonar-private@865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_USER_HOME: ${{ runner.temp }}/framework-sonar-cache

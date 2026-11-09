@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "8bb581e7d5109ac0c79ae6436e47b4a4a3865e48ed0a834a1ef8c20dbc23e756",
+  "inventory_sha256": "020fca0cb66535f1dd2e3002faa448fd952b47ea5932b50afc1e86be4c72878f",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -5268,7 +5268,7 @@
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_ci_validation_bridge_rejects_framework_checkout_pin_mismatch"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_framework_workflow_pin_projection.py",
-      "source_sha256": "3d2dd9c59c5218386824c317c617a9daa52a84feb689cb4b6d95b572233985d7"
+      "source_sha256": "c02a1662fabf9aa358ff774616cf0513128b14b5710ae9534ecf70d54fb7ce60"
     },
     {
       "contains_selected_definitions": [],
@@ -12321,7 +12321,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.DiagnosticSourceProvenanceTest.test_namespace_mentions_do_not_hide_executable_or_ordinary_pins"
       ],
       "source": "framework/tests/ci_security/test_common_canonical_pins.py",
-      "source_sha256": "b01d59fe32f22507cc386386f9961b09a482a223cccab6d9b1a5c2f04a306df4"
+      "source_sha256": "e4dbd9c7565bcab3234e7bd057e3be91ed99b14d1079a9acf0881f6a04fb4923"
     },
     {
       "contains_selected_definitions": [],
@@ -12647,7 +12647,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_sync_canonical_workflow_pins.CanonicalWorkflowPinsTest.test_write_rejects_symlinked_generated_output"
       ],
       "source": "framework/tests/ci_security/test_sync_canonical_workflow_pins.py",
-      "source_sha256": "c151ba3d567549a461e919d1279563485103d572b1a42788fa5fc08967c0516c"
+      "source_sha256": "ee12d33c7fa86b7ce3edebcc175fc0218998c74aeb19f838473805bf1d3112eb"
     },
     {
       "contains_selected_definitions": [],

@@ -19,7 +19,7 @@ Das Framework verantwortet seinen Scanner-Aufrufer, die eigene native Datenrolle
 
 ## Akzeptanzkriterien
 
-Die veröffentlichte Aktion wird auf `5181cedba82af8d83de4b123080fb80ff414de15` festgesetzt. Upstream-Scanneridentität/-version, Signaturprüfung, voller Analyseumfang, Framework-cfd5-Fixture, Parent-Standards/-Projekte/-Gate-Semantik und alle 23 Integrationsprojektionen bleiben erhalten. Alle Composite-Quellen werden weiterhin geprüft; ungeprüfte Node-/Docker-Aktionen und Metadatenaliase werden abgelehnt.
+Die veröffentlichte Aktion wird auf `865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a` festgesetzt. Upstream-Scanneridentität/-version, Signaturprüfung, voller Analyseumfang, Framework-cfd5-Fixture, Parent-Standards/-Projekte/-Gate-Semantik und alle 23 Integrationsprojektionen bleiben erhalten. Alle Composite-Quellen werden weiterhin geprüft; ungeprüfte Node-/Docker-Aktionen und Metadatenaliase werden abgelehnt.
 
 ## Untersuchte Alternativen
 
@@ -35,7 +35,7 @@ Gehostete Kandidatenvalidierung zeigte drei Fehler wegen eines fehlenden Pakets,
 
 ## Geänderte Dateien und Tests
 
-Scanner-Workflows, native Framework-Daten/Lock-Produzent, Vertragsmodul für vollständige Aufrufe, Workflow-/Quellprüfer, Parent-Projektion/-Fixtures und gezielte Regressionen. Die vorher veröffentlichte Aktionsimplementierung und ihre 28 Offline-Tests bleiben durch diese Aufruferintegration unverändert. Der Standardfallbestand bleibt unverändert.
+Scanner-Workflows, native Framework-Daten/Lock-Produzent, Vertragsmodul für vollständige Aufrufe, Workflow-/Quellprüfer, Parent-Projektion/-Fixtures und gezielte Regressionen. Die vorher veröffentlichte Aktionsimplementierung und ihre 33 Offline-Tests bleiben durch diese Aufruferintegration unverändert. Der Standardfallbestand bleibt unverändert.
 
 Der native Lock-Produzent lässt nur die exakte vorher geprüfte Rolle zur direkten Migration auf die neu festgesetzte Rolle zu. Doppelte Diagnose-YAML-Schlüssel, Merge-Schlüssel, nicht skalare Felder und veränderte Strukturen werden vor Laden oder Ersetzen abgelehnt. Beide unabhängigen CI-Vertragsprüfungen validieren den vollständigen kanonischen Scannerschritt; allgemeine Release- und Repository-Prüfungen bleiben aktiv. Echte Proposed-Tree-Fixtures kopieren die erforderliche Paketclosure.
 
@@ -43,7 +43,7 @@ Zwei inerte Shell-Fixtures im Hauptquellumfang unterscheiden sich nur durch ein 
 
 ## Befehle und Ergebnisse
 
-Die getrennt geprüfte Cache-Sichtbarkeitsimplementierung wurde regulär unter `5181cedba82af8d83de4b123080fb80ff414de15` veröffentlicht, mit Main-SHA-256 `a13995cf0b52e3ccc1bb0476ed3dad290e8a9e1bf88d8397cc77afaf1ee06084` und unveränderten Action-Metadaten. Ihre tatsächliche integrierte Offline-Suite bestand 28 Gruppen ohne externe Quellwurzelüberschreibung. Diese Aufrufermigration setzt die veröffentlichte Identität fest; nur die exakte vorherige X2-Rolle wird von der nativen Lock-Migration zugelassen. Ältere oder unbekannte Rollen bleiben abgelehnt. Gehostete Analyse am aktuellen Head und das passende committete Parent-Paar bleiben getrennte ausstehende Evidenz; das unten dokumentierte Ergebnis mit 703 Methoden gilt für `d521ea718149e6b5fc719a0dc4fecf07eb733e7f`.
+Die getrennt geprüfte Drei-Ereignis-Implementierung wurde regulär unter `865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a` veröffentlicht, mit Main-SHA-256 `234bb01ea1a24e03ea374bd37dbf65a6c04dc2a80d4f98ecec14e8afe6ea8fe8` und unveränderten Action-Metadaten. Ihre tatsächliche integrierte Offline-Suite bestand 33 Gruppen ohne externe Quellwurzelüberschreibung. Diese Aufrufermigration bindet ausschließlich diese neue Identität. Die native Lock-Migration erlaubt nur die vollständige vorherige Rolle `5181cedba82af8d83de4b123080fb80ff414de15`; ältere, unbekannte oder fehlerhafte Rollen bleiben abgelehnt. Die neue veröffentlichte Referenz `refs/heads/codex/preparation-private-sonar-three-event-20261109` und die historische Cache-Referenz bleiben erhalten. Aktuelle Rollen-/Aufruferprüfungen bestanden wie unten dokumentiert; gehostete Analyse und das passende committete Parent-Paar stehen aus; das historische Ergebnis mit 703 Methoden gilt ausschließlich für `d521ea718149e6b5fc719a0dc4fecf07eb733e7f`. Diese reine Rollenänderung materialisiert keinen Gitlink und führt keine Integrationsprojektion aus.
 
 Die gehostete Revision `ce1039a90f5f2fa0fb7c06634157b3fbcf6c5639` beendete Scanner und Serververarbeitung mit erwartetem Projekt, Fixture und tatsächlichem Verbose-Modus. Ihr Gate bestand alle fünf Bedingungen ohne Hotspots; alle sieben vorherigen Python-Befunde wurden als behoben geschlossen. Zwei neue Komplexitätsbefunde im Prüfer der kanonischen gemeinsamen Quelle erforderten die Helper-Auslagerungen. Der getrennte Workflow-Sicherheitsjob scheiterte weiterhin an drei isolierten Kandidatenimports; die lokale Reproduktion ohne geerbten Paketpfad bestätigte diese drei Fehler vor der Korrektur der Importgrenze. Danach bestanden vier echte Methoden ohne geerbten Paketpfad. Die unten dokumentierte betroffene Prüfmatrix ging der anschließend beschriebenen Evidenz des committeten Folgestands voraus.
 
@@ -66,6 +66,8 @@ Token-Zugriff bleibt auf eine unveränderliche Remote-Aktion begrenzt. Falsche P
 ## Dokumentation und Runtime-Evidenz
 
 Dieses Berichtspaar beschreibt Vorbereitung und Offline-Validierung. Gehostete Diagnosen und Qualitätsprüfungen des aktuellen Heads bleiben unabhängige Evidenz; Connector-Laufzeit oder Deployment werden nicht behauptet.
+
+Die aktuelle Bindungsprüfung bestand 97 Vertragsmethoden einschließlich 14 nativer Produzenten- und 29 Zulassungsmethoden; auch 11 echte Projektionsmethoden und alle 56 physischen Updater-Methoden bestanden. Die tatsächliche Quellprüfung ließ 20 Composites und die eine geprüfte Node-Aktion zu. Beide JavaScript-Syntaxprüfungen und alle 33 Node-Tests bestanden ohne Quellwurzelüberschreibung (0 Fehler, 0 Skips; 1786,674 ms). Parent-eigenes Python bestand seinen nativen Nachweis unabhängig. Kanonische Aktualität und Wartungsaktualität, primäre Sicherheits-/native CI-Verträge, Ruff-Prüfung und Formatprüfung über 44 Dateien sowie festgesetztes Pyright bestanden. Der erste Projektionsaufruf scheiterte an fehlendem RUNNER_TEMP; der korrigierte Aufruf mit externem Verzeichnis bestand alle 11 Methoden ohne Quelländerung. Die native Generierung änderte nur einen Lock-Commit, zwei Inventar-Digests und vier Archiv-Skalare; sämtliche Mitgliedschaften, 100 Standardfälle, 80 Selektoren und 8316 Archivdefinitionen bleiben unverändert. Gehostete Verifikation und der synchronisierte committete Parent-Zielstand stehen aus.
 
 ## Nicht ausgeführte Prüfungen
 

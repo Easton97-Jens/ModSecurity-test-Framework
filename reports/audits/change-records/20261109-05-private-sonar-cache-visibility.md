@@ -9,7 +9,7 @@
 | Change ID | 20261109-05-private-sonar-cache-visibility |
 | UTC date | 2026-11-09 |
 | Framework base revision | d521ea718149e6b5fc719a0dc4fecf07eb733e7f |
-| Published action revision | 5181cedba82af8d83de4b123080fb80ff414de15 |
+| Published action revision | 865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a |
 | Issue or pull request | Framework PR #169 |
 
 ## Motivation and problem statement
@@ -47,7 +47,9 @@ The historical published cache payload added five groups for cache lifecycle, ca
 
 Hosted revision `9a9c1b6e95950f6afc50537ee586db4470907dff` completed 19 CI checks successfully with three conditional skips. All five Gate conditions passed; no OPEN or ACCEPTED issues or hotspots remained. The server reported 167 FIXED findings and the existing 26 false-positive classifications. S5906 and S7780 both closed as fixed through source corrections. These hosted results describe that preceding revision, not this diagnostic follow-up.
 
-The reviewed private candidate passed 33 Node tests without failures or skips in 1847.302 ms; its 10,000-identity/50,000-repeat adversarial group completed in 841.365 ms within the hard 2500 ms deadline. Actual integrated syntax checks passed for both JavaScript files; Node passed all 33 groups without failures or skips in 1683.006 ms, with the source-root override unset. Its adversarial group completed in 726.114 ms within 2500 ms. Canonical freshness, maintenance freshness and the main security contract passed. The 29 admission methods produced 27 passes and two errors: both rejected the changed implementation against the still-frozen historical role hash. Actual composite admission rejected the same mismatch; this is a current transitional failure, not a completed 20-composite/one-Node pass. No role or test expectation was weakened. The historical 28-group integrated cache validation and the separate full-native result of 19 cohorts and 703 methods at `d521ea718149e6b5fc719a0dc4fecf07eb733e7f` remain scoped to their earlier source revisions.
+The reviewed private candidate passed 33 Node tests without failures or skips in 1847.302 ms; its 10,000-identity/50,000-repeat adversarial group completed in 841.365 ms within the hard 2500 ms deadline. Actual integrated syntax checks passed for both JavaScript files; Node passed all 33 groups without failures or skips in 1683.006 ms, with the source-root override unset. Its adversarial group completed in 726.114 ms within 2500 ms. Canonical freshness, maintenance freshness and the main security contract passed. The 29 admission methods produced 27 passes and two errors: both rejected the changed implementation against the still-frozen historical role hash. Actual composite admission rejected the same mismatch; this was the preceding transitional failure, not a completed 20-composite/one-Node pass. No role or test expectation was weakened. The historical 28-group integrated cache validation and the separate full-native result of 19 cohorts and 703 methods at `d521ea718149e6b5fc719a0dc4fecf07eb733e7f` remain scoped to their earlier source revisions.
+
+Current binding validation passed 97 contract methods, including 14 native-producer and 29 admission methods; 11 genuine projection methods and all 56 physical updater methods also passed. Actual source lint admitted 20 composites and the one reviewed Node action. Both JavaScript syntax checks and all 33 Node tests passed without a source-root override (0 failures, 0 skips; 1786.674 ms). Parent-owned Python independently passed its native proof. Canonical and maintenance freshness, primary security/native CI contracts, Ruff check/format over 44 files and pinned Pyright passed. The initial projection invocation failed because RUNNER_TEMP was absent; the corrected external-directory invocation passed all 11 methods without a source change. Native generation changed only one lock commit, two inventory digests and four archive scalar slots; all memberships, 100 default cases, 80 selectors and 8316 archived definitions remain unchanged. Hosted verification and the synchronized committed Parent target remain pending.
 
 ## Security impact
 
@@ -55,11 +57,11 @@ The official action and scanner pins, signature verification, token allowlist, s
 
 ## Documentation and runtime evidence
 
-Normal commit and push published `5181cedba82af8d83de4b123080fb80ff414de15` on retained ref `refs/heads/codex/preparation-private-sonar-cache-20261109`. This published ref is a runtime dependency of pinned callers and must survive later squash and task-branch cleanup. The historical published main SHA-256 is `a13995cf0b52e3ccc1bb0476ed3dad290e8a9e1bf88d8397cc77afaf1ee06084`; action metadata is unchanged. The separately reviewed caller migration freezes that published identity through normal admission and native generation contracts. Offline tests ran zero scanner quality analyses and collected no connector runtime evidence.
+The historical cache payload `5181cedba82af8d83de4b123080fb80ff414de15` with main SHA-256 `a13995cf0b52e3ccc1bb0476ed3dad290e8a9e1bf88d8397cc77afaf1ee06084` remains retained on `refs/heads/codex/preparation-private-sonar-cache-20261109`. Normal commit and push published the reviewed three-event follow-up at `865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a` on `refs/heads/codex/preparation-private-sonar-three-event-20261109`; its main SHA-256 is `234bb01ea1a24e03ea374bd37dbf65a6c04dc2a80d4f98ecec14e8afe6ea8fe8` and action metadata is unchanged. Retain both published refs through later squash and task cleanup. The new ref protects the immutable runtime dependency of callers rebound here. Offline tests ran zero scanner quality analyses and collected no connector runtime evidence.
 
 ## Checks not run
 
-Publication of this follow-up as a new immutable wrapper, caller rebinding and exact-head hosted verification remain pending. The current role still names the earlier published payload; whole-source checks that compare its frozen implementation hash can reject this transitional source. The role is not relaxed in this change. Matching-target full-native verification and causal closure of Shell, JSON and CFamily gaps remain pending. No project or quality-profile setting was changed.
+The new immutable wrapper is published. Current role/caller and whole-source admission passed as recorded above, resolving the preceding two admission errors and composite failure without weakening the role. Matching-target full-native verification, hosted verification and causal closure of Shell, JSON and CFamily gaps remain pending. No project or quality-profile setting was changed.
 
 ## Limitations and residual risk
 
@@ -67,4 +69,4 @@ Empty private cache storage can increase runtime and disk use. Literal overlong 
 
 ## Final diff and review status
 
-The historical payload and caller migration were independently reviewed and normally published. The new private candidate was independently reviewed before integration. Local follow-up validation is recorded above with its current transitional admission failures. New immutable publication, caller rebinding, passing whole-source admission and hosted causal verification remain pending. Overall integration and analyzer-gap closure are not claimed.
+The historical payload and caller migration were independently reviewed and normally published. The new private candidate was independently reviewed before integration. Local follow-up validation and the resolved transitional admission failures are recorded above. Immutable publication is complete. Current caller-rebind validation and whole-source admission passed; hosted causal verification remains pending. Overall integration and analyzer-gap closure are not claimed.

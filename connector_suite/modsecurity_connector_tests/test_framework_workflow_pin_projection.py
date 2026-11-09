@@ -18,7 +18,7 @@ from modsecurity_connector_tests.framework_sha_fixture import set_framework_sha_
 from modsecurity_connector_tests.test_update_framework_versions import CURRENT_CANDIDATE_COMMON
 
 SYNC = load_source(source_path("ci/tools/sync-framework-component-versions.py"))
-FROZEN_SONAR = "5181cedba82af8d83de4b123080fb80ff414de15"
+FROZEN_SONAR = "865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a"
 
 
 class FrameworkWorkflowPinProjectionTests(unittest.TestCase):
