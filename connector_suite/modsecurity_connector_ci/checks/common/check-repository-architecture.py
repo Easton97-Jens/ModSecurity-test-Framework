@@ -72,8 +72,12 @@ HOST_DIRECTORY = re.compile(
 )
 INCLUDE = re.compile(r'^\s*#\s*include\s*([<"])([^>"\n]+)[>"]', re.MULTILINE)
 MAKE_REFERENCE = re.compile(r"\$[({]([A-Za-z_](?a:\w)*)[)}]")
-PRODUCT_VARIABLE = re.compile(
-    r"(?:^|_)(?:sources?|srcs?|objs?|objects?|ldadd|libadd|ldlibs|libs|ldflags|cflags|cxxflags|cppflags|includes?)(?:_|$)",
+PRODUCT_INPUT_VARIABLE = re.compile(
+    r"(?:^|_)(?:sources?|srcs?|objs?|objects?|includes?)(?:_|$)",
+    re.IGNORECASE,
+)
+PRODUCT_FLAG_VARIABLE = re.compile(
+    r"(?:^|_)(?:ldadd|libadd|ldlibs|libs|ldflags|cflags|cxxflags|cppflags)(?:_|$)",
     re.IGNORECASE,
 )
 
@@ -228,6 +232,13 @@ def make_recipe_edge(
     return "ModSecurity-test-Framework recipe dependency: " + command
 
 
+def product_artifact_variable(name: str) -> bool:
+    """Classify literal artifact inputs or compiler/linker flags with the same boundaries."""
+    return bool(
+        PRODUCT_INPUT_VARIABLE.search(name) or PRODUCT_FLAG_VARIABLE.search(name)
+    )
+
+
 def make_dependencies(text: str) -> list[str]:
     """Follow literal Make variable edges into artifact inputs and recipes.
 
@@ -241,7 +252,7 @@ def make_dependencies(text: str) -> list[str]:
     edges = [
         f"ModSecurity-test-Framework artifact variable {name}"
         for name, _ in assignments
-        if name in tainted and PRODUCT_VARIABLE.search(name)
+        if name in tainted and product_artifact_variable(name)
     ]
     values = dict(assignments)
     # Only the exact public test-runner command permits this recipe exception.

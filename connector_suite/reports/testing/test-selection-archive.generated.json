@@ -10106,7 +10106,7 @@
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_unresolved_angle_local_dependency"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_repository_architecture.py",
-      "source_sha256": "29244f974be56f7dc4bf2697c802fde6e82a0df254d82f0bd5b51a4bb6915eca"
+      "source_sha256": "cc8f6b55ac4208605f2a11c595a4ec0b6b2a7af7df05c1ff4e4b96553ca4bef8"
     },
     {
       "contains_selected_definitions": [],

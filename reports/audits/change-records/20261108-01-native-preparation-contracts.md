@@ -50,7 +50,9 @@ Reject current symlinks, symlink ancestors and root escapes before record hashin
 The quality follow-up separates Make, language-loader, include and Gitlink checks
 into named helpers. Shell lexical stages preserve ordered fallback behavior, and
 ASCII identifier tails retain their original scope through local regex flags.
-Host-header checks preserve exact filename and directory boundaries. The repeated
+Host-header checks preserve exact filename and directory boundaries. Artifact-input
+and compiler/linker-flag classifiers retain identical token boundaries and Unicode
+ignore-case matching. The repeated
 migration duplicate-source diagnostic now uses one shared constant.
 
 ## Changed files and tests

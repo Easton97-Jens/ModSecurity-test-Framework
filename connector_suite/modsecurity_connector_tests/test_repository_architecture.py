@@ -196,6 +196,31 @@ class RepositoryArchitectureTests(unittest.TestCase):
                 self.run_cli(1, "product-without-test-infrastructure")
                 (self.product / f"connectors/example/{name}").unlink()
 
+        # Classification preserves Unicode IGNORECASE even though Make assignment
+        # names themselves use the narrower ASCII identifier grammar.
+        classify = runpy.run_path(str(CLI))["product_artifact_variable"]
+        for variable, expected in (
+            ("sources", True),
+            ("__objs__", True),
+            ("CFLAGS_EXTRA", True),
+            ("xCFLAGS", False),
+            ("X_SOURCES", True),
+            ("SOURCESX", False),
+            ("ldflag", False),
+            ("LDFLAGS", True),
+            ("INCLUDE", True),
+            ("INCLUDES", True),
+            ("SOURCEſ", True),
+            ("İNCLUDE", True),
+            ("ıncludes", True),
+            ("LİBS", True),
+            ("LıBS", True),
+            ("ldﬂags", False),
+            ("ſourceſ_suffix", True),
+        ):
+            with self.subTest(variable=variable):
+                self.assertEqual(classify(variable), expected)
+
     def test_product_make_compile_recipe(self):
         self.write(
             self.product,

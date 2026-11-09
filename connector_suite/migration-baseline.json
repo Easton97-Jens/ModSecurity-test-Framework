@@ -7,7 +7,7 @@
     "native_sources": 90,
     "python_go_source_sets": 656,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "c08a1292cc04444c464c7259595467d3a6a4d5a69f743f89e444931387a9f308"
+    "sha256": "585d768e12adb8c71fe25a7d92642c989067aaf7a880d0e76dfac28622088f89"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -168325,7 +168325,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "c08a1292cc04444c464c7259595467d3a6a4d5a69f743f89e444931387a9f308",
+      "sha256_framework_source": "585d768e12adb8c71fe25a7d92642c989067aaf7a880d0e76dfac28622088f89",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {

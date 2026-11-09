@@ -56,6 +56,8 @@ Der Qualitätsnachtrag trennt Make-, Sprachlader-, Include- und Gitlink-Prüfung
 in benannte Hilfsfunktionen. Lexikalische Shell-Stufen bewahren die geordneten
 Rückfälle; ASCII-Bezeichnerenden behalten ihren bisherigen Umfang durch lokale
 Regex-Flags. Host-Header-Prüfungen bewahren exakte Datei- und Verzeichnisgrenzen.
+Getrennte Klassifikatoren für Artefakteingaben und Compiler-/Linkerflags bewahren
+dieselben Tokengrenzen und die Unicode-Semantik beim Ignorieren der Schreibweise.
 Die wiederholte Migrationsdiagnose für doppelte Produktquellen verwendet jetzt
 eine gemeinsame Konstante.
 
