@@ -19,7 +19,7 @@ Das Framework verantwortet seinen Scanner-Aufrufer, die eigene native Datenrolle
 
 ## Akzeptanzkriterien
 
-Die veröffentlichte Aktion wird auf `0f3889fd2f9d6f8d4fc6c3ec82d44f6859ed32f3` festgesetzt. Upstream-Scanneridentität/-version, Signaturprüfung, voller Analyseumfang, Framework-cfd5-Fixture, Parent-Standards/-Projekte/-Gate-Semantik und alle 23 Integrationsprojektionen bleiben erhalten. Alle Composite-Quellen werden weiterhin geprüft; ungeprüfte Node-/Docker-Aktionen und Metadatenaliase werden abgelehnt.
+Die veröffentlichte Aktion wird auf `5181cedba82af8d83de4b123080fb80ff414de15` festgesetzt. Upstream-Scanneridentität/-version, Signaturprüfung, voller Analyseumfang, Framework-cfd5-Fixture, Parent-Standards/-Projekte/-Gate-Semantik und alle 23 Integrationsprojektionen bleiben erhalten. Alle Composite-Quellen werden weiterhin geprüft; ungeprüfte Node-/Docker-Aktionen und Metadatenaliase werden abgelehnt.
 
 ## Untersuchte Alternativen
 
@@ -35,13 +35,15 @@ Gehostete Kandidatenvalidierung zeigte drei Fehler wegen eines fehlenden Pakets,
 
 ## Geänderte Dateien und Tests
 
-Scanner-Workflows, native Framework-Daten/Lock-Produzent, Vertragsmodul für vollständige Aufrufe, Workflow-/Quellprüfer, Parent-Projektion/-Fixtures und gezielte Regressionen. Die vorher veröffentlichte Aktionsimplementierung und ihre 23 Offline-Tests bleiben durch diese Aufruferintegration unverändert. Der Standardfallbestand bleibt unverändert.
+Scanner-Workflows, native Framework-Daten/Lock-Produzent, Vertragsmodul für vollständige Aufrufe, Workflow-/Quellprüfer, Parent-Projektion/-Fixtures und gezielte Regressionen. Die vorher veröffentlichte Aktionsimplementierung und ihre 28 Offline-Tests bleiben durch diese Aufruferintegration unverändert. Der Standardfallbestand bleibt unverändert.
 
 Der native Lock-Produzent lässt nur die exakte vorher geprüfte Rolle zur direkten Migration auf die neu festgesetzte Rolle zu. Doppelte Diagnose-YAML-Schlüssel, Merge-Schlüssel, nicht skalare Felder und veränderte Strukturen werden vor Laden oder Ersetzen abgelehnt. Beide unabhängigen CI-Vertragsprüfungen validieren den vollständigen kanonischen Scannerschritt; allgemeine Release- und Repository-Prüfungen bleiben aktiv. Echte Proposed-Tree-Fixtures kopieren die erforderliche Paketclosure.
 
 Zwei inerte Shell-Fixtures im Hauptquellumfang unterscheiden sich nur durch ein Leerzeichen nach dem Lese-/Schreibumleitungsoperator. Eine Verhaltensregression führt beide mit sh und bash gegen neue reguläre Dateien aus und prüft Ausgabe, Exit und Deskriptorschließung. Der gepflegte Scheduler erhält dieselbe einzelne Leerzeichenänderung. Erst gehostete Analyse muss zeigen, ob der Abstand das Parserverhalten verändert; gültige Syntax allein belegt diese Ursache nicht.
 
 ## Befehle und Ergebnisse
+
+Die getrennt geprüfte Cache-Sichtbarkeitsimplementierung wurde regulär unter `5181cedba82af8d83de4b123080fb80ff414de15` veröffentlicht, mit Main-SHA-256 `a13995cf0b52e3ccc1bb0476ed3dad290e8a9e1bf88d8397cc77afaf1ee06084` und unveränderten Action-Metadaten. Ihre tatsächliche integrierte Offline-Suite bestand 28 Gruppen ohne externe Quellwurzelüberschreibung. Diese Aufrufermigration setzt die veröffentlichte Identität fest; nur die exakte vorherige X2-Rolle wird von der nativen Lock-Migration zugelassen. Ältere oder unbekannte Rollen bleiben abgelehnt. Gehostete Analyse am aktuellen Head und das passende committete Parent-Paar bleiben getrennte ausstehende Evidenz; das unten dokumentierte Ergebnis mit 703 Methoden gilt für `d521ea718149e6b5fc719a0dc4fecf07eb733e7f`.
 
 Die gehostete Revision `ce1039a90f5f2fa0fb7c06634157b3fbcf6c5639` beendete Scanner und Serververarbeitung mit erwartetem Projekt, Fixture und tatsächlichem Verbose-Modus. Ihr Gate bestand alle fünf Bedingungen ohne Hotspots; alle sieben vorherigen Python-Befunde wurden als behoben geschlossen. Zwei neue Komplexitätsbefunde im Prüfer der kanonischen gemeinsamen Quelle erforderten die Helper-Auslagerungen. Der getrennte Workflow-Sicherheitsjob scheiterte weiterhin an drei isolierten Kandidatenimports; die lokale Reproduktion ohne geerbten Paketpfad bestätigte diese drei Fehler vor der Korrektur der Importgrenze. Danach bestanden vier echte Methoden ohne geerbten Paketpfad. Die unten dokumentierte betroffene Prüfmatrix ging der anschließend beschriebenen Evidenz des committeten Folgestands voraus.
 

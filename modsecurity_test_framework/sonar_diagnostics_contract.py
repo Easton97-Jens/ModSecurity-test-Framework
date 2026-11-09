@@ -7,10 +7,10 @@ import re
 
 REPOSITORY = "Easton97-Jens/ModSecurity-test-Framework"
 ACTION_PATH = ".github/actions/sonar-private"
-COMMIT = "0f3889fd2f9d6f8d4fc6c3ec82d44f6859ed32f3"
+COMMIT = "5181cedba82af8d83de4b123080fb80ff414de15"
 REFERENCE = f"{REPOSITORY}/{ACTION_PATH}@{COMMIT}"
 METADATA_SHA256 = "2f8f446c1ec1fe765060fdadb54c854f29f474f4eb0091e2001e43d6e6474229"
-MAIN_SHA256 = "e3ad2483d8e91802a9c1a8406ce7b60a8132094e4a39c86d8d9856e1db056257"
+MAIN_SHA256 = "a13995cf0b52e3ccc1bb0476ed3dad290e8a9e1bf88d8397cc77afaf1ee06084"
 UPSTREAM = "SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304"
 SCANNER_VERSION = "8.2.0.6438"
 REVISION = "${{ github.event.pull_request.head.sha || github.sha }}"

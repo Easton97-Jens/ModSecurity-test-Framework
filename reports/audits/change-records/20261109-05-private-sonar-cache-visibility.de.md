@@ -9,6 +9,7 @@
 | Change-ID | 20261109-05-private-sonar-cache-visibility |
 | UTC-Datum | 2026-11-09 |
 | Framework-Basisrevision | d521ea718149e6b5fc719a0dc4fecf07eb733e7f |
+| Veröffentlichte Action-Revision | 5181cedba82af8d83de4b123080fb80ff414de15 |
 | Issue oder Pull Request | Framework PR #169 |
 
 ## Motivation und Problemstellung
@@ -17,7 +18,7 @@ Die gehostete Analyse enthält trotz ausführlicher Protokollierung und bestande
 
 ## Betroffene Komponenten und Sicherheitsgrenzen
 
-Das Framework besitzt die private Action-Ausführung, Offline-Tests und diesen zweisprachigen Nachweis. Der Kandidat lässt bestehende Aufrufer, Quelldigest-Zulassung, generierte Ansichten, Parent und MRTS unverändert. Scannerrohzustände bleiben runnerprivat und werden gelöscht.
+Das Framework besitzt die private Action-Ausführung, Offline-Tests und diesen zweisprachigen Nachweis. Die veröffentlichte Implementierung bewahrte bestehende Aufrufer und generierte Ansichten. Die getrennt geprüfte Aufrufermigration bindet jetzt nur ihre veröffentlichte Identität und den exakten Implementierungshash. Parent behält seinen eigenen reinen Datenvertrag; MRTS bleibt unverändert. Scannerrohzustände bleiben runnerprivat und werden gelöscht.
 
 ## Akzeptanzkriterien
 
@@ -35,11 +36,11 @@ Die CFamily-Versionsextraktion akzeptiert einen vollständigen erkannten Loggeri
 
 ## Geänderte Dateien und Tests
 
-Der Kandidat ändert `.github/actions/sonar-private/main.cjs`, seinen Diagnoseregressionstest und diesen zweisprachigen Nachweis. Fünf neue Gruppen prüfen echten Cachelebenszyklus, Cache-/Pfadablehnung, numerische Versionsbeobachtungen, späte Marker überlanger Zeilen und Exception-/Bindungssichtbarkeit. Bestehende Profiltests lehnen Cacheüberschreibungen ab; bestehende Timeout-/Überlauftests erzeugen vor der Cleanup-Prüfung einen Cache. Der Test mit echtem Git kann für eine Testkopie außerhalb eines Git-Checkouts eine explizite Quellwurzel wählen.
+Die veröffentlichte Implementierung ändert `.github/actions/sonar-private/main.cjs`, ihren Diagnoseregressionstest und diesen zweisprachigen Nachweis. Fünf neue Gruppen prüfen echten Cachelebenszyklus, Cache-/Pfadablehnung, numerische Versionsbeobachtungen, späte Marker überlanger Zeilen und Exception-/Bindungssichtbarkeit. Bestehende Profiltests lehnen Cacheüberschreibungen ab; bestehende Timeout-/Überlauftests erzeugen vor der Cleanup-Prüfung einen Cache. Der Test mit echtem Git kann für eine Testkopie außerhalb eines Git-Checkouts eine explizite Quellwurzel wählen; die tatsächliche integrierte Prüfung ließ diese Überschreibung ungesetzt.
 
 ## Befehle und Ergebnisse
 
-Node-24-Syntaxprüfungen bestanden für beide JavaScript-Dateien. Die vollständige Offline-Kandidatensuite bestand 28 Tests ohne Fehler oder Skips. Alle ursprünglichen 23 Gruppen bleiben erhalten, einschließlich des Kindprozesses mit 10.000 Identitäten, 50.000 Wiederholungen und harter Frist von 2500 ms. Die erste gemessene Suite dauerte ungefähr 1,59 Sekunden; ihre adversariale Gruppe ungefähr 586 ms. Kein Canary erschien in der Testausgabe. Exakte JavaScript-Postimages des Kandidaten bestanden die Secrets-Qualifikation.
+Node-24-Syntaxprüfungen bestanden für beide JavaScript-Dateien. Die tatsächliche integrierte Prüfung bestand 28 Tests ohne Fehler oder Skips in 1631.655 ms; die adversariale Gruppe dauerte 619.873 ms innerhalb ihrer harten Frist von 2500 ms. Alle ursprünglichen 23 Gruppen bleiben erhalten, einschließlich des Kindprozesses mit 10.000 Identitäten und 50.000 Wiederholungen. Kein Canary erschien in der Testausgabe. Exakte integrierte JavaScript-Postimages bestanden die Secrets-Qualifikation. Das getrennte vollständige native Ergebnis mit 19 Gruppen und 703 Methoden gilt für den früheren committeten Stand `d521ea718149e6b5fc719a0dc4fecf07eb733e7f` und belegt das gehostete Verhalten dieser Implementierung nicht.
 
 ## Sicherheitsauswirkung
 
@@ -47,11 +48,11 @@ Offizielle Action- und Scannerpins, Signaturprüfung, Token-Positivliste, sequen
 
 ## Dokumentation und Runtime-Evidenz
 
-Dieser Nachweis beschreibt einen privaten Kandidaten und Offline-Evidenz. Die Tests führten keine Scanner-Qualitätsanalyse aus und erhoben keine Connector-Laufzeitevidenz. Veröffentlichung und exakte unveränderliche Commit-/Main-Hash-Identität stehen aus. Eine spätere separate Aufrufermigration muss die tatsächlich veröffentlichte Action über normale Zulassungs- und Generierungsverträge einfrieren.
+Regulärer Commit und Push veröffentlichten `5181cedba82af8d83de4b123080fb80ff414de15` unter der erhaltenen Referenz `refs/heads/codex/preparation-private-sonar-cache-20261109`. Diese veröffentlichte Referenz ist eine Laufzeitabhängigkeit festgesetzter Aufrufer und muss spätere Squash- und Task-Branch-Bereinigung überstehen. Der geprüfte Main-SHA-256 lautet `a13995cf0b52e3ccc1bb0476ed3dad290e8a9e1bf88d8397cc77afaf1ee06084`; die Action-Metadaten sind unverändert. Die getrennt geprüfte Aufrufermigration setzt die veröffentlichte Identität über normale Zulassungs- und native Generierungsverträge fest. Die Offline-Tests führten keine Scanner-Qualitätsanalyse aus und erhoben keine Connector-Laufzeitevidenz.
 
 ## Nicht ausgeführte Prüfungen
 
-Der Kandidat lief noch nicht in gehosteter CI. Cloud-Prüfung am aktuellen Head, beobachtete Cachewiederverwendung, exakte eingesetzte CFamily-Version und kausale Schließung der Shell-, JSON- und CFamily-Lücken bleiben ungeprüft. Keine Projekt- oder Qualitätsprofileinstellung wurde geändert.
+Gehostete Ausführung über den neuen unveränderlichen Aufrufer steht aus. Cloud-Prüfung am aktuellen Head, beobachtete Cachewiederverwendung, exakte eingesetzte CFamily-Version und kausale Schließung der Shell-, JSON- und CFamily-Lücken bleiben ungeprüft. Auch die vorherige S5906-Korrektur des Assertionsstils wartet auf Cloud-Bestätigung am neuen Head. Keine Projekt- oder Qualitätsprofileinstellung wurde geändert.
 
 ## Einschränkungen und Restrisiko
 
@@ -59,4 +60,4 @@ Leerer privater Cachespeicher kann Laufzeit und Plattenbedarf erhöhen. Literalm
 
 ## Finaler Diff- und Review-Status
 
-Der Kandidat ist für lokale Diff- und unabhängige Prüfung vorbereitet. Er wurde weder in den Framework-Checkout kopiert noch veröffentlicht oder von Aufrufern ausgewählt. Die übergreifende Integration bleibt ausstehend.
+Die Implementierung wurde exakt kopiert, unabhängig geprüft und regulär veröffentlicht. Die getrennte Aufrufermigration wählt ihre veröffentlichte Revision aus; deren Veröffentlichung, passender Parent-Zielstand und gehostete Diagnoseverifikation stehen aus. Übergreifende Integration und geschlossene Analyzer-Lücken werden nicht behauptet.

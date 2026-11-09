@@ -9,6 +9,7 @@
 | Change ID | 20261109-05-private-sonar-cache-visibility |
 | UTC date | 2026-11-09 |
 | Framework base revision | d521ea718149e6b5fc719a0dc4fecf07eb733e7f |
+| Published action revision | 5181cedba82af8d83de4b123080fb80ff414de15 |
 | Issue or pull request | Framework PR #169 |
 
 ## Motivation and problem statement
@@ -17,7 +18,7 @@ The hosted analysis retains unresolved parsing gaps despite verbose logging and 
 
 ## Affected components and security boundaries
 
-The Framework owns the private action executable, offline tests and this paired record. The candidate leaves existing callers, source-hash admission, generated views, Parent and MRTS unchanged. Raw scanner data remains private to the runner and is deleted.
+The Framework owns the private action executable, offline tests and this paired record. The published payload preserved existing callers and generated views. The separate reviewed caller migration now binds only its published identity and exact implementation hash. Parent retains its own data-only contract; MRTS is unchanged. Raw scanner data remains private to the runner and is deleted.
 
 ## Acceptance criteria
 
@@ -35,11 +36,11 @@ CFamily version extraction accepts a complete recognized logger payload with fou
 
 ## Changed files and tests
 
-The candidate changes `.github/actions/sonar-private/main.cjs`, its diagnostics regression test and this paired record. Five new groups cover real cache lifecycle, cache/path denial, numeric version observations, late overlong markers and exception/binding visibility. Existing profile tests deny cache overrides, and existing timeout/overflow tests create a cache before exercising cleanup. The real-Git regression can select an explicit source root when the test copy is outside a Git checkout.
+The published payload changes `.github/actions/sonar-private/main.cjs`, its diagnostics regression test and this paired record. Five new groups cover real cache lifecycle, cache/path denial, numeric version observations, late overlong markers and exception/binding visibility. Existing profile tests deny cache overrides, and existing timeout/overflow tests create a cache before exercising cleanup. The real-Git regression can select an explicit source root when the test copy is outside a Git checkout; actual integrated validation left that override unset.
 
 ## Commands and results
 
-Node 24 syntax checks passed for both JavaScript files. The full offline candidate suite passed 28 tests with zero failures or skips. All original 23 groups remain, including the 10,000-identity and 50,000-repeat subprocess with its hard 2500 ms deadline. The first measured suite completed in approximately 1.59 seconds; its adversarial group completed in approximately 586 ms. No canary appeared in the test output. Exact candidate JavaScript postimages passed Secrets qualification.
+Node 24 syntax checks passed for both JavaScript files. Actual integrated validation passed 28 tests with zero failures or skips in 1631.655 ms; the adversarial group completed in 619.873 ms within its hard 2500 ms deadline. All original 23 groups remain, including the 10,000-identity and 50,000-repeat subprocess. No canary appeared in the test output. Exact integrated JavaScript postimages passed Secrets qualification. The separate full-native result of 19 cohorts and 703 methods belongs to the earlier committed `d521ea718149e6b5fc719a0dc4fecf07eb733e7f` and does not establish this payload's hosted behavior.
 
 ## Security impact
 
@@ -47,11 +48,11 @@ The official action and scanner pins, signature verification, token allowlist, s
 
 ## Documentation and runtime evidence
 
-This record describes a private candidate and offline evidence. Tests ran zero scanner quality analyses and collected no connector runtime evidence. Publication and exact immutable commit/main-hash identity are pending. A separate later caller migration must freeze the actually published action through normal admission and generation contracts.
+Normal commit and push published `5181cedba82af8d83de4b123080fb80ff414de15` on retained ref `refs/heads/codex/preparation-private-sonar-cache-20261109`. This published ref is a runtime dependency of pinned callers and must survive later squash and task-branch cleanup. The reviewed main SHA-256 is `a13995cf0b52e3ccc1bb0476ed3dad290e8a9e1bf88d8397cc77afaf1ee06084`; action metadata is unchanged. The separately reviewed caller migration freezes that published identity through normal admission and native generation contracts. Offline tests ran zero scanner quality analyses and collected no connector runtime evidence.
 
 ## Checks not run
 
-The candidate has not run in hosted CI. Current-head Cloud readback, observed cache reuse, exact deployed CFamily version and causal closure of Shell, JSON and CFamily gaps remain unverified. No project or quality-profile setting was changed.
+Hosted execution through the new immutable caller remains pending. Current-head Cloud readback, observed cache reuse, exact deployed CFamily version and causal closure of Shell, JSON and CFamily gaps remain unverified. The preceding assertion-style S5906 fix also awaits new-head Cloud confirmation. No project or quality-profile setting was changed.
 
 ## Limitations and residual risk
 
@@ -59,4 +60,4 @@ Empty private cache storage can increase runtime and disk use. Literal overlong 
 
 ## Final diff and review status
 
-The candidate is prepared for local diff and independent review. It has not been copied into the Framework checkout, published or selected by callers. Overall integration remains pending.
+The payload was copied exactly, independently reviewed and normally published. The separate caller migration selects its published revision; its publication, matching Parent target and hosted diagnostic verification remain pending. Overall integration and analyzer-gap closure are not claimed.

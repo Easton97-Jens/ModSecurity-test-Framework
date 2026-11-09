@@ -19,7 +19,7 @@ Framework owns its scanner caller, dedicated native data role, generated lock, s
 
 ## Acceptance criteria
 
-Freeze the published action at `0f3889fd2f9d6f8d4fc6c3ec82d44f6859ed32f3`. Preserve upstream scanner identity/version, signature verification, complete analysis scope, Framework cfd5 fixture, Parent standards/projects/Gate semantics and all 23 integration projections. Preserve all composite source linting and reject unreviewed Node/Docker actions or metadata aliases.
+Freeze the published action at `5181cedba82af8d83de4b123080fb80ff414de15`. Preserve upstream scanner identity/version, signature verification, complete analysis scope, Framework cfd5 fixture, Parent standards/projects/Gate semantics and all 23 integration projections. Preserve all composite source linting and reject unreviewed Node/Docker actions or metadata aliases.
 
 ## Alternatives considered
 
@@ -35,13 +35,15 @@ Hosted candidate validation exposed three missing-package errors that an ambient
 
 ## Changed files and tests
 
-Scanner workflows, Framework native data/lock producer, whole-call contract module, workflow/source checkers, Parent projection/fixtures and focused regressions. The previously published action implementation and its 23 offline tests are unchanged by this caller integration. Standard case inventory is unchanged.
+Scanner workflows, Framework native data/lock producer, whole-call contract module, workflow/source checkers, Parent projection/fixtures and focused regressions. The previously published action implementation and its 28 offline tests are unchanged by this caller integration. Standard case inventory is unchanged.
 
 The native lock producer admits only the exact previous reviewed role for migration directly to the newly frozen role. Diagnostic YAML duplicates, merge keys, non-scalar fields and altered shapes fail before loading or replacement. Both independent CI contract passes validate the whole canonical scanner step; ordinary release and repository checks remain active. Genuine proposed-tree fixtures copy the required package closure.
 
 Two inert main-source Shell fixtures differ only in spacing after the read/write redirection operator. One behavioral regression runs both with sh and bash against fresh regular files and verifies output, exit and descriptor closure. The maintained scheduler receives the same single whitespace change. Hosted analysis must establish whether spacing changes parser behavior; syntax validity alone does not establish that cause.
 
 ## Commands and results
+
+The separately reviewed cache-visibility payload was normally published at `5181cedba82af8d83de4b123080fb80ff414de15`, with main SHA-256 `a13995cf0b52e3ccc1bb0476ed3dad290e8a9e1bf88d8397cc77afaf1ee06084` and unchanged action metadata. Its actual integrated offline suite passed 28 groups without an external source-root override. This caller migration freezes that published identity; only the exact preceding X2 role is admitted by the native lock migration. Older or unknown roles remain rejected. Current-head hosted analysis and the matching committed Parent pair remain separate pending evidence; the full 703-method result below belongs to `d521ea718149e6b5fc719a0dc4fecf07eb733e7f`.
 
 Hosted revision `ce1039a90f5f2fa0fb7c06634157b3fbcf6c5639` completed scanner and server processing with the expected project, fixture and actual verbose mode. Its Gate passed all five conditions and had no hotspots; all seven preceding Python findings closed as fixed. Two new complexity findings in the canonical common-source checker required the helper extractions. Its separate workflow-security job still failed three isolated candidate imports; the clean local reproduction confirmed those three errors before the import-boundary fix. Four genuine clean-context methods then passed. The affected matrix below preceded the committed follow-up evidence recorded next.
 

@@ -111,6 +111,14 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
             corruptions = (
                 expected.replace(record, b"    immutable_commit: " + b"a" * 40),
                 expected.replace(
+                    record,
+                    b"    immutable_commit: 15588933f5f5456bb07f5eef12d7ce236e651c5c",
+                ),
+                expected.replace(
+                    record,
+                    b"    immutable_commit: 0f6239f26ba648c53c86ae418502149d5ee412f7",
+                ),
+                expected.replace(
                     b"repository: Easton97-Jens/ModSecurity-test-Framework",
                     b"repository: attacker/Framework",
                 ),
