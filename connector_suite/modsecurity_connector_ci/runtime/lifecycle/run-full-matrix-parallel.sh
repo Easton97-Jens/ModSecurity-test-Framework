@@ -335,7 +335,7 @@ prepare_matrix_completion_queue() {
         echo "ERROR: cannot create full-matrix completion FIFO: $candidate" >&2
         return 77
     fi
-    if exec 8<>"$candidate"; then
+    if exec 8<> "$candidate"; then
         matrix_completion_fifo="$candidate"
         matrix_completion_fd_open=1
         return 0

@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 import re
+import runpy
 import stat
 import sys
 import tempfile
@@ -193,6 +194,7 @@ OPTIONAL_EMPTY_VARIABLES = {
     "PCRE2_SHA256_URL",
 }
 APPROVED_LITERAL_VARIABLES = {
+    "CI_SONAR_DIAGNOSTIC_ACTION_PATH",
     "APR_UTIL_PINNED_VERSION",
     "APR_UTIL_PINNED_SOURCE_URL",
     "APR_UTIL_PINNED_SHA256",
@@ -310,6 +312,11 @@ CI_CANONICAL_PIN_VARIABLES = (
         for field in ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")
     ),
 )
+CI_DIAGNOSTIC_SOURCE_VARIABLES = (
+    "CI_SONAR_DIAGNOSTIC_REPOSITORY",
+    "CI_SONAR_DIAGNOSTIC_ACTION_PATH",
+    "CI_SONAR_DIAGNOSTIC_COMMIT",
+)
 CI_CANONICAL_REQUIRED_FIELDS = {
     "PYTHON": frozenset({"VERSION"}),
     "PYYAML": frozenset({"VERSION", "SHA256", "ARTIFACT", "PLATFORM"}),
@@ -331,6 +338,13 @@ def canonical_ci_group_inventory(
     names = {name for name in entries if name.startswith("CI_")}
     groups: dict[tuple[str, str], set[str]] = {}
     errors: list[str] = []
+    unexpected_source_names = sorted(
+        name for name in names
+        if name.startswith("CI_SONAR_DIAGNOSTIC_")
+        and name not in CI_DIAGNOSTIC_SOURCE_VARIABLES
+    )
+    if unexpected_source_names:
+        errors.append("unsupported diagnostic source fields: " + ", ".join(unexpected_source_names))
     for name in sorted(names):
         group_info = _canonical_group_prefix(name)
         if group_info is None:
@@ -469,6 +483,16 @@ class ComponentDefinition:
 # only as local hints or repo-local connector defaults, so a future consumer
 # cannot silently turn them into an updater input.
 COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
+    ComponentDefinition(
+        name="Private Sonar diagnostic source",
+        resolver="unified_orchestrator",
+        variables=CI_DIAGNOSTIC_SOURCE_VARIABLES,
+        atomic_group=(),
+        update_policy="manual_review",
+        stable_policy="exact previously reviewed and published source commit; not a release tag",
+        compatibility_policy="complete frozen scanner role and generated diagnostic action lock",
+        not_applicable_reason="source-role changes require separate review; ordinary release updates cannot advance it",
+    ),
     ComponentDefinition(
         name=ENVOY_COMPONENT,
         resolver=GITHUB_RELEASE_MANIFEST_RESOLVER,
@@ -1292,7 +1316,7 @@ def parse_common_lines(lines: list[str]) -> dict[str, VariableEntry]:
         # A runtime path may interpolate a version (for example
         # ``ENVOY_SOURCE_ROOT``).  That does not make the path itself an
         # upstream-provenance input, so classify only the assignment name.
-        tracked = bool(TRACKED_NAME_RE.search(name))
+        tracked = bool(TRACKED_NAME_RE.search(name)) or name in CI_DIAGNOSTIC_SOURCE_VARIABLES
         entries[name] = VariableEntry(
             name=name,
             line=line_no,
@@ -1329,7 +1353,8 @@ def provenance_assignment_occurrences(
         if assignment is None:
             continue
         _, name, _ = assignment
-        if RELEVANT_PROVENANCE_VARIABLE_RE.search(name) or name == "DEFAULT_BRANCH":
+        if (RELEVANT_PROVENANCE_VARIABLE_RE.search(name)
+                or name in CI_DIAGNOSTIC_SOURCE_VARIABLES or name == "DEFAULT_BRANCH"):
             occurrences.setdefault(name, []).append(line_no)
     return occurrences
 
@@ -1453,6 +1478,11 @@ def _canonical_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
     )
     if unresolved:
         errors.append("unresolved canonical derivations: " + ", ".join(unresolved))
+    if all(name in entries for name in CI_DIAGNOSTIC_SOURCE_VARIABLES):
+        try:
+            _diagnostic_source_reference({name: entries[name].resolved for name in CI_DIAGNOSTIC_SOURCE_VARIABLES})
+        except ValueError as exc:
+            errors.append(str(exc))
     return errors
 
 
@@ -1490,6 +1520,11 @@ def canonical_contract_errors(
     return errors
 
 
+def _diagnostic_source_reference(values: dict[str, str]) -> str:
+    contract = runpy.run_path(str(SCRIPT_DIR.parents[1] / "modsecurity_test_framework/sonar_diagnostics_contract.py"))
+    return cast(str, contract["canonical_role"](values))
+
+
 def _canonical_pin_values(common_sh: Path) -> dict[str, str]:
     common_sh = require_no_symlink_ancestors(common_sh, "canonical common.sh source")
     pin_values = {
@@ -1501,6 +1536,15 @@ def _canonical_pin_values(common_sh: Path) -> dict[str, str]:
         and CANONICAL_PIN_VARIABLE_RE.search(item.name)
         and item.resolved not in GENERIC_CANONICAL_PIN_VALUES
     }
+    # This dedicated source role identifies executable bytes by the complete
+    # repository/action-path@commit tuple. Its repository alone is also the
+    # Framework's issue/project namespace and does not identify an executable.
+    # Every ordinary repository pin and the dedicated commit remain scanned.
+    if "CI_SONAR_DIAGNOSTIC_REPOSITORY" in pin_values:
+        entries = parse_common_lines(common_sh.read_text(encoding="utf-8").splitlines())
+        values = {name: entries[name].resolved for name in CI_DIAGNOSTIC_SOURCE_VARIABLES}
+        pin_values["CI_SONAR_DIAGNOSTIC_SOURCE_REFERENCE"] = _diagnostic_source_reference(values)
+        del pin_values["CI_SONAR_DIAGNOSTIC_REPOSITORY"]
     # GitHub repository fields are sometimes consumed in owner/repository
     # form while common.sh stores the approved HTTPS URL.  Check both exact
     # representations without treating arbitrary URL path fragments as pins.

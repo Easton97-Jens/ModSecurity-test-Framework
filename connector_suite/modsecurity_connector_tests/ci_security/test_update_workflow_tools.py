@@ -1663,8 +1663,9 @@ class FrozenPrivateSonarUpdaterTests(WorkflowToolUpdaterFixtures, unittest.TestC
         duplicate = deepcopy(original); duplicate["jobs"]["analysis"]["steps"].append(deepcopy(self.scanner(duplicate)))
         mutations.append(duplicate)
         for document in mutations:
+            serialized = UPDATER.yaml.safe_dump(document)
             with self.assertRaises(UPDATER.UpdateError):
-                UPDATER.workflow_uses_values(UPDATER.yaml.safe_dump(document), "workflow " + UPDATER.PRIVATE_SONAR_WORKFLOW)
+                UPDATER.workflow_uses_values(serialized, "workflow " + UPDATER.PRIVATE_SONAR_WORKFLOW)
         for description in ("workflow sonarqube.yml", "workflow .github/other/sonarqube.yml", "workflow .github/workflows/other.yml"):
             with self.assertRaises(UPDATER.UpdateError): UPDATER.workflow_uses_values(text, description)
         unbound = "jobs:\n  unsafe:\n    steps:\n      - uses: actions/checkout@" + "a" * 40 + "\n        with:\n          upstream-action: " + UPDATER.PRIVATE_SONAR_UPSTREAM_NAME + "@" + UPDATER.PRIVATE_SONAR_UPSTREAM_SHA

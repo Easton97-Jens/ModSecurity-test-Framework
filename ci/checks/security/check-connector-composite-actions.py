@@ -16,6 +16,8 @@ from modsecurity_test_framework.workflow_sources import (
     read_composite_action_source,
 )
 
+ACTION_METADATA_FILENAME = "action.yml"
+
 
 def resolve_shellcheck_executable(value: str) -> str:
     """Resolve one literal executable before actionlint can parse a command line."""
@@ -45,15 +47,15 @@ def main() -> int:
     action_root = framework / ".github/actions"
     if any(source.is_symlink() for source in (action_root, action_root.parent, *action_root.rglob("*"))):
         raise ValueError("action source inventory must not contain symlinks")
-    sources = sorted([*action_root.rglob("action.yml"), *action_root.rglob("action.yaml")])
+    sources = sorted([*action_root.rglob(ACTION_METADATA_FILENAME), *action_root.rglob("action.yaml")])
     if not sources:
         raise ValueError("Framework composite action source is empty")
     workflows = []
     reviewed_nodes = 0
     role = framework / ACTION_PATH
-    if role.is_dir() and not (role / "action.yml").is_file():
+    if role.is_dir() and not (role / ACTION_METADATA_FILENAME).is_file():
         raise ValueError("reviewed private action metadata is missing or renamed")
-    if (framework / "ci/lib/common.sh").is_file() and not (role / "action.yml").is_file():
+    if (framework / "ci/lib/common.sh").is_file() and not (role / ACTION_METADATA_FILENAME).is_file():
         raise ValueError("reviewed private action is missing from declared inventory")
     for number, source in enumerate(sources):
         relative = source.relative_to(framework).as_posix()

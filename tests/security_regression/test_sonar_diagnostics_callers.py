@@ -78,8 +78,9 @@ class DiagnosticCallerTests(unittest.TestCase):
                     elif mutation == "wrong-profile": target["with"]["owner-mode"] = "framework"
                     elif mutation == "wrong-upstream": target["with"]["upstream-action"] = UPSTREAM[:-40] + "b" * 40
                     else: target["with"]["args"] += " -Dsonar.sources=unrelated"
+                    serialized = yaml.safe_dump(mutant)
                     with self.assertRaises(WorkflowSourceError):
-                        expand_workflow_source(yaml.safe_dump(mutant), framework_root=Path(temporary),
+                        expand_workflow_source(serialized, framework_root=Path(temporary),
                                                framework_revision=selected, workflow_name="sonarqube.yml")
                 with self.assertRaises(WorkflowSourceError):
                     expand_workflow_source(text, framework_root=Path(temporary), framework_revision=selected,

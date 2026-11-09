@@ -19,7 +19,7 @@ Das Framework verantwortet seinen Scanner-Aufrufer, die eigene native Datenrolle
 
 ## Akzeptanzkriterien
 
-Die veröffentlichte Aktion wird auf `15588933f5f5456bb07f5eef12d7ce236e651c5c` festgesetzt. Upstream-Scanneridentität/-version, Signaturprüfung, voller Analyseumfang, Framework-cfd5-Fixture, Parent-Standards/-Projekte/-Gate-Semantik und alle 23 Integrationsprojektionen bleiben erhalten. Alle Composite-Quellen werden weiterhin geprüft; ungeprüfte Node-/Docker-Aktionen und Metadatenaliase werden abgelehnt.
+Die veröffentlichte Aktion wird auf `0f3889fd2f9d6f8d4fc6c3ec82d44f6859ed32f3` festgesetzt. Upstream-Scanneridentität/-version, Signaturprüfung, voller Analyseumfang, Framework-cfd5-Fixture, Parent-Standards/-Projekte/-Gate-Semantik und alle 23 Integrationsprojektionen bleiben erhalten. Alle Composite-Quellen werden weiterhin geprüft; ungeprüfte Node-/Docker-Aktionen und Metadatenaliase werden abgelehnt.
 
 ## Untersuchte Alternativen
 
@@ -33,9 +33,15 @@ Der getrennte Parent-Security-Tools-Updater erfasst den verwalteten offiziellen 
 
 ## Geänderte Dateien und Tests
 
-Scanner-Workflows, native Framework-Daten/Lock-Produzent, Vertragsmodul für vollständige Aufrufe, Workflow-/Quellprüfer, Parent-Projektion/-Fixtures und gezielte Regressionen. Die festgesetzte Aktionsimplementierung und ihre 17 Offline-Tests bleiben unverändert. Der Standardfallbestand bleibt unverändert.
+Scanner-Workflows, native Framework-Daten/Lock-Produzent, Vertragsmodul für vollständige Aufrufe, Workflow-/Quellprüfer, Parent-Projektion/-Fixtures und gezielte Regressionen. Die vorher veröffentlichte Aktionsimplementierung und ihre 23 Offline-Tests bleiben durch diese Aufruferintegration unverändert. Der Standardfallbestand bleibt unverändert.
+
+Der native Lock-Produzent lässt nur die exakte vorher geprüfte Rolle zur direkten Migration auf die neu festgesetzte Rolle zu. Doppelte Diagnose-YAML-Schlüssel, Merge-Schlüssel, nicht skalare Felder und veränderte Strukturen werden vor Laden oder Ersetzen abgelehnt. Beide unabhängigen CI-Vertragsprüfungen validieren den vollständigen kanonischen Scannerschritt; allgemeine Release- und Repository-Prüfungen bleiben aktiv. Echte Proposed-Tree-Fixtures kopieren die erforderliche Paketclosure.
+
+Zwei inerte Shell-Fixtures im Hauptquellumfang unterscheiden sich nur durch ein Leerzeichen nach dem Lese-/Schreibumleitungsoperator. Eine Verhaltensregression führt beide mit sh und bash gegen neue reguläre Dateien aus und prüft Ausgabe, Exit und Deskriptorschließung. Der gepflegte Scheduler erhält dieselbe einzelne Leerzeichenänderung. Erst gehostete Analyse muss zeigen, ob der Abstand das Parserverhalten verändert; gültige Syntax allein belegt diese Ursache nicht.
 
 ## Befehle und Ergebnisse
+
+Für die aktuelle Aktualisierung der festgesetzten Rolle bestanden alle 14 nativen Tests des kanonischen Produzenten einschließlich Migration, Idempotenz und Kontrollen fehlerhafter Rollen; native kanonische Generierung endete mit 0. Frühere Ergebnisse unten gelten für ihre ursprünglichen Quellrevisionen. Vollständige aktuelle Validierung und Aktualität der Wartungsansichten stehen aus. Der vorherige vollständige native Lint führte 703 Methoden ohne Testfehler aus, endete jedoch mit 2 wegen eines Aufrufs mit unzulässigem Ausgabewurzelpfad; er ist kein bestandener vollständiger Lint.
 
 Native kanonische Generierung und Aktualitätsprüfung endeten mit 0. Gezielte Prüfungen bestanden mit 4 Aufrufer-, 25 Quell-/Node-Zulassungs-, 14 kanonischen Pin-, 20 Sonar-Grenz- und 9 Workflow-Sicherheitstests. Die tatsächlich installierten und den nativen Pins entsprechenden Versionen actionlint v1.7.12 und ShellCheck v0.11.0 prüften alle 20 Composite-Quellen; die exakt geprüfte Node-Quelle wurde getrennt erfasst. Native Workflow-, Change-Record-, Link- und Zweisprachigkeitsprüfungen bestanden. Echte unveränderliche Git-Objektfixtures korrigierten drei veraltete Projektionstests. Die vollständige Parent-Gruppe führte 59 Methoden aus: 42 bestanden, 17 lehnten die aktuell nicht übereinstimmenden Parent-/Framework-Integrationspins ab. Diese 17 benötigen den synchronisierten Zyklus mit committeten Zielständen und sind keine bestandenen Tests.
 
@@ -51,7 +57,7 @@ Dieses Berichtspaar beschreibt Vorbereitung und Offline-Validierung. Gehostete D
 
 ## Nicht ausgeführte Prüfungen
 
-Synchronisierte Parent-/Framework-Prüfungen mit committeten Zielständen, gehostete private Diagnosen und Qualitäts-/Readback des exakten Heads stehen aus. Lokale Syntax-/Lint-Evidenz ersetzt spätere gehostete Prüfungen nicht.
+Synchronisierte Parent-/Framework-Prüfungen mit committeten Zielständen, vollständige aktuelle Validierung, aktuelle private Diagnosen und Qualitäts-/Readback des exakten Heads stehen aus. Ein früherer gehosteter privater Framework-Bericht blieb unvollständig und schloss die Parser-Auslassungen nicht. Lokale Syntax-/Lint-Evidenz ersetzt spätere gehostete Prüfungen nicht.
 
 ## Einschränkungen und Restrisiko
 

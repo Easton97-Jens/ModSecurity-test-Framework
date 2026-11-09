@@ -19,7 +19,7 @@ Framework owns its scanner caller, dedicated native data role, generated lock, s
 
 ## Acceptance criteria
 
-Freeze the published action at `15588933f5f5456bb07f5eef12d7ce236e651c5c`. Preserve upstream scanner identity/version, signature verification, complete analysis scope, Framework cfd5 fixture, Parent standards/projects/Gate semantics and all 23 integration projections. Preserve all composite source linting and reject unreviewed Node/Docker actions or metadata aliases.
+Freeze the published action at `0f3889fd2f9d6f8d4fc6c3ec82d44f6859ed32f3`. Preserve upstream scanner identity/version, signature verification, complete analysis scope, Framework cfd5 fixture, Parent standards/projects/Gate semantics and all 23 integration projections. Preserve all composite source linting and reject unreviewed Node/Docker actions or metadata aliases.
 
 ## Alternatives considered
 
@@ -33,9 +33,15 @@ The separate Parent security-tools updater accounts for the governed official up
 
 ## Changed files and tests
 
-Scanner workflows, Framework native data/lock producer, whole-call contract module, workflow/source checkers, Parent projection/fixtures and focused regressions. Frozen action implementation and its 17 offline tests are unchanged. Standard case inventory is unchanged.
+Scanner workflows, Framework native data/lock producer, whole-call contract module, workflow/source checkers, Parent projection/fixtures and focused regressions. The previously published action implementation and its 23 offline tests are unchanged by this caller integration. Standard case inventory is unchanged.
+
+The native lock producer admits only the exact previous reviewed role for migration directly to the newly frozen role. Diagnostic YAML duplicates, merge keys, non-scalar fields and altered shapes fail before loading or replacement. Both independent CI contract passes validate the whole canonical scanner step; ordinary release and repository checks remain active. Genuine proposed-tree fixtures copy the required package closure.
+
+Two inert main-source Shell fixtures differ only in spacing after the read/write redirection operator. One behavioral regression runs both with sh and bash against fresh regular files and verifies output, exit and descriptor closure. The maintained scheduler receives the same single whitespace change. Hosted analysis must establish whether spacing changes parser behavior; syntax validity alone does not establish that cause.
 
 ## Commands and results
+
+For the current frozen-role update, all 14 native canonical-producer tests passed, including migration, idempotence and malformed-role controls; native canonical generation exited 0. Earlier results below describe their original source revisions. Current complete validation and maintenance-view freshness are pending. The preceding full native lint completed 703 methods without test failures or errors but exited 2 because its output-root invocation violated the native output contract; it is not a successful full lint run.
 
 Native canonical generation and freshness checks exited 0. Focused checks passed 4 caller, 25 source/Node-admission, 14 canonical pin, 20 Sonar boundary and 9 workflow security tests. Actual installed actionlint v1.7.12 and ShellCheck v0.11.0, matching the native pins, validated all 20 composite sources; the exact reviewed Node source was separately accounted. Native workflow, Change Record, link and bilingual checks passed. Genuine immutable Git-object fixtures fixed three stale projection tests. The complete Parent cohort ran 59 methods: 42 passed and 17 rejected the current unmatched Parent/Framework integration pins. Those 17 require the synchronized committed-target cycle and are not passes.
 
@@ -51,7 +57,7 @@ This paired record describes preparation and offline validation. Hosted diagnost
 
 ## Checks not run
 
-Synchronized committed-target Parent/Framework checks, hosted private diagnostics and exact-head quality/readback remain pending. Local syntax/lint evidence does not replace the later hosted checks.
+Synchronized committed-target Parent/Framework checks, current-source full validation, current private diagnostics and exact-head quality/readback remain pending. An earlier hosted private Framework report remained incomplete and did not close the parser omissions. Local syntax/lint evidence does not replace the later hosted checks.
 
 ## Limitations and residual risk
 

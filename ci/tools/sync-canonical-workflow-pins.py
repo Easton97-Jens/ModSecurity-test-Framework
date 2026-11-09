@@ -46,6 +46,9 @@ ACTION_FIELDS = ("REPOSITORY", "VERSION", "COMMIT")
 TOOL_FIELDS = ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+DIAGNOSTIC_LOCK_SECTION = "diagnostic_actions"
+DIAGNOSTIC_LOCK_ROLE = "sonar-private"
+PREVIOUS_DIAGNOSTIC_COMMIT = "15588933f5f5456bb07f5eef12d7ce236e651c5c"
 LITERAL_VALUE = re.compile(r"^[A-Za-z0-9._/+:-]+$")
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SAFE_EXPANSION = re.compile(
@@ -447,12 +450,57 @@ def replace_record_field(
     return text[:start] + pattern.sub(rf"\1 {value}", block, count=1) + text[end:]
 
 
+def _diagnostic_mapping(node: Any, keys: set[str]) -> dict[str, Any]:
+    if not isinstance(node, yaml.nodes.MappingNode):
+        raise PinError("diagnostic lock must use plain mappings")
+    result = {}
+    for key, value in node.value:
+        if (
+            not isinstance(key, yaml.nodes.ScalarNode)
+            or key.tag != "tag:yaml.org,2002:str"
+        ):
+            raise PinError("diagnostic lock keys must be plain strings")
+        if key.value in result:
+            raise PinError("diagnostic lock contains a duplicate key")
+        result[key.value] = value
+    if set(result) != keys:
+        raise PinError("diagnostic lock fields differ from the fixed role")
+    return result
+
+
+def _validate_diagnostic_lock_shape(text: str) -> None:
+    try:
+        document = yaml.compose(text)
+    except yaml.YAMLError as exc:
+        raise PinError("diagnostic lock YAML is invalid") from exc
+    if not isinstance(document, yaml.nodes.MappingNode):
+        raise PinError("diagnostic lock document must be a mapping")
+    sections = [
+        value for key, value in document.value if key.value == DIAGNOSTIC_LOCK_SECTION
+    ]
+    if not sections:
+        return
+    if len(sections) != 1:
+        raise PinError("diagnostic lock contains duplicate sections")
+    roles = _diagnostic_mapping(sections[0], {DIAGNOSTIC_LOCK_ROLE})
+    fields = _diagnostic_mapping(
+        roles[DIAGNOSTIC_LOCK_ROLE], {"repository", "action_path", "immutable_commit"}
+    )
+    if any(
+        not isinstance(value, yaml.nodes.ScalarNode)
+        or value.tag != "tag:yaml.org,2002:str"
+        for value in fields.values()
+    ):
+        raise PinError("diagnostic lock fields must be plain string scalars")
+
+
 def lock_values(root: Path, values: dict[str, str]) -> bytes:
     path = root / "ci/tooling/security-tools.lock.yml"
     validate_managed_path(root, path)
     text = path.read_text(encoding="utf-8")
     if not text.startswith(GENERATED_LOCK):
         text = GENERATED_LOCK + text
+    _validate_diagnostic_lock_shape(text)
     parsed: dict[str, Any] = yaml.safe_load(text) or {}
     actions = parsed.get("actions", {})
     tools = parsed.get("tools", {})
@@ -515,18 +563,48 @@ def lock_values(root: Path, values: dict[str, str]) -> bytes:
             ("sha256", digest),
         ):
             text = replace_record_field(text, "tools", tool, field, value)
+    return diagnostic_lock_text(text, parsed, values).encode("utf-8")
+
+
+def diagnostic_lock_text(
+    text: str, parsed: dict[str, Any], values: dict[str, str]
+) -> str:
+    """Validate or append the separately reviewed diagnostic role after tool pins."""
     from modsecurity_test_framework.sonar_diagnostics_contract import canonical_role
+
     canonical_role(values)
-    diagnostic = {"repository": values["CI_SONAR_DIAGNOSTIC_REPOSITORY"],
-                  "action_path": values["CI_SONAR_DIAGNOSTIC_ACTION_PATH"],
-                  "immutable_commit": values["CI_SONAR_DIAGNOSTIC_COMMIT"]}
-    existing_role = parsed.get("diagnostic_actions")
+    diagnostic = {
+        "repository": values["CI_SONAR_DIAGNOSTIC_REPOSITORY"],
+        "action_path": values["CI_SONAR_DIAGNOSTIC_ACTION_PATH"],
+        "immutable_commit": values["CI_SONAR_DIAGNOSTIC_COMMIT"],
+    }
+    existing_role = parsed.get(DIAGNOSTIC_LOCK_SECTION)
     if existing_role is not None:
-        if existing_role != {"sonar-private": diagnostic}:
-            raise PinError("diagnostic action lock differs from the fixed reviewed role")
+        previous = {**diagnostic, "immutable_commit": PREVIOUS_DIAGNOSTIC_COMMIT}
+        if existing_role not in (
+            {DIAGNOSTIC_LOCK_ROLE: diagnostic},
+            {DIAGNOSTIC_LOCK_ROLE: previous},
+        ):
+            raise PinError(
+                "diagnostic action lock differs from the fixed reviewed role"
+            )
+        text = replace_record_field(
+            text,
+            DIAGNOSTIC_LOCK_SECTION,
+            DIAGNOSTIC_LOCK_ROLE,
+            "immutable_commit",
+            diagnostic["immutable_commit"],
+        )
     else:
-        text = text.rstrip() + "\n" + yaml.safe_dump({"diagnostic_actions": {"sonar-private": diagnostic}}, sort_keys=False)
-    return text.encode("utf-8")
+        text = (
+            text.rstrip()
+            + "\n"
+            + yaml.safe_dump(
+                {DIAGNOSTIC_LOCK_SECTION: {DIAGNOSTIC_LOCK_ROLE: diagnostic}},
+                sort_keys=False,
+            )
+        )
+    return text
 
 
 def _rewrite_osv_line(
@@ -580,6 +658,7 @@ def _rewrite_remote_action_line(
     ref = match.group("ref")
     action, at, _ = ref.rpartition("@")
     from modsecurity_test_framework.sonar_diagnostics_contract import canonical_role
+
     if action.startswith("Easton97-Jens/ModSecurity-test-Framework/"):
         if ref != canonical_role(values):
             return line, "unknown or changed private diagnostic Action"

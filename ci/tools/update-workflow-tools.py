@@ -143,6 +143,8 @@ PROPOSED_VALIDATION_INPUT_PATHS = frozenset(
         "ci/tools/install-hash-locked-ci-dependencies.sh",
         "ci/tools/install_hash_locked_ci_dependencies.py",
         "ci/pyyaml-build-tools.lock.json",
+        "modsecurity_test_framework/__init__.py",
+        "modsecurity_test_framework/sonar_diagnostics_contract.py",
     }
 )
 WORKFLOW_UPDATE_PATHS = tuple(

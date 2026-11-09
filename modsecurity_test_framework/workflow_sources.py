@@ -585,6 +585,30 @@ def _framework_action_path(uses, step, jobkey, steps, revision, workflow_name):
     return relative
 
 
+def _validate_private_sonar_step(step, lines, uses, jobkey, workflow_name):
+    """Preserve only the complete frozen Parent diagnostic role."""
+    value = yaml.load("".join(lines[step.start_mark.line:step.end_mark.line]), Loader=yaml.BaseLoader)
+    if isinstance(value, list) and len(value) == 1:
+        value = value[0]
+    if (workflow_name != "sonarqube.yml" or jobkey.value != "analysis"
+            or uses != SONAR_REFERENCE or value != scanner_step("parent")):
+        raise WorkflowSourceError("private Sonar call differs from its frozen complete contract")
+
+
+def _job_output_edit(job, step, lines, outputs):
+    """Construct one output edit without changing step/output edit ordering."""
+    identifier = _scalar(step, "id")
+    job_outputs = _field(job, "outputs")
+    if not identifier or job_outputs is None:
+        return None
+    block = "".join(lines[job_outputs.start_mark.line:job_outputs.end_mark.line])
+    for key, expression in outputs.items():
+        block = block.replace(
+            "${{ steps." + identifier + ".outputs." + key + " }}", expression
+        )
+    return (job_outputs.start_mark.line, job_outputs.end_mark.line, block)
+
+
 def _job_action_edits(
     jobkey, job, lines, framework_root, framework_revision, workflow_name
 ):
@@ -601,12 +625,7 @@ def _job_action_edits(
         if not uses.startswith(OWNER):
             continue
         if uses.startswith(OWNER + SONAR_ACTION_PATH):
-            value = yaml.load("".join(lines[step.start_mark.line:step.end_mark.line]), Loader=yaml.BaseLoader)
-            if isinstance(value, list) and len(value) == 1:
-                value = value[0]
-            if (workflow_name != "sonarqube.yml" or jobkey.value != "analysis"
-                    or uses != SONAR_REFERENCE or value != scanner_step("parent")):
-                raise WorkflowSourceError("private Sonar call differs from its frozen complete contract")
+            _validate_private_sonar_step(step, lines, uses, jobkey, workflow_name)
             continue
         relative = _framework_action_path(
             uses, step, jobkey, steps, framework_revision, workflow_name
@@ -620,19 +639,9 @@ def _job_action_edits(
             for block, indentation in parts
         )
         edits.append((step.start_mark.line, step.end_mark.line, replacement))
-        identifier = _scalar(step, "id")
-        job_outputs = _field(job, "outputs")
-        if identifier and job_outputs is not None:
-            block = "".join(
-                lines[job_outputs.start_mark.line : job_outputs.end_mark.line]
-            )
-            for key, expression in outputs.items():
-                block = block.replace(
-                    "${{ steps." + identifier + ".outputs." + key + " }}", expression
-                )
-            edits.append(
-                (job_outputs.start_mark.line, job_outputs.end_mark.line, block)
-            )
+        output_edit = _job_output_edit(job, step, lines, outputs)
+        if output_edit is not None:
+            edits.append(output_edit)
     return edits
 
 

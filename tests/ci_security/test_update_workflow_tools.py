@@ -187,6 +187,40 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             shutil.copy2(source, target)
         return destination
 
+    def test_proposed_input_closure_contains_real_readonly_contract_package(
+        self,
+    ) -> None:
+        paths = (
+            "modsecurity_test_framework/__init__.py",
+            "modsecurity_test_framework/sonar_diagnostics_contract.py",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.copied_update_root(Path(directory))
+            for relative in paths:
+                self.assertIn(relative, UPDATER.PROPOSED_VALIDATION_INPUT_PATHS)
+                self.assertNotIn(relative, UPDATER.ALLOWED_UPDATE_PATHS)
+                self.assertEqual(
+                    (root / relative).read_bytes(), (ROOT / relative).read_bytes()
+                )
+            code = (
+                "from pathlib import Path; import modsecurity_test_framework.sonar_diagnostics_contract as c; "
+                "import sys; assert Path(c.__file__).resolve().is_relative_to(Path(sys.argv[1]).resolve()); "
+                "assert c.COMMIT == '0f3889fd2f9d6f8d4fc6c3ec82d44f6859ed32f3'"
+            )
+            result = subprocess.run(
+                [sys.executable, "-P", "-S", "-c", code, str(root)],
+                cwd=root,
+                env={
+                    "PATH": os.defpath,
+                    "PYTHONPATH": str(root),
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     @staticmethod
     def changed_action(
         lock: dict[str, Any], name: str, version: str, sha: str
