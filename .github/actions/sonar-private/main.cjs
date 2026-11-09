@@ -9,6 +9,7 @@ const GIT = '/usr/bin/git';
 const MAX_LOG = 128 * 1024 * 1024;
 const MAX_LINE = 65536;
 const MAX_FACTS = 10000;
+const FILE_FAILURE_INDEX = new WeakMap();
 const MAX_COUNTER = 2147483647;
 const SHA = /^[a-f0-9]{40}$/;
 const FIXTURE = 'cfd5e49cada3fc793ef50993147e3796a0907443';
@@ -142,7 +143,7 @@ function emptyDiagnostics() {
   return {schema: 'private-sonar-diagnostics-v2', diagnosis_complete: false,
     warnings: {total: 0, parse: 0, invalid_location: 0, signature_trust: 0, unmapped: 0},
     errors: {total: 0, unmapped: 0}, parser_lines: 0, unmapped_parser_lines: 0,
-    overlong_lines: 0, facts_truncated: 0, unmapped_counters: 0, locations: [], counters: {},
+    overlong_lines: 0, facts_truncated: 0, unmapped_counters: 0, locations: [], file_failures: [], counters: {},
     signals: {document_limits: [], llvm_errors: 0, top_level_drops: null, ir_methods: null, unmapped: 0}};
 }
 function boundedCounter(raw, grouping = false) {
@@ -150,15 +151,17 @@ function boundedCounter(raw, grouping = false) {
   const value = Number(raw.replaceAll(',', ''));
   return Number.isSafeInteger(value) && value >= 0 && value <= MAX_COUNTER ? value : null;
 }
-function recordDocumentLimit(result, line) {
+function recordDocumentLimit(result, line, binding) {
   const budget = line.match(/The incoming YAML document exceeds the limit: (\d{1,10}) code points\./);
   if (budget) {
     const limit = boundedCounter(budget[1]);
     if (limit !== null && limit > 0) {
-      const found = result.signals.document_limits.find(item => item.limit === limit);
+      const identity = binding ? {...binding, source_binding: 'INVENTORY'} : {source_binding: 'UNBOUND'};
+      const found = result.signals.document_limits.find(item => item.limit === limit &&
+        item.source_binding === identity.source_binding && item.repository === identity.repository && item.path === identity.path);
       if (found) found.occurrences++;
       else if (result.signals.document_limits.length < 8) result.signals.document_limits.push({
-        category: 'DOCUMENT_CODEPOINT_LIMIT', limit, occurrences: 1, source_binding: 'UNBOUND'});
+        category: 'DOCUMENT_CODEPOINT_LIMIT', limit, occurrences: 1, ...identity});
       else result.signals.unmapped++;
     } else result.signals.unmapped++;
   }
@@ -180,9 +183,9 @@ function recordIrMethods(result, line) {
     } else result.unmapped_counters++;
   } else if (line.includes('IR generation:') && line.includes('total methods')) result.unmapped_counters++;
 }
-function recordSignals(result, line) {
+function recordSignals(result, line, binding) {
   if (line.includes('LLVM ERROR')) result.signals.llvm_errors++;
-  recordDocumentLimit(result, line);
+  recordDocumentLimit(result, line, binding);
   recordDroppedDeclarations(result, line);
   recordIrMethods(result, line);
   const mode = line.match(/CFamily analysis configuration mode: (AutoConfig|Compile-Commands)/i);
@@ -240,9 +243,10 @@ function recordCounters(result, line) {
     else result.counters[ratio[1]] = {errors, total};
   }
 }
-function recordParserLocation(result, line, sources, parsing, cannotParse) {
+function recordParserLocation(result, line, sources, parsing, cannotParse, fileFailure) {
   if (!parsing && !cannotParse) return;
   if (parsing) result.parser_lines++;
+  if (!parsing && fileFailure) return;
   const payload = parsing ? line.split('[ParsingError]').slice(1).join('[ParsingError]').trim() :
     line.slice(line.indexOf('Cannot parse') + 'Cannot parse'.length).trim();
   const match = payload.match(/^'?(.+?):(\d+)(?::(\d+))?(?:[':\s]|$)(.*)$/);
@@ -255,21 +259,84 @@ function recordParserLocation(result, line, sources, parsing, cannotParse) {
   result.locations.push({...fact, line: lineNumber, column,
     category: parsing ? diagnosticCategory(match[4]) : 'CANNOT_PARSE', translation_unit: 'UNKNOWN'});
 }
-function acceptLine(result, line, sources, flags = {}) {
+function fileOnlyFailure(line, sources) {
+  // Only a complete, unambiguous warning envelope establishes a file identity.
+  // The optional ISO timestamp is the outer hosted-log transport timestamp.
+  const match = /^(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,9}Z )?\d{2}:\d{2}:\d{2}\.\d{3} WARN +Cannot parse '([^'\r\n]+)'\.?[ \t]*\r?\n?$/.exec(line);
+  return match && sourceLocation(match[1], sources);
+}
+function recordFileFailure(result, fact) {
+  let index = FILE_FAILURE_INDEX.get(result);
+  if (!index) { index = new Map(); FILE_FAILURE_INDEX.set(result, index); }
+  const key = fact.repository + '\0' + fact.path;
+  const found = index.get(key);
+  if (found) found.occurrences++;
+  else if (result.file_failures.length < MAX_FACTS) {
+    const entry = {...fact, category: 'CANNOT_PARSE', occurrences: 1};
+    result.file_failures.push(entry);
+    // Index only retained facts: overflow identities never consume index space.
+    index.set(key, entry);
+  }
+  else result.facts_truncated++;
+}
+function snakeExceptionHeader(line) {
+  let text = line.trimStart();
+  const causedBy = text.startsWith('Caused by: ');
+  if (causedBy) text = text.slice('Caused by: '.length);
+  // Prospective Java exception headers, not a claim about a hosted run's format.
+  if (!text.startsWith('org.snakeyaml.engine.v2.exceptions.YamlEngineException: ') &&
+      !text.startsWith('org.yaml.snakeyaml.error.YAMLException: ')) return null;
+  return causedBy ? 'CAUSED_BY' : 'ROOT';
+}
+function javaStackContinuation(line) {
+  const text = line.replace(/\r?\n$/, '');
+  return /^[ \t]+at [\w.$/<>]+\((?:[\w$.-]+\.java:\d+|Unknown Source|Native Method)\)$/.test(text) ||
+    /^[ \t]+\.\.\. \d{1,6} more$/.test(text);
+}
+function advanceDocumentContext(line, fact, state) {
+  if (fact) {
+    state.candidate = {fact, lines: 1, bytes: Buffer.byteLength(line, 'utf8'), exception: false};
+    return undefined;
+  }
+  const candidate = state.candidate;
+  if (!candidate) return undefined;
+  candidate.lines++;
+  candidate.bytes += Buffer.byteLength(line, 'utf8');
+  if (candidate.lines > 32 || candidate.bytes > 16384) {
+    state.candidate = null;
+    return undefined;
+  }
+  const header = snakeExceptionHeader(line);
+  if (header === (candidate.exception ? 'CAUSED_BY' : 'ROOT')) {
+    candidate.exception = true;
+    return candidate.fact;
+  }
+  if (header || !candidate.exception || !javaStackContinuation(line)) state.candidate = null;
+  return undefined;
+}
+function acceptLine(result, line, sources, flags = {}, state = {}) {
   recordSeverity(result, line, flags);
   const parsing = flags.parsing ?? line.includes('[ParsingError]');
   const cannotParse = flags.cannotParse ?? line.includes('Cannot parse');
   if (flags.truncated) {
+    state.candidate = null;
     if (parsing) result.parser_lines++;
     if (parsing || cannotParse) result.unmapped_parser_lines++;
     return;
   }
-  recordSignals(result, line);
+  // Decoder replacement (including loss at a byte boundary) cannot bind events.
+  const loss = line.includes('\uFFFD');
+  if (loss) state.candidate = null;
+  const fileFailure = loss ? undefined : fileOnlyFailure(line, sources);
+  if (fileFailure) recordFileFailure(result, fileFailure);
+  const binding = advanceDocumentContext(line, fileFailure, state);
+  recordSignals(result, line, binding);
   recordCounters(result, line);
-  recordParserLocation(result, line, sources, parsing, cannotParse);
+  recordParserLocation(result, line, sources, parsing, cannotParse, fileFailure);
 }
 function diagnostics(filename, sources) {
   const result = emptyDiagnostics();
+  const state = {};
   const descriptor = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
   const buffer = Buffer.alloc(65536);
   let pending = '', word = '', tail = '';
@@ -293,7 +360,7 @@ function diagnostics(filename, sources) {
   const finish = () => {
     flushWord();
     if (discarded) result.overlong_lines++;
-    acceptLine(result, pending, sources, {...flags, truncated: discarded});
+    acceptLine(result, pending, sources, {...flags, truncated: discarded}, state);
     pending = ''; word = ''; tail = ''; discarded = false;
     flags = {warning: false, error: false, parsing: false, cannotParse: false};
   };
@@ -308,7 +375,7 @@ function diagnostics(filename, sources) {
       }
     }
     if (pending || discarded) finish();
-  } finally { fs.closeSync(descriptor); }
+  } finally { state.candidate = null; fs.closeSync(descriptor); }
   return result;
 }
 function validateArguments(args, temporaryRoot, revision) {
@@ -317,7 +384,7 @@ function validateArguments(args, temporaryRoot, revision) {
     `-Dsonar.working.directory=${path.join(temporaryRoot, 'framework-sonar-work')} ` +
     `-Dsonar.cfamily.compile-commands=${path.join(temporaryRoot, 'framework-sonar-native/compile_commands.json')}`;
   demand(args.trim().replace(/\s+/g, ' ') === expected);
-  return expected + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=false';
+  return expected + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=true';
 }
 function parentIncludes(temporaryRoot, revision) {
   const context = realDirectory(path.join(temporaryRoot, 'sonar-native-context'));
@@ -355,7 +422,7 @@ function profileArguments(original, temporaryRoot, revision) {
     `-Dsonar.cfamily.customCIncludes=${includes} -Dsonar.cfamily.customCppIncludes=${includes} ` +
     '-Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=600';
   demand((original.INPUT_ARGS ?? '').trim().replace(/\s+/g, ' ') === expected);
-  return {mode, args: expected + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=false',
+  return {mode, args: expected + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=true',
     project, work_directory: path.join(temporaryRoot, 'sonar-work'),
     source_role: 'parent', configured_mode: 'AUTO_CONFIG', fixture_revision: null};
 }

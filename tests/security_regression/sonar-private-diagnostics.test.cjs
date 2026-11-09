@@ -28,6 +28,9 @@ test('raw stdout/stderr/workflow commands remain private; status and cleanup hol
       assert.equal(result.errors.unmapped, 1);
       assert.equal(result.diagnosis_complete, false);
       assert.ok(!JSON.stringify(result).includes(canary));
+      api.acceptLine(result, `gpg: WARNING: ${canary}`, new Map());
+      assert.equal(result.warnings.signature_trust, 1);
+      assert.ok(!JSON.stringify(result).includes(canary));
     } finally { fs.closeSync(fd); }
   });
   assert.equal(fs.existsSync(owned), false);
@@ -93,8 +96,16 @@ test('severity beyond the line budget is counted without exposing raw tail', () 
 test('Framework original arguments accept; scope injection rejects', () => {
   const revision = 'a'.repeat(40);
   const args = `-Dsonar.scm.revision=${revision} -Dsonar.working.directory=/private/framework-sonar-work -Dsonar.cfamily.compile-commands=/private/framework-sonar-native/compile_commands.json`;
-  assert.equal(api.validateArguments(args, '/private', revision), args + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=false');
-  for (const bad of [args + ' -Dsonar.exclusions=**', args.replace(revision, 'master'), args.replace('compile_commands.json', 'partial.json')]) assert.throws(() => api.validateArguments(bad, '/private', revision));
+  const expected = args + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=true';
+  assert.equal(api.validateArguments(args, '/private', revision), expected);
+  const env = {'INPUT_OWNER-MODE': 'framework', GITHUB_REPOSITORY: 'Easton97-Jens/ModSecurity-test-Framework',
+    CONNECTOR_REVISION: 'cfd5e49cada3fc793ef50993147e3796a0907443', SONAR_USER_HOME: '/private/framework-sonar-cache', INPUT_ARGS: args};
+  assert.equal(api.profileArguments(env, '/private', revision).args, expected);
+  for (const bad of [args + ' -Dsonar.exclusions=**', args.replace(revision, 'master'), args.replace('compile_commands.json', 'partial.json'),
+    ...['-Dsonar.verbose=false', '-Dsonar.verbose=true', '-Dsonar.log.level=TRACE', '-Dsonar.log.level=DEBUG', '-X'].map(value => args + ' ' + value)]) {
+    assert.throws(() => api.validateArguments(bad, '/private', revision));
+    assert.throws(() => api.profileArguments({...env, INPUT_ARGS: bad}, '/private', revision));
+  }
 });
 test('Parent profiles retain exact AutoConfig/includes/std/project/wait without fixture substitution', () => temporary(root => {
   const revision = 'b'.repeat(40);
@@ -114,8 +125,9 @@ test('Parent profiles retain exact AutoConfig/includes/std/project/wait without 
     const valid = api.profileArguments(env, root, revision);
     assert.equal(valid.configured_mode, 'AUTO_CONFIG');
     assert.equal(valid.fixture_revision, null);
-    assert.equal(valid.args, args + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=false');
-    for (const modified of [args + ' -Dsonar.sources=common', args.replace('wait=true', 'wait=false'), args.replace('c++' + standard, 'c++99')]) assert.throws(() => api.profileArguments({...env, INPUT_ARGS: modified}, root, revision));
+    assert.equal(valid.args, args + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=true');
+    for (const modified of [args + ' -Dsonar.sources=common', args.replace('wait=true', 'wait=false'), args.replace('c++' + standard, 'c++99'),
+      ...['-Dsonar.verbose=false', '-Dsonar.verbose=true', '-Dsonar.log.level=TRACE', '-Dsonar.log.level=DEBUG', '-X'].map(value => args + ' ' + value)]) assert.throws(() => api.profileArguments({...env, INPUT_ARGS: modified}, root, revision));
   }
   manifest.uncommitted_changes = true;
   fs.writeFileSync(path.join(context, 'manifest.json'), JSON.stringify(manifest));
@@ -290,6 +302,38 @@ test('adversarial digit runs and property whitespace finish within a hard deadli
     assert.equal(tail.unmapped_parser_lines, 1);
     assert.equal(tail.diagnosis_complete, false);
     assert.ok(!JSON.stringify({result, tail}).includes(canary));
+    fs.writeFileSync(log, "12:34:56.789 WARN Cannot parse '" + "'".repeat(60000) + canary + "\n" +
+      "12:34:56.789 WARN Cannot parse '" + 'a'.repeat(60000) + canary + "\n" +
+      'org.snakeyaml.engine.v2.exceptions.YamlEngineException: The incoming YAML document exceeds the limit: 3145728 code points.\n');
+    const quoted = api.diagnostics(log, new Map());
+    assert.deepEqual(quoted.file_failures, []);
+    assert.equal(quoted.signals.document_limits[0].source_binding, 'UNBOUND');
+    assert.ok(!JSON.stringify(quoted).includes(canary));
+    const inventory = new Map();
+    for (let count = 0; count <= 10000; count++) {
+      inventory.set('data/f' + count + '.json', {repository: 'framework', path: 'data/f' + count + '.json'});
+    }
+    const many = api.emptyDiagnostics();
+    for (let count = 0; count < 10000; count++) {
+      api.acceptLine(many, "12:34:56.789 WARN Cannot parse 'data/f" + count + ".json'", inventory);
+    }
+    const last = "12:34:56.789 WARN Cannot parse 'data/f9999.json'";
+    for (let count = 0; count < 50000; count++) api.acceptLine(many, last, inventory);
+    for (let count = 0; count < 3; count++) {
+      api.acceptLine(many, "12:34:56.789 WARN Cannot parse 'data/f10000.json'", inventory);
+    }
+    assert.equal(many.file_failures.length, 10000);
+    assert.equal(many.file_failures[0].path, 'data/f0.json');
+    assert.equal(many.file_failures[0].occurrences, 1);
+    assert.equal(many.file_failures[9999].path, 'data/f9999.json');
+    assert.equal(many.file_failures[9999].occurrences, 50001);
+    assert.equal(many.facts_truncated, 3);
+    assert.equal(many.warnings.total, 60003);
+    assert.equal(many.unmapped_parser_lines, 0);
+    const isolated = api.emptyDiagnostics();
+    api.acceptLine(isolated, last, inventory);
+    assert.equal(isolated.file_failures[0].occurrences, 1);
+    assert.ok(!JSON.stringify(many).includes(canary));
     process.stdout.write('bounded parsing passed\n');
   `;
   const result = spawnSync(process.execPath, ['-e', program], {encoding: 'utf8', timeout: 2500, env: {}});
@@ -299,4 +343,105 @@ test('adversarial digit runs and property whitespace finish within a hard deadli
   assert.equal(result.stdout, 'bounded parsing passed\n');
   assert.equal(result.stderr, '');
   assert.ok(!result.stdout.includes(canary) && !result.stderr.includes(canary));
+}));
+const documentLimit = 'The incoming YAML document exceeds the limit: 3145728 code points.';
+const engineLimit = 'org.snakeyaml.engine.v2.exceptions.YamlEngineException: ' + documentLimit;
+const classicLimit = 'Caused by: org.yaml.snakeyaml.error.YAMLException: ' + documentLimit;
+const stackFrame = '\tat org.snakeyaml.engine.v2.scanner.ScannerImpl.fetchMoreTokens(ScannerImpl.java:42)';
+function jsonSources() {
+  const sources = new Map([
+    ['/fixture/data/a.json', {repository: 'framework', path: 'data/a.json'}],
+    ['/fixture/data/b.json', {repository: 'framework', path: 'data/b.json'}],
+    ['data/a.json', {repository: 'framework', path: 'data/a.json'}],
+    ['data/b.json', {repository: 'framework', path: 'data/b.json'}],
+  ]);
+  sources.roots = ['/fixture'];
+  return sources;
+}
+function jsonWarning(source = 'data/a.json') {
+  return `12:34:56.789 WARN Cannot parse '${source}'`;
+}
+function logDiagnostics(root, lines, separator = '\n', prefix = '') {
+  const filename = path.join(root, 'document.log');
+  fs.writeFileSync(filename, prefix + lines.join(separator) + separator, {mode: 0o600});
+  return api.diagnostics(filename, jsonSources());
+}
+test('prospective Java exception envelope binds only complete inventory file failures', () => temporary(root => {
+  const result = logDiagnostics(root, [jsonWarning(), engineLimit, stackFrame, classicLimit]);
+  assert.deepEqual(result.file_failures, [{repository: 'framework', path: 'data/a.json', category: 'CANNOT_PARSE', occurrences: 1}]);
+  assert.deepEqual(result.locations, []);
+  assert.equal(result.unmapped_parser_lines, 0);
+  assert.equal(result.warnings.total, 1);
+  assert.deepEqual(result.signals.document_limits, [{category: 'DOCUMENT_CODEPOINT_LIMIT', limit: 3145728,
+    occurrences: 2, repository: 'framework', path: 'data/a.json', source_binding: 'INVENTORY'}]);
+  assert.equal(result.diagnosis_complete, false);
+}));
+test('file bindings remain distinct and never retroactively bind earlier exceptions', () => temporary(root => {
+  const result = logDiagnostics(root, [engineLimit, jsonWarning(), engineLimit, jsonWarning('data/b.json'),
+    engineLimit, jsonWarning(), engineLimit]);
+  assert.equal(result.signals.document_limits.length, 3);
+  assert.deepEqual(result.signals.document_limits.map(item => [item.source_binding, item.path, item.occurrences]),
+    [['UNBOUND', undefined, 1], ['INVENTORY', 'data/a.json', 2], ['INVENTORY', 'data/b.json', 1]]);
+  assert.deepEqual(result.file_failures.map(item => [item.path, item.occurrences]), [['data/a.json', 2], ['data/b.json', 1]]);
+  const eof = logDiagnostics(root, [engineLimit, jsonWarning()]);
+  assert.equal(eof.signals.document_limits[0].source_binding, 'UNBOUND');
+  assert.equal(logDiagnostics(root, [engineLimit]).signals.document_limits[0].source_binding, 'UNBOUND');
+}));
+test('unknown, escaping, partial and ambiguous warning identities never bind or disclose', () => temporary(root => {
+  for (const warning of [jsonWarning('../data/a.json'), jsonWarning('/fixture/../fixture/data/a.json'),
+    jsonWarning('data/' + canary + '.json'), jsonWarning().slice(0, -1), jsonWarning() + " 'data/b.json'",
+    jsonWarning() + ' ' + canary, '12:34:56.789 WARN Cannot parse "data/a.json"']) {
+    const result = logDiagnostics(root, [warning, engineLimit]);
+    assert.deepEqual(result.file_failures, []);
+    assert.equal(result.signals.document_limits[0].source_binding, 'UNBOUND');
+    assert.equal(result.warnings.total, 1);
+    assert.equal(result.unmapped_parser_lines, 1);
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+}));
+test('new logger events, sensors, interleaving, unknown source and decoder loss reset association', () => temporary(root => {
+  for (const separator of ['12:34:56.790 DEBUG ' + canary, '12:34:56.790 INFO Sensor JSON [json]',
+    '2026-11-09T12:34:56.7900000Z ' + engineLimit, canary, '', jsonWarning('data/' + canary + '.json'),
+    'unrecognized.Exception: ' + canary, stackFrame, '\uFFFD' + canary]) {
+    const result = logDiagnostics(root, [jsonWarning(), separator, engineLimit]);
+    assert.ok(result.signals.document_limits.every(item => item.source_binding === 'UNBOUND'));
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+  const preliminary = 'org.snakeyaml.engine.v2.exceptions.YamlEngineException: preliminary exception';
+  for (const lines of [[jsonWarning(), classicLimit, engineLimit],
+    [jsonWarning(), preliminary, engineLimit], [jsonWarning(), preliminary, stackFrame, engineLimit]]) {
+    const result = logDiagnostics(root, lines);
+    assert.ok(result.signals.document_limits.every(item => item.source_binding === 'UNBOUND'));
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+}));
+test('context expires at line and byte budgets and on overlong log lines', () => temporary(root => {
+  for (const middle of [[...Array(31).fill(stackFrame)],
+    [...Array(20).fill('\tat ' + 'a'.repeat(900) + '.method(Scanner.java:42)')], ['x'.repeat(70000) + canary]]) {
+    const result = logDiagnostics(root, [jsonWarning(),
+      'org.snakeyaml.engine.v2.exceptions.YamlEngineException: preliminary exception', ...middle, classicLimit]);
+    assert.equal(result.signals.document_limits[0].source_binding, 'UNBOUND');
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+  const boundary = logDiagnostics(root, [jsonWarning(),
+    'org.snakeyaml.engine.v2.exceptions.YamlEngineException: preliminary exception', ...Array(29).fill(stackFrame), classicLimit]);
+  assert.equal(boundary.signals.document_limits[0].source_binding, 'INVENTORY');
+}));
+test('CRLF and read-chunk boundaries preserve bounded association and privacy', () => temporary(root => {
+  const warning = '2026-11-09T12:34:56.7890000Z ' + jsonWarning('/fixture/data/a.json');
+  const prefix = 'x'.repeat(65520) + '\r\n';
+  const result = logDiagnostics(root, [warning, engineLimit, stackFrame, classicLimit, canary], '\r\n', prefix);
+  assert.equal(result.file_failures[0].path, 'data/a.json');
+  assert.equal(result.signals.document_limits[0].source_binding, 'INVENTORY');
+  assert.equal(result.signals.document_limits[0].occurrences, 2);
+  assert.ok(!JSON.stringify(result).includes(canary));
+  const head = jsonWarning() + '\norg.snakeyaml.engine.v2.exceptions.YamlEngineException: ';
+  const padding = 'x'.repeat(65535 - Buffer.byteLength(head, 'utf8') - 1) + '\n';
+  const filename = path.join(root, 'split-utf8.log');
+  fs.writeFileSync(filename, padding + head + '\u00E9 ' + documentLimit + ' ' + canary + '\n', {mode: 0o600});
+  const loss = api.diagnostics(filename, jsonSources());
+  assert.equal(loss.overlong_lines, 0);
+  assert.equal(loss.file_failures.length, 1);
+  assert.equal(loss.signals.document_limits[0].source_binding, 'UNBOUND');
+  assert.ok(!JSON.stringify(loss).includes(canary));
 }));
