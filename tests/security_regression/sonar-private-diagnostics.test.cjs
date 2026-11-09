@@ -9,6 +9,9 @@ const api = require('../../.github/actions/sonar-private/main.cjs');
 const temporaryRoot = process.env.SONAR_DIAGNOSTIC_TEST_ROOT;
 assert.ok(temporaryRoot && path.isAbsolute(temporaryRoot));
 const canary = ['CANARY', 'PRIVATE', 'DIAGNOSTIC'].join('_');
+const cacheName = 'cfamily-analysis-cache';
+const cfamilyVersion = '6.86.0.113840';
+const cfamilyVersionLine = 'CFamily plugin version: ' + cfamilyVersion;
 function temporary(callback) {
   const directory = fs.mkdtempSync(path.join(temporaryRoot, 'diagnostic-test-'));
   return Promise.resolve().then(() => callback(directory)).finally(() => fs.rmSync(directory, {recursive: true, force: true}));
@@ -102,7 +105,8 @@ test('Framework original arguments accept; scope injection rejects', () => {
     CONNECTOR_REVISION: 'cfd5e49cada3fc793ef50993147e3796a0907443', SONAR_USER_HOME: '/private/framework-sonar-cache', INPUT_ARGS: args};
   assert.equal(api.profileArguments(env, '/private', revision).args, expected);
   for (const bad of [args + ' -Dsonar.exclusions=**', args.replace(revision, 'master'), args.replace('compile_commands.json', 'partial.json'),
-    ...['-Dsonar.verbose=false', '-Dsonar.verbose=true', '-Dsonar.log.level=TRACE', '-Dsonar.log.level=DEBUG', '-X'].map(value => args + ' ' + value)]) {
+    ...['-Dsonar.verbose=false', '-Dsonar.verbose=true', '-Dsonar.log.level=TRACE', '-Dsonar.log.level=DEBUG', '-X',
+      '-Dsonar.cfamily.analysisCache.mode=server', '-Dsonar.cfamily.analysisCache.path=/outside'].map(value => args + ' ' + value)]) {
     assert.throws(() => api.validateArguments(bad, '/private', revision));
     assert.throws(() => api.profileArguments({...env, INPUT_ARGS: bad}, '/private', revision));
   }
@@ -127,7 +131,8 @@ test('Parent profiles retain exact AutoConfig/includes/std/project/wait without 
     assert.equal(valid.fixture_revision, null);
     assert.equal(valid.args, args + ' -Dsonar.log.level=DEBUG -Dsonar.verbose=true');
     for (const modified of [args + ' -Dsonar.sources=common', args.replace('wait=true', 'wait=false'), args.replace('c++' + standard, 'c++99'),
-      ...['-Dsonar.verbose=false', '-Dsonar.verbose=true', '-Dsonar.log.level=TRACE', '-Dsonar.log.level=DEBUG', '-X'].map(value => args + ' ' + value)]) assert.throws(() => api.profileArguments({...env, INPUT_ARGS: modified}, root, revision));
+      ...['-Dsonar.verbose=false', '-Dsonar.verbose=true', '-Dsonar.log.level=TRACE', '-Dsonar.log.level=DEBUG', '-X',
+        '-Dsonar.cfamily.analysisCache.mode=server', '-Dsonar.cfamily.analysisCache.path=/outside'].map(value => args + ' ' + value)]) assert.throws(() => api.profileArguments({...env, INPUT_ARGS: modified}, root, revision));
   }
   manifest.uncommitted_changes = true;
   fs.writeFileSync(path.join(context, 'manifest.json'), JSON.stringify(manifest));
@@ -138,6 +143,8 @@ for (const options of [{timeout: 30}, {timeout: 2000, limit: 128}]) {
     let owned;
     await assert.rejects(api.withPrivateRun(root, async directory => {
       owned = directory;
+      api.privateCacheArguments('', directory);
+      assert.deepEqual(fs.readdirSync(path.join(directory, cacheName)), []);
       const fd = api.privateFile(directory, 'raw.log');
       try {
         const program = options.limit ? 'process.stdout.write("x".repeat(100000))' : 'setInterval(()=>{},1000)';
@@ -145,6 +152,7 @@ for (const options of [{timeout: 30}, {timeout: 2000, limit: 128}]) {
       } finally { fs.closeSync(fd); }
     }), /captured child failed/);
     assert.equal(fs.existsSync(owned), false);
+    assert.equal(fs.existsSync(path.join(owned, cacheName)), false);
   }));
 }
 function active(pid) {
@@ -257,7 +265,7 @@ test('checked-in literal project binding cannot silently disagree with owner', (
 test('fixed system Git ignores a hostile PATH and reads the actual repository', () => temporary(root => {
   const sentinel = path.join(root, 'shadow-executed');
   fs.writeFileSync(path.join(root, 'git'), `#!/bin/sh\n/usr/bin/touch '${sentinel}'\nexit 99\n`, {mode: 0o700});
-  const repository = path.resolve(__dirname, '../..');
+  const repository = process.env.SONAR_DIAGNOSTIC_SOURCE_ROOT ?? path.resolve(__dirname, '../..');
   const expected = spawnSync('/usr/bin/git', ['-C', repository, 'rev-parse', 'HEAD'], {encoding: 'utf8'});
   assert.equal(expected.status, 0);
   assert.equal(api.gitOutput(repository, ['rev-parse', 'HEAD'], {PATH: root}).trim(), expected.stdout.trim());
@@ -446,4 +454,106 @@ test('CRLF and read-chunk boundaries preserve bounded association and privacy', 
   assert.equal(loss.file_failures.length, 1);
   assert.equal(loss.signals.document_limits[0].source_binding, 'UNBOUND');
   assert.ok(!JSON.stringify(loss).includes(canary));
+}));
+test('private analysis caches start empty, survive the child and are removed on every exit', () => temporary(async root => {
+  const seen = new Set();
+  const cases = [0, 7, 'exception'];
+  await Promise.all(cases.map(async status => {
+    let owned;
+    const run = api.withPrivateRun(root, async directory => {
+      owned = directory;
+      const args = api.privateCacheArguments('-Dsonar.verbose=true', directory);
+      const cache = path.join(directory, cacheName);
+      assert.ok(args.endsWith(' -Dsonar.cfamily.analysisCache.mode=fs -Dsonar.cfamily.analysisCache.path=' + cache));
+      assert.equal(fs.statSync(cache).mode & 0o777, 0o700);
+      assert.deepEqual(fs.readdirSync(cache), []);
+      assert.equal(seen.has(cache), false); seen.add(cache);
+      if (status === 'exception') throw new Error('controlled failure');
+      const fd = api.privateFile(directory, 'raw.log');
+      try {
+        const program = `require('node:fs').writeFileSync(${JSON.stringify(path.join(cache, 'entry'))}, 'cache');process.exit(${status})`;
+        assert.equal(await api.runCaptured(process.execPath, ['-e', program], fd, {}, {timeout: 2000}), status);
+        assert.equal(fs.existsSync(path.join(cache, 'entry')), true);
+      } finally { fs.closeSync(fd); }
+    });
+    if (status === 'exception') await assert.rejects(run, /controlled failure/);
+    else await run;
+    assert.equal(fs.existsSync(owned), false);
+  }));
+  assert.equal(seen.size, 3);
+}));
+test('private cache creation rejects aliases, preexisting entries and argument tokenization', () => temporary(root => {
+  const cache = path.join(root, cacheName);
+  for (const args of ['-Dsonar.cfamily.analysisCache.mode=server', '-Dsonar.cfamily.analysisCache.path=/outside']) {
+    assert.throws(() => api.privateCacheArguments(args, root));
+    assert.equal(fs.existsSync(cache), false);
+  }
+  fs.writeFileSync(cache, canary);
+  assert.throws(() => api.privateCacheArguments('', root)); fs.unlinkSync(cache);
+  fs.symlinkSync(root, cache);
+  assert.throws(() => api.privateCacheArguments('', root)); fs.unlinkSync(cache);
+  fs.mkdirSync(cache);
+  assert.throws(() => api.privateCacheArguments('', root)); fs.rmdirSync(cache);
+  for (const suffix of [' space', "'quote", '"quote', '\\escape', '\tcontrol']) {
+    const unsafe = root + suffix; fs.mkdirSync(unsafe);
+    assert.throws(() => api.privateCacheArguments('', unsafe));
+    assert.equal(fs.existsSync(path.join(unsafe, cacheName)), false);
+  }
+}));
+test('CFamily version is a bounded observed literal, never a guessed default', () => {
+  const result = api.emptyDiagnostics();
+  assert.equal(result.cfamily_version, null);
+  assert.equal(result.cfamily_version_status, 'NOT_OBSERVED');
+  for (const line of [cfamilyVersionLine,
+    '12:34:56.789 INFO  ' + cfamilyVersionLine + '\r\n',
+    '2026-11-09T12:34:56.7890000Z 12:34:56.789 DEBUG ' + cfamilyVersionLine]) {
+    api.acceptLine(result, line, new Map());
+  }
+  assert.equal(result.cfamily_version, cfamilyVersion);
+  for (const value of [cfamilyVersion + ' ' + canary, '6.86', '9'.repeat(60000), cfamilyVersion + 'suffix']) {
+    api.acceptLine(result, 'CFamily plugin version: ' + value, new Map());
+  }
+  api.acceptLine(result, canary + ' CFamily plugin version: 1.2.3.4', new Map());
+  assert.equal(result.visibility.version_unmapped, 4);
+  assert.equal(result.cfamily_version, cfamilyVersion);
+  api.acceptLine(result, 'CFamily plugin version: 1.2.3.4', new Map());
+  api.acceptLine(result, cfamilyVersionLine, new Map());
+  assert.equal(result.cfamily_version, null);
+  assert.equal(result.cfamily_version_status, 'CONFLICT');
+  assert.ok(!JSON.stringify(result).includes(canary));
+});
+test('late overlong markers retain only finite visibility facts and never source bindings', () => temporary(root => {
+  const filename = path.join(root, 'late.log');
+  const marker = 'org.snakeyaml.engine.v2.exceptions.YamlEngineException:';
+  // Split the class literal across the second raw-read boundary, after retention ended.
+  const prefix = 'x'.repeat(131072 - 17);
+  fs.writeFileSync(filename, prefix + marker + ' ' + documentLimit +
+    ' [ParsingError] Cannot parse \'data/a.json:1:2\' ' + cfamilyVersionLine + ' ' +
+    'org.yaml.snakeyaml.error.YAMLException: ' + canary + '\uFFFD WARN ERROR\n');
+  const result = api.diagnostics(filename, jsonSources());
+  assert.equal(result.overlong_lines, 1);
+  assert.deepEqual(result.visibility.overlong_markers,
+    {parsing: 1, cannotParse: 1, documentLimit: 1, cfamilyVersion: 1, snakeEngine: 1, snakeClassic: 1});
+  assert.equal(result.visibility.decoder_loss_lines, 1);
+  assert.equal(result.warnings.total, 1); assert.equal(result.errors.total, 1);
+  assert.equal(result.parser_lines, 1); assert.equal(result.unmapped_parser_lines, 1);
+  assert.deepEqual(result.locations, []); assert.deepEqual(result.file_failures, []);
+  assert.deepEqual(result.signals.document_limits, []);
+  assert.equal(result.cfamily_version, null);
+  assert.deepEqual(result.visibility.exception_classes, {SNAKEYAML_ENGINE: 0, SNAKEYAML_CLASSIC: 0});
+  assert.ok(!JSON.stringify(result).includes(canary));
+}));
+test('exception enums and per-limit binding reasons do not infer sensor ownership or reuse stale context', () => temporary(root => {
+  const result = logDiagnostics(root, [jsonWarning(), engineLimit, stackFrame, classicLimit,
+    '12:34:56.790 INFO Sensor hypothetical ' + canary, engineLimit,
+    jsonWarning(), 'unexpected.Exception: ' + documentLimit,
+    engineLimit, 'body ' + engineLimit, '\uFFFD' + engineLimit]);
+  assert.deepEqual(result.visibility.exception_classes, {SNAKEYAML_ENGINE: 3, SNAKEYAML_CLASSIC: 1});
+  assert.deepEqual(result.visibility.context_resets, {NEW_LOG_EVENT: 1, UNSUPPORTED_OR_INTERLEAVED_EVENT: 1});
+  assert.deepEqual(result.visibility.document_binding_reasons,
+    {VERIFIED_CONTIGUOUS_EVENT: 2, NO_ACTIVE_FILE_EVENT: 3, UNSUPPORTED_OR_INTERLEAVED_EVENT: 1, DECODER_LOSS: 1});
+  assert.equal(result.signals.document_limits[0].source_binding, 'INVENTORY');
+  assert.equal(result.signals.document_limits[1].source_binding, 'UNBOUND');
+  assert.equal(result.diagnosis_complete, false);
+  assert.ok(!JSON.stringify(result).includes(canary));
 }));

@@ -10,6 +10,15 @@ const MAX_LOG = 128 * 1024 * 1024;
 const MAX_LINE = 65536;
 const MAX_FACTS = 10000;
 const FILE_FAILURE_INDEX = new WeakMap();
+const LINE_MARKERS = Object.freeze({
+  parsing: '[ParsingError]', cannotParse: 'Cannot parse',
+  documentLimit: 'The incoming YAML document exceeds the limit:',
+  cfamilyVersion: 'CFamily plugin version:',
+  snakeEngine: 'org.snakeyaml.engine.v2.exceptions.YamlEngineException:',
+  snakeClassic: 'org.yaml.snakeyaml.error.YAMLException:',
+});
+const SNAKE_ENGINE = 'org.snakeyaml.engine.v2.exceptions.YamlEngineException: ';
+const SNAKE_CLASSIC = 'org.yaml.snakeyaml.error.YAMLException: ';
 const MAX_COUNTER = 2147483647;
 const SHA = /^[a-f0-9]{40}$/;
 const FIXTURE = 'cfd5e49cada3fc793ef50993147e3796a0907443';
@@ -96,6 +105,18 @@ async function withPrivateRun(temporaryRoot, callback) {
   try { return await callback(directory); }
   finally { fs.rmSync(directory, {recursive: true, force: true}); }
 }
+function privateCacheArguments(args, directory) {
+  realDirectory(directory);
+  // The pinned upstream action tokenizes args. Do not invent quoting rules.
+  demand(/^[\w./+-]+$/.test(directory));
+  demand(!args.includes('sonar.cfamily.analysisCache.'));
+  const cache = path.join(directory, 'cfamily-analysis-cache');
+  fs.mkdirSync(cache, {mode: 0o700});
+  demand(realDirectory(cache) === cache && fs.readdirSync(cache).length === 0);
+  demand((fs.statSync(cache).mode & 0o777) === 0o700);
+  return args + ' -Dsonar.cfamily.analysisCache.mode=fs' +
+    ` -Dsonar.cfamily.analysisCache.path=${cache}`;
+}
 function gitOutput(root, args, env) {
   return execFileSync(GIT, ['-c', 'credential.helper=', '-C', root, ...args], {
     env, encoding: 'utf8', timeout: 15000, maxBuffer: 16 * 1024 * 1024,
@@ -144,18 +165,25 @@ function emptyDiagnostics() {
     warnings: {total: 0, parse: 0, invalid_location: 0, signature_trust: 0, unmapped: 0},
     errors: {total: 0, unmapped: 0}, parser_lines: 0, unmapped_parser_lines: 0,
     overlong_lines: 0, facts_truncated: 0, unmapped_counters: 0, locations: [], file_failures: [], counters: {},
-    signals: {document_limits: [], llvm_errors: 0, top_level_drops: null, ir_methods: null, unmapped: 0}};
+    signals: {document_limits: [], llvm_errors: 0, top_level_drops: null, ir_methods: null, unmapped: 0},
+    cfamily_version: null, cfamily_version_status: 'NOT_OBSERVED',
+    visibility: {version_unmapped: 0, decoder_loss_lines: 0,
+      overlong_markers: Object.fromEntries(Object.keys(LINE_MARKERS).map(key => [key, 0])),
+      exception_classes: {SNAKEYAML_ENGINE: 0, SNAKEYAML_CLASSIC: 0},
+      context_resets: {}, document_binding_reasons: {}}};
 }
 function boundedCounter(raw, grouping = false) {
   if (typeof raw !== 'string' || !(grouping ? /^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(raw) : /^\d+$/.test(raw))) return null;
   const value = Number(raw.replaceAll(',', ''));
   return Number.isSafeInteger(value) && value >= 0 && value <= MAX_COUNTER ? value : null;
 }
-function recordDocumentLimit(result, line, binding) {
+function recordDocumentLimit(result, line, binding, reason) {
   const budget = line.match(/The incoming YAML document exceeds the limit: (\d{1,10}) code points\./);
   if (budget) {
     const limit = boundedCounter(budget[1]);
     if (limit !== null && limit > 0) {
+      const reasons = result.visibility.document_binding_reasons;
+      reasons[reason] = (reasons[reason] ?? 0) + 1;
       const identity = binding ? {...binding, source_binding: 'INVENTORY'} : {source_binding: 'UNBOUND'};
       const found = result.signals.document_limits.find(item => item.limit === limit &&
         item.source_binding === identity.source_binding && item.repository === identity.repository && item.path === identity.path);
@@ -183,9 +211,39 @@ function recordIrMethods(result, line) {
     } else result.unmapped_counters++;
   } else if (line.includes('IR generation:') && line.includes('total methods')) result.unmapped_counters++;
 }
-function recordSignals(result, line, binding) {
+function scannerPayload(line) {
+  const transport = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,9}Z /.exec(line);
+  let text = transport ? line.slice(transport[0].length) : line;
+  const timestamp = /^\d{2}:\d{2}:\d{2}\.\d{3} /.exec(text);
+  if (timestamp) text = text.slice(timestamp[0].length);
+  const level = /^(?:INFO|DEBUG|WARN|ERROR):? +/.exec(text);
+  if (level) text = text.slice(level[0].length);
+  return text.replace(/\r?\n$/, '');
+}
+function recordCFamilyVersion(result, line) {
+  const text = scannerPayload(line);
+  const prefix = 'CFamily plugin version: ';
+  if (!text.startsWith(prefix)) return;
+  const value = text.slice(prefix.length);
+  if (!/^\d{1,6}(?:\.\d{1,6}){3}$/.test(value)) {
+    result.visibility.version_unmapped++;
+    return;
+  }
+  if (result.cfamily_version_status === 'CONFLICT') return;
+  if (result.cfamily_version !== null && result.cfamily_version !== value) {
+    result.cfamily_version = null;
+    result.cfamily_version_status = 'CONFLICT';
+    return;
+  }
+  result.cfamily_version = value;
+  result.cfamily_version_status = 'OBSERVED';
+}
+function recordSignals(result, line, binding, reason) {
   if (line.includes('LLVM ERROR')) result.signals.llvm_errors++;
-  recordDocumentLimit(result, line, binding);
+  recordDocumentLimit(result, line, binding, reason);
+  recordCFamilyVersion(result, line);
+  const exception = snakeExceptionClass(line);
+  if (exception) result.visibility.exception_classes[exception]++;
   recordDroppedDeclarations(result, line);
   recordIrMethods(result, line);
   const mode = line.match(/CFamily analysis configuration mode: (AutoConfig|Compile-Commands)/i);
@@ -283,21 +341,43 @@ function recordFileFailure(result, fact) {
   }
   else result.facts_truncated++;
 }
-function snakeExceptionHeader(line) {
+function snakeExceptionClass(line) {
   let text = line.trimStart();
-  const causedBy = text.startsWith('Caused by: ');
-  if (causedBy) text = text.slice('Caused by: '.length);
+  if (text.startsWith('Caused by: ')) text = text.slice('Caused by: '.length);
   // Prospective Java exception headers, not a claim about a hosted run's format.
-  if (!text.startsWith('org.snakeyaml.engine.v2.exceptions.YamlEngineException: ') &&
-      !text.startsWith('org.yaml.snakeyaml.error.YAMLException: ')) return null;
-  return causedBy ? 'CAUSED_BY' : 'ROOT';
+  if (text.startsWith(SNAKE_ENGINE)) return 'SNAKEYAML_ENGINE';
+  if (text.startsWith(SNAKE_CLASSIC)) return 'SNAKEYAML_CLASSIC';
+  return null;
+}
+function snakeExceptionHeader(line) {
+  if (!snakeExceptionClass(line)) return null;
+  return line.trimStart().startsWith('Caused by: ') ? 'CAUSED_BY' : 'ROOT';
 }
 function javaStackContinuation(line) {
   const text = line.replace(/\r?\n$/, '');
   return /^[ \t]+at [\w.$/<>]+\((?:[\w$.-]+\.java:\d+|Unknown Source|Native Method)\)$/.test(text) ||
     /^[ \t]+\.\.\. \d{1,6} more$/.test(text);
 }
-function advanceDocumentContext(line, fact, state) {
+function documentBudgetReason(candidate) {
+  if (candidate.lines > 32) return 'CONTEXT_LINE_LIMIT';
+  if (candidate.bytes > 16384) return 'CONTEXT_BYTE_LIMIT';
+  return null;
+}
+function resetDocumentContext(result, state, reason) {
+  if (state.candidate) {
+    const resets = result.visibility.context_resets;
+    resets[reason] = (resets[reason] ?? 0) + 1;
+  }
+  state.candidate = null;
+  state.reason = reason;
+}
+function interruptedDocumentReason(line, header) {
+  if (header) return 'EXCEPTION_ORDER';
+  if (scannerPayload(line) !== line.replace(/\r?\n$/, '')) return 'NEW_LOG_EVENT';
+  return 'UNSUPPORTED_OR_INTERLEAVED_EVENT';
+}
+function advanceDocumentContext(result, line, fact, state) {
+  state.reason = 'NO_ACTIVE_FILE_EVENT';
   if (fact) {
     state.candidate = {fact, lines: 1, bytes: Buffer.byteLength(line, 'utf8'), exception: false};
     return undefined;
@@ -306,35 +386,46 @@ function advanceDocumentContext(line, fact, state) {
   if (!candidate) return undefined;
   candidate.lines++;
   candidate.bytes += Buffer.byteLength(line, 'utf8');
-  if (candidate.lines > 32 || candidate.bytes > 16384) {
-    state.candidate = null;
+  const budgetReason = documentBudgetReason(candidate);
+  if (budgetReason) {
+    resetDocumentContext(result, state, budgetReason);
     return undefined;
   }
   const header = snakeExceptionHeader(line);
   if (header === (candidate.exception ? 'CAUSED_BY' : 'ROOT')) {
     candidate.exception = true;
+    state.reason = 'VERIFIED_CONTIGUOUS_EVENT';
     return candidate.fact;
   }
-  if (header || !candidate.exception || !javaStackContinuation(line)) state.candidate = null;
+  if (header || !candidate.exception || !javaStackContinuation(line)) {
+    resetDocumentContext(result, state, interruptedDocumentReason(line, header));
+  }
   return undefined;
+}
+function recordTruncatedLine(result, line, flags, parsing, cannotParse) {
+  for (const [key, marker] of Object.entries(LINE_MARKERS)) {
+    if (flags[key] ?? line.includes(marker)) result.visibility.overlong_markers[key]++;
+  }
+  if (parsing) result.parser_lines++;
+  if (parsing || cannotParse) result.unmapped_parser_lines++;
 }
 function acceptLine(result, line, sources, flags = {}, state = {}) {
   recordSeverity(result, line, flags);
+  const loss = flags.decoderLoss ?? line.includes('\uFFFD');
+  if (loss) result.visibility.decoder_loss_lines++;
   const parsing = flags.parsing ?? line.includes('[ParsingError]');
   const cannotParse = flags.cannotParse ?? line.includes('Cannot parse');
   if (flags.truncated) {
-    state.candidate = null;
-    if (parsing) result.parser_lines++;
-    if (parsing || cannotParse) result.unmapped_parser_lines++;
+    resetDocumentContext(result, state, 'TRUNCATED_LINE');
+    recordTruncatedLine(result, line, flags, parsing, cannotParse);
     return;
   }
   // Decoder replacement (including loss at a byte boundary) cannot bind events.
-  const loss = line.includes('\uFFFD');
-  if (loss) state.candidate = null;
+  if (loss) resetDocumentContext(result, state, 'DECODER_LOSS');
   const fileFailure = loss ? undefined : fileOnlyFailure(line, sources);
   if (fileFailure) recordFileFailure(result, fileFailure);
-  const binding = advanceDocumentContext(line, fileFailure, state);
-  recordSignals(result, line, binding);
+  const binding = advanceDocumentContext(result, line, fileFailure, state);
+  recordSignals(result, line, binding, loss ? 'DECODER_LOSS' : state.reason);
   recordCounters(result, line);
   recordParserLocation(result, line, sources, parsing, cannotParse, fileFailure);
 }
@@ -357,9 +448,9 @@ function diagnostics(filename, sources) {
       else flushWord();
     }
     const markers = tail + fragment;
-    flags.parsing ||= markers.includes('[ParsingError]');
-    flags.cannotParse ||= markers.includes('Cannot parse');
-    tail = markers.slice(-32);
+    for (const [key, marker] of Object.entries(LINE_MARKERS)) flags[key] ||= markers.includes(marker);
+    flags.decoderLoss ||= fragment.includes('\uFFFD');
+    tail = markers.slice(-96);
   };
   const finish = () => {
     flushWord();
@@ -379,7 +470,7 @@ function diagnostics(filename, sources) {
       }
     }
     if (pending || discarded) finish();
-  } finally { state.candidate = null; fs.closeSync(descriptor); }
+  } finally { resetDocumentContext(result, state, 'END_OF_INPUT'); fs.closeSync(descriptor); }
   return result;
 }
 function validateArguments(args, temporaryRoot, revision) {
@@ -506,7 +597,7 @@ async function main() {
       const metadata = fs.readFileSync(path.join(action, 'action.yml'), 'utf8');
       demand(/using: node24/.test(metadata) && /main: dist\/index\.js/.test(metadata));
       const env = privateEnv(original, directory, true);
-      Object.assign(env, {INPUT_ARGS: profile.args, INPUT_SCANNERVERSION: '8.2.0.6438', INPUT_PROJECTBASEDIR: root,
+      Object.assign(env, {INPUT_ARGS: privateCacheArguments(profile.args, directory), INPUT_SCANNERVERSION: '8.2.0.6438', INPUT_PROJECTBASEDIR: root,
         INPUT_SCANNERBINARIESURL: 'https://binaries.sonarsource.com/Distribution/sonar-scanner-cli',
         INPUT_SKIPSIGNATUREVERIFICATION: 'false', INPUT_SCANNERBINARIESAUTHHEADER: '', PYTHONDONTWRITEBYTECODE: '1'});
       if (profile.source_role === 'parent') Object.assign(env, {GOTOOLCHAIN: 'local', GOWORK: 'off'});
@@ -517,7 +608,9 @@ async function main() {
       Object.assign(result, {revision, fixture_revision: profile.fixture_revision, owner_mode: profile.mode,
         project: profile.project, scanner_version: '8.2.0.6438', run_id: validatedRunId(original.GITHUB_RUN_ID),
         report_identity_status: identity.status, ce_task_id: identity.ce_task_id,
-        configured_cfamily_mode: profile.configured_mode, scanner_exit: scannerExit, action_commit: upstream[1]});
+        configured_cfamily_mode: profile.configured_mode, configured_cfamily_cache_mode: 'FS',
+        cache_initial_state: 'EMPTY_PRIVATE', configured_verbose: true,
+        scanner_exit: scannerExit, action_commit: upstream[1]});
       process.stdout.write(JSON.stringify(result) + '\n');
       process.exitCode = scannerExit === 0 && identity.status === 'VALID' ? 0 : 1;
     } finally { fs.closeSync(descriptor); }
@@ -525,7 +618,7 @@ async function main() {
 }
 module.exports = {gitOutput, privateEnv, privateFile, runCaptured, withPrivateRun, diagnostics, acceptLine,
   emptyDiagnostics, validateArguments, inventory, sourceLocation, parentIncludes, profileArguments,
-  boundedCounter, readBoundedRegular, validateProjectBinding, reportTaskIdentity, validatedRunId};
+  boundedCounter, readBoundedRegular, validateProjectBinding, reportTaskIdentity, validatedRunId, privateCacheArguments};
 if (require.main === module) main().catch(() => {
   process.stderr.write('Private Sonar diagnostics failed; raw output was not published.\n');
   process.exitCode = 1;

@@ -1052,8 +1052,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 environment = kwargs.get("env")
                 if not isinstance(environment, dict):
                     self.fail("native checker needs an explicit child environment")
-                self.assertFalse(
-                    "PYTHONPATH" in environment,
+                self.assertNotIn(
+                    "PYTHONPATH",
+                    environment,
                     "native checker inherited an ambient Python package path",
                 )
                 proposed_root = Path(str(kwargs["cwd"]))
