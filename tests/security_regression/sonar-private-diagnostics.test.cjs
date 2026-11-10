@@ -395,8 +395,8 @@ test('native correlation rejects missing reordered interleaved and conflicting c
     [explicit[0], explicit[1], explicit[2].replace(nativeLogger, 'untrusted.Logger'), ...explicit.slice(3)]];
   for (const interruption of ['12:34:56.790 INFO Sensor other', '12:34:56.790 DEBUG ' + canary,
     '', canary, '\u001b[31m', '\uFFFD']) {
-    cases.push([original[0], interruption, ...original.slice(1)]);
-    cases.push([...original.slice(0, 3), interruption, ...original.slice(3)]);
+    cases.push([original[0], interruption, ...original.slice(1)],
+      [...original.slice(0, 3), interruption, ...original.slice(3)]);
   }
   for (const lines of cases) {
     const result = logDiagnostics(root, lines);
@@ -656,4 +656,171 @@ test('exception enums and per-limit binding reasons do not infer sensor ownershi
   assert.equal(result.signals.document_limits[1].source_binding, 'UNBOUND');
   assert.equal(result.diagnosis_complete, false);
   assert.ok(!JSON.stringify(result).includes(canary));
+}));
+
+// Prospective primary-log layouts, not claims about the deployed CFamily output.
+const irFailureHeader = count => 'INFO: Encountered LLVM IR file generation failures for taint analysis for C and C++ for the following ' + count + ' translation unit(s):';
+const irDropHeader = 'INFO: The following translation unit(s) had the most function definitions dropped during LLVM IR generation for taint analysis (up to 10 shown out of 1):';
+function cfamilySources() {
+  const sources = new Map([
+    ['/fixture/src/a.c', {repository: 'framework', path: 'src/a.c'}],
+    ['/fixture/src/b.c', {repository: 'product_fixture', path: 'src/b.c'}],
+    ['/fixture/include/a.h', {repository: 'framework', path: 'include/a.h'}],
+  ]);
+  sources.roots = ['/fixture'];
+  return sources;
+}
+function cfamilyLog(root, lines) {
+  const filename = path.join(root, 'cfamily.log');
+  fs.writeFileSync(filename, lines.join('\n') + '\n', {mode: 0o600});
+  return api.diagnostics(filename, cfamilySources());
+}
+test('linear native event parsing preserves spaces and rejects embedded line terminators', () => temporary(root => {
+  const spaced = nativeLines().map(line => line.replace(/ (WARN|DEBUG) /, ' $1     '));
+  assert.equal(logDiagnostics(root, spaced).signals.document_limit_associations.length, 1);
+  for (const ending of ['\ntrailing', '\rtrailing', '\u2028trailing', '\u2029trailing']) {
+    const lines = nativeLines();
+    lines[1] += ending;
+    assert.deepEqual(logDiagnostics(root, lines).signals.document_limit_associations, []);
+  }
+}));
+test('published failed IR list binds only exact trusted inventory paths and expected count', () => temporary(root => {
+  const result = cfamilyLog(root, [irFailureHeader(2), '/fixture/src/a.c', '/fixture/src/b.c', '/fixture/include/a.h']);
+  assert.deepEqual(result.cfamily_attribution.failed_ir_units.map(fact => [fact.repository, fact.path]),
+    [['framework', 'src/a.c'], ['product_fixture', 'src/b.c']]);
+  assert.ok(result.cfamily_attribution.failed_ir_units.every(fact => fact.category === 'IR_GENERATION_FAILURE' &&
+    fact.association_status === 'PUBLISHED_LAYOUT_CORRELATED'));
+  assert.equal(result.diagnosis_complete, false);
+  assert.deepEqual(cfamilyLog(root, ['/fixture/src/a.c']).cfamily_attribution.failed_ir_units, []);
+}));
+test('IR dropped-function counts remain unbound and cannot consume an invented path layout', () => temporary(root => {
+  const result = cfamilyLog(root, [irDropHeader, '1094 dropped in', '/fixture/src/a.c', '99 dropped in']);
+  assert.deepEqual(result.cfamily_attribution.dropped_function_counts,
+    [{category: 'IR_DROPPED_FUNCTIONS', count: 1094, source_binding: 'UNBOUND'}]);
+  assert.deepEqual(result.cfamily_attribution.failed_ir_units, []);
+  for (const number of ['2147483648', '99999999999', '-1', '1 ' + canary]) {
+    assert.deepEqual(cfamilyLog(root, [irDropHeader, number + ' dropped in']).cfamily_attribution.dropped_function_counts, []);
+  }
+}));
+test('published TU and header diagnostic grammar emits only fixed categories and inventory facts', () => temporary(root => {
+  const result = cfamilyLog(root, ['/fixture/src/a.c:',
+    "  /fixture/include/a.h:85 - unknown type name 'size_t'",
+    "  /fixture/include/a.h:86 - use of undeclared identifier '" + canary + "'",
+    "  /fixture/include/a.h:87 - module 'stdlib' requires feature 'compatible_headers'"]);
+  assert.deepEqual(result.cfamily_attribution.parser_diagnostics.map(fact => [fact.path, fact.line, fact.category]),
+    [['include/a.h', 85, 'UNKNOWN_TYPE'], ['include/a.h', 86, 'UNDECLARED_IDENTIFIER'], ['include/a.h', 87, 'MODULE_FEATURE']]);
+  assert.ok(result.cfamily_attribution.parser_diagnostics.every(fact => fact.translation_unit.path === 'src/a.c'));
+  assert.equal(result.diagnosis_complete, false);
+  assert.ok(!JSON.stringify(result).includes(canary));
+}));
+test('CFamily contexts reject unknown identity severity paths messages capture loss and interleaving', () => temporary(root => {
+  const diagnostic = "  /fixture/include/a.h:85 - unknown type name 'size_t'";
+  for (const interruption of [canary, '', 'INFO: Sensor other', 'DEBUG: ' + canary,
+    'INFO: [thread-2] ' + canary, '\u001b[31m', '\uFFFD', 'x'.repeat(70000)]) {
+    const result = cfamilyLog(root, ['/fixture/src/a.c:', interruption, diagnostic]);
+    assert.deepEqual(result.cfamily_attribution.parser_diagnostics, []);
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+  for (const invalid of ["  /outside/secret.h:85 - unknown type name 'size_t'",
+    "  /fixture/../fixture/include/a.h:85 - unknown type name 'size_t'",
+    "  /fixture/include/a.h:0 - unknown type name 'size_t'",
+    "  /fixture/include/a.h:10000001 - unknown type name 'size_t'",
+    diagnostic + ' ' + canary, '  /fixture/include/a.h:85 - ' + canary]) {
+    const result = cfamilyLog(root, ['/fixture/src/a.c:', invalid, diagnostic]);
+    assert.deepEqual(result.cfamily_attribution.parser_diagnostics, []);
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+  for (const invalid of ['/outside/secret.c', '/fixture/src/' + canary + '.c', '/fixture/src/a.c ' + canary]) {
+    assert.deepEqual(cfamilyLog(root, [irFailureHeader(2), invalid, '/fixture/src/a.c']).cfamily_attribution.failed_ir_units, []);
+  }
+  const result = api.emptyDiagnostics(); const state = {};
+  api.acceptLine(result, irFailureHeader(1), cfamilySources(), {}, state);
+  api.acceptLine(result, '/fixture/src/a.c', cfamilySources(), {truncated: true}, state);
+  assert.deepEqual(result.cfamily_attribution.failed_ir_units, []);
+}));
+test('CFamily attribution honors finite records and existing line and byte context budgets', () => temporary(root => {
+  const lines = [];
+  for (let n = 0; n < 140; n++) lines.push(irFailureHeader(1), '/fixture/src/a.c');
+  const capped = cfamilyLog(root, lines);
+  assert.equal(capped.cfamily_attribution.failed_ir_units.length, 128);
+  assert.equal(capped.cfamily_attribution.truncated, 12);
+  const repeated = new Array(32).fill("  /fixture/include/a.h:85 - unknown type name 'size_t'");
+  const bounded = cfamilyLog(root, ['/fixture/src/a.c:', ...repeated]);
+  assert.equal(bounded.cfamily_attribution.parser_diagnostics.length, 31);
+  assert.equal(bounded.cfamily_attribution.resets.CONTEXT_BUDGET, 1);
+  const bytes = cfamilyLog(root, [irFailureHeader(1), ' '.repeat(16400), '/fixture/src/a.c']);
+  assert.deepEqual(bytes.cfamily_attribution.failed_ir_units, []);
+  assert.equal(bytes.cfamily_attribution.resets.CONTEXT_BUDGET, 1);
+}));
+test('document reset shapes retain only finite neutral enums without changing unbound evidence', () => temporary(root => {
+  const result = logDiagnostics(root, [jsonWarning(), '12:34:56.790 DEBUG ' + canary, engineLimit]);
+  assert.deepEqual(result.visibility.document_reset_shapes,
+    {severity: {DEBUG: 1}, payload: {OTHER: 1}, logger_presence: {ABSENT: 1}});
+  assert.equal(result.visibility.context_resets.NEW_LOG_EVENT, 1);
+  assert.equal(result.signals.document_limits[0].source_binding, 'UNBOUND');
+  assert.equal(result.warnings.total, 1);
+  assert.equal(result.diagnosis_complete, false);
+  assert.ok(!JSON.stringify(result).includes(canary));
+  const logger = logDiagnostics(root, [jsonWarning(), '12:34:56.790 INFO [' + canary + '] unknown.Logger - ' + canary]);
+  assert.deepEqual(logger.visibility.document_reset_shapes.logger_presence, {UNRECOGNIZED: 1});
+  assert.ok(!JSON.stringify(logger).includes(canary));
+}));
+test('linear long-space and newline rejection stays within a hard private deadline', () => temporary(root => {
+  const program = String.raw`
+    const assert = require('node:assert/strict');
+    const api = require(${JSON.stringify(path.resolve(__dirname, '../../.github/actions/sonar-private/main.cjs'))});
+    const spaces = ' '.repeat(60000);
+    const result = api.emptyDiagnostics();
+    for (let n = 0; n < 500; n++) {
+      api.acceptLine(result, '12:34:56.789 DEBUG ' + spaces + '\ntrailing', new Map());
+      api.acceptLine(result, '12:34:56.789 DEBUG ' + spaces, new Map());
+    }
+    assert.equal(result.diagnosis_complete, false);
+    assert.deepEqual(result.signals.document_limit_associations, []);
+  `;
+  const result = spawnSync(process.execPath, ['-e', program], {encoding: 'utf8', timeout: 2500, env: {}});
+  assert.equal(result.error, undefined); assert.equal(result.signal, null); assert.equal(result.status, 0);
+  assert.equal(result.stdout, ''); assert.equal(result.stderr, '');
+}));
+
+test('consecutive trusted translation-unit contexts retain independent diagnostic ownership', () => temporary(root => {
+  const diagnostic = number => "  /fixture/include/a.h:" + number + " - unknown type name 'size_t'";
+  const result = cfamilyLog(root, ['/fixture/src/a.c:', diagnostic(85), '/fixture/src/b.c:', diagnostic(86)]);
+  assert.deepEqual(result.cfamily_attribution.parser_diagnostics.map(fact => [fact.translation_unit.path, fact.line]),
+    [['src/a.c', 85], ['src/b.c', 86]]);
+  assert.equal(result.cfamily_attribution.resets.NEW_KNOWN_CONTEXT, 1);
+  assert.equal(result.diagnosis_complete, false);
+}));
+test('published PARSE and IR sections replace old contexts without bridging ownership', () => temporary(root => {
+  const diagnostic = "  /fixture/include/a.h:85 - unknown type name 'size_t'";
+  const result = cfamilyLog(root, ['/fixture/src/a.c:', diagnostic,
+    irFailureHeader(2), '/fixture/src/a.c', '/fixture/src/b.c:', diagnostic,
+    irDropHeader, '1094 dropped in', irFailureHeader(1), '/fixture/src/b.c']);
+  assert.deepEqual(result.cfamily_attribution.parser_diagnostics.map(fact => fact.translation_unit.path), ['src/a.c', 'src/b.c']);
+  assert.deepEqual(result.cfamily_attribution.failed_ir_units.map(fact => fact.path), ['src/a.c', 'src/b.c']);
+  assert.deepEqual(result.cfamily_attribution.dropped_function_counts,
+    [{category: 'IR_DROPPED_FUNCTIONS', count: 1094, source_binding: 'UNBOUND'}]);
+  assert.equal(result.cfamily_attribution.resets.NEW_KNOWN_CONTEXT, 4);
+  assert.equal(result.diagnosis_complete, false);
+}));
+test('unknown malformed conflicting and lost replacement headers never revive the old context', () => temporary(root => {
+  const diagnostic = "  /fixture/include/a.h:85 - unknown type name 'size_t'";
+  for (const replacement of ['/outside/' + canary + '.c:',
+    '/fixture/../fixture/src/b.c:', irFailureHeader(0), irFailureHeader('2147483648'),
+    irFailureHeader(1) + ' ' + canary, 'DEBUG: ' + irFailureHeader(1).slice(6),
+    'INFO: [' + canary + '] ' + irFailureHeader(1).slice(6)]) {
+    const result = cfamilyLog(root, ['/fixture/src/a.c:', diagnostic, replacement, diagnostic, '/fixture/src/b.c']);
+    assert.equal(result.cfamily_attribution.parser_diagnostics.length, 1);
+    assert.equal(result.cfamily_attribution.parser_diagnostics[0].translation_unit.path, 'src/a.c');
+    assert.deepEqual(result.cfamily_attribution.failed_ir_units, []);
+    assert.ok(!JSON.stringify(result).includes(canary));
+  }
+  for (const flags of [{truncated: true}, {decoderLoss: true}]) {
+    const result = api.emptyDiagnostics(); const state = {}; const sources = cfamilySources();
+    api.acceptLine(result, '/fixture/src/a.c:', sources, {}, state);
+    api.acceptLine(result, '/fixture/src/b.c:', sources, flags, state);
+    api.acceptLine(result, diagnostic, sources, {}, state);
+    assert.deepEqual(result.cfamily_attribution.parser_diagnostics, []);
+    assert.equal(result.cfamily_attribution.resets.CAPTURE_LOSS, 1);
+  }
 }));

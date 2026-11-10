@@ -167,10 +167,13 @@ function emptyDiagnostics() {
     overlong_lines: 0, facts_truncated: 0, unmapped_counters: 0, locations: [], file_failures: [], counters: {},
     signals: {document_limits: [], document_limit_associations: [], llvm_errors: 0, top_level_drops: null, ir_methods: null, unmapped: 0},
     cfamily_version: null, cfamily_version_status: 'NOT_OBSERVED',
+    cfamily_attribution: {failed_ir_units: [], dropped_function_counts: [], parser_diagnostics: [],
+      unmapped: 0, truncated: 0, resets: {}},
     visibility: {version_unmapped: 0, decoder_loss_lines: 0,
       overlong_markers: Object.fromEntries(Object.keys(LINE_MARKERS).map(key => [key, 0])),
       exception_classes: {SNAKEYAML_ENGINE: 0, SNAKEYAML_CLASSIC: 0},
-      context_resets: {}, document_binding_reasons: {}}};
+      context_resets: {}, document_binding_reasons: {},
+      document_reset_shapes: {severity: {}, payload: {}, logger_presence: {}}}};
 }
 function boundedCounter(raw, grouping = false) {
   if (typeof raw !== 'string' || !(grouping ? /^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(raw) : /^\d+$/.test(raw))) return null;
@@ -399,7 +402,9 @@ function advanceDocumentContext(result, line, fact, state) {
     return candidate.fact;
   }
   if (header || !candidate.exception || !javaStackContinuation(line)) {
-    resetDocumentContext(result, state, interruptedDocumentReason(line, header));
+    const reason = interruptedDocumentReason(line, header);
+    if (reason === 'NEW_LOG_EVENT') recordDocumentResetShape(result, line);
+    resetDocumentContext(result, state, reason);
   }
   return undefined;
 }
@@ -412,13 +417,22 @@ function recordTruncatedLine(result, line, flags, parsing, cannotParse) {
 }
 // Prospective native IaC three-event layout. A correlation is additional
 // evidence, never a replacement for unbound signals or warning accounting.
+function asciiSpacePayload(text, retainFinalSpace = false) {
+  // A single-character search is linear, with no repeated/backtracking groups.
+  const first = text.search(/[^ ]/);
+  if (first >= 0) return text.slice(first);
+  return retainFinalSpace ? text.slice(-1) : '';
+}
 function nativeEvent(line) {
   const text = line.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3,9}Z /, '').replace(/\r?\n$/, '');
-  const match = /^\d{2}:\d{2}:\d{2}\.\d{3} (WARN|DEBUG|INFO|ERROR) +(.+)$/.exec(text);
+  const match = /^\d{2}:\d{2}:\d{2}\.\d{3} (WARN|DEBUG|INFO|ERROR) /.exec(text);
   if (!match) return null;
-  const identity = /^\[([\w.-]{1,64})\] (org\.sonar\.iac\.common\.extension\.analyzer\.AbstractAnalyzer) - (.*)$/.exec(match[2]);
+  // Retain the old nonempty payload, including one final space when all spaces.
+  const payload = asciiSpacePayload(text.slice(match[0].length), true);
+  if (!payload || /[\r\n\u2028\u2029]/.test(payload)) return null;
+  const identity = /^\[([\w.-]{1,64})\] (org\.sonar\.iac\.common\.extension\.analyzer\.AbstractAnalyzer) - (.*)$/.exec(payload);
   return {level: match[1], context: identity ? identity[1] + '\0' + identity[2] : null,
-    payload: identity ? identity[3] : match[2]};
+    payload: identity ? identity[3] : payload};
 }
 function eventFile(payload, prefix, sources) {
   if (!payload.startsWith(prefix)) return null;
@@ -428,7 +442,7 @@ function eventFile(payload, prefix, sources) {
 function finishNativeSequence(result, state) {
   const item = state.nativeSequence;
   state.nativeSequence = null;
-  if (!item || item.phase !== 'STACK' || !item.convertFrame || !item.analyzerFrame) return;
+  if (item?.phase !== 'STACK' || !item.convertFrame || !item.analyzerFrame) return;
   const facts = result.signals.document_limit_associations;
   const status = item.context === null ? 'SEQUENCE_CORRELATED' : 'LOGGER_THREAD_MATCHED';
   const found = facts.find(fact => fact.repository === item.fact.repository && fact.path === item.fact.path &&
@@ -489,11 +503,146 @@ function advanceNativeSequence(result, line, sources, flags, state) {
     if (!advanceNativeStack(line, item)) state.nativeSequence = null;
     return;
   }
-  if (!event || event.level !== 'DEBUG' || event.context !== item.context) { state.nativeSequence = null; return; }
+  if (event?.level !== 'DEBUG' || event.context !== item.context) { state.nativeSequence = null; return; }
   const valid = item.phase === 'DETAILS' ? advanceNativeDetails(event, item) : advanceNativeHeader(event, item, sources);
   if (!valid) state.nativeSequence = null;
 }
+function finiteIncrement(counts, key) {
+  counts[key] = Math.min(MAX_COUNTER, (counts[key] ?? 0) + 1);
+}
+function documentPayloadShape(payload) {
+  if (payload.startsWith('Cannot parse ')) return 'FILE_PARSE';
+  if (payload.startsWith('The incoming YAML document exceeds the limit: ')) return 'DOCUMENT_LIMIT';
+  if (payload.startsWith('org.sonar.iac.common.extension.ParseException: ')) return 'PARSE_EXCEPTION';
+  return 'OTHER';
+}
+function recordDocumentResetShape(result, line) {
+  const event = nativeEvent(line);
+  const shapes = result.visibility.document_reset_shapes;
+  finiteIncrement(shapes.severity, event?.level ?? 'UNRECOGNIZED');
+  finiteIncrement(shapes.payload, event ? documentPayloadShape(event.payload) : 'OTHER');
+  let presence = 'ABSENT';
+  if (event?.context) presence = 'KNOWN_IAC';
+  else if (event?.payload.startsWith('[')) presence = 'UNRECOGNIZED';
+  finiteIncrement(shapes.logger_presence, presence);
+}
+// Prospective published CFamily layouts, not proof that the current analyzer
+// emits them. Only repository inventory facts and finite classifications leave
+// this parser; transient raw contexts are never added to the public result.
+function cfamilyEnvelope(line) {
+  const text = nativeStackLine(line);
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u2028\u2029]/.test(text)) return null;
+  const prefix = /^(?:\d{2}:\d{2}:\d{2}\.\d{3} )?(INFO|DEBUG|WARN|ERROR):? /.exec(text);
+  if (!prefix) return {level: null, payload: text};
+  const payload = asciiSpacePayload(text.slice(prefix[0].length));
+  if (payload.startsWith('[')) return null; // No primary logger identity grammar.
+  return {level: prefix[1], payload};
+}
+function resetCFamily(result, state, reason) {
+  if (state.cfamily) finiteIncrement(result.cfamily_attribution.resets, reason);
+  state.cfamily = null;
+}
+function cfamilySection(event) {
+  if (event.level !== 'INFO') return null;
+  const failed = /^Encountered LLVM IR file generation failures for taint analysis for C and C\+\+ for the following (\d{1,10}) translation unit\(s\):$/.exec(event.payload);
+  if (failed) return {mode: 'IR_FAILURES', count: boundedCounter(failed[1])};
+  const dropped = /^The following translation unit\(s\) had the most function definitions dropped during LLVM IR generation for taint analysis \(up to 10 shown out of (\d{1,10})\):$/.exec(event.payload);
+  return dropped ? {mode: 'IR_DROPS', count: boundedCounter(dropped[1])} : null;
+}
+function retainCFamily(result, field, fact) {
+  const values = result.cfamily_attribution[field];
+  if (values.length < 128) values.push(fact);
+  else finiteIncrement(result.cfamily_attribution, 'truncated');
+}
+function fixedNativeDiagnostic(message) {
+  if (/^unknown type name '[A-Za-z_]\w{0,127}'(?:; did you mean '[A-Za-z_]\w{0,127}'\?)?$/.test(message)) return 'UNKNOWN_TYPE';
+  if (/^use of undeclared identifier '[A-Za-z_]\w{0,127}'$/.test(message)) return 'UNDECLARED_IDENTIFIER';
+  if (/^module '[A-Za-z_]\w{0,127}' requires feature '[A-Za-z_]\w{0,127}'$/.test(message)) return 'MODULE_FEATURE';
+  return null;
+}
+function cfamilyDiagnostic(payload, sources) {
+  const split = payload.indexOf(' - ');
+  if (split < 0) return null;
+  const location = payload.slice(0, split).trimStart();
+  const colon = location.lastIndexOf(':');
+  const digits = location.slice(colon + 1);
+  if (colon < 0 || !/^\d{1,8}$/.test(digits)) return null;
+  const fact = sourceLocation(location.slice(0, colon), sources);
+  const number = boundedCounter(digits);
+  const category = fixedNativeDiagnostic(payload.slice(split + 3));
+  if (!fact || !number || number > 10000000 || !category) return null;
+  return {...fact, line: number, category};
+}
+function consumeCFamily(result, item, event, sources) {
+  if (item.mode === 'IR_FAILURES') {
+    const fact = sourceLocation(event.payload, sources);
+    if (!fact) return false;
+    retainCFamily(result, 'failed_ir_units', {...fact, category: 'IR_GENERATION_FAILURE',
+      association_status: 'PUBLISHED_LAYOUT_CORRELATED'});
+    item.remaining--;
+    return true;
+  }
+  if (item.mode === 'IR_DROPS') {
+    const match = /^(\d{1,10}) dropped in$/.exec(event.payload);
+    if (!match) return false;
+    const count = boundedCounter(match[1]);
+    if (count === null) return false;
+    retainCFamily(result, 'dropped_function_counts', {category: 'IR_DROPPED_FUNCTIONS',
+      count, source_binding: 'UNBOUND'});
+    return true;
+  }
+  const fact = cfamilyDiagnostic(event.payload, sources);
+  if (!fact) return false;
+  retainCFamily(result, 'parser_diagnostics', {...fact, translation_unit: item.fact,
+    association_status: 'PUBLISHED_LAYOUT_CORRELATED'});
+  return true;
+}
+function startCFamily(result, state, event, sources, bytes) {
+  const section = cfamilySection(event);
+  if (section) {
+    if (!section.count || section.count > MAX_COUNTER) {
+      finiteIncrement(result.cfamily_attribution, 'unmapped');
+      return;
+    }
+    state.cfamily = {...section, remaining: section.count, level: event.level, lines: 1, bytes};
+    return;
+  }
+  if (!event.payload.endsWith(':')) return;
+  const fact = sourceLocation(event.payload.slice(0, -1), sources);
+  if (fact) state.cfamily = {mode: 'PARSE', fact, level: event.level, lines: 1, bytes};
+}
+function knownCFamilyContext(event, sources) {
+  const section = cfamilySection(event);
+  if (section) return section.count !== null && section.count > 0 && section.count <= MAX_COUNTER;
+  if (!event.payload.endsWith(':')) return false;
+  return Boolean(sourceLocation(event.payload.slice(0, -1), sources));
+}
+function advanceCFamily(result, line, sources, flags, state) {
+  if (nativeContextLost(line, flags)) { resetCFamily(result, state, 'CAPTURE_LOSS'); return; }
+  const event = cfamilyEnvelope(line);
+  if (!event) { resetCFamily(result, state, 'UNKNOWN_ENVELOPE'); return; }
+  const item = state.cfamily;
+  if (!item) { startCFamily(result, state, event, sources, Buffer.byteLength(line)); return; }
+  if (knownCFamilyContext(event, sources)) {
+    resetCFamily(result, state, 'NEW_KNOWN_CONTEXT');
+    startCFamily(result, state, event, sources, Buffer.byteLength(line));
+    return;
+  }
+  item.lines++;
+  item.bytes += Buffer.byteLength(line);
+  if (documentBudgetReason(item)) { resetCFamily(result, state, 'CONTEXT_BUDGET'); return; }
+  if (event.level !== null && event.level !== item.level) {
+    resetCFamily(result, state, 'SEVERITY_CONFLICT'); return;
+  }
+  if (!consumeCFamily(result, item, event, sources)) {
+    finiteIncrement(result.cfamily_attribution, 'unmapped');
+    resetCFamily(result, state, 'UNRECOGNIZED_CONTINUATION');
+    return;
+  }
+  if (item.mode === 'IR_FAILURES' && item.remaining === 0) state.cfamily = null;
+}
 function acceptLine(result, line, sources, flags = {}, state = {}) {
+  advanceCFamily(result, line, sources, flags, state);
   advanceNativeSequence(result, line, sources, flags, state);
   recordSeverity(result, line, flags);
   const loss = flags.decoderLoss ?? line.includes('\uFFFD');
@@ -558,7 +707,10 @@ function diagnostics(filename, sources) {
     // This point is reached only after successful EOF; a failed read must not
     // promote an incomplete private capture into correlated evidence.
     finishNativeSequence(result, state);
-  } finally { resetDocumentContext(result, state, 'END_OF_INPUT'); fs.closeSync(descriptor); }
+  } finally {
+    resetCFamily(result, state, 'END_OF_INPUT');
+    resetDocumentContext(result, state, 'END_OF_INPUT'); fs.closeSync(descriptor);
+  }
   return result;
 }
 function validateArguments(args, temporaryRoot, revision) {
