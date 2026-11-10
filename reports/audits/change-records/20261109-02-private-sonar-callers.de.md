@@ -2,6 +2,9 @@
 
 **Sprache:** Deutsch | [English](20261109-02-private-sonar-callers.md)
 
+
+Die aktuelle Aufruferänderung bindet ausschließlich die getrennt veröffentlichte Revision `9ae8ecc4f686e9cc70413e5494bc098a24eb18d7` mit Main-SHA-256 `3865be06f1ccfaf2c2757b0fc29bfd0ae0c0a0374aec9f09342292402d592a1b` und unveränderten Action-Metadaten. Die vorherige Rolle `865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a` ist nur für die exakte native Lock-Migration zugelassen; die ältere 5181-Rolle bleibt abgelehnt. Alle drei veröffentlichten Laufzeitreferenzen bleiben erhalten, einschließlich `refs/heads/codex/preparation-private-sonar-cfamily-attribution-20261110`. Die bereits geprüften 44 integrierten Node-Gruppen gelten für die unveränderte Implementierung; die aktuelle Bindung bestand 97 Vertragsmethoden (einschließlich 14 Produzenten- und 29 Zulassungsmethoden), 11 Projektionsmethoden und alle 56 physischen Updater-Methoden ohne Skips. Die tatsächliche Quellprüfung ließ 20 Composites und die geprüfte Node-Aktion zu. Parent-eigenes Python, primäre Sicherheits-/native CI-Verträge, kanonische und Wartungsaktualität, Ruff-Prüfung und Formatprüfung über den 44-Dateien-Umfang sowie festgesetztes Pyright bestanden; Pyright meldete keine Fehler oder Warnungen. Die Updater-Fixture meldete eine ResourceWarning (zwei Textvorkommen) ohne Unterdrückung. Native Generierung änderte genau sieben vorhandene Skalare und bewahrte sämtliche Mitgliedschaften und Reihenfolgen, 100 Standardfälle, 80 Selektoren und 8316 Archivdefinitionen. Frühere bestandene Bindungsabsätze beschreiben die vorherige 865-Migration. Aktuelle Auslieferung, neue gehostete Aufruferverifikation und das passende committete Parent-Paar stehen aus. Weder Parent-Gitlink noch Index werden hier verändert; das passende committete Parent-Paar steht weiterhin aus.
+
 ## Identität
 
 | Field | Value |
@@ -19,7 +22,7 @@ Das Framework verantwortet seinen Scanner-Aufrufer, die eigene native Datenrolle
 
 ## Akzeptanzkriterien
 
-Die veröffentlichte Aktion wird auf `865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a` festgesetzt. Upstream-Scanneridentität/-version, Signaturprüfung, voller Analyseumfang, Framework-cfd5-Fixture, Parent-Standards/-Projekte/-Gate-Semantik und alle 23 Integrationsprojektionen bleiben erhalten. Alle Composite-Quellen werden weiterhin geprüft; ungeprüfte Node-/Docker-Aktionen und Metadatenaliase werden abgelehnt.
+Die veröffentlichte Aktion wird auf `9ae8ecc4f686e9cc70413e5494bc098a24eb18d7` festgesetzt. Upstream-Scanneridentität/-version, Signaturprüfung, voller Analyseumfang, Framework-cfd5-Fixture, Parent-Standards/-Projekte/-Gate-Semantik und alle 23 Integrationsprojektionen bleiben erhalten. Alle Composite-Quellen werden weiterhin geprüft; ungeprüfte Node-/Docker-Aktionen und Metadatenaliase werden abgelehnt.
 
 ## Untersuchte Alternativen
 
@@ -35,7 +38,7 @@ Gehostete Kandidatenvalidierung zeigte drei Fehler wegen eines fehlenden Pakets,
 
 ## Geänderte Dateien und Tests
 
-Scanner-Workflows, native Framework-Daten/Lock-Produzent, Vertragsmodul für vollständige Aufrufe, Workflow-/Quellprüfer, Parent-Projektion/-Fixtures und gezielte Regressionen. Die vorher veröffentlichte Aktionsimplementierung und ihre 33 Offline-Tests bleiben durch diese Aufruferintegration unverändert. Der Standardfallbestand bleibt unverändert.
+Scanner-Workflows, native Framework-Daten/Lock-Produzent, Vertragsmodul für vollständige Aufrufe, Workflow-/Quellprüfer, Parent-Projektion/-Fixtures und gezielte Regressionen. Die vorher veröffentlichte Aktionsimplementierung und ihre 44 Offline-Tests bleiben durch diese Aufruferintegration unverändert. Der Standardfallbestand bleibt unverändert.
 
 Der native Lock-Produzent lässt nur die exakte vorher geprüfte Rolle zur direkten Migration auf die neu festgesetzte Rolle zu. Doppelte Diagnose-YAML-Schlüssel, Merge-Schlüssel, nicht skalare Felder und veränderte Strukturen werden vor Laden oder Ersetzen abgelehnt. Beide unabhängigen CI-Vertragsprüfungen validieren den vollständigen kanonischen Scannerschritt; allgemeine Release- und Repository-Prüfungen bleiben aktiv. Echte Proposed-Tree-Fixtures kopieren die erforderliche Paketclosure.
 
@@ -67,7 +70,7 @@ Token-Zugriff bleibt auf eine unveränderliche Remote-Aktion begrenzt. Falsche P
 
 Dieses Berichtspaar beschreibt Vorbereitung und Offline-Validierung. Gehostete Diagnosen und Qualitätsprüfungen des aktuellen Heads bleiben unabhängige Evidenz; Connector-Laufzeit oder Deployment werden nicht behauptet.
 
-Die aktuelle Bindungsprüfung bestand 97 Vertragsmethoden einschließlich 14 nativer Produzenten- und 29 Zulassungsmethoden; auch 11 echte Projektionsmethoden und alle 56 physischen Updater-Methoden bestanden. Die tatsächliche Quellprüfung ließ 20 Composites und die eine geprüfte Node-Aktion zu. Beide JavaScript-Syntaxprüfungen und alle 33 Node-Tests bestanden ohne Quellwurzelüberschreibung (0 Fehler, 0 Skips; 1786,674 ms). Parent-eigenes Python bestand seinen nativen Nachweis unabhängig. Kanonische Aktualität und Wartungsaktualität, primäre Sicherheits-/native CI-Verträge, Ruff-Prüfung und Formatprüfung über 44 Dateien sowie festgesetztes Pyright bestanden. Der erste Projektionsaufruf scheiterte an fehlendem RUNNER_TEMP; der korrigierte Aufruf mit externem Verzeichnis bestand alle 11 Methoden ohne Quelländerung. Die native Generierung änderte nur einen Lock-Commit, zwei Inventar-Digests und vier Archiv-Skalare; sämtliche Mitgliedschaften, 100 Standardfälle, 80 Selektoren und 8316 Archivdefinitionen bleiben unverändert. Gehostete Verifikation und der synchronisierte committete Parent-Zielstand stehen aus.
+Die vorherige 865-Bindungsprüfung bestand 97 Vertragsmethoden einschließlich 14 nativer Produzenten- und 29 Zulassungsmethoden; auch 11 echte Projektionsmethoden und alle 56 physischen Updater-Methoden bestanden. Die tatsächliche Quellprüfung ließ 20 Composites und die eine geprüfte Node-Aktion zu. Beide JavaScript-Syntaxprüfungen und alle 33 Node-Tests bestanden ohne Quellwurzelüberschreibung (0 Fehler, 0 Skips; 1786,674 ms). Parent-eigenes Python bestand seinen nativen Nachweis unabhängig. Kanonische Aktualität und Wartungsaktualität, primäre Sicherheits-/native CI-Verträge, Ruff-Prüfung und Formatprüfung über 44 Dateien sowie festgesetztes Pyright bestanden. Der erste Projektionsaufruf scheiterte an fehlendem RUNNER_TEMP; der korrigierte Aufruf mit externem Verzeichnis bestand alle 11 Methoden ohne Quelländerung. Die native Generierung änderte nur einen Lock-Commit, zwei Inventar-Digests und vier Archiv-Skalare; sämtliche Mitgliedschaften, 100 Standardfälle, 80 Selektoren und 8316 Archivdefinitionen bleiben unverändert. Gehostete Verifikation und der synchronisierte committete Parent-Zielstand stehen aus.
 
 ## Nicht ausgeführte Prüfungen
 

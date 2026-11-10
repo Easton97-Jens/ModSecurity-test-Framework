@@ -2,6 +2,9 @@
 
 **Language:** English | [Deutsch](20261109-02-private-sonar-callers.de.md)
 
+
+The current caller change binds only the separately published revision `9ae8ecc4f686e9cc70413e5494bc098a24eb18d7`, with main SHA-256 `3865be06f1ccfaf2c2757b0fc29bfd0ae0c0a0374aec9f09342292402d592a1b` and unchanged action metadata. The preceding role `865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a` is admitted only for exact native lock migration; the older 5181 role remains rejected. Retain all three published runtime refs, including `refs/heads/codex/preparation-private-sonar-cfamily-attribution-20261110`. The already validated 44 integrated Node groups describe the unchanged implementation; the current binding passed 97 contract methods (including 14 producer and 29 admission methods), 11 projection methods and all 56 physical updater methods without skips. Actual source lint admitted 20 composites and the reviewed Node action. Parent-owned Python proof, primary security/native CI contracts, canonical and maintenance freshness, Ruff check/format over the 44-file scope and pinned Pyright passed; Pyright reported no errors or warnings. The updater fixture emitted one ResourceWarning (two textual occurrences), without suppression. Native generation changed exactly seven existing scalar slots, preserving all memberships and order, 100 default cases, 80 selectors and 8316 archive definitions. Earlier passing binding paragraphs describe the preceding 865 migration. Current delivery, fresh hosted caller verification and the matching committed Parent pair remain pending. Neither the Parent gitlink nor its index changes here; the matching committed Parent pair remains pending.
+
 ## Identity
 
 | Field | Value |
@@ -19,7 +22,7 @@ Framework owns its scanner caller, dedicated native data role, generated lock, s
 
 ## Acceptance criteria
 
-Freeze the published action at `865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a`. Preserve upstream scanner identity/version, signature verification, complete analysis scope, Framework cfd5 fixture, Parent standards/projects/Gate semantics and all 23 integration projections. Preserve all composite source linting and reject unreviewed Node/Docker actions or metadata aliases.
+Freeze the published action at `9ae8ecc4f686e9cc70413e5494bc098a24eb18d7`. Preserve upstream scanner identity/version, signature verification, complete analysis scope, Framework cfd5 fixture, Parent standards/projects/Gate semantics and all 23 integration projections. Preserve all composite source linting and reject unreviewed Node/Docker actions or metadata aliases.
 
 ## Alternatives considered
 
@@ -35,7 +38,7 @@ Hosted candidate validation exposed three missing-package errors that an ambient
 
 ## Changed files and tests
 
-Scanner workflows, Framework native data/lock producer, whole-call contract module, workflow/source checkers, Parent projection/fixtures and focused regressions. The previously published action implementation and its 33 offline tests are unchanged by this caller integration. Standard case inventory is unchanged.
+Scanner workflows, Framework native data/lock producer, whole-call contract module, workflow/source checkers, Parent projection/fixtures and focused regressions. The previously published action implementation and its 44 offline tests are unchanged by this caller integration. Standard case inventory is unchanged.
 
 The native lock producer admits only the exact previous reviewed role for migration directly to the newly frozen role. Diagnostic YAML duplicates, merge keys, non-scalar fields and altered shapes fail before loading or replacement. Both independent CI contract passes validate the whole canonical scanner step; ordinary release and repository checks remain active. Genuine proposed-tree fixtures copy the required package closure.
 
@@ -59,7 +62,7 @@ Native canonical generation and freshness checks exited 0. Focused checks passed
 
 The complete updater cohort passed all 56 methods, including all five new role/atomicity controls and the real proposed-tree integration. The native maintenance-view producer refreshed ten existing source-binding digests and the generated archive; its freshness check passed. All 100 default cases and 80 execution selectors remain unchanged. The archive retains every existing definition and adds 16 authentic regression methods, increasing its on-demand definition count from 8292 to 8308. Native extraction identity and retained native definitions are unchanged. Parent-owned Python 3.14.4 independently passed actual workflow/upstream inventory and frozen-change denial without Framework executable imports. One existing HTTPError test fixture emitted a ResourceWarning; it was not suppressed.
 
-Current binding validation passed 97 contract methods, including 14 native-producer and 29 admission methods; 11 genuine projection methods and all 56 physical updater methods also passed. Actual source lint admitted 20 composites and the one reviewed Node action. Both JavaScript syntax checks and all 33 Node tests passed without a source-root override (0 failures, 0 skips; 1786.674 ms). Parent-owned Python independently passed its native proof. Canonical and maintenance freshness, primary security/native CI contracts, Ruff check/format over 44 files and pinned Pyright passed. The initial projection invocation failed because RUNNER_TEMP was absent; the corrected external-directory invocation passed all 11 methods without a source change. Native generation changed only one lock commit, two inventory digests and four archive scalar slots; all memberships, 100 default cases, 80 selectors and 8316 archived definitions remain unchanged. Hosted verification and the synchronized committed Parent target remain pending.
+The preceding 865 binding validation passed 97 contract methods, including 14 native-producer and 29 admission methods; 11 genuine projection methods and all 56 physical updater methods also passed. Actual source lint admitted 20 composites and the one reviewed Node action. Both JavaScript syntax checks and all 33 Node tests passed without a source-root override (0 failures, 0 skips; 1786.674 ms). Parent-owned Python independently passed its native proof. Canonical and maintenance freshness, primary security/native CI contracts, Ruff check/format over 44 files and pinned Pyright passed. The initial projection invocation failed because RUNNER_TEMP was absent; the corrected external-directory invocation passed all 11 methods without a source change. Native generation changed only one lock commit, two inventory digests and four archive scalar slots; all memberships, 100 default cases, 80 selectors and 8316 archived definitions remain unchanged. Hosted verification and the synchronized committed Parent target remain pending.
 
 ## Security impact
 

@@ -2,6 +2,9 @@
 
 **Sprache:** Deutsch | [English](20261109-05-private-sonar-cache-visibility.md)
 
+
+Die aktuelle Aufruferänderung bindet ausschließlich die getrennt veröffentlichte Revision `9ae8ecc4f686e9cc70413e5494bc098a24eb18d7` mit Main-SHA-256 `3865be06f1ccfaf2c2757b0fc29bfd0ae0c0a0374aec9f09342292402d592a1b` und unveränderten Action-Metadaten. Die vorherige Rolle `865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a` ist nur für die exakte native Lock-Migration zugelassen; die ältere 5181-Rolle bleibt abgelehnt. Alle drei veröffentlichten Laufzeitreferenzen bleiben erhalten, einschließlich `refs/heads/codex/preparation-private-sonar-cfamily-attribution-20261110`. Die bereits geprüften 44 integrierten Node-Gruppen gelten für die unveränderte Implementierung; die aktuelle Bindung bestand 97 Vertragsmethoden (einschließlich 14 Produzenten- und 29 Zulassungsmethoden), 11 Projektionsmethoden und alle 56 physischen Updater-Methoden ohne Skips. Die tatsächliche Quellprüfung ließ 20 Composites und die geprüfte Node-Aktion zu. Parent-eigenes Python, primäre Sicherheits-/native CI-Verträge, kanonische und Wartungsaktualität, Ruff-Prüfung und Formatprüfung über den 44-Dateien-Umfang sowie festgesetztes Pyright bestanden; Pyright meldete keine Fehler oder Warnungen. Die Updater-Fixture meldete eine ResourceWarning (zwei Textvorkommen) ohne Unterdrückung. Native Generierung änderte genau sieben vorhandene Skalare und bewahrte sämtliche Mitgliedschaften und Reihenfolgen, 100 Standardfälle, 80 Selektoren und 8316 Archivdefinitionen. Frühere bestandene Bindungsabsätze beschreiben die vorherige 865-Migration. Aktuelle Auslieferung, neue gehostete Aufruferverifikation und das passende committete Parent-Paar stehen aus. Weder Parent-Gitlink noch Index werden hier verändert; das passende committete Parent-Paar steht weiterhin aus.
+
 ## Identität
 
 | Feld | Wert |
@@ -9,7 +12,7 @@
 | Change-ID | 20261109-05-private-sonar-cache-visibility |
 | UTC-Datum | 2026-11-09 |
 | Framework-Basisrevision | d521ea718149e6b5fc719a0dc4fecf07eb733e7f |
-| Veröffentlichte Action-Revision | 865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a |
+| Veröffentlichte Action-Revision | 9ae8ecc4f686e9cc70413e5494bc098a24eb18d7 |
 | Issue oder Pull Request | Framework PR #169 |
 
 ## Motivation und Problemstellung
@@ -51,7 +54,7 @@ Die aktuelle Folgeänderung besitzt ausschließlich den Aktionscode, seinen nati
 
 ## Befehle und Ergebnisse
 
-Die aktuelle tatsächliche Integration bestand beide Syntaxprüfungen und alle 44 Node-Gruppen ohne Fehler, Skips oder Abbrüche in 3518,107122 ms, bei ungesetzter Quellwurzelüberschreibung und wiederhergestellten nativen Testpfaden. Alle vorherigen 33 Gruppen bleiben erhalten; elf zusätzliche Gruppen prüfen prospektives Parsen, Datenschutz, Grenzen, aufeinanderfolgende TU-/IR-Kontexte und lineare Abweisung. Die ursprüngliche Gruppe mit 10.000 Identitäten und 50.000 Wiederholungen dauerte 981,77789 ms; die unveränderten 500 Langraum-/Zeilenumbruchpaare dauerten 1475,98501 ms. Beide harten Kindprozessfristen von 2500 ms bleiben unverändert. Haupt-CI-Sicherheit, kanonische Aktualität und Wartungsaktualität bestanden. Die tatsächlichen 29 Zulassungsmethoden ergaben 27 Erfolge und zwei Fehler, welche die neue Implementierung gegen die unveränderte veröffentlichte 865-Rolle abwiesen; tatsächliche Composite-Zulassung endete wegen desselben festgesetzten Implementierungshashkonflikts mit Exit 1. Dies ist ein aktueller Übergangsfehler, kein bestandener Lauf mit 20 Composites und einer Node-Aktion. Weder Rolle noch Erwartung oder Schutzprüfung wurden gelockert. Native Dokumentationsprüfungen und ihre beobachteten Ergebnisse begleiten den Validierungsnachweis des aktuellen Quellstands.
+Die vorherige Implementierungsintegration bestand beide Syntaxprüfungen und alle 44 Node-Gruppen ohne Fehler, Skips oder Abbrüche in 3518,107122 ms, bei ungesetzter Quellwurzelüberschreibung und wiederhergestellten nativen Testpfaden. Alle vorherigen 33 Gruppen bleiben erhalten; elf zusätzliche Gruppen prüfen prospektives Parsen, Datenschutz, Grenzen, aufeinanderfolgende TU-/IR-Kontexte und lineare Abweisung. Die ursprüngliche Gruppe mit 10.000 Identitäten und 50.000 Wiederholungen dauerte 981,77789 ms; die unveränderten 500 Langraum-/Zeilenumbruchpaare dauerten 1475,98501 ms. Beide harten Kindprozessfristen von 2500 ms bleiben unverändert. Haupt-CI-Sicherheit, kanonische Aktualität und Wartungsaktualität bestanden. Vor der aktuellen 9ae-Bindung ergaben die tatsächlichen 29 Zulassungsmethoden 27 Erfolge und zwei Fehler, welche die neue Implementierung gegen die unveränderte veröffentlichte 865-Rolle abwiesen; tatsächliche Composite-Zulassung endete wegen desselben festgesetzten Implementierungshashkonflikts mit Exit 1. Dies war ein Übergangsfehler, kein bestandener Lauf mit 20 Composites und einer Node-Aktion. Weder Rolle noch Erwartung oder Schutzprüfung wurden gelockert. Native Dokumentationsprüfungen und ihre beobachteten Ergebnisse begleiten den Validierungsnachweis des aktuellen Quellstands.
 
 Der vorherige gehostete Aufrufer unter `2fcaea1e36532c40366aab0cb41e88fd7ab335b7` bestand Scannerausführung und alle fünf Gate-Bedingungen und beobachtete CFamily 6.86.0.113840. Dort blieben vier JavaScript-Befunde OPEN: S8786, zwei S6582-Befunde und S7778. Diese Quellfolgeänderung korrigiert die betroffenen Ausdrücke; gehostete Schließung am neuen Head wird nicht behauptet. Wiederhergestellte Parser-/IR-Verluste, Shell-Fehler und die ungebundene Dokumentlimitbeobachtung bleiben ungeklärt.
 
@@ -73,7 +76,7 @@ Die vorherige 865-Aufrufermigration bestand 97 Vertragsmethoden einschließlich 
 
 ## Nicht ausgeführte Prüfungen
 
-Diese Implementierung ist noch nicht unveränderlich veröffentlicht oder in Aufrufern neu gebunden. Aktuelle Gesamtquellzulassung weist den Unterschied zur noch gültigen 865-Rolle strikt ab. Nach regulärer Veröffentlichung müssen genaue Rollenbindung und Zulassung tatsächlich bestehen. Vollständige native Prüfung des passenden committeten Parent-Paars, gehostete Qualitätsverifikation und kausale Schließung der Shell-, JSON- und CFamily-Lücken stehen aus. Keine Projekt- oder Qualitätsprofileinstellung wurde geändert.
+Vor Veröffentlichung unter `9ae8ecc4f686e9cc70413e5494bc098a24eb18d7` wies die strikte Gesamtquellzulassung den Unterschied zur 865-Rolle ab. Dieser beobachtete Übergangsfehler bleibt historische Evidenz. Die Implementierung ist jetzt unveränderlich veröffentlicht; ihre aktuelle exakte Quellbindung bestand alle 29 Zulassungsmethoden und tatsächliche Quellprüfung für 20 Composites und eine Node-Aktion ohne gelockerte Schutzprüfung. Aufruferauslieferung, neue gehostete Qualitätsverifikation, vollständige native Prüfung des passenden committeten Parent-Paars und kausale Schließung der Shell-, JSON- und CFamily-Lücken stehen aus. Keine Projekt- oder Qualitätsprofileinstellung wurde geändert.
 
 ## Einschränkungen und Restrisiko
 
@@ -81,4 +84,4 @@ Leerer privater Cachespeicher kann Laufzeit und Plattenbedarf erhöhen. Literalm
 
 ## Finaler Diff- und Review-Status
 
-Historische Implementierungen und Aufrufermigrationen wurden unabhängig geprüft und regulär veröffentlicht. Dieser private Nachfolger wurde unabhängig geprüft und mit seinen nativen Testpfaden integriert. Die aktuellen 44 Offline-Gruppen bestehen; aktuelle strikte Zulassungsfehler sind oben ausdrücklich dokumentiert. Neue unveränderliche Veröffentlichung, genaue Aufruferbindung und gehostete Verifikation stehen aus. Übergreifende Integration und geschlossene Analyzer-Lücken werden nicht behauptet.
+Historische Implementierungen und Aufrufermigrationen wurden unabhängig geprüft und regulär veröffentlicht. Der 9ae-Nachfolger wurde unabhängig geprüft und mit nativen Testpfaden integriert; sein vorhandener quellgebundener Offline-Nachweis mit 44 Gruppen wird hier unverändert wiederverwendet. Die aktuelle Quelle bindet die veröffentlichte unveränderliche Revision und besteht exakte Zulassung. Aufruferauslieferung und neue gehostete Verifikation stehen aus. Übergreifende Integration und geschlossene Analyzer-Lücken werden nicht behauptet.

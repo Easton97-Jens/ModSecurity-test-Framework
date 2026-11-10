@@ -2,6 +2,9 @@
 
 **Language:** English | [Deutsch](20261109-05-private-sonar-cache-visibility.de.md)
 
+
+The current caller change binds only the separately published revision `9ae8ecc4f686e9cc70413e5494bc098a24eb18d7`, with main SHA-256 `3865be06f1ccfaf2c2757b0fc29bfd0ae0c0a0374aec9f09342292402d592a1b` and unchanged action metadata. The preceding role `865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a` is admitted only for exact native lock migration; the older 5181 role remains rejected. Retain all three published runtime refs, including `refs/heads/codex/preparation-private-sonar-cfamily-attribution-20261110`. The already validated 44 integrated Node groups describe the unchanged implementation; the current binding passed 97 contract methods (including 14 producer and 29 admission methods), 11 projection methods and all 56 physical updater methods without skips. Actual source lint admitted 20 composites and the reviewed Node action. Parent-owned Python proof, primary security/native CI contracts, canonical and maintenance freshness, Ruff check/format over the 44-file scope and pinned Pyright passed; Pyright reported no errors or warnings. The updater fixture emitted one ResourceWarning (two textual occurrences), without suppression. Native generation changed exactly seven existing scalar slots, preserving all memberships and order, 100 default cases, 80 selectors and 8316 archive definitions. Earlier passing binding paragraphs describe the preceding 865 migration. Current delivery, fresh hosted caller verification and the matching committed Parent pair remain pending. Neither the Parent gitlink nor its index changes here; the matching committed Parent pair remains pending.
+
 ## Identity
 
 | Field | Value |
@@ -9,7 +12,7 @@
 | Change ID | 20261109-05-private-sonar-cache-visibility |
 | UTC date | 2026-11-09 |
 | Framework base revision | d521ea718149e6b5fc719a0dc4fecf07eb733e7f |
-| Published action revision | 865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a |
+| Published action revision | 9ae8ecc4f686e9cc70413e5494bc098a24eb18d7 |
 | Issue or pull request | Framework PR #169 |
 
 ## Motivation and problem statement
@@ -51,7 +54,7 @@ The current follow-up owns only the action executable, its native test and this 
 
 ## Commands and results
 
-The current actual integration passed both syntax checks and all 44 Node groups without failures, skips or cancellations in 3518.107122 ms, with the source-root override unset and native test paths restored. All preceding 33 groups remain; eleven additional groups cover the prospective parser, privacy, bounds, consecutive TU/IR contexts and linear rejection. The original 10,000-identity/50,000-repeat group completed in 981.77789 ms; the unchanged 500 long-space/newline pairs completed in 1475.98501 ms. Both hard 2500 ms child deadlines remain unchanged. Main CI security, canonical freshness and maintenance freshness passed. The actual 29 admission methods produced 27 passes and two errors rejecting the new implementation against the unchanged published 865 role; actual composite admission exited 1 for that same frozen-body mismatch. This is a current transitional failure, not a completed 20-composite/one-Node pass. No role, expectation or guard was weakened. Native documentation checks and their observed results accompany the current-source validation receipt.
+The preceding payload integration passed both syntax checks and all 44 Node groups without failures, skips or cancellations in 3518.107122 ms, with the source-root override unset and native test paths restored. All preceding 33 groups remain; eleven additional groups cover the prospective parser, privacy, bounds, consecutive TU/IR contexts and linear rejection. The original 10,000-identity/50,000-repeat group completed in 981.77789 ms; the unchanged 500 long-space/newline pairs completed in 1475.98501 ms. Both hard 2500 ms child deadlines remain unchanged. Main CI security, canonical freshness and maintenance freshness passed. Before the current 9ae binding, the actual 29 admission methods produced 27 passes and two errors rejecting the new implementation against the unchanged published 865 role; actual composite admission exited 1 for that same frozen-body mismatch. That was a transitional failure, not a completed 20-composite/one-Node pass. No role, expectation or guard was weakened. Native documentation checks and their observed results accompany the current-source validation receipt.
 
 The preceding hosted caller at `2fcaea1e36532c40366aab0cb41e88fd7ab335b7` passed scanner execution and all five Gate conditions and observed CFamily 6.86.0.113840. Four JavaScript findings remained OPEN there: S8786, two S6582 findings and S7778. This source follow-up addresses those expressions; no new-head hosted closure is claimed. Recovered parsing and IR losses, Shell failures and the unbound document-limit observation remain unresolved.
 
@@ -73,7 +76,7 @@ The historical cache payload `5181cedba82af8d83de4b123080fb80ff414de15` with mai
 
 ## Checks not run
 
-This implementation has not yet been immutably published or rebound in callers. Current whole-source admission strictly rejects its difference from the still-valid 865 role. After normal publication, exact role binding and admission must genuinely pass. Full-native verification of the matching committed Parent pair, hosted quality verification and causal closure of Shell, JSON and CFamily gaps remain pending. No project or quality-profile setting was changed.
+Before publication at `9ae8ecc4f686e9cc70413e5494bc098a24eb18d7`, strict whole-source admission rejected the difference from the 865 role. That observed transitional failure remains historical evidence. The implementation is now immutably published, and its current exact source binding passed all 29 admission methods and actual 20-composite/one-Node source lint without weakening a guard. Caller delivery, fresh hosted quality verification, full-native verification of the matching committed Parent pair and causal closure of Shell, JSON and CFamily gaps remain pending. No project or quality-profile setting was changed.
 
 ## Limitations and residual risk
 
@@ -81,4 +84,4 @@ Empty private cache storage can increase runtime and disk use. Literal overlong 
 
 ## Final diff and review status
 
-Historical payloads and caller migrations were independently reviewed and normally published. This private successor was independently reviewed and integrated with its native test paths. Current 44 offline groups pass; current strict admission failures are explicitly recorded above. New immutable publication, exact caller binding and hosted verification remain pending. Overall integration and analyzer-gap closure are not claimed.
+Historical payloads and caller migrations were independently reviewed and normally published. The 9ae successor was independently reviewed and integrated with native test paths; its existing 44-group source-bound offline receipt is reused unchanged here. The current source binds the published immutable revision and passes exact admission. Caller delivery and fresh hosted verification remain pending. Overall integration and analyzer-gap closure are not claimed.
