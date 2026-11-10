@@ -54,8 +54,8 @@ releases, and commit identities are:
 | `actions/download-artifact` | [actions/download-artifact](https://github.com/actions/download-artifact) | v8.0.2 | 9000827ccba6bdab643e8b6fd33ac0654aef8333 | MIT | Retrieves one caller-bound canonical maintenance-plan artifact for same-run validation. |
 | `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | v9.0.0 | 3a2844b7e9c422d3c10d287c895573f7108da1b3 | MIT | Inspects constrained Draft PRs or performs artifact-retention cleanup. |
 | `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | v3.3.0 | 64ab729a6294000f5aa4a4bc0b73d1f32bc45510 | MIT | Mints the Common-version, CPython-version, or workflow-tool publisher's short-lived, repository-limited App token. |
-| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | v8.1.1 | 5f6978faf089d4d20b00c7766989d076bb2fc7f1 | MIT | Creates constrained Common-version or CPython-version Draft pull requests. |
-| `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | v4.39.1 | 9b3254085494b55a0f7c4c2b3d2d52cc712ce370 | MIT | Performs the bounded CodeQL analysis and trusted SARIF upload. |
+| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | v8.1.2 | 15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 | MIT | Creates constrained Common-version or CPython-version Draft pull requests. |
+| `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | v4.39.3 | 33d7b85da1a04171e211befe2c739303b9a4c066 | MIT | Performs the bounded CodeQL analysis and trusted SARIF upload. |
 | `actions/dependency-review-action` | [actions/dependency-review-action](https://github.com/actions/dependency-review-action) | v5.0.0 | a1d282b36b6f3519aa1f3fc636f609c47dddb294 | MIT | Reviews dependency-changing pull requests without remediation. |
 
 The contract rejects tags, branches, shortened or uppercase SHAs, dynamic
