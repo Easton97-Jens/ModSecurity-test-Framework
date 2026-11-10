@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "317eaa0032a5bed5c8a9518bb9a4631489f7f318ebc2c8ff132c62dbeea426a0",
+  "inventory_sha256": "eeef557fe21be43d2f091658226c5badf7e2fb675eaf28ef531ffea4b3e17ab4",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8316,
+  "on_demand_definition_count": 8318,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -5263,12 +5263,14 @@
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_stale_symbolic_duplicate_or_missing_reference_rejected_without_writes",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_unregistered_workflow_and_historical_proof_are_untouched",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_trusted_base_reconstruction_rejects_unrelated_bytes_and_index_mode",
+        "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_trusted_base_sonar_migration_and_frozen_role_reconstruct_exact_bytes",
+        "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_unreviewed_legacy_sonar_trusted_bases_fail_closed",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_publisher_allowlists_match_every_fixed_projection",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_ci_validation_bridge_uses_pinned_framework_without_global_product_path",
         "modsecurity_connector_tests.test_framework_workflow_pin_projection.FrameworkWorkflowPinProjectionTests.test_ci_validation_bridge_rejects_framework_checkout_pin_mismatch"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_framework_workflow_pin_projection.py",
-      "source_sha256": "586577cf216d49a362ef04121fffa439aa750cb58f3884fd88d8e5e3612d665d"
+      "source_sha256": "cbb2eb5fb00d09ec1e1b31dfcf1851442096a5e0bd767fe541fe1eb8a8685cc6"
     },
     {
       "contains_selected_definitions": [],

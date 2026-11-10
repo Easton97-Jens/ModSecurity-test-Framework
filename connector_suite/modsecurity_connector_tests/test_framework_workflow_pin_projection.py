@@ -19,6 +19,12 @@ from modsecurity_connector_tests.test_update_framework_versions import CURRENT_C
 
 SYNC = load_source(source_path("ci/tools/sync-framework-component-versions.py"))
 FROZEN_SONAR = "9ae8ecc4f686e9cc70413e5494bc098a24eb18d7"
+LEGACY_SONAR_REPORT = r"""            if test -f "$RUNNER_TEMP/sonar-work/report-task.txt"; then
+              sed -n '/^\(ceTaskId\|dashboardUrl\|projectKey\)=/p' "$RUNNER_TEMP/sonar-work/report-task.txt"
+            else
+              echo 'No server report published / Kein Serverreport veröffentlicht'
+            fi
+"""
 
 
 class FrameworkWorkflowPinProjectionTests(unittest.TestCase):
@@ -245,6 +251,94 @@ class FrameworkWorkflowPinProjectionTests(unittest.TestCase):
         self.git("update-index", "--chmod=+x", ".github/workflows/test-apache.yml")
         with self.assertRaises(SYNC.SyncError):
             SYNC.verify_primary_changes(self.root, self.common, self.new, base, staged=True, framework_object_root=self.objects)
+
+    def legacy_sonar_workflow(self, private):
+        """Reproduce the old direct caller independently of the projector."""
+        legacy = private.replace(
+            "        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/sonar-private@" + FROZEN_SONAR + "\n",
+            "        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0\n",
+        ).replace(
+            "          owner-mode: parent-cpp${{ matrix.cpp }}\n"
+            "          upstream-action: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0\n",
+            "",
+        )
+        suffix = '          } >> "$GITHUB_STEP_SUMMARY"\n'
+        self.assertEqual(private.count(suffix), 1)
+        self.assertNotEqual(legacy, private)
+        return legacy.replace(suffix, LEGACY_SONAR_REPORT + suffix)
+
+    def test_trusted_base_sonar_migration_and_frozen_role_reconstruct_exact_bytes(self):
+        original = self.snapshot()
+        name = ".github/workflows/sonarqube.yml"
+        private = original[name].decode()
+        expected = private.replace(self.old, self.new)
+        values = SYNC.parse_common(self.common)
+        for role, trusted in (("private", private), ("direct", self.legacy_sonar_workflow(private))):
+            with self.subTest(trusted_role=role):
+                for relative, data in original.items():
+                    (self.root / relative).write_bytes(data)
+                target = self.root / name
+                target.write_text(trusted)
+                base = self.baseline()
+                for item in SYNC._render_targets(self.root, values, self.new, framework_object_root=self.objects):
+                    item.path.write_bytes(item.replacement)
+                self.assertEqual(target.read_text(), expected)
+                self.assertIn("sonar-private@" + FROZEN_SONAR, expected)
+                self.assertIn('echo "Scanner and gate / Scanner und Gate: $SCAN_OUTCOME"', expected)
+                self.assertNotIn("report-task.txt", expected)
+                SYNC.verify_primary_changes(self.root, self.common, self.new, base, framework_object_root=self.objects)
+                self.git("add", ".")
+                SYNC.verify_primary_changes(self.root, self.common, self.new, base, staged=True, framework_object_root=self.objects)
+                for mutation, candidate in (
+                    ("upstream", expected.replace("upstream-action: SonarSource/", "upstream-action: unknown/")),
+                    ("input", expected.replace("-Dsonar.qualitygate.wait=true", "-Dsonar.qualitygate.wait=false")),
+                    ("wrapper", expected.replace("sonar-private@" + FROZEN_SONAR, "sonar-private@" + self.new)),
+                    ("public-summary", expected.replace("Scanner and gate / Scanner und Gate", "Unreviewed summary")),
+                    ("unrelated", expected + "# unrelated mutation\n"),
+                    ("partial-report", expected.replace('          } >> "$GITHUB_STEP_SUMMARY"\n',
+                                                            '            if test -f "$RUNNER_TEMP/sonar-work/report-task.txt"; then\n'
+                                                            '          } >> "$GITHUB_STEP_SUMMARY"\n')),
+                ):
+                    with self.subTest(trusted_role=role, mutation=mutation):
+                        target.write_text(candidate)
+                        with self.assertRaisesRegex(SYNC.SyncError, "differs from trusted-base reconstruction"):
+                            SYNC.verify_primary_changes(self.root, self.common, self.new, base, framework_object_root=self.objects)
+                        self.git("add", "--", name)
+                        with self.assertRaisesRegex(SYNC.SyncError, "differs from trusted-base reconstruction"):
+                            SYNC.verify_primary_changes(self.root, self.common, self.new, base, staged=True, framework_object_root=self.objects)
+                target.write_text(expected)
+
+    def test_unreviewed_legacy_sonar_trusted_bases_fail_closed(self):
+        original = self.snapshot()
+        name = ".github/workflows/sonarqube.yml"
+        legacy = self.legacy_sonar_workflow(original[name].decode())
+        values = SYNC.parse_common(self.common)
+        proposed = {str(item.path.relative_to(self.root)): item.replacement
+                    for item in SYNC._render_targets(self.root, values, self.new, framework_object_root=self.objects)}
+        for mutation, trusted in (
+            ("upstream", legacy.replace("sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304",
+                                        "sonarqube-scan-action@" + self.new)),
+            ("input", legacy.replace("-Dsonar.qualitygate.wait=true", "-Dsonar.qualitygate.wait=false")),
+            ("wrapper", legacy.replace("uses: SonarSource/sonarqube-scan-action@", "uses: unknown/wrapper@")),
+            ("missing-report", legacy.replace(LEGACY_SONAR_REPORT, "")),
+            ("partial-report", legacy.replace(LEGACY_SONAR_REPORT, LEGACY_SONAR_REPORT.replace("            fi\n", ""))),
+            ("altered-summary", legacy.replace("Scanner and gate / Scanner und Gate", "Unreviewed summary")),
+            ("displaced-report", legacy.replace(LEGACY_SONAR_REPORT, "") + LEGACY_SONAR_REPORT),
+            ("duplicate-report", legacy + LEGACY_SONAR_REPORT),
+        ):
+            with self.subTest(mutation=mutation):
+                for relative, data in original.items():
+                    (self.root / relative).write_bytes(data)
+                (self.root / name).write_text(trusted)
+                base = self.baseline()
+                for relative, data in proposed.items():
+                    (self.root / relative).write_bytes(data)
+                self.git("add", ".")
+                for staged in (False, True):
+                    with self.subTest(mutation=mutation, staged=staged), self.assertRaisesRegex(
+                            SYNC.SyncError, "(?:private Sonar call|legacy Sonar report) differs"):
+                        SYNC.verify_primary_changes(self.root, self.common, self.new, base, staged=staged,
+                                                    framework_object_root=self.objects)
 
     def test_publisher_allowlists_match_every_fixed_projection(self):
         publisher = (connector_root() / ".github/workflows/update-submodules.yml").read_text()
