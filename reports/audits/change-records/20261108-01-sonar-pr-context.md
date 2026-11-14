@@ -114,6 +114,15 @@ the corrected PR contexts until independently reconciled.
 
 ## Final diff and review status
 
+Maintenance reconciliation on 2026-11-14 preserves the current master tool
+updates, including the reviewed Sonar v8.4.1 action identity. The private
+diagnostic executable remains pinned to its unchanged reviewed commit. A Git
+fixture regression covers atomic publication from the exact previous private
+v8.4.0 base, stale working callers and mutated prior inputs. The 100 default
+cases and 80 default selectors remain the required inventory contract. Native
+regeneration and focused validation results are recorded by the coordinating
+task; this note alone claims no test or hosted analysis result.
+
 Changes are handed to the coordinating task for scoped diff review, native
 documentation/generator checks and normal delivery on the existing Draft PR.
 This record does not declare the overall task complete.

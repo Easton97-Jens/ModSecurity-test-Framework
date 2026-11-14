@@ -131,7 +131,7 @@ jobs:
         with:
           scannerVersion: 8.2.0.6438
           owner-mode: framework
-          upstream-action: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+          upstream-action: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
           args: >-
             -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
             -Dsonar.working.directory=${{ runner.temp }}/framework-sonar-work

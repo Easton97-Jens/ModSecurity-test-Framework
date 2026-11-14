@@ -118,6 +118,16 @@ bleiben bis zur unabhängigen Klärung von den korrigierten PR-Kontexten getrenn
 
 ## Finaler Diff- und Review-Status
 
+Die Wartungsabstimmung vom 2026-11-14 erhält die aktuellen Master-Toolupdates,
+einschließlich der geprüften Sonar-v8.4.1-Action-Identität. Das private
+Diagnoseprogramm bleibt auf seinen unveränderten geprüften Commit gepinnt.
+Eine Git-Fixture-Regression deckt die atomare Veröffentlichung aus der exakt
+bekannten vorherigen privaten v8.4.0-Basis, veraltete Arbeitskopie-Aufrufer und
+veränderte frühere Eingaben ab. Die 100 Standardfälle und 80 Standardselektoren
+bleiben der geforderte Inventarvertrag. Native Neugenerierung und fokussierte
+Prüfergebnisse dokumentiert der koordinierende Auftrag; dieser Hinweis allein
+behauptet weder ein Testergebnis noch ein Hosted-Analyseergebnis.
+
 Die Änderungen gehen zur begrenzten Diff-Prüfung, nativen Dokumentations- und
 Generatorprüfung und regulären Auslieferung im bestehenden Draft-PR an den
 koordinierenden Auftrag. Dieser Record erklärt den Gesamtauftrag nicht für

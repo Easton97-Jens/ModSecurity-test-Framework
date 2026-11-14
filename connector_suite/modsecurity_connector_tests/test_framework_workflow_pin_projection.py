@@ -256,10 +256,10 @@ class FrameworkWorkflowPinProjectionTests(unittest.TestCase):
         """Reproduce the old direct caller independently of the projector."""
         legacy = private.replace(
             "        uses: Easton97-Jens/ModSecurity-test-Framework/.github/actions/sonar-private@" + FROZEN_SONAR + "\n",
-            "        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0\n",
+            "        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1\n",
         ).replace(
             "          owner-mode: parent-cpp${{ matrix.cpp }}\n"
-            "          upstream-action: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0\n",
+            "          upstream-action: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1\n",
             "",
         )
         suffix = '          } >> "$GITHUB_STEP_SUMMARY"\n'
@@ -316,7 +316,7 @@ class FrameworkWorkflowPinProjectionTests(unittest.TestCase):
         proposed = {str(item.path.relative_to(self.root)): item.replacement
                     for item in SYNC._render_targets(self.root, values, self.new, framework_object_root=self.objects)}
         for mutation, trusted in (
-            ("upstream", legacy.replace("sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304",
+            ("upstream", legacy.replace("sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65",
                                         "sonarqube-scan-action@" + self.new)),
             ("input", legacy.replace("-Dsonar.qualitygate.wait=true", "-Dsonar.qualitygate.wait=false")),
             ("wrapper", legacy.replace("uses: SonarSource/sonarqube-scan-action@", "uses: unknown/wrapper@")),
@@ -339,6 +339,47 @@ class FrameworkWorkflowPinProjectionTests(unittest.TestCase):
                             SYNC.SyncError, "(?:private Sonar call|legacy Sonar report) differs"):
                         SYNC.verify_primary_changes(self.root, self.common, self.new, base, staged=staged,
                                                     framework_object_root=self.objects)
+
+    def test_previous_private_sonar_base_upgrades_atomically_and_rejects_mutations(self):
+        name = ".github/workflows/sonarqube.yml"
+        current = (self.root / name).read_text()
+        previous = current.replace(
+            "SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1",
+            "SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0",
+        )
+        self.assertNotEqual(previous, current)
+        values = SYNC.parse_common(self.common)
+        proposed = {str(item.path.relative_to(self.root)): item.replacement
+                    for item in SYNC._render_targets(self.root, values, self.new,
+                                                     framework_object_root=self.objects)}
+        target = self.root / name
+        target.write_text(previous)
+        base = self.baseline()
+        with self.assertRaisesRegex(SYNC.SyncError, "private Sonar call differs"):
+            SYNC._render_targets(self.root, values, self.new, framework_object_root=self.objects)
+        for relative, data in proposed.items():
+            (self.root / relative).write_bytes(data)
+        expected = current.replace(self.old, self.new)
+        self.assertEqual(target.read_text(), expected)
+        self.git("add", ".")
+        for staged in (False, True):
+            SYNC.verify_primary_changes(self.root, self.common, self.new, base,
+                                        staged=staged, framework_object_root=self.objects)
+        target.write_text(previous.replace(self.old, self.new))
+        self.git("add", "--", name)
+        for staged in (False, True):
+            with self.assertRaisesRegex(SYNC.SyncError, "differs from trusted-base reconstruction"):
+                SYNC.verify_primary_changes(self.root, self.common, self.new, base,
+                                            staged=staged, framework_object_root=self.objects)
+        # A genuine Git base with the previous tuple but altered input is denied.
+        target.write_text(previous.replace("-Dsonar.qualitygate.wait=true", "-Dsonar.qualitygate.wait=false"))
+        bad_base = self.baseline()
+        target.write_text(expected)
+        self.git("add", "--", name)
+        for staged in (False, True):
+            with self.assertRaisesRegex(SYNC.SyncError, "private Sonar call differs"):
+                SYNC.verify_primary_changes(self.root, self.common, self.new, bad_base,
+                                            staged=staged, framework_object_root=self.objects)
 
     def test_publisher_allowlists_match_every_fixed_projection(self):
         publisher = (connector_root() / ".github/workflows/update-submodules.yml").read_text()
