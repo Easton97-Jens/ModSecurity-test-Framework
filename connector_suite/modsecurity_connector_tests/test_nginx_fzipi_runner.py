@@ -332,6 +332,86 @@ class FzipiRunnerTests(unittest.TestCase):
                     runner.run_scenarios(runner.RuntimePaths(self.base), 12345, receipt)
         self.assertEqual(receipt["cases"], {})
 
+    def completed_scenario_receipt(self) -> dict:
+        receipt = {"cases": {}, "cleanup": {"process_group_absent": True, "exit_code": 0}}
+        early_audit = "\n".join(json.dumps(row) for row in self.audit_records())
+        with mock.patch.object(runner, "request", side_effect=self.client_response):
+            with mock.patch.object(runner, "read_server_file", return_value=early_audit):
+                runner.run_scenarios(runner.RuntimePaths(self.base), 12345, receipt)
+        return receipt
+
+    def completion_storage(self, rows: list[dict]) -> mock.Mock:
+        audit = "\n".join(json.dumps(row) for row in rows)
+
+        def read(path, *, owner):
+            if path.name == "audit.json":
+                self.assertEqual(owner, 65534)
+                return audit
+            self.assertEqual(path.name, "error.log")
+            self.assertEqual(owner, 0)
+            return "stale-followup-callbacks=2 null-callback=1"
+
+        return mock.Mock(side_effect=read)
+
+    @staticmethod
+    def closed_listener() -> mock.MagicMock:
+        probe = mock.MagicMock()
+        probe.__enter__.return_value = probe
+        probe.connect_ex.return_value = 111
+        return probe
+
+    def test_final_completion_rejects_a_late_duplicate_for_every_scenario(self) -> None:
+        paths = runner.RuntimePaths(self.base)
+        for scenario in runner.SCENARIOS:
+            with self.subTest(scenario=scenario.name):
+                receipt = self.completed_scenario_receipt()
+                rows = self.audit_records()
+                duplicate = next(row for row in rows
+                                 if row["transaction"]["unique_id"] == scenario.name)
+                rows.append(copy.deepcopy(duplicate))
+                storage = self.completion_storage(rows)
+                probe = self.closed_listener()
+                with mock.patch.object(runner, "read_server_file", storage):
+                    with mock.patch.object(runner.socket, "socket", return_value=probe):
+                        with self.assertRaisesRegex(runner.FixtureFailure, "native audit ownership"):
+                            runner.verify_native_completion(paths, 12345, receipt)
+                self.assertEqual(storage.call_count, 1)
+                self.assertEqual(receipt["cases"][scenario.name]["native_audit_records"],
+                                 scenario.audit_count + 1)
+                self.assertEqual(receipt["cases"][scenario.name]["status"], "failed")
+
+    def test_final_completion_rechecks_the_original_native_status(self) -> None:
+        paths = runner.RuntimePaths(self.base)
+        receipt = self.completed_scenario_receipt()
+        rows = self.audit_records()
+        rows[0]["transaction"]["response"]["http_code"] = 200
+        storage = self.completion_storage(rows)
+        probe = self.closed_listener()
+        with mock.patch.object(runner, "read_server_file", storage):
+            with mock.patch.object(runner.socket, "socket", return_value=probe):
+                with self.assertRaisesRegex(runner.FixtureFailure, "original native block status"):
+                    runner.verify_native_completion(paths, 12345, receipt)
+        self.assertEqual(storage.call_count, 1)
+
+    def test_final_completion_refreshes_receipt_metadata_from_one_final_audit_read(self) -> None:
+        paths = runner.RuntimePaths(self.base)
+        receipt = self.completed_scenario_receipt()
+        for result in receipt["cases"].values():
+            result["native_audit_records"] = -1
+            result["rule_ids"] = ["stale"]
+        storage = self.completion_storage(self.audit_records())
+        probe = self.closed_listener()
+        with mock.patch.object(runner, "read_server_file", storage):
+            with mock.patch.object(runner.socket, "socket", return_value=probe):
+                runner.verify_native_completion(paths, 12345, receipt)
+        self.assertEqual(storage.call_args_list, [mock.call(paths.audit, owner=65534),
+                                                mock.call(paths.logs / "error.log", owner=0)])
+        for scenario in runner.SCENARIOS:
+            self.assertEqual(receipt["cases"][scenario.name]["native_audit_records"], scenario.audit_count)
+            expected_ids = [] if scenario.rule is None else [scenario.rule]
+            self.assertEqual(receipt["cases"][scenario.name]["rule_ids"], expected_ids)
+        self.assertTrue(receipt["cleanup"]["listener_closed"])
+
     def test_managed_process_reaps_its_real_child_even_when_scenario_execution_fails(self) -> None:
         paths = self.paths()
         paths.config.write_text("# fixture configuration\n")

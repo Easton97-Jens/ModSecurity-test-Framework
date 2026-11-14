@@ -591,8 +591,19 @@ def run_scenarios(paths: RuntimePaths, port: int, receipt: dict) -> None:
         }
 
 
+def verify_final_audit(paths: RuntimePaths, receipt: dict) -> None:
+    entries = parse_audit(paths.audit)
+    for scenario in SCENARIOS:
+        observed = audit_for(entries, scenario.name)
+        result = receipt["cases"][scenario.name]
+        result["native_audit_records"] = len(observed)
+        result["status"] = "failed"
+        result["rule_ids"] = validate_audit_result(scenario, observed)
+        result["status"] = "passed"
+
+
 def verify_native_completion(paths: RuntimePaths, port: int, receipt: dict) -> None:
-    parse_audit(paths.audit)
+    verify_final_audit(paths, receipt)
     errors = read_server_file(paths.logs / "error.log", owner=0)
     if any(token in errors for token in ("zero size buf in writer", "the http output chain is empty",
                                          "invalid phase sequence", "native logging phase processing failed")):
