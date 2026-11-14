@@ -6,6 +6,7 @@
 static int calls;
 static int native_result;
 static int typed_decision;
+static int native_response_kind;
 static msconnector_error_code test_error_code;
 int test_begin(const msconnector_runtime *runtime,
                const msconnector_request *request, const char *host_request_id,
@@ -144,7 +145,12 @@ int test_finish_response_body(
     msconnector_decision *decision, msconnector_error *error) {
   (void)transaction;
   (void)decision;
-  if (typed_decision) {
+  if (native_response_kind == 1) {
+    msconnector_decision_set_response_body_limit(decision, "native Reject");
+  } else if (native_response_kind == 2) {
+    msconnector_decision_set_deny(decision, 403, "900007", "genuine P4 rule");
+    decision->phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+  } else if (typed_decision) {
     msconnector_decision_set_error(decision, 500,
                                    "injected typed technical decision");
   } else if (native_result != 1) {
@@ -335,6 +341,91 @@ static void run_framed_failure(msconnector_runtime *runtime) {
   }
 }
 
+/* Exercise the actual framed caller before the generic wire result loses the
+ * native body-limit bit, plus the legitimate rule/late-outcome control. */
+static void verify_native_response_runtime_error(
+    const traefik_engine_session *session, const traefik_engine_frame *result) {
+  assert(result->payload[1] == TRAEFIK_ENGINE_PROTOCOL_RESULT_RUNTIME);
+  assert(session->failed && session->terminal &&
+         !session->pending_result.pending_disruptive);
+  assert(calls == 1 && !session->response_eos);
+}
+
+static void acknowledge_native_response_rule(traefik_engine_session *session) {
+  unsigned char outcome[4] = {MSCONNECTOR_DECISION_KIND_LOG_ONLY, 0, 0, 200};
+  msconnector_decision decision;
+  uint8_t code;
+  traefik_engine_frame acknowledged = {
+      .opcode = TRAEFIK_ENGINE_PROTOCOL_OUTCOME,
+      .payload = outcome,
+      .payload_size = sizeof(outcome)};
+  session->transaction = (msconnector_runtime_transaction *)session;
+  assert(traefik_engine_dispatch(session, &acknowledged, &decision, &code) == 1);
+  assert(code == TRAEFIK_ENGINE_PROTOCOL_RESULT_OK && decision.late_intervention);
+  assert(decision.kind == MSCONNECTOR_DECISION_KIND_LOG_ONLY && calls == 2);
+  session->transaction = NULL;
+}
+
+static void verify_native_response_deny(traefik_engine_session *session,
+                                       const traefik_engine_frame *result,
+                                       int kind, int committed) {
+  assert(result->payload[1] == TRAEFIK_ENGINE_PROTOCOL_RESULT_OK);
+  assert(result->payload[2] == MSCONNECTOR_DECISION_KIND_DENY);
+  assert(traefik_engine_read_u16(result->payload + 4U) == 403);
+  assert(!session->failed && session->pending_result.pending_disruptive);
+  assert(session->response_eos);
+  assert(session->pending_decision.body_limit == (kind == 1));
+  assert(session->pending_decision.http_status == 403);
+  if (committed)
+    acknowledge_native_response_rule(session);
+}
+
+static void run_native_response_case(msconnector_runtime *runtime,
+                                     int committed, int kind) {
+  int sockets[2];
+  traefik_engine_service service = {0};
+  traefik_engine_session session = {0};
+  traefik_engine_frame frame = {0};
+  traefik_engine_frame result = {0};
+  assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+  assert(pthread_mutex_init(&service.runtime_lock, NULL) == 0);
+  service.runtime = runtime;
+  session.service = &service;
+  session.begun = 1;
+  session.request_eos = 1;
+  session.response_headers = 1;
+  session.response_status = 200;
+  session.response_headers_sent = committed > 0;
+  session.response_body_started = committed > 1;
+  native_response_kind = kind;
+  native_result = 1;
+  typed_decision = 0;
+  test_error_code = MSCONNECTOR_ERROR_NONE;
+  calls = 0;
+  assert(traefik_engine_send_frame(sockets[0], TRAEFIK_ENGINE_PROTOCOL_RESPONSE_EOS,
+                                   NULL, 0U) == 1);
+  assert(traefik_engine_process_frame(&session, sockets[1], &frame) ==
+         (kind == 2 || !committed));
+  assert(traefik_engine_receive_frame(sockets[0], &result) == 1);
+  assert(result.opcode == TRAEFIK_ENGINE_PROTOCOL_RESULT &&
+         result.payload_size >= 14);
+  if (kind == 1 && committed)
+    verify_native_response_runtime_error(&session, &result);
+  else
+    verify_native_response_deny(&session, &result, kind, committed);
+  traefik_engine_frame_reset(&frame);
+  traefik_engine_frame_reset(&result);
+  assert(close(sockets[0]) == 0 && close(sockets[1]) == 0);
+  assert(pthread_mutex_destroy(&service.runtime_lock) == 0);
+}
+
+static void run_native_response_results(msconnector_runtime *runtime) {
+  for (int committed = 0; committed < 3; ++committed)
+    for (int kind = 1; kind <= 2; ++kind)
+      run_native_response_case(runtime, committed, kind);
+  native_response_kind = 0;
+}
+
 static void run_matrix(msconnector_runtime *runtime) {
   const unsigned char opcodes[] = {1, 2, 3, 4, 5, 6, 7, 8, 10};
   for (size_t i = 0; i < sizeof(opcodes); i++)
@@ -346,6 +437,7 @@ static void run_matrix(msconnector_runtime *runtime) {
     }
   run_dispatch_states(runtime, 7, 4);
   run_framed_failure(runtime);
+  run_native_response_results(runtime);
   puts("traefik_i10_dispatcher=pass failures=345 reentries=345 "
        "positive_controls=135");
 }

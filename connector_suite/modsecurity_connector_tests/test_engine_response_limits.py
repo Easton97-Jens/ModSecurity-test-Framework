@@ -35,6 +35,10 @@ def native_compile_command(source, binary, *, extra_sources=(), extra_flags=()):
         link = ["-lmodsecurity"]
     if library_dir:
         link.append("-Wl,-rpath," + library_dir)
+    # Legacy Parent fixture names resolve through the current Framework owner.
+    # Absolute task-owned negative controls already name their exact input.
+    if not Path(source).is_absolute():
+        source = str(source_path(source, root=ROOT))
     return shlex.split(os.environ.get("CC", "cc")) + [
         "-std=c17", "-Wall", "-Wextra", "-Werror", "-I.", "-Icommon/include",
     ] + (["-I" + include] if include else []) + list(extra_flags) + [

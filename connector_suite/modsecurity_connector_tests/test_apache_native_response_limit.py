@@ -30,7 +30,7 @@ FILTER_FUNCTIONS = (
     "apache_emit_contract_failure_event_with_action", "apache_emit_contract_failure_event",
     "apache_phase4_log_event", "apache_phase4_response_committed",
     "apache_phase4_abort_response_connection", "apache_phase4_fail_closed",
-    "apache_phase4_handle_intervention", "apache_phase4_append_bucket",
+    "apache_phase4_handle_intervention", "apache_phase4_capture_append_intervention", "apache_phase4_append_bucket",
     "apache_phase4_finish_response_body", "apache_phase4_brigade_starts_response",
     "apache_phase4_release_response_brigade", "apache_output_filter_finish_response",
     "apache_output_filter_terminal_result",
@@ -49,6 +49,23 @@ EXTRA = r'''
 #include "msconnector/intervention.h"
 const apr_bucket_type_t ap_bucket_type_error = {.name = "ERROR"};
 static int passed, passed_eos, passed_bytes, cleanups, native_appends;
+int __real_msc_intervention(Transaction *, ModSecurityIntervention *);
+int __wrap_msc_intervention(Transaction *tx, ModSecurityIntervention *intervention) {
+    int result = __real_msc_intervention(tx, intervention);
+    const char *setting = getenv("APACHE_NATIVE_LIMIT_LOG_VARIANT");
+    int variant = setting != NULL ? atoi(setting) : 0;
+    if (result == 1 && intervention->disruptive && intervention->status == 403 && variant) {
+        free(intervention->log); intervention->log = NULL;
+        if (variant == 1) {
+            static const char changed[] = "Native engine wording changed";
+            intervention->log = malloc(sizeof(changed));
+            if (intervention->log == NULL) return -1;
+            memcpy(intervention->log, changed, sizeof(changed));
+        }
+    }
+    return result;
+}
+
 int __real_msc_append_response_body(Transaction *, const unsigned char *, size_t);
 int __wrap_msc_append_response_body(Transaction *t, const unsigned char *body, size_t size) {
     ++native_appends; return __real_msc_append_response_body(t, body, size);
@@ -241,7 +258,7 @@ class ApacheNativeResponseLimitTests(unittest.TestCase):
         command += [str(source_path('connectors/profile_registry.c', root=ROOT)), "-Wl,--wrap=msconnector_open_private_event_file",
             "-Wl,--wrap=apr_file_write_full", "-Wl,--wrap=apr_file_close",
             "-Wl,--wrap=msc_process_response_body", "-Wl,--wrap=msc_transaction_cleanup",
-            "-Wl,--wrap=msc_append_response_body"]
+            "-Wl,--wrap=msc_append_response_body", "-Wl,--wrap=msc_intervention"]
         command += flags("apr-1-config", "--link-ld", "--libs") + flags("apu-1-config", "--link-ld", "--libs")
         command += ["-lmodsecurity", "-o", str(cls.binary)]
         built = subprocess.run(command, capture_output=True, text=True, timeout=60)
@@ -252,6 +269,17 @@ class ApacheNativeResponseLimitTests(unittest.TestCase):
         start = fixture.index("    /* Native Reject is a terminal inspection failure")
         end = fixture.index("    if (conf->common_config.phase4_mode == MSCONNECTOR_PHASE4_MODE_OFF)", start)
         negative_fixture = fixture[:start] + fixture[end:]
+        # Recreate the former Safe downgrade by removing both independent
+        # native-error guards; the production fixture retains both guards.
+        late_guard = """        if (msr->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE ||
+            msr->last_intervention_body_limit) {
+            return apache_phase4_fail_closed(msr, f, bb_in,
+                "native response processing failure");
+        }
+"""
+        if late_guard not in negative_fixture:
+            raise AssertionError("late Safe error guard missing from source")
+        negative_fixture = negative_fixture.replace(late_guard, "", 1)
         start = negative_fixture.index("        if (msr->response_intervention_pending &&\n            msr->last_intervention_body_limit)")
         end = negative_fixture.index("    }\n    return APR_SUCCESS;\n}", start)
         source.write_text(negative_fixture[:start] + negative_fixture[end:])
@@ -261,11 +289,12 @@ class ApacheNativeResponseLimitTests(unittest.TestCase):
         if negative.returncode:
             raise AssertionError(negative.stdout + negative.stderr)
 
-    def run_case(self, *, response_limit, limit_action, size=9, commit=1, detection=0, mode=1, ordinary=0, fault=0, negative=False, producer=0):
+    def run_case(self, *, response_limit, limit_action, size=9, commit=1, detection=0, mode=1, ordinary=0, fault=0, negative=False, producer=0, log_variant=0):
         with tempfile.TemporaryDirectory(dir=self.directory) as temporary:
             target = Path(temporary) / "events.jsonl"
             process = subprocess.run([str(self.negative_binary if negative else self.binary), str(target), str(size), str(commit), str(int(limit_action == "ProcessPartial")),
-                str(detection), str(mode), str(ordinary), str(fault), str(producer), str(response_limit)], capture_output=True, text=True, timeout=10)
+                str(detection), str(mode), str(ordinary), str(fault), str(producer), str(response_limit)], capture_output=True, text=True, timeout=10,
+                env={**os.environ, "APACHE_NATIVE_LIMIT_LOG_VARIANT": str(log_variant)})
             self.assertEqual(process.returncode, 0, process.stderr)
             result = json.loads(process.stdout)
             result["events"] = [json.loads(line) for line in target.read_text().splitlines()] if target.exists() else []
@@ -288,6 +317,17 @@ class ApacheNativeResponseLimitTests(unittest.TestCase):
                     self.assertEqual(event["actual_action"], "abort_connection")
                     self.assertTrue(event["eos_seen"])
                     self.assertIn(result["native_status"], (403, 413))
+
+    def test_native_reject_classification_ignores_changed_and_missing_logtext(self):
+        for variant in (0, 1, 2):
+            with self.subTest(log_variant=variant):
+                result = self.run_case(response_limit=8, limit_action="Reject", commit=1,
+                                       log_variant=variant)
+                self.assertEqual(result["cause"], "body_limit")
+                self.assertEqual(result["aborted"], 1)
+                self.assertEqual(result["responses"], 0)
+                self.assertEqual(result["eos"], 0)
+                self.assertEqual(result["native_status"], 403)
 
     def test_native_precommit_reject_preserves_native_status(self):
         result = self.run_case(response_limit=8, limit_action="Reject", commit=0)

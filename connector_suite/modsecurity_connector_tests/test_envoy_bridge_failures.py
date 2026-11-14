@@ -49,11 +49,14 @@ int msconnector_runtime_transaction_append_response_body_chunk(
     msconnector_error *error) {
     return msconnector_runtime_transaction_append_request_body_chunk(t, data, size, error);
 }
-static int finish_body(msconnector_decision *decision, msconnector_error *error) {
+static int finish_body(msconnector_decision *decision, msconnector_error *error, int response) {
     ++calls_eos;
-    if (send_rule) {
-        msconnector_decision_set_error(decision, 403, "fixture rule");
-        decision->rule_id = "12345";
+    if (strcmp(scenario, "native-limit") == 0) {
+        if (response) msconnector_decision_set_response_body_limit(decision, "native Reject");
+        else msconnector_decision_set_body_limit(decision, 413, "native P2 Reject");
+    } else if (send_rule) {
+        msconnector_decision_set_deny(decision, 403, "12345", "genuine fixture rule");
+        decision->phase = response ? MSCONNECTOR_PHASE_RESPONSE_BODY : MSCONNECTOR_PHASE_REQUEST_BODY;
     } else {
         msconnector_decision_set_allow(decision);
     }
@@ -62,12 +65,12 @@ static int finish_body(msconnector_decision *decision, msconnector_error *error)
 int msconnector_runtime_transaction_finish_request_body(
     msconnector_runtime_transaction *t, msconnector_decision *decision,
     msconnector_error *error) {
-    (void)t; return finish_body(decision, error);
+    (void)t; return finish_body(decision, error, 0);
 }
 int msconnector_runtime_transaction_finish_response_body(
     msconnector_runtime_transaction *t, msconnector_decision *decision,
     msconnector_error *error) {
-    (void)t; return finish_body(decision, error);
+    (void)t; return finish_body(decision, error, 1);
 }
 int msconnector_runtime_transaction_set_response_commit_state_checked(
     msconnector_runtime_transaction *t, int headers, int started, msconnector_error *error) {
@@ -126,7 +129,8 @@ int main(int argc, char **argv) {
     body.body = (const unsigned char *)"x";
     body.body_size = mode == 0 ? 0U : 1U;
     body.end_of_stream = 1;
-    send_rule = strcmp(scenario, "rule") == 0 || strcmp(scenario, "host") == 0;
+    send_rule = strcmp(scenario, "rule") == 0 || strcmp(scenario, "host") == 0 ||
+        strcmp(scenario, "safe-rule") == 0;
     recursive_failure = strcmp(scenario, "recursive") == 0;
     if (strcmp(scenario, "recursive") == 0 || strcmp(scenario, "null-output") == 0 || strcmp(scenario, "first-before-finish") == 0) {
         scenario = "append";
@@ -147,9 +151,13 @@ int main(int argc, char **argv) {
         strcmp(argv[1], "null-output") == 0 ? NULL : error, sizeof(error));
     if (send_rule && first == 1) {
         first = msc_envoy_ext_proc_transaction_record_host_action(transaction,
-            MSC_ENVOY_EXT_PROC_DENY, 403, "http_status", error, sizeof(error));
+            strcmp(scenario, "safe-rule") == 0 ? MSC_ENVOY_EXT_PROC_LOG_ONLY : MSC_ENVOY_EXT_PROC_DENY,
+            strcmp(scenario, "safe-rule") == 0 ? 200 : 403,
+            strcmp(scenario, "safe-rule") == 0 ? "log_only" : "http_status", error, sizeof(error));
         second = msc_envoy_ext_proc_transaction_record_host_action(transaction,
-            MSC_ENVOY_EXT_PROC_DENY, 403, "http_status", error, sizeof(error));
+            strcmp(scenario, "safe-rule") == 0 ? MSC_ENVOY_EXT_PROC_LOG_ONLY : MSC_ENVOY_EXT_PROC_DENY,
+            strcmp(scenario, "safe-rule") == 0 ? 200 : 403,
+            strcmp(scenario, "safe-rule") == 0 ? "log_only" : "http_status", error, sizeof(error));
     } else if (first != 1) {
         scenario = "normal";
         second = msc_envoy_ext_proc_transaction_process_body(transaction, &body,
@@ -203,22 +211,36 @@ class EnvoyBridgeFailureTests(unittest.TestCase):
         directory = Path(temporary.name)
         source = directory / "bridge.c"
         source.write_text(FIXTURE, encoding="utf-8")
-        cls.binary = directory / "bridge"
         names = ("transaction_state.c", "decision.c", "decision_action.c", "intervention.c",
                  "block_statuses.c", "http_status.c", "error.c", "status.c", "event.c",
                  "event_jsonl.c", "integrity_event.c", "json_escape.c", "memory.c",
                  "body_policy.c", "flow_guard.c", "dos_guard.c", "resource_limits.c", "rule_id.c")
-        command = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
-            "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
-            "-I", str(source_path('common/include', root=ROOT)), "-I", str(ROOT), str(source)]
-        command += [str(source_path('common/src', root=ROOT) / name) for name in names]
-        command += [str(source_path('connectors/profile_registry.c', root=ROOT)), "-o", str(cls.binary)]
-        result = subprocess.run(command, capture_output=True, text=True, timeout=90, check=False)
-        if result.returncode:
-            raise AssertionError("complete bridge compilation failed:\n" + result.stderr[-6000:])
+        anchor = "if (response_direction && msconnector_decision_is_body_limit(&native_decision)) {"
+        production = BRIDGE.read_text()
+        if production.count(anchor) != 1:
+            raise AssertionError("native response-limit bridge guard anchor drifted")
+        cls.binaries = {}
+        for variant in ("current", "without-native-limit-guard"):
+            include_root = ROOT
+            if variant != "current":
+                include_root = directory / variant
+                target = include_root / "connectors/envoy/ext_proc/internal/processor/common_runtime_bridge.c"
+                target.parent.mkdir(parents=True)
+                target.write_text(production.replace(anchor, "if (0) {", 1))
+            binary = directory / (variant + ".bin")
+            command = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
+                "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
+                "-I", str(include_root), "-I", str(BRIDGE.parent),
+                "-I", str(source_path('common/include', root=ROOT)), "-I", str(ROOT), str(source)]
+            command += [str(source_path('common/src', root=ROOT) / name) for name in names]
+            command += [str(source_path('connectors/profile_registry.c', root=ROOT)), "-o", str(binary)]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=90, check=False)
+            if result.returncode:
+                raise AssertionError("complete bridge compilation failed:\n" + result.stderr[-6000:])
+            cls.binaries[variant] = binary
 
-    def case(self, scenario="normal", raw=1, response=1, nonempty=1):
-        result = subprocess.run([str(self.binary), scenario, str(raw), str(response), str(nonempty)],
+    def case(self, scenario="normal", raw=1, response=1, nonempty=1, variant="current"):
+        result = subprocess.run([str(self.binaries[variant]), scenario, str(raw), str(response), str(nonempty)],
             capture_output=True, text=True, timeout=5, check=False)
         self.assertEqual(result.returncode, 0, result.stderr[-2000:])
         return json.loads(result.stdout)
@@ -230,6 +252,25 @@ class EnvoyBridgeFailureTests(unittest.TestCase):
         self.assertEqual(result["pending"], 0)
         self.assertEqual(result["failure"], 1)
         self.assertEqual(result["destroy"], 1)
+
+    def test_native_response_reject_fails_before_generic_deny_or_continue(self):
+        for nonempty in (0, 1):
+            with self.subTest(nonempty=nonempty):
+                value = self.case("native-limit", nonempty=nonempty)
+                self.assert_terminal(value, "engine_error")
+                self.assertEqual((value["eos"], value["finished"], value["host"]), (1, 0, 0))
+        request = self.case("native-limit", response=0)
+        self.assertEqual((request["first"], request["finished"], request["cause"]), (1, 1, 0))
+
+    def test_real_safe_eos_rule_remains_available_for_log_only_host_outcome(self):
+        value = self.case("safe-rule")
+        self.assertEqual((value["first"], value["second"], value["host"]), (1, 0, 1))
+        self.assertEqual((value["cause"], value["failure"], value["started"]), (0, 0, 1))
+
+    def test_removing_native_limit_guard_reproduces_untyped_deny(self):
+        value = self.case("native-limit", variant="without-native-limit-guard")
+        self.assertEqual((value["first"], value["finished"], value["pending"]), (1, 1, 1))
+        self.assertEqual(value["cause"], 0)
 
     def test_checked_close_propagates_finish_failure_and_destroys_once(self):
         for raw in (0, -1, 2):

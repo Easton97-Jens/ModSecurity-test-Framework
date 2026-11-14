@@ -33,6 +33,12 @@ class LighttpdI10AdapterErrors(unittest.TestCase):
                     "swallow-error": fixture.replace("return PLUGIN_BODY_HOOK_ERROR;", "return PLUGIN_BODY_HOOK_CONTINUE;"),
                     "retry-native": fixture.replace("if (ctx != NULL && (ctx->technical_failed || ctx->api_failed)) return PLUGIN_BODY_HOOK_ERROR;", "if (ctx != NULL && ctx->technical_failed) ctx->technical_failed = 0;"),
                     "second-response": fixture.replace("if (r->write_queue.bytes_out > 0 ||", "if (r->write_queue.bytes_out < 0 ||")}
+        for name, guard in (("downgrade-native-reject", "msconnector_decision_is_body_limit(&decision)"),
+                            ("downgrade-native-error", "decision.status == MSCONNECTOR_STATUS_ERROR")):
+            anchor = "if (" + guard + ") {"
+            if fixture.count(anchor) != 1:
+                raise AssertionError(name + " mutation anchor drifted")
+            variants[name] = fixture.replace(anchor, "if (0) {", 1)
         variants["reset-success"] = fixture.replace("handler_ctx_destroy(ctx_slot);\n    return result;", "handler_ctx_destroy(ctx_slot);\n    (void)result;\n    return HANDLER_GO_ON;")
         for variant, text in variants.items():
             path = cls.directory / (variant + ".c")
@@ -191,6 +197,19 @@ int main(void) {
             for operation, fault in ((10, 12), (11, 13)):
                 result = self.call(1, commitment, operation, fault)
                 self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_native_reject_and_errors_never_use_safe_rule_downgrade(self):
+        for mode in (0, 1, 2):
+            for commitment in (0, 1, 2):
+                for operation in (12, 13, 14):
+                    with self.subTest(mode=mode, commitment=commitment, operation=operation):
+                        value = self.call(mode, commitment, operation, 0)
+                        self.assertEqual(value.returncode, 0, value.stderr)
+
+    def test_removing_native_reject_or_error_guard_reproduces_safe_downgrade(self):
+        for variant, operation in (("downgrade-native-reject", 12), ("downgrade-native-error", 14)):
+            value = self.call(1, 2, operation, 0, variant)
+            self.assertNotEqual(value.returncode, 0, "native-limit/error guard mutation escaped assertions")
 
     def test_native_successful_control(self):
         for mode in (0, 1):

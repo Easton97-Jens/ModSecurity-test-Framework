@@ -14,7 +14,7 @@ ROOT = connector_root()
 
 
 class NginxResponseBodyLimitTests(unittest.TestCase):
-    def test_exact_signature_and_negative_controls(self) -> None:
+    def test_append_state_independent_of_log_prose(self) -> None:
         compiler = shlex.split(os.environ.get("CC", "cc"))
         self.assertTrue(compiler and shutil.which(compiler[0]), "C compiler is required")
         with tempfile.TemporaryDirectory(prefix="nginx-response-limit-",

@@ -21,7 +21,7 @@
 #include "common/runtime/response_companion_client.h"
 #include "common/runtime/response_companion_transport.h"
 #include "connectors/profile_registry.h"
-#include "tests/transaction_phase_test_support.h"
+#include "transaction_phase_test_support.h"
 
 #define TEST_PATH_SIZE 4096U
 #define TEST_FRAME_HEADER_SIZE 12U

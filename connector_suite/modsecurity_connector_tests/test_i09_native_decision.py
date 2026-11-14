@@ -48,8 +48,8 @@ static int msc_process_response_headers(Transaction *t, int s, const char *v) {
 static int msc_process_logging(Transaction *t) { (void)t; return value(); }
 ''' + types + r'''
 static int native_decision(const msconnector_runtime *r, msconnector_native_transaction *t,
-        enum msconnector_phase p, msconnector_decision *d, msconnector_error *e) {
-    (void)r; (void)t; (void)e; ++decisions; msconnector_decision_set_allow(d); d->phase=p; return 1;
+        enum msconnector_phase p, int response_append_active, msconnector_decision *d, msconnector_error *e) {
+    (void)r; (void)t; (void)e; (void)response_append_active; ++decisions; msconnector_decision_set_allow(d); d->phase=p; return 1;
 }
 '''
         fixture += "\n".join(function_definition(source, name) for name in (
@@ -106,7 +106,7 @@ int main(void) {
         types = source[source.index("#define RUNTIME_NAME_SIZE"):source.index("static void set_text_error")]
         functions = "\n".join(function_definition(source, name) for name in (
             "runtime_error", "native_is_request_body_limit_rejection",
-            "native_copy_redirect_target", "native_capture_rule_id", "native_decision"))
+            "native_copy_redirect_target", "native_capture_rule_id", "native_intervention_validation_error", "native_decision"))
         # Only the libModSecurity call/cleanup seam is replaced. Collector,
         # decision normalization and rule-id parsing are production code.
         includes = INCLUDES[:INCLUDES.index("static int audit_calls, cleanup_calls;")]
@@ -116,7 +116,11 @@ int main(void) {
 typedef struct { int status; char *url; char *log; int disruptive; } ModSecurityIntervention;
 static int result, disruptive, cleanups;
 static int msc_intervention(Transaction *tx, ModSecurityIntervention *value) {
-    (void)tx; value->status = 403; value->log = "[id \"1001\"]";
+    (void)tx; value->status = 403;
+    value->log = "rule [file \"rules.conf\"] [line \"1\"] [id \"1001\"] "
+        "[rev \"\"] [msg \"fixture\"] [data \"\"] [severity \"2\"] [ver \"\"] "
+        "[maturity \"0\"] [accuracy \"0\"] [hostname \"fixture\"] [uri \"/\"] "
+        "[unique_id \"unit\"] [ref \"\"]";
     value->disruptive = disruptive; return result;
 }
 static void msc_intervention_cleanup(ModSecurityIntervention *value) {
@@ -137,7 +141,7 @@ int main(void) {
             strcpy(native.redirect_url, "stale");
             msconnector_error_init(&error);
             msconnector_decision_set_allow(&decision);
-            int ok = native_decision(&runtime, &native, MSCONNECTOR_PHASE_REQUEST_HEADERS,
+            int ok = native_decision(&runtime, &native, MSCONNECTOR_PHASE_REQUEST_HEADERS, 0,
                 &decision, &error);
             if (cleanups != 1 || ok != (result == 0 || result == 1)) return 1;
             if (result != 0 && result != 1) {

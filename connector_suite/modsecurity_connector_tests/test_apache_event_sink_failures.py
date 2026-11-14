@@ -21,7 +21,7 @@ ROOT = connector_root()
 FILTERS = source_path('connectors/apache/src/msc_filters.c', root=ROOT)
 MODULE = source_path('connectors/apache/src/mod_security3.c', root=ROOT)
 FILTER_FUNCTIONS = (
-    "apache_open_event_file", "apache_response_content_type",
+    "apache_open_event_file", "apache_response_content_type", "apache_response_protocol",
     "apache_request_content_type", "apache_phase4_mode_name",
     "apache_phase4_actual_action", "apache_intervention_message_id",
     "apache_intervention_content_type", "apache_intervention_body_bytes_seen",
@@ -34,7 +34,7 @@ FILTER_FUNCTIONS = (
     "apache_phase4_response_committed", "apache_phase4_abort_response_connection",
     "apache_phase4_fail_closed", "apache_phase4_handle_intervention",
     "msc_finalize_request_body", "apache_output_filter_process_headers",
-    "apache_input_filter_process_bucket", "apache_phase4_append_bucket",
+    "apache_input_filter_process_bucket", "apache_phase4_capture_append_intervention", "apache_phase4_append_bucket",
     "apache_phase4_finish_response_body",
 )
 MODULE_FUNCTIONS = (
@@ -48,6 +48,7 @@ PREAMBLE = r'''
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <unistd.h>
 #include <signal.h>
 #include <sys/resource.h>
@@ -60,6 +61,9 @@ PREAMBLE = r'''
 #include "connectors/profile_registry.h"
 static int fault, opens, writes, closes, diagnostics, responses, response_status;
 static int native_calls;
+const char *ap_get_protocol(conn_rec *connection) {
+    (void)connection; return "http/1.1";
+}
 static uint64_t apache_contract_now_ms(void) { return 100U; }
 static void fixture_log(const char *file, ...) { (void)file; ++diagnostics; }
 #undef ap_log_rerror
@@ -70,6 +74,7 @@ static void fixture_log(const char *file, ...) { (void)file; ++diagnostics; }
 int __real_msconnector_open_private_event_file(const char *, int *);
 int __wrap_msconnector_open_private_event_file(const char *path, int *fd) {
     ++opens;
+    if (fault == 6) { errno = ENOMEM; return 0; }
     return __real_msconnector_open_private_event_file(path, fd);
 }
 apr_status_t __real_apr_file_write_full(apr_file_t *, const void *, apr_size_t, apr_size_t *);
@@ -164,7 +169,10 @@ int msc_process_response_body(Transaction *transaction) {
     return 1;
 }
 int process_intervention(Transaction *transaction, request_rec *r) {
-    (void)transaction; (void)r; return HTTP_FORBIDDEN;
+    msc_t *msr = (msc_t *)r->request_config;
+    (void)transaction;
+    return msr != NULL && msr->response.body_append_active &&
+        !msr->last_intervention_body_limit && fault != 7 ? N_INTERVENTION_STATUS : HTTP_FORBIDDEN;
 }
 int msc_apache_contract_record_intervention_decision(msc_t *msr) {
     (void)msr; return 1;
@@ -190,7 +198,7 @@ int main(int argc, char **argv) {
     mode = atoi(argv[1]); fault = atoi(argv[3]); original = atoi(argv[4]);
     conf.common_config.phase4_log_path = argv[2];
     conf.common_config.phase4_mode = (enum msconnector_phase4_mode)atoi(argv[6]);
-    request.pool = pool; request.status = HTTP_OK;
+    request.pool = pool; request.status = HTTP_OK; request.proto_num = HTTP_VERSION(1, 1);
     request.method = "GET"; request.unparsed_uri = "/sink-control";
     request.per_dir_config = (struct ap_conf_vector_t *)&conf;
     request.connection = &connection;
@@ -198,10 +206,16 @@ int main(int argc, char **argv) {
     request.headers_out = apr_table_make(pool, 1);
     request.err_headers_out = apr_table_make(pool, 1);
     apr_table_setn(request.headers_out, "Location", "/rule-redirect");
+    if (fault == 5) {
+        oversize = apr_palloc(pool, 8192U);
+        memset(oversize, 'x', 8191U); oversize[8191U] = '\0';
+        request.unparsed_uri = oversize;
+    }
     msr.r = &request; msr.t = (Transaction *)&msr;
+    request.request_config = (ap_conf_vector_t *)&msr;
     msr.event_transaction_id = "apache-sink-transaction";
     msr.last_intervention_status = mode == 10 ? HTTP_MOVED_TEMPORARILY : HTTP_FORBIDDEN;
-    msr.last_intervention_log = "[id \"1234\"]";
+    msr.last_intervention_log = "[file \"fixture.conf\"] [line \"1\"] [id \"1234\"] [rev \"\"] [msg \"fixture\"] [data \"\"] [severity \"2\"] [ver \"\"] [maturity \"0\"] [accuracy \"0\"] [hostname \"localhost\"] [uri \"/\"] [unique_id \"fixture\"] [ref \"\"]";
     msr.contract_initialized = 1;
     if (msconnector_transaction_contract_init(&msr.contract,
         msconnector_profile_registry_find("apache"), msr.event_transaction_id,
@@ -210,7 +224,7 @@ int main(int argc, char **argv) {
     if (original) {
         (void)msc_apache_contract_fail(&msr, MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT);
     }
-    if (mode == 0 || mode == 9) {
+    if (mode == 0 || mode == 9 || (mode == 7 && !original)) {
         if (msconnector_transaction_contract_record_decision(&msr.contract,
             MSCONNECTOR_TRANSACTION_DECISION_BLOCK, "1234", 100U) !=
             MSCONNECTOR_TRANSACTION_TRANSITION_OK) { return 94; }
@@ -247,6 +261,7 @@ int main(int argc, char **argv) {
         first = msr.intervention.event_sink_error;
         (void)msc_finalize_request_body(&msr, &request);
     } else if (mode == 12) {
+        msr.last_intervention_body_limit = 1;
         apr_bucket_alloc_t *allocator = apr_bucket_alloc_create(pool);
         apr_bucket_brigade *brigade = apr_brigade_create(pool, allocator);
         apr_bucket *bucket = apr_bucket_immortal_create("body", 4U, allocator);
@@ -260,6 +275,30 @@ int main(int argc, char **argv) {
         result = apache_phase4_handle_intervention(&msr, &conf, &filter,
             brigade, native_intervention);
         first = msr.intervention.event_sink_error;
+    } else if (mode == 15) {
+        apr_bucket_alloc_t *allocator = apr_bucket_alloc_create(pool);
+        apr_bucket_brigade *brigade = apr_brigade_create(pool, allocator);
+        apr_bucket *bucket = apr_bucket_immortal_create("body", 4U, allocator);
+        int native_intervention;
+        fault = 7;
+        result = apache_phase4_append_bucket(&msr, &conf, bucket);
+        if (result == APR_SUCCESS || msr.response_intervention_pending ||
+                msr.contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE) { return 99; }
+        fault = 0;
+        if (apache_phase4_finish_response_body(&msr, &filter, brigade,
+                &native_intervention) == APR_SUCCESS) { return 100; }
+        apr_bucket_destroy(bucket);
+    } else if (mode == 13 || mode == 14) {
+        apr_bucket_alloc_t *allocator = apr_bucket_alloc_create(pool);
+        apr_bucket *bucket = apr_bucket_immortal_create("body", 4U, allocator);
+        uint64_t seed = mode == 13 ? (uint64_t)UINT32_MAX - 1U : UINT64_MAX - 1U;
+        msr.response_body_bytes_seen = seed;
+        msr.response_body_bytes_inspected = seed;
+        result = apache_phase4_append_bucket(&msr, &conf, bucket);
+        if (result != APR_SUCCESS ||
+            msr.response_body_bytes_seen != (mode == 13 ? (uint64_t)UINT32_MAX + 3U : UINT64_MAX) ||
+            msr.response_body_bytes_inspected != msr.response_body_bytes_seen) { return 98; }
+        apr_bucket_destroy(bucket);
     } else if (mode == 6) {
         result = apache_output_filter_process_headers(&msr, &request, &filter, NULL);
         first = msr.intervention.event_sink_error;
@@ -348,19 +387,25 @@ class ApacheEventSinkFailureTests(unittest.TestCase):
         built = subprocess.run(command, text=True, capture_output=True, timeout=60)
         if built.returncode:
             raise AssertionError(built.stdout + built.stderr)
-        # Compile the former caller behavior as a negative control: a Safe
-        # committed response discards the physical writer result and succeeds.
-        guard = ('if (apache_phase4_log_event(msr, r, wanted, actual,\n'
-                 '                "response_committed_safe") != MSCONNECTOR_ERROR_NONE)')
-        if fixture.count(guard) != 1:
-            raise AssertionError("Safe caller failure guard not found exactly once")
-        source.write_text(fixture.replace(guard, guard.replace(
-            "MSCONNECTOR_ERROR_NONE", "MSCONNECTOR_ERROR_IO"), 1))
-        cls.negative_binary = cls.directory / "ignored-sink-negative-control"
+        # Reintroduce the old mandatory sink plus Safe-abort caller. The
+        # controlled baseline must fail the new continuation requirement.
+        safe_call = ('        (void)apache_phase4_log_event(msr, r, wanted, actual,\n'
+                     '            "response_committed_safe");')
+        old_call = ('        if (apache_phase4_log_event(msr, r, wanted, actual,\n'
+                    '                "response_committed_safe") != MSCONNECTOR_ERROR_NONE) {\n'
+                    '            return apache_phase4_fail_closed(msr, f, bb_in, "event sink failure");\n'
+                    '        }')
+        if fixture.count(safe_call) != 1:
+            raise AssertionError("Safe optional event call not found exactly once")
+        negative_fixture = fixture.replace(safe_call, old_call, 1).replace(
+            "mandatory = input->phase ==", "mandatory = 0 && input->phase ==", 1)
+        source.write_text(negative_fixture)
+        cls.negative_binary = cls.directory / "old-safe-abort-negative-control"
         negative = subprocess.run(command[:-1] + [str(cls.negative_binary)],
             text=True, capture_output=True, timeout=60)
         if negative.returncode:
             raise AssertionError(negative.stdout + negative.stderr)
+
 
 
     def run_case(self, mode=0, fault=0, original=0, committed=0, phase4_mode=1, path=None, negative=False):
@@ -445,14 +490,18 @@ class ApacheEventSinkFailureTests(unittest.TestCase):
         self.assertEqual(len(result["bytes"]), 100)
         self.assertEqual(result["writes"], 1)
 
-    def test_compiled_ignored_result_control_reproduces_safe_host_success(self):
-        result = self.run_case(mode=7, fault=1, committed=1, negative=True)
-        self.assertEqual(result["first"], result["io"])
-        self.assertEqual(result["result"], 0)
-        self.assertEqual(result["aborted"], 0)
+    def test_compiled_old_safe_sink_failure_control_reproduces_abort(self):
+        old = self.run_case(mode=7, fault=1, committed=1, negative=True)
+        self.assertEqual(old["first"], old["io"])
+        self.assertNotEqual(old["result"], 0)
+        self.assertEqual(old["aborted"], 1)
         corrected = self.run_case(mode=7, fault=1, committed=1)
-        self.assertNotEqual(corrected["result"], 0)
-        self.assertEqual(corrected["aborted"], 1)
+        self.assertEqual(corrected["first"], 0)
+        self.assertEqual(corrected["result"], 0)
+        self.assertEqual(corrected["failed"], 0)
+        self.assertEqual(corrected["cause"], "none")
+        self.assertEqual(corrected["aborted"], 0)
+
 
     def test_close_failure_is_terminal_even_after_complete_line(self):
         result = self.run_case(fault=3)
@@ -526,15 +575,45 @@ class ApacheEventSinkFailureTests(unittest.TestCase):
                 self.assertEqual(result["status"], 500)
                 self.assertEqual(result["aborted"], 0)
 
-    def test_phase4_postcommit_safe_strict_abort_without_second_response(self):
-        for mode in (1, 2):
-            with self.subTest(mode=mode):
-                result = self.run_case(mode=7, fault=1, committed=1, phase4_mode=mode)
-                self.assert_io_failure(result)
+    def test_phase4_postcommit_safe_sink_failures_continue_without_second_response(self):
+        for fault in (1, 2, 3, 4, 5, 6):
+            with self.subTest(fault=fault):
+                result = self.run_case(mode=7, fault=fault, committed=1, phase4_mode=1)
+                self.assertEqual(result["first"], 0)
+                self.assertEqual(result["failed"], 0)
+                self.assertEqual(result["cause"], "none")
                 self.assertEqual(result["responses"], 0)
                 self.assertEqual(result["location"], 1)
-                self.assertEqual(result["aborted"], 1)
-                self.assertNotEqual(result["result"], 0)
+                self.assertEqual(result["aborted"], 0)
+                self.assertEqual(result["result"], 0)
+                self.assertEqual(result["opens"], 0 if fault == 5 else 1)
+
+    def test_disruptive_append_rule_cannot_survive_until_safe_eos(self):
+        result = self.run_case(mode=15, committed=1, phase4_mode=1)
+        self.assertNotEqual(result["result"], 0)
+        self.assertEqual(result["cause"], "invalid_engine_response")
+
+    def test_actual_response_bucket_counters_cross_32bit_and_saturate(self):
+        for mode in (13, 14):
+            with self.subTest(mode=mode):
+                result = self.run_case(mode=mode)
+                self.assertEqual(result["result"], 0)
+                self.assertEqual(result["aborted"], 0)
+
+    def test_phase4_safe_keeps_real_processing_failure_terminal(self):
+        result = self.run_case(mode=7, fault=1, committed=1, original=1, phase4_mode=1)
+        self.assertNotEqual(result["result"], 0)
+        self.assertEqual(result["aborted"], 1)
+        self.assertEqual(result["responses"], 0)
+        self.assertEqual(result["cause"], "engine_timeout")
+
+    def test_phase4_postcommit_strict_sink_failure_still_aborts(self):
+        result = self.run_case(mode=7, fault=1, committed=1, phase4_mode=2)
+        self.assert_io_failure(result)
+        self.assertEqual(result["responses"], 0)
+        self.assertEqual(result["location"], 1)
+        self.assertEqual(result["aborted"], 1)
+        self.assertNotEqual(result["result"], 0)
 
 
 

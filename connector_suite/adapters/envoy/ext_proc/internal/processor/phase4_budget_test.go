@@ -16,7 +16,8 @@ func TestConnectorResponseInspectionHasNoCumulativeBudget(t *testing.T) {
 		{"response-past-former-budget", DirectionResponse, 10485760, 1, ActionAllow},
 		{"response-chunk-bound", DirectionResponse, 0, 17, ActionDeny},
 		{"request-no-cumulative-bound", DirectionRequest, 8, 1, ActionAllow},
-		{"response-accounting-overflow", DirectionResponse, math.MaxInt64, 1, ActionDeny},
+		{"response-observation-saturation", DirectionResponse, math.MaxInt64, 1, ActionAllow},
+		{"negative-response-accounting", DirectionResponse, -1, 1, ActionDeny},
 		{"negative-length", DirectionResponse, 0, -1, ActionDeny},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

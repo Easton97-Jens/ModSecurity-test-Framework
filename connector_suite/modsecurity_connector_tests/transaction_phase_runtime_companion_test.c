@@ -14,7 +14,7 @@
 
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/profile_registry.h"
-#include "tests/transaction_phase_test_support.h"
+#include "transaction_phase_test_support.h"
 #include "connectors/traefik/src/traefik_provenance.h"
 
 typedef struct companion_worker {

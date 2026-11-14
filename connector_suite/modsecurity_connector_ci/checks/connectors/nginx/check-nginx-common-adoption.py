@@ -14,6 +14,8 @@ header_c = (nginx/'ngx_http_modsecurity_header_filter.c').read_text()
 log_c = (nginx/'ngx_http_modsecurity_log.c').read_text()
 nginx_config = (source_path('connectors/nginx/config', root=ROOT)).read_text()
 ddebug_h = (nginx/'ddebug.h').read_text()
+transaction_contract_h = source_path('common/include/msconnector/transaction_contract.h', root=ROOT).read_text()
+transaction_state_c = source_path('common/src/transaction_state.c', root=ROOT).read_text()
 EVENT_BODY_BYTES_SEEN = 'event.body.bytes_seen'
 EVENT_BODY_BYTES_INSPECTED = 'event.body.bytes_inspected'
 REQUEST_BODY_ACCESS = 'r->request_body'
@@ -47,31 +49,15 @@ BODY_FILTER_DIRECT_CHAIN_CONTRACT_PATTERN = re.compile(
     r'ngx_int_t\s+status\s*;\s*'
     r'status\s*=\s*ngx_http_modsecurity_prepare_response_body_filter\s*\(\s*'
     r'r\s*,\s*in\s*,\s*&ctx\s*\)\s*;\s*'
+    r'if\s*\(\s*status\s*==\s*NGX_DONE\s*\)\s*\{\s*'
+    r'return\s+ngx_http_modsecurity_discard_replaced_response_body\s*\(\s*'
+    r'r\s*,\s*ctx\s*,\s*in\s*\)\s*;\s*\}\s*'
     r'if\s*\(\s*status\s*==\s*NGX_DECLINED\s*\)\s*\{\s*'
     r'return\s+ngx_http_next_body_filter\s*\(\s*r\s*,\s*in\s*\)\s*;\s*\}\s*'
     r'if\s*\(\s*status\s*!=\s*NGX_OK\s*\)\s*\{\s*'
     r'return\s+status\s*;\s*\}\s*'
     r'return\s+ngx_http_modsecurity_process_response_body_chain\s*\(\s*'
     r'r\s*,\s*in\s*,\s*ctx\s*\)\s*;\s*\}'
-)
-BODY_RESPONSE_BUFFER_CONTRACT_PATTERN = re.compile(
-    r'static\s+ngx_int_t\s+'
-    r'ngx_http_modsecurity_append_response_body_buffer\s*\(\s*'
-    r'ngx_http_request_t\s*\*\s*r\s*,\s*'
-    r'ngx_http_modsecurity_ctx_t\s*\*\s*ctx\s*,\s*'
-    r'const\s+ngx_http_modsecurity_conf_t\s*\*\s*mcf\s*,\s*'
-    r'const\s+ngx_buf_t\s*\*\s*buffer\s*\)\s*\{\s*'
-    r'if\s*\(\s*ngx_buf_in_memory\s*\(\s*buffer\s*\)\s*\)\s*\{\s*'
-    r'const\s+u_char\s*\*\s*data\s*=\s*buffer\s*->\s*pos\s*;\s*'
-    r'size_t\s+len\s*=\s*buffer\s*->\s*last\s*>=\s*buffer\s*->\s*pos\s*'
-    r'\?\s*\(\s*size_t\s*\)\s*\(\s*buffer\s*->\s*last\s*-\s*'
-    r'buffer\s*->\s*pos\s*\)\s*:\s*0\s*;\s*'
-    r'return\s+ngx_http_modsecurity_append_accounted_response_body\s*\(\s*'
-    r'ctx\s*,\s*mcf\s*,\s*data\s*,\s*len\s*\)\s*;\s*\}\s*'
-    r'if\s*\(\s*buffer\s*->\s*in_file\s*\)\s*\{\s*'
-    r'return\s+ngx_http_modsecurity_append_file_response_body\s*\(\s*'
-    r'r\s*,\s*ctx\s*,\s*mcf\s*,\s*buffer\s*\)\s*;\s*\}\s*'
-    r'return\s+NGX_OK\s*;\s*\}'
 )
 BODY_RESPONSE_LIMITED_CONTRACT_PATTERN = re.compile(
     r'static\s+ngx_int_t\s+'
@@ -340,7 +326,9 @@ BODY_LIMIT_BYTES_SEEN_ASSIGNMENT_PATTERN = re.compile(
     r'ctx\s*->\s*response_body_bytes_seen\s*=\s*plan\s*\.\s*bytes_seen\s*;'
 )
 BODY_LIMIT_BYTES_SEEN_INCREMENT_PATTERN = re.compile(
-    r'ctx\s*->\s*response_body_bytes_seen\s*\+=\s*len\s*;'
+    r'ctx\s*->\s*response_body_bytes_seen\s*=\s*'
+    r'msconnector_transaction_counter_add\s*\(\s*'
+    r'ctx\s*->\s*response_body_bytes_seen\s*,\s*len\s*\)\s*;'
 )
 nginx_source_paths = (
     tuple(sorted(nginx.glob('*.c')))
@@ -583,6 +571,237 @@ def c_checked_function(source, signature, allow_outer_include_guard=False):
         return '', ''
     start, end = bounds
     return active[start:end], visible[start:end]
+
+# Fixed active-code shapes for the reviewed observation/delivery boundaries.
+# Full matching forbids hidden early returns, raw append bypasses, missing
+# safety checks and error-to-success conversions. Comments, diagnostic text
+# and C whitespace are not the contract; inactive branches cannot satisfy it.
+def c_reviewed_contract_pattern(specification):
+    active, _ = c_noncode_views(specification)
+    tokens = re.findall(r'[A-Za-z_]\w*|(?a:\d)+[UuLl]*|->|!=|==|>=|<=|\|\||&&|[^\s]', active)
+    return re.compile(r'\s*' + r'\s*'.join(re.escape(token) for token in tokens) + r'\s*')
+
+BODY_RESPONSE_BUFFER_CONTRACT_PATTERN = c_reviewed_contract_pattern(r"""
+static ngx_int_t
+ngx_http_modsecurity_append_response_body_buffer(
+    ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
+    const ngx_http_modsecurity_conf_t *mcf, const ngx_buf_t *buffer)
+{
+    if (buffer == NULL) {
+        return NGX_ERROR;
+    }
+    if (ngx_buf_in_memory(buffer)) {
+        uintmax_t span;
+        if (buffer->pos == NULL || buffer->last == NULL ||
+            (uintptr_t)buffer->last < (uintptr_t)buffer->pos) {
+            (void)msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+            return NGX_ERROR;
+        }
+        span = (uintmax_t)((uintptr_t)buffer->last - (uintptr_t)buffer->pos);
+        if (span > SIZE_MAX) {
+            (void)msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+            return NGX_ERROR;
+        }
+        return ngx_http_modsecurity_append_accounted_response_body(ctx, mcf,
+            buffer->pos, (size_t)span);
+    }
+    if (buffer->in_file) {
+        return ngx_http_modsecurity_append_file_response_body(r, ctx, mcf,
+            buffer);
+    }
+    return NGX_OK;
+}
+""")
+
+BODY_RESPONSE_FILE_CONTRACT_PATTERN = c_reviewed_contract_pattern(r"""
+static ngx_int_t
+ngx_http_modsecurity_append_file_response_body(
+    ngx_http_request_t *r, ngx_http_modsecurity_ctx_t *ctx,
+    const ngx_http_modsecurity_conf_t *mcf, const ngx_buf_t *buffer)
+{
+    uintmax_t file_length;
+    uintmax_t remaining;
+    size_t chunk;
+    off_t file_offset;
+    ssize_t read_count;
+    if (buffer == NULL || buffer->file_pos < 0 ||
+        buffer->file_last < buffer->file_pos) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "");
+        return NGX_ERROR;
+    }
+    file_length = (uintmax_t)buffer->file_last -
+        (uintmax_t)buffer->file_pos;
+    if (file_length == 0U) {
+        return NGX_OK;
+    }
+    if (buffer->file == NULL) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "");
+        return NGX_ERROR;
+    }
+    if (ctx->scratch_buffers.phase4_file_scratch == NULL) {
+        ctx->scratch_buffers.phase4_file_scratch = ngx_pnalloc(r->pool,
+            NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK);
+        if (ctx->scratch_buffers.phase4_file_scratch == NULL) {
+            (void)msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                "");
+            return NGX_ERROR;
+        }
+    }
+    file_offset = buffer->file_pos;
+    remaining = file_length;
+    while (remaining > 0U) {
+        chunk = remaining > NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK
+            ? NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK : (size_t)remaining;
+        read_count = ngx_read_file(buffer->file, ctx->scratch_buffers.phase4_file_scratch,
+            chunk, file_offset);
+        if (read_count < 0 || (size_t)read_count != chunk) {
+            (void)msconnector_transaction_contract_fail(&ctx->contract,
+                MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+            ngx_log_error(NGX_LOG_ERR, r->connection->log,
+                read_count < 0 ? ngx_errno : 0,
+                "");
+            return NGX_ERROR;
+        }
+        if (ngx_http_modsecurity_append_accounted_response_body(ctx, mcf,
+                ctx->scratch_buffers.phase4_file_scratch, chunk) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        file_offset += (off_t)chunk;
+        remaining -= chunk;
+    }
+    return NGX_OK;
+}
+""")
+
+BODY_RESPONSE_ACCOUNT_CONTRACT_PATTERN = c_reviewed_contract_pattern(r"""
+static ngx_int_t
+ngx_http_modsecurity_account_response_body(
+    ngx_http_modsecurity_ctx_t *ctx, const ngx_http_modsecurity_conf_t *mcf,
+    size_t len, size_t *allowed)
+{
+    if (allowed == NULL) {
+        return NGX_ERROR;
+    }
+    *allowed = 0U;
+    if (ctx == NULL || mcf == NULL) {
+        return NGX_ERROR;
+    }
+    if (ctx->response_body_bytes_inspected > ctx->response_body_bytes_seen) {
+        (void)msconnector_transaction_contract_fail(&ctx->contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, 0U);
+        return NGX_ERROR;
+    }
+    if (len > 0U) {
+        ctx->response_body_seen = 1;
+    }
+    ctx->response_body_bytes_seen = msconnector_transaction_counter_add(
+        ctx->response_body_bytes_seen, len);
+    *allowed = len;
+    return NGX_OK;
+}
+""")
+
+BODY_RESPONSE_REPLACED_CONTRACT_PATTERN = c_reviewed_contract_pattern(r"""
+static ngx_int_t
+ngx_http_modsecurity_discard_replaced_response_body(ngx_http_request_t *r,
+    ngx_http_modsecurity_ctx_t *ctx, ngx_chain_t *in)
+{
+    ngx_chain_t *out = NULL;
+    ngx_chain_t **tail = &out;
+    for (ngx_chain_t *chain = in; chain != NULL; chain = chain->next) {
+        ngx_buf_t *source = chain->buf;
+        ngx_chain_t *control;
+        if (source == NULL) {
+            return NGX_ERROR;
+        }
+        if (ngx_buf_in_memory(source)) {
+            source->pos = source->last;
+        }
+        if (source->in_file) {
+            source->file_pos = source->file_last;
+        }
+        if (ctx->replacement_body_terminal_sent ||
+            !(source->flush || source->sync || source->last_buf ||
+              source->last_in_chain)) {
+            continue;
+        }
+        control = ngx_alloc_chain_link(r->pool);
+        if (control == NULL) {
+            return NGX_ERROR;
+        }
+        control->buf = ngx_calloc_buf(r->pool);
+        if (control->buf == NULL) {
+            return NGX_ERROR;
+        }
+        control->next = NULL;
+        control->buf->flush = source->flush;
+        control->buf->sync = source->sync || source->last_in_chain;
+        control->buf->last_buf = source->last_buf && r == r->main;
+        control->buf->last_in_chain = source->last_in_chain;
+        *tail = control;
+        tail = &control->next;
+        if (control->buf->last_buf ||
+            (r != r->main && control->buf->last_in_chain)) {
+            ctx->replacement_body_terminal_sent = 1;
+        }
+    }
+    if (out == NULL && !r->buffered && !r->connection->buffered) {
+        return NGX_OK;
+    }
+    return ngx_http_next_body_filter(r, out);
+}
+""")
+
+COMMON_COUNTER_ADD_CONTRACT_PATTERN = c_reviewed_contract_pattern(r"""
+static inline uint64_t
+msconnector_transaction_counter_add(uint64_t current, size_t amount) {
+    if ((uintmax_t)amount > UINT64_MAX - current) {
+        return UINT64_MAX;
+    }
+    return current + (uint64_t)amount;
+}
+""")
+
+COMMON_RESPONSE_BODY_RECORD_CONTRACT_PATTERN = c_reviewed_contract_pattern(r"""
+int msconnector_transaction_contract_record_body(msconnector_transaction_contract *contract,
+    int response_direction,
+    size_t bytes) {
+    const enum msconnector_phase expected_phase = response_direction ?
+        MSCONNECTOR_TRANSACTION_PHASE_P4 : MSCONNECTOR_TRANSACTION_PHASE_P2;
+    if (!contract_is_initialized(contract)) {
+        return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
+    }
+    if (!contract_mutable(contract)) {
+        if (contract_is_cleaned(contract)) {
+            return MSCONNECTOR_TRANSACTION_TRANSITION_AFTER_CLEANUP;
+        }
+        return MSCONNECTOR_TRANSACTION_TRANSITION_AFTER_TERMINAL;
+    }
+    if (contract->active_phase != (int)expected_phase) {
+        return contract->active_phase < 0 ? MSCONNECTOR_TRANSACTION_TRANSITION_LATE_PHASE :
+            MSCONNECTOR_TRANSACTION_TRANSITION_PHASE_ACTIVE;
+    }
+    if (response_direction) {
+        contract->response_body_bytes = msconnector_transaction_counter_add(
+            contract->response_body_bytes, bytes);
+    } else if (!increment_size(&contract->request_body_bytes, bytes)) {
+        (void)msconnector_transaction_contract_fail(contract,
+            MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, contract->phase_started_at_ms);
+        return MSCONNECTOR_TRANSACTION_TRANSITION_INVALID;
+    }
+    return MSCONNECTOR_TRANSACTION_TRANSITION_OK;
+}
+""")
 
 def c_event_jsonl_pipeline(active, strict=False):
     """Require the live bounded projection/serializer/write pipeline, not tokens."""
@@ -836,6 +1055,11 @@ SECURITY_CRITICAL_MACRO_SYMBOLS = frozenset((
     'NGX_HTTP_INTERNAL_SERVER_ERROR',
     'NGX_OK',
     'msc_add_n_response_header',
+    'msconnector_transaction_counter_add',
+    'UINT64_MAX', 'uint64_t', 'uintmax_t',
+    'response_body_bytes_seen', 'response_body_bytes_inspected',
+    'response_body_append_calls', 'buffered',
+    'ngx_http_modsecurity_discard_replaced_response_body',
     'msconnector_rule_id_extract_from_message',
     'ngx_http_modsecurity_extract_intervention_rule_id',
     'ngx_http_modsecurity_process_intervention',
@@ -1310,6 +1534,14 @@ body_response_append_chunk, _ = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_append_response_body_chunk')
 body_response_append_buffer, _ = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_append_response_body_buffer')
+body_response_file, _ = c_checked_function(body_c,
+    'static ngx_int_t\nngx_http_modsecurity_append_file_response_body')
+body_response_replaced, _ = c_checked_function(body_c,
+    'static ngx_int_t\nngx_http_modsecurity_discard_replaced_response_body')
+common_counter_add, _ = c_checked_function(transaction_contract_h,
+    'static inline uint64_t\nmsconnector_transaction_counter_add', True)
+common_response_body_record, _ = c_checked_function(transaction_state_c,
+    'int msconnector_transaction_contract_record_body')
 body_response_append_limited, _ = c_checked_function(body_c,
     'static ngx_int_t\nngx_http_modsecurity_append_accounted_response_body')
 body_response_chain_append, _ = c_checked_function(body_c,
@@ -1786,10 +2018,17 @@ filter_callers_delegate_to_mapper = (
 )
 body_filter_direct_chain_is_direct = (
     BODY_FILTER_DIRECT_CHAIN_CONTRACT_PATTERN.fullmatch(body_filter) is not None
+    and BODY_RESPONSE_REPLACED_CONTRACT_PATTERN.fullmatch(body_response_replaced) is not None
+    and body_filter_prepare.find('if (ctx->response_replaced)') >= 0
+    and body_filter_prepare.find('if (ctx->response_replaced)')
+        < body_filter_prepare.find('if (in == NULL)')
+    and re.search(r'if\s*\(ctx->response_replaced\)\s*\{\s*'
+        r'\*context\s*=\s*ctx;\s*return\s+NGX_DONE;\s*\}', body_filter_prepare) is not None
 )
 body_response_buffer_is_limited = (
     BODY_RESPONSE_BUFFER_CONTRACT_PATTERN.fullmatch(
         body_response_append_buffer) is not None
+    and BODY_RESPONSE_FILE_CONTRACT_PATTERN.fullmatch(body_response_file) is not None
 )
 body_response_limited_is_direct = (
     BODY_RESPONSE_LIMITED_CONTRACT_PATTERN.fullmatch(
@@ -1806,6 +2045,20 @@ body_response_chain_append_is_direct_wrapper = (
     BODY_RESPONSE_CHAIN_APPEND_CONTRACT_PATTERN.fullmatch(
         body_response_chain_append) is not None
 )
+body_response_accounting_is_observational = (
+    BODY_RESPONSE_ACCOUNT_CONTRACT_PATTERN.fullmatch(body_limited_response_plan) is not None
+    and COMMON_COUNTER_ADD_CONTRACT_PATTERN.fullmatch(common_counter_add) is not None
+    and COMMON_RESPONSE_BODY_RECORD_CONTRACT_PATTERN.fullmatch(common_response_body_record) is not None
+    and all(re.search(r'uint64_t\s+' + member + r'\s*;', common_h) is not None
+        for member in ('response_body_bytes_seen', 'response_body_bytes_inspected',
+                       'response_body_append_calls'))
+    and re.search(r'uint64_t\s+response_body_bytes\s*;', transaction_contract_h) is not None
+    and all(legacy not in body_c for legacy in (
+        'SIZE_MAX - ctx->response_body_bytes_seen',
+        'SIZE_MAX - ctx->response_body_bytes_inspected',
+        'msconnector_phase4_effective_body_limit(',
+        'msconnector_body_limit_plan_chunk(', 'common_config.phase4_body_limit'))
+)
 body_response_limit_contract_is_direct = (
     body_response_chain_append_is_direct_wrapper
     and C_PREPROCESSOR_DIRECTIVE.search(
@@ -1814,8 +2067,9 @@ body_response_limit_contract_is_direct = (
     and len(c_direct_matches(body_limited_response_plan,
         BODY_LIMIT_BYTES_SEEN_INCREMENT_PATTERN)) == 1
     and '*allowed = len;' in body_limited_response_plan
-    and 'SIZE_MAX - ctx->response_body_bytes_seen' in body_limited_response_plan
-    and 'SIZE_MAX - ctx->response_body_bytes_inspected' in body_limited_response_plan
+    and body_response_accounting_is_observational
+    and body_response_buffer_is_limited
+    and body_response_limited_is_direct
     and 'phase4_mode' not in body_limited_response_plan
 )
 
@@ -1936,7 +2190,7 @@ checks = [
 ('log_result = ngx_http_modsecurity_phase4_log_event' in body_c and 'if (log_result != NGX_OK)' in body_c and 'return ngx_http_modsecurity_phase4_log_event' in body_c and 'return NGX_ERROR;' in phase_event_jsonl_helper and '"phase4"' in phase4_log_event, 'NGINX Phase4 event write and short-write failures are observable and propagated'),
 ('MSCONNECTOR_COMMON_SRC' in nginx_config and '$MSCONNECTOR_COMMON_SRC/event.c' in nginx_config and '$MSCONNECTOR_COMMON_SRC/transaction_state.c' in nginx_config and '$MSCONNECTOR_COMMON_SRC/late_intervention.c' in nginx_config, 'NGINX build uses stable Common source root and links event and late-intervention support'),
 ('common_response_validated' in common_h and ('if (!ctx->common_response_validated)' in body_c or CTX_RESPONSE_VALIDATED_GUARD in body_c) and 'ctx->common_response_validated = 1' in body_c, 'NGINX response mapper validation is gated once per response in body path'),
-('response_body_bytes_inspected' in common_h and 'ngx_http_modsecurity_append_accounted_response_body' in body_c and 'msconnector_phase4_effective_body_limit(' not in body_c and 'msconnector_body_limit_plan_chunk(' not in body_c and 'common_config.phase4_body_limit' not in body_c and 'SIZE_MAX - ctx->response_body_bytes_seen' in body_c, 'NGINX preserves checked response accounting without a connector-owned inspection limit'),
+(body_response_accounting_is_observational, 'NGINX preserves checked response accounting without a connector-owned inspection limit'),
 (body_response_buffer_is_limited, 'NGINX response-body buffer route retains the bounded memory/file planner paths'),
 (body_response_limited_is_direct, 'NGINX response-body helper passes each accounted complete chunk to the raw route'),
 (phase4_mime_is_engine_owned, 'NGINX has no connector-owned Phase4 content-type allowlist'),
