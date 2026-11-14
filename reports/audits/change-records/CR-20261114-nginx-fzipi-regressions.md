@@ -10,6 +10,8 @@
 | Date (UTC) | 2026-11-14 |
 | Base revision | `31531f74cfe26c2a40d4bb5f6eaae4c0920127e1` |
 
+Evidence alias `<evidence-root>` denotes the private external root for run `20261114-fzipi-review`; its exact host binding is retained in the private task receipts.
+
 ## Motivation and problem statement
 
 Add targeted regressions for the externally owned native NGINX/Common corrections requested from fzipi upstream PR377 review.
@@ -36,7 +38,7 @@ Keep tests on demand under existing selectors; do not enlarge the100-case automa
 
 ## Commands and results
 
-Final explicit unittest selection passed75 methods across10 affected modules, including28 parser scenarios with genuine system libModSecurity3.0.14 and36 actual collector append-mode/commit/prose limit variants. Original-code controls compiled and produced intended runtime failures. Common helper smoke passed. Common adoption checker passed;11 mutation methods rejected28 negative variants. Four existing request-file/memory test methods plus two existing-helper scenarios preserved ProcessPartial and independent file errors. Exact commands/receipts in `/var/tmp/codex/ModSecurity-conector/runs/20261114-fzipi-review`.
+Final explicit unittest selection passed75 methods across10 affected modules, including28 parser scenarios with genuine system libModSecurity3.0.14 and36 actual collector append-mode/commit/prose limit variants. Original-code controls compiled and produced intended runtime failures. Common helper smoke passed. Common adoption checker passed;11 mutation methods rejected28 negative variants. Four existing request-file/memory test methods plus two existing-helper scenarios preserved ProcessPartial and independent file errors. Exact commands/receipts in `<evidence-root>`.
 
 ## Security impact
 
@@ -44,7 +46,7 @@ Negative controls protect against error-page bypass, payload rule-ID spoofing, S
 
 ## Documentation and runtime evidence
 
-This EN/DE pair records only Framework validation. Parent native build is an external compilation result, not Framework host/runtime promotion. Externally owned Parent H1 source `b478aeb02c26bf6e44627f43b49678f1abc3081b` passed9 host/configuration scenarios with the changed runner/fixture hashes admitted. Receipt `/var/tmp/codex/ModSecurity-conector/runs/20261114-fzipi-review/native-host-v2/private/result.json`, SHA256 `0364231b54ca098f69666f52777bb0162460b1b1f5ae39001789f0c92388738b`; root-master/nobody-worker preflights and cleanup passed. This is scoped H1 evidence only.
+This EN/DE pair records only Framework validation. Parent native build is an external compilation result, not Framework host/runtime promotion. Externally owned Parent H1 source `b478aeb02c26bf6e44627f43b49678f1abc3081b` passed9 host/configuration scenarios with the changed runner/fixture hashes admitted. Receipt `<evidence-root>/native-host-v2/private/result.json`, SHA256 `0364231b54ca098f69666f52777bb0162460b1b1f5ae39001789f0c92388738b`; root-master/nobody-worker preflights and cleanup passed. This is scoped H1 evidence only.
 
 ## Checks not run
 
@@ -57,3 +59,5 @@ New parser rejects ambiguous raw metadata as unknown. Test doubles do not prove 
 ## Final diff and review status
 
 Task branch `test/nginx-fzipi-review`; actual commit/push/PR facts are recorded in the delivery readback. No merge is authorized. Final combined diff/whitespace and Framework Change Record checks passed before delivery. Remote CI/Sonar and PR state require current-head readback; no merge is authorized.
+
+CI follow-up: the first lint run rejected literal local host paths in this record. Portable evidence aliases replace those paths; no checker or validation rule was changed.
