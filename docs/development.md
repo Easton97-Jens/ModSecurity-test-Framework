@@ -28,8 +28,8 @@ or turn an unavailable dependency into a PASS.
 The Apache preparer retains the canonical HTTPD version, source URL and digest
 from `ci/lib/common.sh`. A regular HTTPD archive already in the approved download
 root may be reused only after its required literal SHA-256 is checked again.
-The canonical checksum metadata is still fetched and verified before extraction;
-cache reuse is not a network-download or host-runtime claim.
+Reviewed checksum metadata is verified before extraction; a validated private
+metadata cache may be reused. Cache reuse is not a network-download or host-runtime claim.
 After both digest checks, the archive is copied into the private Apache build
 root and rehashed there; extraction uses only that verified copy.
 
@@ -43,6 +43,29 @@ acquisition, including APR-util's direct/no-redirect boundary, are unchanged.
 
 Use `make test-httpd-source-recovery` for the focused offline regression suite.
 It validates source-acquisition behavior, not a connector's runtime readiness.
+
+The HTTPD 2.4.69 checksum is fetched directly, without redirects, from the
+immutable official distribution revision
+`https://dist.apache.org/repos/dist/!svn/bc/89000/release/httpd/httpd-2.4.69.tar.bz2.sha256`.
+The retired release's canonical metadata URL redirects to `archive.apache.org`;
+a reproduced TCP-connect timeout at that host motivated this reviewed source
+selection, without changing TLS checks, retry limits or timeouts. The exact
+release URL, metadata bytes SHA-256, filename and independent `common.sh`
+archive pin must all match before extraction. A new version requires a reviewed
+revision/object update. The actual direct HTTP 200/TLS transfer and both hashes
+are retained separately from canonical source identity; a valid existing private
+metadata cache proves verified bytes, not a fresh network transfer.
+
+For the independently reviewed HTTPD 2.4.69 tuple, the same direct primary 404
+instead selects the proven immutable source archive at distribution revision
+89000, paired with the checksum object above. Both the Python native cache
+producer and standalone Apache preparer require direct HTTP 200, no redirect,
+and the unchanged independent archive pin. The native producer creates its own
+cache marker before acquisition; copied files cannot be adopted by inventing
+markers. Other release tuples retain the existing archive recovery policy.
+The reviewed filename comes from the immutable metadata object; consumers read
+the current canonical tuple from `common.sh` and check its exact HTTPS origin,
+path and absence of query or fragment, without copying its version or URL pin.
 
 ### Configured NGINX headers for C checks
 

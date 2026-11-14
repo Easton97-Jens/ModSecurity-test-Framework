@@ -11,6 +11,7 @@ _C_SOURCE_CONTRACT_PATH = 'connector_suite/modsecurity_connector_tests/c_source_
 
 
 NATIVE_UNITS = (
+    "connector_suite/adapters/apache/harness/apache_h2_observer.c",
     "connector_suite/adapters/apache/harness/mod_phase4_terminal_rogue.c",
     "connector_suite/adapters/envoy/src/envoy_ext_authz_response_companion_test.c",
     "connector_suite/adapters/haproxy/harness/i12_request_scope_observer.c",
@@ -19,6 +20,7 @@ NATIVE_UNITS = (
     "connector_suite/adapters/traefik/harness/i12/native/acceptance_faults.c",
     "connector_suite/adapters/traefik/harness/i12/native/acceptance_syscalls.c",
     "connector_suite/adapters/traefik/harness/i12_file/sdk_capability.c",
+    "connector_suite/adapters/traefik/harness/native_h2_observer.c",
     "connector_suite/adapters/traefik/src/traefik_forwardauth_response_companion_test.c",
     "connector_suite/common/scripts/modsecurity_targeted_eval.cc",
     "connector_suite/common/src/test_result.c",
@@ -92,6 +94,7 @@ NATIVE_UNITS = (
     "connector_suite/modsecurity_connector_tests/transaction_phase_contract_test.c",
     "connector_suite/modsecurity_connector_tests/transaction_phase_runtime_companion_test.c",
     "src/v3-api-smoke/v3_api_smoke.c",
+    "tests/runners/protocol_acceptance_client.c",
 )
 
 HOST_FUNCTIONS = (

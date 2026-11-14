@@ -84,3 +84,8 @@ ausführen. Sie prüfen Parser, Fallbackablehnung, Paketmetadaten, Manipulation,
 fremde Requests/Runs, Cleanup, kanonische Nachprüfung und echte Make-Auswahl/Init.
 Diese Selbsttests starten keinen Protokollhost und qualifizieren keinen
 Runtimeverkehr. Die 100-Fälle-Standardauswahl wird nicht erweitert.
+
+Ein separater [Runner zur Vorbereitung der Protokollabnahme](protocol-acceptance-preparation.de.md)
+ergänzt moderne Pfade über diesen Executor hinaus. Registry, Hostnachweise und
+Grenzen bleiben separat; die oben aufgeführten Operationen dieses Executors
+bleiben unverändert.

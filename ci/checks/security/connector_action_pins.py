@@ -4,6 +4,8 @@ The snapshot is Framework-owned. It never reads a Connector checkout. Native
 Framework maintenance cannot repin these sources under its different lock.
 Whole-source digests retain the reviewed jobs, credentials, runner labels,
 conditions and shell boundaries instead of exempting them from inspection.
+Explicit Framework-owned current-source amendments retain their immutable
+migration anchor and require exact replacement bytes, never a path exemption.
 """
 from __future__ import annotations
 import hashlib
@@ -20,6 +22,14 @@ AUTHORITY = {"repository": "Easton97-Jens/ModSecurity-conector",
              "sha256": "ad2b62a5d698ba7211a02df8b0239b7d0be7b105e2154fef738d96242aeb7f64"}
 ACTION_RECORDS_SHA256 = "3830ab9e7242edf449b834f83b08b0e862e601d7ac7ec6586bf4ea1490b9b240"
 SOURCES_SHA256 = "1c60cb8a19bd8bf3d810ca8392626f30b938b05bbdeab2219222d61833712b8e"
+REVIEWED_CURRENT_SOURCE_AMENDMENTS = {
+    ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml": {
+        "baseline_sha256": "748352eec501d6c8220cb64b405ebbd5ba1e6e2aa10d265d59610894685372c3",
+        "current_sha256": "44f207ba4d8d1b7e4e8a51a351c16613a566a21bb4a0c8ad00a0ebe24bb6654a",
+        "reason": "Retain bounded Apache build diagnostics in the existing failure-only upload.",
+        "change_record": "20261106-01-protocol-acceptance-preparation",
+    },
+}
 WORKFLOWS = frozenset({"connector-nginx-root-broker-historical.yml",
     "connector-protected-nginx-exact-head.yml", "connector-protected-nginx-root-broker-caller.yml",
     "connector-trusted-lighttpd-namespace.yml"})
@@ -68,6 +78,16 @@ def load_lock(root: Path):
         raise ValueError("integration authority differs from the reviewed immutable migration snapshot")
     return value
 
+def current_source_digest(lock, relative):
+    expected = lock["sources"][relative]
+    amendment = REVIEWED_CURRENT_SOURCE_AMENDMENTS.get(relative)
+    if amendment is not None:
+        if amendment["baseline_sha256"] != expected:
+            raise ValueError("integration amendment baseline differs from immutable migration source")
+        expected = amendment["current_sha256"]
+    return expected
+
+
 def validate_source(root: Path, relative: str, text: str | None = None):
     """Fail closed for unknown paths, changed trust boundaries or action pins."""
     try:
@@ -77,7 +97,8 @@ def validate_source(root: Path, relative: str, text: str | None = None):
         body = _read(root, relative)
         if text is not None and body != text.encode():
             raise ValueError("integration source changed during inspection")
-        if hashlib.sha256(body).hexdigest() != lock["sources"][relative]:
+        expected = current_source_digest(lock, relative)
+        if hashlib.sha256(body).hexdigest() != expected:
             raise ValueError("integration source differs from its reviewed migration contract")
         # These exact source bytes are authenticated above. Their reviewed uses
         # entries are literal block scalars, so bootstrap validation needs no YAML

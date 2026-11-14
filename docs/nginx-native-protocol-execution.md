@@ -80,3 +80,7 @@ They test parsing, no fallback, packet metadata, evidence mutation, request/run
 mixups, cleanup, canonical revalidation and real Make selection/init. These
 selftests do not launch a protocol host or qualify runtime traffic. They do not
 increase the 100-case standard selection.
+
+A separate opt-in [protocol acceptance preparation runner](protocol-acceptance-preparation.md)
+adds modern paths beyond this executor. Its registry, host evidence and
+limitations are separate; this executor's supported operations remain as listed above.

@@ -179,15 +179,13 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
             (ROOT / "connectors" / "envoy" / "capabilities.json").read_text(encoding="utf-8")
         )["capabilities"]
 
-        self.assertEqual(capabilities["http2_downstream"]["state"], "configured_not_exercised")
-        self.assertEqual(capabilities["http2_tls_alpn"]["state"], "configured_not_exercised")
-        self.assertIn("no canonical HTTP/2 host case", capabilities["http2_downstream"]["reason"])
-        self.assertIn("no negotiated-ALPN HTTP/2 runtime observation", capabilities["http2_tls_alpn"]["reason"])
+        for name in ("http2_downstream", "http2_tls_alpn", "http2_multiplexing", "http2_stream_reset"):
+            self.assertEqual(capabilities[name]["state"], "implemented_not_asserted")
+        self.assertIn("does not qualify ext_authz", capabilities["http2_downstream"]["reason"])
+        self.assertIn("gRPC send is insufficient", capabilities["http2_stream_reset"]["reason"])
         for name in (
             "http2_upstream",
             "http2_cleartext_h2c",
-            "http2_multiplexing",
-            "http2_stream_reset",
             "http3_downstream",
             "http3_upstream",
             "http3_quic",

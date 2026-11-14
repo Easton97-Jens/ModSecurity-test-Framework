@@ -53,6 +53,103 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
         self.assertIn("  a:\n    version: new", result)
         self.assertIn("  b:\n    version: keep", result)
 
+    def test_diagnostic_role_is_exact_and_separate_from_release_actions(self):
+        from modsecurity_test_framework.sonar_diagnostics_contract import (
+            ACTION_PATH,
+            COMMIT,
+            REFERENCE,
+            REPOSITORY,
+        )
+
+        values = {
+            "CI_SONAR_DIAGNOSTIC_REPOSITORY": REPOSITORY,
+            "CI_SONAR_DIAGNOSTIC_ACTION_PATH": ACTION_PATH,
+            "CI_SONAR_DIAGNOSTIC_COMMIT": COMMIT,
+        }
+        line = "        uses: " + REFERENCE + "\n"
+        self.assertEqual(MODULE._rewrite_remote_action_line(line, values), (line, None))
+        for reference in (
+            REFERENCE.replace(COMMIT, "a" * 40),
+            REFERENCE.replace("sonar-private", "other-node"),
+            REFERENCE.replace(COMMIT, "main"),
+        ):
+            self.assertIsNotNone(
+                MODULE._rewrite_remote_action_line("uses: " + reference, values)[1]
+            )
+        self.assertIsNone(
+            MODULE.action_suffix_for_reference(REPOSITORY + "/other", values)
+        )
+
+    def test_native_lock_producer_emits_and_checks_diagnostic_role(self):
+        values = MODULE.source_common(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            lock = root / "ci/tooling/security-tools.lock.yml"
+            lock.parent.mkdir(parents=True)
+            lock.write_bytes((ROOT / "ci/tooling/security-tools.lock.yml").read_bytes())
+            expected = MODULE.lock_values(root, values)
+            previous = MODULE.PREVIOUS_DIAGNOSTIC_COMMIT.encode()
+            target = values["CI_SONAR_DIAGNOSTIC_COMMIT"].encode()
+            self.assertNotEqual(previous, target)
+            legacy = expected.replace(
+                b"immutable_commit: " + target, b"immutable_commit: " + previous
+            )
+            lock.write_bytes(legacy)
+            self.assertEqual(MODULE.lock_values(root, values), expected)
+            lock.write_bytes(expected)
+            self.assertEqual(MODULE.lock_values(root, values), expected)
+            lock.write_bytes(
+                expected.replace(
+                    b"action_path: .github/actions/sonar-private",
+                    b"action_path: .github/actions/other",
+                )
+            )
+            with self.assertRaises(MODULE.PinError):
+                MODULE.lock_values(root, values)
+            record = b"    immutable_commit: " + target
+            section = expected[expected.index(b"diagnostic_actions:") :]
+            corruptions = (
+                expected.replace(record, b"    immutable_commit: " + b"a" * 40),
+                expected.replace(
+                    record,
+                    b"    immutable_commit: 5181cedba82af8d83de4b123080fb80ff414de15",
+                ),
+                expected.replace(
+                    record,
+                    b"    immutable_commit: 0f3889fd2f9d6f8d4fc6c3ec82d44f6859ed32f3",
+                ),
+                expected.replace(
+                    record,
+                    b"    immutable_commit: 15588933f5f5456bb07f5eef12d7ce236e651c5c",
+                ),
+                expected.replace(
+                    record,
+                    b"    immutable_commit: 0f6239f26ba648c53c86ae418502149d5ee412f7",
+                ),
+                expected.replace(
+                    b"repository: Easton97-Jens/ModSecurity-test-Framework",
+                    b"repository: attacker/Framework",
+                ),
+                expected.replace(
+                    b"    action_path: .github/actions/sonar-private\n", b""
+                ),
+                expected.replace(record, record + b"\n    extra: true"),
+                expected.replace(record, record + b"\n" + record),
+                expected + section,
+                expected + section.replace(b"diagnostic_actions:\n", b""),
+                expected.replace(record, b"    <<: {}\n" + record),
+                expected.replace(record, b"    immutable_commit: [" + target + b"]"),
+                expected.replace(
+                    b"    repository: Easton97-Jens/ModSecurity-test-Framework",
+                    b"    repository: [invalid]",
+                ),
+            )
+            for index, corrupted in enumerate(corruptions):
+                with self.subTest(corruption=index):
+                    lock.write_bytes(corrupted)
+                    with self.assertRaises(MODULE.PinError):
+                        MODULE.lock_values(root, values)
+
     def test_source_discovery_rejects_incomplete_new_group(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

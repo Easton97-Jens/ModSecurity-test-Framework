@@ -1714,6 +1714,10 @@ endif
 check-common-sdk-contract:
 	$(PYTHON) $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/common/check-common-sdk-contract.py
 
+.PHONY: check-repository-architecture
+check-repository-architecture:
+	$(PYTHON) $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/common/check-repository-architecture.py --connector-root "$(CONNECTOR_ROOT)" --framework-root "$(TEST_ROOT)"
+
 check-common-security-contract:
 	$(PYTHON) $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/common/check-common-security-contract.py
 
@@ -1837,6 +1841,7 @@ lint: check-framework
 	$(MAKE) check-remaining-connectors-c-standard-wiring
 	$(MAKE) check-remaining-connectors-c17-lint
 	$(MAKE) check-common-sdk-contract
+	$(MAKE) check-repository-architecture
 	$(MAKE) check-common-security-contract
 	$(MAKE) check-common-memory-safety
 	$(MAKE) check-http-authorization-service-timeout

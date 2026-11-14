@@ -545,6 +545,46 @@ render_config() {
         "$TEMPLATE" > "$CONFIG_FILE"
 }
 
+
+preflight_apache_execution_context() {
+    # Observe this launcher's actual credentials without selecting a different
+    # worker or privilege model. Each invocation retains a fresh native report.
+    context_token=$("$PYTHON_BIN" -c 'import secrets; print(secrets.token_hex(12))') || return 77
+    case "$context_token" in
+        ''|*[!0-9a-f]*) return 77 ;;
+        *) ;;
+    esac
+    context_output="$RUNTIME_ROOT/execution-context-$context_token"
+    [ ! -e "$context_output" ] && [ ! -L "$context_output" ] || return 77
+    "$PYTHON_BIN" -P -m modsecurity_connector_ci.runtime.common.hostruntime_preflight \
+        --execution-context-only --connector apache --profile apache \
+        --runtime-root "$RUNTIME_ROOT" --output-dir "$context_output" \
+        > "$LOG_DIR/execution-context-$context_token.stdout" || return 77
+    "$PYTHON_BIN" - "$RUNTIME_ROOT" "$context_output/status.json" <<'APACHE_CONTEXT_PY'
+import json
+import os
+from pathlib import Path
+import sys
+from modsecurity_connector_ci.lib.runtime_path_utils import read_runtime_artifact_text
+
+raw = read_runtime_artifact_text(Path(sys.argv[1]), Path(sys.argv[2]), "Apache execution-context preflight")
+if len(raw) > 65536:
+    raise SystemExit(77)
+result = json.loads(raw)
+context = result.get("execution_context", {})
+uid, gid = list(os.getresuid()), list(os.getresgid())
+observed = context.get("observed_worker", {})
+checks = result.get("checks", [])
+if (result.get("status") != "PASS" or result.get("connector") != "apache"
+        or result.get("profile") != "apache" or not checks
+        or any(check.get("status") != "PASS" for check in checks)
+        or context.get("uid") != uid or context.get("gid") != gid
+        or observed.get("uid") != uid or observed.get("gid") != gid):
+    raise SystemExit(77)
+print(f"apache_smoke: execution-context PASS uid={uid[1]} gid={gid[1]}")
+APACHE_CONTEXT_PY
+}
+
 apache_profile_enabled() {
     if [ -z "$APACHE_PROFILE_CLEANUP_RECEIPT" ] && [ -z "$APACHE_PROFILE_CELL_RUN_ID" ] && \
         [ -z "$APACHE_PROFILE_GITHUB_RUN_ID" ] && [ -z "$APACHE_PROFILE_GITHUB_RUN_ATTEMPT" ]; then
@@ -2824,6 +2864,7 @@ trap on_exit EXIT
 trap 'on_signal 129' HUP
 trap 'on_signal 130' INT
 trap 'on_signal 143' TERM
+preflight_apache_execution_context || blocked "Apache launcher execution-context preflight failed; no host started"
 start_server
 
 if [ "$MSCONNECTOR_SMOKE_STAGE" = "config_load" ]; then

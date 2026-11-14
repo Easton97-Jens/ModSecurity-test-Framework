@@ -59,6 +59,7 @@ STATUS_FILE="$LOG_DIR/status.txt"
 COMMANDS_FILE="$LOG_DIR/commands.txt"
 SOURCE_INFO_FILE="$LOG_DIR/source-info.txt"
 ARTIFACTS_FILE="$LOG_DIR/artifacts.txt"
+HTTPD_H2_PURGE_PATCH="$SCRIPT_DIR/patches/apache/h2-joined-stream-purge.patch"
 HTTPD_SOURCE_BUILT=0
 PCRE2_SOURCE_BUILT=0
 
@@ -143,6 +144,28 @@ EOF
     blocked "missing development header for $purpose: <$header>; set CPPFLAGS/LDFLAGS for a local dependency path or install the matching system development package outside this run; see $check_log"
 }
 
+retain_configure_diagnostics() {
+    diagnostic_phase=$1
+    diagnostic_cwd=$2
+    for diagnostic_relative in config.log srclib/apr/config.log srclib/apr-util/config.log; do
+        case "$diagnostic_relative" in
+            config.log) diagnostic_suffix=.config.log ;;
+            srclib/apr/config.log) diagnostic_suffix=.apr-config.log ;;
+            *) diagnostic_suffix=.apr-util-config.log ;;
+        esac
+        diagnostic_source="$diagnostic_cwd/$diagnostic_relative"
+        if [ -f "$diagnostic_source" ] && [ ! -L "$diagnostic_source" ]; then
+            # Preserve the bounded compiler/linker tail before failed managed
+            # staging is retired. Never copy source trees or inherited envs.
+            if tail -c 2097152 "$diagnostic_source" > "$LOG_DIR/$diagnostic_phase$diagnostic_suffix"; then
+                echo "diagnostic: $diagnostic_phase$diagnostic_suffix retention=last_2_MiB" >> "$STATUS_FILE"
+            else
+                echo "diagnostic_write_failed: $diagnostic_phase$diagnostic_suffix" >> "$STATUS_FILE"
+            fi
+        fi
+    done
+}
+
 run_logged() {
     label=$1
     cwd=$2
@@ -158,9 +181,11 @@ run_logged() {
     if (cd "$cwd" && "$@") >"$log_file" 2>&1; then
         echo "pass: $label log=$log_file" >> "$STATUS_FILE"
         return 0
+    else
+        rc=$?
     fi
-    rc=$?
     echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
+    retain_configure_diagnostics "$label" "$cwd"
     echo "apache_poc: blocked command failed: $*"
     echo "apache_poc: see log: $log_file"
     exit 77
@@ -200,8 +225,9 @@ copy_sanitized_source() {
         rm -f "$archive"
         echo "pass: $label log=$log_file" >> "$STATUS_FILE"
         return 0
+    else
+        rc=$?
     fi
-    rc=$?
     echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
     echo "apache_poc: blocked sanitized copy failed: $label"
     echo "apache_poc: see log: $log_file"
@@ -296,11 +322,29 @@ download_httpd_source_archive() {
             [ "$RUNTIME_COMPONENT_HTTP_STATUS" = 404 ] && \
             [ "$RUNTIME_COMPONENT_REDIRECTS" = 0 ]; then
             # Only a direct retired-release 404 permits the same filename at
-            # Apache's official archive. TLS, bounds and redirects stay strict.
+            # Apache's reviewed distribution recovery. TLS, bounds and redirects stay strict.
             httpd_download_url="https://archive.apache.org/dist/httpd/$HTTPD_ARCHIVE_NAME"
+            httpd_reviewed_archive_name=$("${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+                --archive "$httpd_download_dest" --checksum "$DOWNLOAD_DIR/httpd.sha256" \
+                --source-url "$HTTPD_SOURCE_URL" --checksum-url "$HTTPD_SHA256_URL" \
+                --expected-sha "$HTTPD_SHA256" --print-reviewed-archive-name) || \
+                blocked "could not identify the reviewed HTTPD distribution object"
+            httpd_immutable_archive=no
+            if [ "$HTTPD_ARCHIVE_NAME" = "$httpd_reviewed_archive_name" ]; then
+                httpd_immutable_archive=yes
+                httpd_download_url=$("${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+                    --archive "$httpd_download_dest" --checksum "$DOWNLOAD_DIR/httpd.sha256" \
+                    --source-url "$HTTPD_SOURCE_URL" --checksum-url "$HTTPD_SHA256_URL" \
+                    --expected-sha "$HTTPD_SHA256" --print-archive-url) || \
+                    blocked "HTTPD immutable distribution archive is not approved"
+            fi
             download_runtime_artifact_without_redirects_under_root \
                 httpd "$httpd_download_url" "$httpd_download_dest" "$DOWNLOAD_DIR" >/dev/null || \
                 blocked "could not download the reviewed archived HTTPD release"
+            if [ "$httpd_immutable_archive" = yes ]; then
+                [ "$RUNTIME_COMPONENT_HTTP_STATUS" = 200 ] && [ "$RUNTIME_COMPONENT_REDIRECTS" = 0 ] || \
+                    blocked "HTTPD immutable archive must be a direct official HTTP 200 response"
+            fi
         else
             blocked "could not download the reviewed HTTPD artifact"
         fi
@@ -345,6 +389,44 @@ verify_sha256_url() {
     sha_url=$3
     [ -n "$sha_url" ] || return 0
     sha_file="$DOWNLOAD_DIR/$label.sha256"
+    if [ "$label" = httpd ] && \
+        "${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+            --archive "$file" --checksum "$sha_file" --source-url "$HTTPD_SOURCE_URL" \
+            --checksum-url "$sha_url" --expected-sha "$HTTPD_SHA256" \
+            > "$LOG_DIR/httpd-checksum-cache.json"; then
+        echo "httpd_remote_checksum_source=cached_verified_metadata" >> "$ARTIFACTS_FILE"
+        echo "pass: httpd cached checksum and archive match reviewed provider and literal pin" >> "$STATUS_FILE"
+        return 0
+    fi
+    if [ "$label" = httpd ]; then
+        # The current retired release redirects to an unreachable archive host.
+        # Use its independently reviewed immutable official distribution object;
+        # neither archive presence nor its calculated hash selects this source.
+        httpd_metadata_url=$("${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+            --archive "$file" --checksum "$sha_file" --source-url "$HTTPD_SOURCE_URL" \
+            --checksum-url "$sha_url" --expected-sha "$HTTPD_SHA256" --print-download-url) || \
+            blocked "HTTPD metadata source is not approved for this release"
+        download_runtime_artifact_without_redirects_under_root \
+            httpd-sha256 "$httpd_metadata_url" "$sha_file" "$DOWNLOAD_DIR" >/dev/null || \
+            blocked "could not download the reviewed immutable HTTPD checksum object"
+        [ "$RUNTIME_COMPONENT_HTTP_STATUS" = 200 ] && [ "$RUNTIME_COMPONENT_REDIRECTS" = 0 ] || \
+            blocked "HTTPD metadata must be a direct official HTTP 200 response"
+        "${PYTHON:-python3}" -P "$FRAMEWORK_ROOT/ci/provisioning/httpd-checksum-cache.py" \
+            --archive "$file" --checksum "$sha_file" --source-url "$HTTPD_SOURCE_URL" \
+            --checksum-url "$sha_url" --expected-sha "$HTTPD_SHA256" \
+            --downloaded-from "$httpd_metadata_url" > "$LOG_DIR/httpd-checksum-download.json" || \
+            blocked "HTTPD immutable metadata or archive failed independent pin verification"
+        {
+            echo "httpd_remote_checksum_source=official_immutable_distribution_revision"
+            echo "httpd_remote_checksum_url=$httpd_metadata_url"
+            echo "httpd_remote_checksum_http_status=$RUNTIME_COMPONENT_HTTP_STATUS"
+            echo "httpd_remote_checksum_redirects=$RUNTIME_COMPONENT_REDIRECTS"
+            echo "httpd_remote_checksum_bytes=$RUNTIME_COMPONENT_BYTES"
+            echo "httpd_remote_checksum_tls_verification=verified"
+        } >> "$ARTIFACTS_FILE"
+        echo "pass: httpd official immutable metadata and archive match independent reviewed pins" >> "$STATUS_FILE"
+        return 0
+    fi
     download_file "$label-sha256" "$sha_url" "$sha_file"
     expected=$(awk '{print $1; exit}' "$sha_file")
     if [ -z "$expected" ]; then
@@ -492,6 +574,19 @@ resolve_pcre_config() {
     fi
 }
 
+apply_httpd_h2_purge_patch() {
+    # Keep the upstream archive pin separate from this versioned lifecycle fix.
+    require_command patch "apply versioned HTTPD HTTP/2 cleanup correction"
+    [ -f "$HTTPD_H2_PURGE_PATCH" ] || blocked "missing versioned HTTPD HTTP/2 patch"
+    httpd_h2_purge_patch_sha256=$(ci_trusted_sha256_file "$HTTPD_H2_PURGE_PATCH") || exit 77
+    printf '%s\n' "$httpd_h2_purge_patch_sha256" | grep -Eq '^[0-9a-f]{64}$' || \
+        blocked "invalid HTTPD HTTP/2 patch digest"
+    run_logged httpd-h2-joined-stream-purge-patch "$HTTPD_SOURCE_DIR" \
+        patch --batch --forward --fuzz=0 -p1 -i "$HTTPD_H2_PURGE_PATCH"
+    echo "httpd_h2_purge_patch=$HTTPD_H2_PURGE_PATCH" >> "$ARTIFACTS_FILE"
+    echo "httpd_h2_purge_patch_sha256=$httpd_h2_purge_patch_sha256" >> "$ARTIFACTS_FILE"
+}
+
 build_httpd_from_source() {
     require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
     require_absolute_generated_path "$HTTPD_BUILD_DIR" "HTTPD_BUILD_DIR"
@@ -532,6 +627,7 @@ build_httpd_from_source() {
 
     mkdir -p "$HTTPD_BUILD_DIR"
     extract_tar_strip httpd "$httpd_archive" "$HTTPD_SOURCE_DIR"
+    apply_httpd_h2_purge_patch
     extract_tar_strip apr "$apr_archive" "$HTTPD_SOURCE_DIR/srclib/apr"
     extract_tar_strip apr-util "$apr_util_archive" "$HTTPD_SOURCE_DIR/srclib/apr-util"
 

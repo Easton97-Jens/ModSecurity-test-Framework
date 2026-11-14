@@ -1,5 +1,5 @@
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_source
 
 import hashlib
 import io
@@ -23,17 +23,17 @@ PINNED_EXPAT_COMMIT = "c61098da494eea1cbd091118118dcee417faacea"
 PINNED_NGINX_RELEASE_TUPLE = {
     "NGINX_SOURCE_MODE": "github-release",
     "NGINX_SOURCE_REPO_URL": "https://github.com/nginx/nginx",
-    "NGINX_RELEASE_TAG": "release-1.31.6",
-    "NGINX_SOURCE_GIT_REF": "release-1.31.6",
-    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.6.tar.gz",
-    "NGINX_SHA256": "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
+    "NGINX_RELEASE_TAG": "release-1.31.8",
+    "NGINX_SOURCE_GIT_REF": "release-1.31.8",
+    "NGINX_RELEASE_ASSET_NAME": "nginx-1.31.8.tar.gz",
+    "NGINX_SHA256": "0652b760b3b772d2ec17b47c2fc15d9a95e6fe35cd5b877eadc1a62d9bc75af1",
 }
 PINNED_NGINX_RELEASE_ASSET_URL = (
-    "https://github.com/nginx/nginx/releases/download/release-1.31.6/nginx-1.31.6.tar.gz"
+    "https://github.com/nginx/nginx/releases/download/release-1.31.8/nginx-1.31.8.tar.gz"
 )
-TEST_HAPROXY_LOCKED_VERSION = "3.2.25"
-TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.25.tar.gz"
-TEST_HAPROXY_LOCKED_SHA256 = "d59a68d0daef7b5c596b019b742089788ff1748513ef96e71fe7b3943577866e"
+TEST_HAPROXY_LOCKED_VERSION = "3.2.26"
+TEST_HAPROXY_LOCKED_SOURCE_URL = "https://www.haproxy.org/download/3.2/src/haproxy-3.2.26.tar.gz"
+TEST_HAPROXY_LOCKED_SHA256 = "760ef35fafc1e05844e73ad07e138e9e96fddbf5de02f606249c027f754827da"
 TEST_HAPROXY_UNAPPROVED_FUTURE_VERSION = "3.2.9001"
 TEST_HAPROXY_UNAPPROVED_FUTURE_SOURCE_URL = (
     "https://www.haproxy.org/download/3.2/src/haproxy-3.2.9001.tar.gz"
@@ -49,6 +49,81 @@ components = load_parent_prepare_runtime_components()
 
 
 class PrepareRuntimeComponentsTest(unittest.TestCase):
+    def test_apache_download_failure_is_distinct_from_missing_httpd_build(self) -> None:
+        text = (
+            "runtime_diagnostic{component=httpd;phase=download;status=BLOCKED;reason_code=transfer_timeout}\n"
+            "apache_poc: blocked could not download the reviewed archived HTTPD release\n"
+        )
+        self.assertEqual(components.map_apache_blocker(text, []), "httpd_source_download_failed")
+
+    def test_apache_retired_primary_404_does_not_mask_later_compiler_failure(self) -> None:
+        text = (
+            "runtime_diagnostic{component=httpd;phase=download;status=BLOCKED;reason_code=http_404}\n"
+            "src/msc_filters.c:51:9: error: deliberate compiler failure\n"
+        )
+        self.assertEqual(components.map_apache_blocker(text, []), "apache_connector_build_failed")
+
+    def test_apache_cache_binds_canonical_profile_registry(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="apache-profile-input-") as temporary:
+            root = Path(temporary)
+            parent, framework = root / "parent", root / "framework"
+            registry = parent / "connectors/profile_registry.c"
+            registry.parent.mkdir(parents=True)
+            registry.write_text("profile version one\n")
+            paths = components.connector_input_paths(parent, framework, "apache")
+            self.assertIn(registry, paths)
+            self.assertIn(parent / "connectors/profile_registry.h", paths)
+            before = components.hash_input_paths(paths)
+            registry.write_text("profile version two\n")
+            self.assertNotEqual(components.hash_input_paths(paths), before)
+
+    def test_apache_cache_changes_when_native_httpd_patch_changes(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="apache-httpd-patch-input-") as temporary:
+            root = Path(temporary)
+            parent, framework = root / "parent", root / "framework"
+            patch = framework / "ci/provisioning/patches/apache/h2-joined-stream-purge.patch"
+            patch.parent.mkdir(parents=True)
+            patch.write_text("native correction version one\n")
+            apache_paths = components.connector_input_paths(parent, framework, "apache")
+            nginx_paths = components.connector_input_paths(parent, framework, "nginx")
+            self.assertIn(patch.parent, apache_paths)
+            self.assertNotIn(patch.parent, nginx_paths)
+            apache_before = components.hash_input_paths(apache_paths)
+            nginx_before = components.hash_input_paths(nginx_paths)
+            patch.write_text("native correction version two\n")
+            self.assertNotEqual(components.hash_input_paths(apache_paths), apache_before)
+            self.assertEqual(components.hash_input_paths(nginx_paths), nginx_before)
+
+    def run_apache_logged_failure(self, root: Path) -> subprocess.CompletedProcess[str]:
+        source = (test_root() / "ci/provisioning/prepare-apache-build.sh").read_text(encoding="utf-8")
+        start = source.find("retain_configure_diagnostics() {")
+        if start < 0:
+            start = source.index("run_logged() {")
+        functions = source[start:source.index("\ncopy_sanitized_source()")]
+        environment = dict(os.environ, LOG_DIR=str(root), STATUS_FILE=str(root / "status.txt"), COMMANDS_FILE=str(root / "commands.txt"))
+        return subprocess.run(
+            ["sh", "-c", functions + '\nrun_logged httpd-configure "$LOG_DIR" sh -c "exit 23"\n'],
+            env=environment, text=True, capture_output=True, check=False,
+        )
+
+    def test_apache_failed_logged_command_records_actual_exit_status(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="apache-command-status-") as temporary:
+            root = Path(temporary)
+            result = self.run_apache_logged_failure(root)
+            self.assertEqual(result.returncode, 77)
+            self.assertIn("httpd-configure rc=23", (root / "status.txt").read_text())
+
+    def test_apache_failed_configure_retains_nested_compiler_linker_diagnostics(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="apache-configure-diagnostics-") as temporary:
+            root = Path(temporary)
+            for directory in (root, root / "srclib/apr", root / "srclib/apr-util"):
+                directory.mkdir(parents=True, exist_ok=True)
+                (directory / "config.log").write_text("compiler/linker: test failure\n")
+            result = self.run_apache_logged_failure(root)
+            self.assertEqual(result.returncode, 77)
+            for suffix in (".config.log", ".apr-config.log", ".apr-util-config.log"):
+                self.assertEqual((root / ("httpd-configure" + suffix)).read_text(), "compiler/linker: test failure\n")
+
     def test_nginx_build_environment_preserves_canonical_non_h3_quic_pins(self) -> None:
         canonical_quic_tls = {
             "NGINX_QUIC_TLS_LIBRARY": "openssl",
@@ -908,9 +983,9 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0]["status"], "present")
         self.assertEqual(records[0]["url"], PINNED_NGINX_RELEASE_ASSET_URL)
-        self.assertEqual(records[0]["release_tag"], "release-1.31.6")
-        self.assertEqual(records[0]["source_ref"], "release-1.31.6")
-        self.assertEqual(records[0]["release_asset_name"], "nginx-1.31.6.tar.gz")
+        self.assertEqual(records[0]["release_tag"], "release-1.31.8")
+        self.assertEqual(records[0]["source_ref"], "release-1.31.8")
+        self.assertEqual(records[0]["release_asset_name"], "nginx-1.31.8.tar.gz")
         self.assertEqual(
             records[0]["expected_sha256"],
             PINNED_NGINX_RELEASE_TUPLE["NGINX_SHA256"],
@@ -1049,6 +1124,50 @@ class PrepareRuntimeComponentsTest(unittest.TestCase):
                 self.assertEqual(record["status"], "blocked", record)
                 network.assert_not_called()
                 self.assertFalse((root / "cache").exists())
+
+    def test_current_httpd_404_uses_reviewed_immutable_distribution_and_native_marker(self) -> None:
+        metadata = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
+        url, _ = metadata.approved_contract()
+        recovered = metadata.HTTPD_METADATA_URL.removesuffix(".sha256")
+        payload = self.httpd_fixture_archive()
+        digest = hashlib.sha256(payload).hexdigest()
+        requests = []
+        with tempfile.TemporaryDirectory(prefix="httpd-current-distribution-") as temporary, \
+                mock.patch.object(metadata, "approved_contract", return_value=(url, digest)), \
+                mock.patch("modsecurity_test_framework.connector_context.load_source", return_value=metadata), \
+                mock.patch.object(components.urllib.request.HTTPSHandler, "https_open",
+                                  side_effect=self.httpd_transport(requests, {url: (404, {}, b""), recovered: payload})):
+            root = Path(temporary)
+            record = self.prepare_httpd_fixture(root, digest, url=url)
+            self.assertEqual(record["status"], "present", record)
+            self.assertEqual(requests, [url, recovered])
+            self.assertEqual(record["download_url"], recovered)
+            self.assertEqual(record["source_recovery"], "official_httpd_immutable_distribution_after_direct_404")
+            self.assertTrue(components.cache_entry_marker_valid(Path(record["path"]), root / "cache"))
+            self.assertEqual(Path(record["path"]).read_bytes(), payload)
+
+    def test_current_httpd_distribution_rejects_redirect_non200_corruption_and_wrong_pin(self) -> None:
+        metadata = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
+        url, _ = metadata.approved_contract()
+        recovered = metadata.HTTPD_METADATA_URL.removesuffix(".sha256")
+        payload = self.httpd_fixture_archive()
+        digest = hashlib.sha256(payload).hexdigest()
+        for label, response, expected in (
+                ("redirect", (302, {"Location": "https://foreign.invalid/source"}, b""), digest),
+                ("http201", (201, {}, payload), digest), ("http403", (403, {}, b""), digest),
+                ("corrupt", payload + b"changed", digest), ("wrong pin", payload, "0" * 64)):
+            requests = []
+            with self.subTest(label=label), tempfile.TemporaryDirectory(prefix="httpd-current-negative-") as temporary, \
+                    mock.patch.object(metadata, "approved_contract", return_value=(url, digest)), \
+                    mock.patch("modsecurity_test_framework.connector_context.load_source", return_value=metadata), \
+                    mock.patch.object(components.urllib.request.HTTPSHandler, "https_open",
+                                      side_effect=self.httpd_transport(requests, {url: (404, {}, b""), recovered: response})), \
+                    mock.patch.object(components, "archive_can_list", wraps=components.archive_can_list) as inspect_archive:
+                record = self.prepare_httpd_fixture(Path(temporary), expected, url=url)
+                self.assertIn(record["status"], {"blocked", "corrupt"}, record)
+                self.assertFalse(Path(record["path"]).exists())
+                self.assertEqual(inspect_archive.call_count, 0)
+                self.assertEqual(requests, [] if label == "wrong pin" else [url, recovered])
 
     def test_httpd_source_recovery_is_an_explicit_single_component_policy(self) -> None:
         with tempfile.TemporaryDirectory() as raw:

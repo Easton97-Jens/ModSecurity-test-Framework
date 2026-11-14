@@ -187,6 +187,78 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             shutil.copy2(source, target)
         return destination
 
+    def test_proposed_input_closure_contains_real_readonly_contract_package(
+        self,
+    ) -> None:
+        paths = (
+            "modsecurity_test_framework/__init__.py",
+            "modsecurity_test_framework/sonar_diagnostics_contract.py",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.copied_update_root(Path(directory))
+            ambient = Path(directory) / "ambient"
+            for relative in paths:
+                self.assertIn(relative, UPDATER.PROPOSED_VALIDATION_INPUT_PATHS)
+                self.assertNotIn(relative, UPDATER.ALLOWED_UPDATE_PATHS)
+                self.assertEqual(
+                    (root / relative).read_bytes(), (ROOT / relative).read_bytes()
+                )
+                hostile_copy = ambient / relative
+                hostile_copy.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(ROOT / relative, hostile_copy)
+            sentinel = ambient / "executed"
+            initializer = ambient / paths[0]
+            initializer.write_bytes(
+                initializer.read_bytes()
+                + b"\nfrom pathlib import Path as _Path\n"
+                + b"_Path(__file__).parents[1].joinpath('executed').write_text('unexpected')\n"
+                + b"raise RuntimeError('hostile ambient package imported')\n"
+            )
+            with patch.dict(os.environ, {"PYTHONPATH": str(ambient)}):
+                UPDATER.run_proposed_tree_contract_checks(root)
+                UPDATER.regenerate_canonical_generated_views(root)
+            self.assertFalse(sentinel.exists(), "hostile ambient package executed")
+            with patch.dict(os.environ, {"PYTHONPATH": str(ROOT)}):
+                for relative in paths:
+                    self.assert_package_input_denials(root, relative)
+                package = root / "modsecurity_test_framework"
+                original_package = root / "saved-package"
+                package.rename(original_package)
+                package.symlink_to(original_package, target_is_directory=True)
+                try:
+                    self.assert_proposed_tree_package_denied(root)
+                finally:
+                    package.unlink()
+                    original_package.rename(package)
+                alias = Path(directory) / "parent-alias"
+                alias.symlink_to(root.parent, target_is_directory=True)
+                self.assert_proposed_tree_package_denied(alias / root.name)
+
+    def assert_proposed_tree_package_denied(self, root: Path) -> None:
+        with self.assertRaises(UPDATER.UpdateError):
+            UPDATER.run_proposed_tree_contract_checks(root)
+        with self.assertRaises(UPDATER.UpdateError):
+            UPDATER.regenerate_canonical_generated_views(root)
+
+    def assert_package_input_denials(self, root: Path, relative: str) -> None:
+        copied = root / relative
+        original = copied.read_bytes()
+        for condition in ("missing", "altered", "symlink"):
+            with self.subTest(path=relative, condition=condition):
+                if condition == "missing":
+                    copied.unlink()
+                elif condition == "altered":
+                    copied.write_bytes(original + b"\n# altered copy\n")
+                else:
+                    copied.unlink()
+                    copied.symlink_to(ROOT / relative)
+                try:
+                    self.assert_proposed_tree_package_denied(root)
+                finally:
+                    if copied.is_symlink():
+                        copied.unlink()
+                    copied.write_bytes(original)
+
     @staticmethod
     def changed_action(
         lock: dict[str, Any], name: str, version: str, sha: str
@@ -976,6 +1048,15 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             def successful_check(
                 arguments: list[str], **kwargs: object
             ) -> subprocess.CompletedProcess[str]:
+                self.assertEqual(arguments[1:4], ["-I", "-B", "-c"])
+                environment = kwargs.get("env")
+                if not isinstance(environment, dict):
+                    self.fail("native checker needs an explicit child environment")
+                self.assertNotIn(
+                    "PYTHONPATH",
+                    environment,
+                    "native checker inherited an ambient Python package path",
+                )
                 proposed_root = Path(str(kwargs["cwd"]))
                 commands.append((arguments, proposed_root))
                 self.assertTrue(proposed_root.is_relative_to(runner_temp))

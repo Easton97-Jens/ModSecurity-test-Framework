@@ -46,13 +46,16 @@ ACTION_FIELDS = ("REPOSITORY", "VERSION", "COMMIT")
 TOOL_FIELDS = ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+DIAGNOSTIC_LOCK_SECTION = "diagnostic_actions"
+DIAGNOSTIC_LOCK_ROLE = "sonar-private"
+PREVIOUS_DIAGNOSTIC_COMMIT = "865e4ec4fd0a745d1d125b3f43b3dd8d56b3ca7a"
 LITERAL_VALUE = re.compile(r"^[A-Za-z0-9._/+:-]+$")
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SAFE_EXPANSION = re.compile(
     r"\$\{(?P<braced>CI_[A-Z0-9_]+)(?:#(?P<prefix>[A-Za-z0-9._+-]+))?\}|\$(?P<bare>CI_[A-Z0-9_]+)"
 )
 REMOTE_USE = re.compile(
-    r"(?P<prefix>\buses:\s*)(?P<quote>[\"']?)(?P<ref>[^\s\"']+)(?P=quote)"
+    r"(?P<prefix>\b(?:uses|upstream-action):\s*)(?P<quote>[\"']?)(?P<ref>[^\s\"']+)(?P=quote)"
 )
 NODE_VERSION_LINE = re.compile(
     r"^(?P<prefix>\s*node-version:\s*)(?P<quote>[\"']?)(?P<value>[^\s#\"']+)(?P=quote)(?P<suffix>\s*(?:#.*)?)$"
@@ -194,6 +197,9 @@ def canonical_names(source: str | None = None) -> list[str]:
         action_suffixes = _discover_groups(source, "CI_ACTION", ACTION_FIELDS)
         tool_suffixes = _discover_groups(source, "CI_SECURITY_TOOL", TOOL_FIELDS)
     names = [
+        "CI_SONAR_DIAGNOSTIC_REPOSITORY",
+        "CI_SONAR_DIAGNOSTIC_ACTION_PATH",
+        "CI_SONAR_DIAGNOSTIC_COMMIT",
         "CI_CANONICAL_PYTHON_VERSION",
         "CI_CANONICAL_PYYAML_VERSION",
         "CI_CANONICAL_PYYAML_SHA256",
@@ -444,12 +450,57 @@ def replace_record_field(
     return text[:start] + pattern.sub(rf"\1 {value}", block, count=1) + text[end:]
 
 
+def _diagnostic_mapping(node: Any, keys: set[str]) -> dict[str, Any]:
+    if not isinstance(node, yaml.nodes.MappingNode):
+        raise PinError("diagnostic lock must use plain mappings")
+    result = {}
+    for key, value in node.value:
+        if (
+            not isinstance(key, yaml.nodes.ScalarNode)
+            or key.tag != "tag:yaml.org,2002:str"
+        ):
+            raise PinError("diagnostic lock keys must be plain strings")
+        if key.value in result:
+            raise PinError("diagnostic lock contains a duplicate key")
+        result[key.value] = value
+    if set(result) != keys:
+        raise PinError("diagnostic lock fields differ from the fixed role")
+    return result
+
+
+def _validate_diagnostic_lock_shape(text: str) -> None:
+    try:
+        document = yaml.compose(text)
+    except yaml.YAMLError as exc:
+        raise PinError("diagnostic lock YAML is invalid") from exc
+    if not isinstance(document, yaml.nodes.MappingNode):
+        raise PinError("diagnostic lock document must be a mapping")
+    sections = [
+        value for key, value in document.value if key.value == DIAGNOSTIC_LOCK_SECTION
+    ]
+    if not sections:
+        return
+    if len(sections) != 1:
+        raise PinError("diagnostic lock contains duplicate sections")
+    roles = _diagnostic_mapping(sections[0], {DIAGNOSTIC_LOCK_ROLE})
+    fields = _diagnostic_mapping(
+        roles[DIAGNOSTIC_LOCK_ROLE], {"repository", "action_path", "immutable_commit"}
+    )
+    if any(
+        not isinstance(value, yaml.nodes.ScalarNode)
+        or value.tag != "tag:yaml.org,2002:str"
+        for value in fields.values()
+    ):
+        raise PinError("diagnostic lock fields must be plain string scalars")
+
+
 def lock_values(root: Path, values: dict[str, str]) -> bytes:
     path = root / "ci/tooling/security-tools.lock.yml"
     validate_managed_path(root, path)
     text = path.read_text(encoding="utf-8")
     if not text.startswith(GENERATED_LOCK):
         text = GENERATED_LOCK + text
+    _validate_diagnostic_lock_shape(text)
     parsed: dict[str, Any] = yaml.safe_load(text) or {}
     actions = parsed.get("actions", {})
     tools = parsed.get("tools", {})
@@ -512,7 +563,48 @@ def lock_values(root: Path, values: dict[str, str]) -> bytes:
             ("sha256", digest),
         ):
             text = replace_record_field(text, "tools", tool, field, value)
-    return text.encode("utf-8")
+    return diagnostic_lock_text(text, parsed, values).encode("utf-8")
+
+
+def diagnostic_lock_text(
+    text: str, parsed: dict[str, Any], values: dict[str, str]
+) -> str:
+    """Validate or append the separately reviewed diagnostic role after tool pins."""
+    from modsecurity_test_framework.sonar_diagnostics_contract import canonical_role
+
+    canonical_role(values)
+    diagnostic = {
+        "repository": values["CI_SONAR_DIAGNOSTIC_REPOSITORY"],
+        "action_path": values["CI_SONAR_DIAGNOSTIC_ACTION_PATH"],
+        "immutable_commit": values["CI_SONAR_DIAGNOSTIC_COMMIT"],
+    }
+    existing_role = parsed.get(DIAGNOSTIC_LOCK_SECTION)
+    if existing_role is not None:
+        previous = {**diagnostic, "immutable_commit": PREVIOUS_DIAGNOSTIC_COMMIT}
+        if existing_role not in (
+            {DIAGNOSTIC_LOCK_ROLE: diagnostic},
+            {DIAGNOSTIC_LOCK_ROLE: previous},
+        ):
+            raise PinError(
+                "diagnostic action lock differs from the fixed reviewed role"
+            )
+        text = replace_record_field(
+            text,
+            DIAGNOSTIC_LOCK_SECTION,
+            DIAGNOSTIC_LOCK_ROLE,
+            "immutable_commit",
+            diagnostic["immutable_commit"],
+        )
+    else:
+        text = (
+            text.rstrip()
+            + "\n"
+            + yaml.safe_dump(
+                {DIAGNOSTIC_LOCK_SECTION: {DIAGNOSTIC_LOCK_ROLE: diagnostic}},
+                sort_keys=False,
+            )
+        )
+    return text
 
 
 def _rewrite_osv_line(
@@ -565,6 +657,12 @@ def _rewrite_remote_action_line(
         return line, None
     ref = match.group("ref")
     action, at, _ = ref.rpartition("@")
+    from modsecurity_test_framework.sonar_diagnostics_contract import canonical_role
+
+    if action.startswith("Easton97-Jens/ModSecurity-test-Framework/"):
+        if ref != canonical_role(values):
+            return line, "unknown or changed private diagnostic Action"
+        return line, None
     action_suffix = action_suffix_for_reference(action, values)
     if not at or action_suffix is None:
         if action.startswith(("./", "docker://", "Docker://")):

@@ -1158,7 +1158,9 @@ runs:
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: with-crs-no-mrts-${{ fromJSON(inputs.caller-matrix).connector }}-${{ github.run_id }}-${{ github.run_attempt }}
-        path: ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
+        path: |
+          ${{ env.VERIFIED_RUN_ROOT }}/failure-receipt.json
+          ${{ env.VERIFIED_RUN_ROOT }}/apache-build-failure
         if-no-files-found: error
         retention-days: 10
         overwrite: false

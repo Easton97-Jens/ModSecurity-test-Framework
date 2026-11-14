@@ -6,6 +6,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+import runpy
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -55,6 +56,73 @@ class CommonCanonicalPinsPathTest(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "may not contain symlinks"):
                 PINS.load_canonical_ci_pins(root)
+
+
+class DiagnosticSourceProvenanceTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.checker = runpy.run_path(str(ROOT / "ci/tools/check-common-versions.py"))
+
+    def test_dedicated_source_owner_and_namespace_identity_are_distinct(self) -> None:
+        checker = self.checker
+        _lines, entries = checker["parse_common"](ROOT / "ci/lib/common.sh")
+        names = set(checker["CI_DIAGNOSTIC_SOURCE_VARIABLES"])
+        owners = [
+            item
+            for item in checker["COMPONENT_DEFINITIONS"]
+            if names.intersection(item.variables)
+        ]
+        self.assertEqual(len(owners), 1)
+        self.assertEqual(set(owners[0].variables), names)
+        self.assertEqual(owners[0].update_policy, "manual_review")
+        self.assertEqual(checker["_canonical_value_errors"](entries), [])
+        values = checker["_canonical_pin_values"](ROOT / "ci/lib/common.sh")
+        self.assertNotIn("CI_SONAR_DIAGNOSTIC_REPOSITORY", values)
+        self.assertIn("CI_SONAR_DIAGNOSTIC_COMMIT", values)
+        self.assertIn("CI_SONAR_DIAGNOSTIC_SOURCE_REFERENCE", values)
+        self.assertIn("CI_ACTION_CHECKOUT_REPOSITORY", values)
+
+    def test_source_tuple_corruption_and_unregistered_fields_fail(self) -> None:
+        checker = self.checker
+        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        for old, new in (
+            ("9ae8ecc4f686e9cc70413e5494bc098a24eb18d7", "a" * 40),
+            (".github/actions/sonar-private", ".github/actions/other-node"),
+        ):
+            with self.subTest(old=old):
+                lines = source.replace(old, new).splitlines()
+                entries = checker["parse_common_lines"](lines)
+                self.assertTrue(checker["canonical_contract_errors"](lines, entries))
+        lines = source.splitlines() + ['CI_SONAR_DIAGNOSTIC_VERSION="v1.0.0"']
+        entries = checker["parse_common_lines"](lines)
+        self.assertTrue(checker["canonical_contract_errors"](lines, entries))
+
+    def test_namespace_mentions_do_not_hide_executable_or_ordinary_pins(self) -> None:
+        checker = self.checker
+        values = checker["_canonical_pin_values"](ROOT / "ci/lib/common.sh")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            common = root / "ci/lib/common.sh"
+            common.parent.mkdir(parents=True)
+            common.write_bytes((ROOT / "ci/lib/common.sh").read_bytes())
+            consumer = root / "ci/consumer.py"
+            consumer.write_text(
+                "project = 'Easton97-Jens/ModSecurity-test-Framework'\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(checker["active_consumer_pin_literals"](common, root), [])
+            for name in (
+                "CI_SONAR_DIAGNOSTIC_SOURCE_REFERENCE",
+                "CI_SONAR_DIAGNOSTIC_COMMIT",
+                "CI_ACTION_CHECKOUT_REPOSITORY",
+            ):
+                with self.subTest(name=name):
+                    consumer.write_text(
+                        "value = " + repr(values[name]) + "\n", encoding="utf-8"
+                    )
+                    self.assertTrue(
+                        checker["active_consumer_pin_literals"](common, root)
+                    )
 
 
 if __name__ == "__main__":

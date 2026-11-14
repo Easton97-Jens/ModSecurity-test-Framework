@@ -98,6 +98,8 @@ NGINX_ARCHIVE_SHA256_LOCAL=
 NGINX_SHA256_CANONICAL=
 NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL=
 NGINX_PROTOCOL_BUILD_CACHE_KEY=
+NGINX_HTTP2_PATCH="$SCRIPT_DIR/patches/nginx/h2-close-stream-flush.patch"
+NGINX_HTTP2_PATCH_SHA256=
 
 blocked() {
     echo "nginx_poc: blocked $*"
@@ -338,6 +340,7 @@ write_protocol_build_provenance() {
             echo "nginx_source_git_ref=$NGINX_SOURCE_GIT_REF"
             echo "nginx_commit=$NGINX_SOURCE_GIT_REF"
             echo "nginx_source_archive_sha256=$NGINX_ARCHIVE_SHA256_LOCAL"
+            echo "nginx_http2_patch_sha256=$NGINX_HTTP2_PATCH_SHA256"
             echo "nginx_protocol_build_flags=$protocol_flags"
             echo "tls_library=$tls_library"
             echo "tls_version=$tls_version"
@@ -359,6 +362,7 @@ write_protocol_build_provenance() {
         echo "nginx_source_git_ref=$NGINX_SOURCE_GIT_REF"
         echo "nginx_commit=$NGINX_SOURCE_GIT_REF"
         echo "nginx_source_archive_sha256=$NGINX_ARCHIVE_SHA256_LOCAL"
+        echo "nginx_http2_patch_sha256=$NGINX_HTTP2_PATCH_SHA256"
         echo "nginx_protocol_build_flags=$protocol_flags"
         echo "http2_enabled=$(nginx_protocol_profile_has_http2 "$NGINX_PROTOCOL_PROFILE" && printf true || printf false)"
         echo "http3_enabled=$(nginx_protocol_profile_has_http3 "$NGINX_PROTOCOL_PROFILE" && printf true || printf false)"
@@ -795,11 +799,26 @@ nginx_configure_script() {
     blocked "NGINX source tree lacks executable configure or auto/configure: $NGINX_SOURCE_DIR"
 }
 
+apply_nginx_http2_patch() {
+    # The upstream release archive remains separately hash-verified.  Record
+    # this versioned dependency correction as an additional build input.
+    nginx_protocol_profile_has_http2 "$NGINX_PROTOCOL_PROFILE" || return 0
+    require_command patch "apply versioned NGINX HTTP/2 lifecycle correction"
+    [ -f "$NGINX_HTTP2_PATCH" ] || blocked "missing versioned NGINX HTTP/2 patch"
+    NGINX_HTTP2_PATCH_SHA256=$(ci_trusted_sha256_file "$NGINX_HTTP2_PATCH") || exit 77
+    validate_pinned_sha256 "$NGINX_HTTP2_PATCH_SHA256" NGINX_HTTP2_PATCH_SHA256
+    run_fail nginx-http2-close-stream-patch "$NGINX_SOURCE_DIR" \
+        patch --batch --forward --fuzz=0 -p1 -i "$NGINX_HTTP2_PATCH"
+    echo "nginx_http2_patch=$NGINX_HTTP2_PATCH" >> "$ARTIFACTS_FILE"
+    echo "nginx_http2_patch_sha256=$NGINX_HTTP2_PATCH_SHA256" >> "$ARTIFACTS_FILE"
+}
+
 build_nginx_from_source() {
     [ "$NGINX_SOURCE_MODE" = "github-release" ] || blocked "unsupported NGINX_SOURCE_MODE=$NGINX_SOURCE_MODE"
     [ "$BUILD_NGINX_FROM_SOURCE" = "1" ] || blocked "BUILD_NGINX_FROM_SOURCE must be 1 for this PoC unless a later explicit binary/module mode is implemented"
 
     download_nginx_source
+    apply_nginx_http2_patch
     ensure_quic_tls_source
     write_protocol_build_provenance
     configure_script=$(nginx_configure_script)

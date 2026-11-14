@@ -4,6 +4,7 @@ from __future__ import annotations
 from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
 
 from pathlib import Path
+import json
 import os
 import stat
 import subprocess
@@ -25,7 +26,7 @@ class ApacheSmokeCaseOutputRootTest(unittest.TestCase):
             'require_absolute_generated_path "$APACHE_CASE_OUTPUT_ROOT" "APACHE_CASE_OUTPUT_ROOT"',
             source,
         )
-        self.assertEqual(source.count('--output-root "$APACHE_CASE_OUTPUT_ROOT"'), 3)
+        self.assertEqual(source.count('--output-root "$APACHE_CASE_OUTPUT_ROOT"'), 4)
 
     def test_generated_directories_are_private_owned_and_symlink_free(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
@@ -87,6 +88,63 @@ class ApacheSmokeCaseOutputRootTest(unittest.TestCase):
             self.assertTrue(accepted.is_dir())
             self.assertFalse(accepted.is_symlink())
             self.assertEqual(stat.S_IMODE(accepted.stat().st_mode), 0o700)
+
+    def context_helper(self) -> str:
+        source = HARNESS.read_text(encoding="utf-8")
+        start = source.index("preflight_apache_execution_context() {")
+        end = source.index("\napache_profile_enabled() {", start)
+        return source[start:end]
+
+    def run_context_helper(self, root: Path, python: str) -> subprocess.CompletedProcess[str]:
+        runtime, logs = root / "runtime", root / "logs"
+        runtime.mkdir(mode=0o700)
+        logs.mkdir(mode=0o700)
+        environment = dict(os.environ, PYTHON_BIN=python, RUNTIME_ROOT=str(runtime), LOG_DIR=str(logs),
+                           HOST_SENTINEL=str(root / "host-started"))
+        runner = "set -e\n" + self.context_helper() + '\npreflight_apache_execution_context\nprintf started > "$HOST_SENTINEL"\n'
+        return subprocess.run(["sh", "-c", runner], env=environment, capture_output=True, text=True, check=False)
+
+    def test_native_execution_preflight_records_actual_launcher_identity_before_host(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="apache-context-pass-") as temporary:
+            root = Path(temporary)
+            result = self.run_context_helper(root, sys.executable)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(f"execution-context PASS uid={os.geteuid()} gid={os.getegid()}", result.stdout)
+            reports = list((root / "runtime").glob("execution-context-*/status.json"))
+            self.assertEqual(len(reports), 1)
+            report = json.loads(reports[0].read_text())
+            self.assertEqual(report["status"], "PASS")
+            self.assertEqual(report["execution_context"]["observed_worker"]["uid"], list(os.getresuid()))
+            self.assertEqual(report["execution_context"]["observed_worker"]["gid"], list(os.getresgid()))
+            self.assertTrue((root / "host-started").is_file())
+            self.assertNotIn("--worker-", self.context_helper())
+            self.assertNotIn("--require-root-master", self.context_helper())
+            source = HARNESS.read_text()
+            self.assertIn('preflight_apache_execution_context || blocked "Apache launcher execution-context preflight failed; no host started"\nstart_server', source)
+
+    def test_failed_or_nonpass_native_preflight_never_reaches_host_start(self) -> None:
+        for native_exit in (77, 0):
+            with self.subTest(native_exit=native_exit), tempfile.TemporaryDirectory(prefix="apache-context-fail-") as temporary:
+                root = Path(temporary)
+                wrapper = root / "native-preflight-control.py"
+                wrapper.write_text(
+                    "#!" + sys.executable + "\n"
+                    "import json, os, pathlib, sys\n"
+                    "if '-m' not in sys.argv: os.execv(sys.executable, [sys.executable, *sys.argv[1:]])\n"
+                    "pathlib.Path(os.environ['HOST_SENTINEL'] + '.invocation').write_text(json.dumps(sys.argv[1:]))\n"
+                    "target = pathlib.Path(sys.argv[sys.argv.index('--output-dir') + 1])\n"
+                    "target.mkdir(mode=0o700)\n"
+                    "(target / 'status.json').write_text(json.dumps({'status': 'BLOCKED'}))\n"
+                    f"raise SystemExit({native_exit})\n"
+                )
+                wrapper.chmod(0o700)
+                result = self.run_context_helper(root, str(wrapper))
+                self.assertEqual(result.returncode, 77, result.stderr)
+                self.assertFalse((root / "host-started").exists())
+                invocation = json.loads((root / "host-started.invocation").read_text())
+                self.assertIn("--execution-context-only", invocation)
+                self.assertNotIn("--worker-user", invocation)
+                self.assertNotIn("execution-context PASS", result.stdout)
 
     def test_no_crs_lifecycle_keeps_apache_case_outputs_inside_host_runtime(self) -> None:
         source = LIFECYCLE.read_text(encoding="utf-8")

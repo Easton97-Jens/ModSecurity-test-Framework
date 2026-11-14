@@ -47,6 +47,13 @@ class FullLifecycleProfilesTest(unittest.TestCase):
                     "late_intervention",
                     "late_intervention_log_only",
                     "late_intervention_status_metadata",
+                    "late_intervention_abort",
+                    "http2_downstream",
+                    "http2_tls_alpn",
+                    "http2_multiplexing",
+                    "http2_stream_reset",
+                    "http3_downstream",
+                    "http2_cleartext_h2c",
                 )
             },
             "evidence_stages": {},
@@ -117,6 +124,18 @@ class FullLifecycleProfilesTest(unittest.TestCase):
         ):
             with self.subTest(capability=capability):
                 self.assertEqual(result["capabilities"][capability]["state"], "implemented_not_asserted")
+
+    def test_h2_profile_availability_cannot_promote_or_leak_to_other_profiles(self) -> None:
+        for connector in ("haproxy", "envoy", "traefik", "lighttpd"):
+            result = profiles.effective_manifest(
+                self.capability_manifest(connector), profiles.PROFILE_BY_CONNECTOR[connector]
+            )["capabilities"]
+            for capability in ("late_intervention_abort", "http2_downstream",
+                               "http2_tls_alpn", "http2_multiplexing", "http2_stream_reset"):
+                expected = "implemented_not_asserted" if connector in {"haproxy", "envoy"} else "not_implemented"
+                self.assertEqual(result[capability]["state"], expected, (connector, capability))
+            for capability in ("http3_downstream", "http2_cleartext_h2c"):
+                self.assertEqual(result[capability]["state"], "not_implemented")
 
     def test_wrong_connector_profile_is_rejected_and_write_is_atomic(self) -> None:
         payload = self.capability_manifest("envoy")

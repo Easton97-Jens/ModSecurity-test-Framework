@@ -156,11 +156,11 @@ def modsecurity_audit_path(path: Path) -> str:
     return '"' + value + '"'
 
 
-def validate_output_root(path: Path) -> Path:
+def validate_output_root(path: Path, *, selected_roots: tuple[Path, ...] = ()) -> Path:
     if not path.is_absolute() or path.resolve() != path or not is_safe_runtime_root(path):
         raise FixtureFailure("output-root must be a canonical external runtime path")
     if any(path.is_relative_to(source) or source.is_relative_to(path)
-           for source in canonical_project_roots()):
+           for source in (*canonical_project_roots(), *selected_roots)):
         raise FixtureFailure("output-root overlaps a source checkout")
     if path.exists() or path.is_symlink():
         raise FixtureFailure("output-root must be a fresh task-owned directory")
@@ -204,14 +204,24 @@ def admit_artifacts(root: Path, head: str, binary: Path, module: Path | None,
     }
 
 
+def git_metadata_roots(root: Path) -> tuple[Path, ...]:
+    values = git_output(root, "rev-parse", "--path-format=absolute",
+                        "--git-dir", "--git-common-dir").splitlines()
+    paths = tuple(Path(value) for value in values)
+    if len(paths) != 2 or any(not path.is_absolute() or not path.is_dir() for path in paths):
+        raise FixtureFailure("selected checkout has invalid Git metadata roots")
+    return tuple(path.resolve(strict=True) for path in paths)
+
+
 def admit(arguments: argparse.Namespace) -> AdmittedRunner:
-    output = validate_output_root(arguments.output_root)
+    root = require_absolute_directory(arguments.connector_root, "connector root")
+    output = validate_output_root(arguments.output_root, selected_roots=(root,))
     binary = checked_file(arguments.nginx_binary, "NGINX binary")
     module = checked_file(arguments.nginx_module, "NGINX module") if arguments.nginx_module else None
     if module is not None:
         nginx_path(module)
     manifest = checked_file(arguments.artifact_manifest, "artifact manifest")
-    root = require_absolute_directory(arguments.connector_root, "connector root")
+    validate_output_root(output, selected_roots=(root, *git_metadata_roots(root)))
     head = assert_exact_checkout(root, arguments.expected_head)
     identity = admit_artifacts(root, head, binary, module, manifest)
     return AdmittedRunner(root, head, binary, module, output, identity)
@@ -433,24 +443,45 @@ def request(port: int, path: str, case: str, *, blocked_header: bool = False) ->
         connection.close()
 
 
+def owned_group_exists(group: int) -> bool:
+    try:
+        os.killpg(group, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def await_owned_group(process: subprocess.Popen, group: int) -> bool:
+    deadline = time.monotonic() + 5
+    while True:
+        process.poll()  # Reap the master even while its workers are exiting.
+        if not owned_group_exists(group):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.05)
+
+
 def stop(process: subprocess.Popen) -> dict:
+    # managed_server starts a new session: this child's PID is its owned PGID.
+    group = positive_pid(process.pid)
+    if group == os.getpgrp():
+        raise FixtureFailure("refusing to signal the runner's own process group")
     if process.poll() is None:
         process.send_signal(signal.SIGQUIT)
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGTERM)
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait(timeout=5)
-    try:
-        os.killpg(process.pid, 0)
-    except ProcessLookupError:
-        absent = True
+        absent = await_owned_group(process, group)
     else:
-        absent = False
+        absent = not owned_group_exists(group)
+    if not absent:
+        for signum in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                os.killpg(group, signum)
+            except ProcessLookupError:
+                absent = True
+                break
+            if await_owned_group(process, group):
+                absent = True
+                break
     return {"master_reaped": process.poll() is not None, "exit_code": process.returncode,
             "process_group_absent": absent}
 
@@ -535,12 +566,40 @@ def managed_server(admitted: AdmittedRunner, paths: RuntimePaths, receipt: dict)
     startup_log = paths.private / "startup.log"
     write_private(startup_log, b"")
     with startup_log.open("wb") as startup:
-        process = subprocess.Popen(nginx_command(admitted, paths, paths.config),
-                                   stdout=startup, stderr=subprocess.STDOUT, start_new_session=True)
+        process = None
+        pending_cancel = False
+        cleanup_in_progress = False
+
+        def cancel(_signum, _frame):
+            nonlocal pending_cancel
+            already_pending = pending_cancel
+            pending_cancel = True
+            if already_pending or cleanup_in_progress:
+                return
+            if process is not None:
+                raise SystemExit(128 + signal.SIGTERM)
+
+        previous = signal.signal(signal.SIGTERM, cancel)
         try:
+            process = subprocess.Popen(nginx_command(admitted, paths, paths.config),
+                                       stdout=startup, stderr=subprocess.STDOUT, start_new_session=True)
+            if pending_cancel:
+                raise SystemExit(128 + signal.SIGTERM)
             yield process
         finally:
-            receipt["cleanup"] = stop(process)
+            # Cancellation must not interrupt cleanup; do not change the
+            # child's inherited signal mask or install a preexec callback.
+            try:
+                cleanup_in_progress = True
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            finally:
+                try:
+                    if process is not None:
+                        receipt["cleanup"] = stop(process)
+                finally:
+                    signal.signal(signal.SIGTERM, previous)
+        if pending_cancel:
+            raise SystemExit(128 + signal.SIGTERM)
 
 
 def validate_client_result(scenario: Scenario, port: int, status_code: int,

@@ -1434,9 +1434,52 @@ def line_pin_errors(
     return action_pin_errors(path, line_number, reference, comment, actions)
 
 
+def private_sonar_reference(
+    path: Path, data: Any, actions: dict[str, dict[str, Any]]
+) -> str | None:
+    """Admit one complete frozen source role at its sole canonical job."""
+    if path.parts[-3:] != (".github", "workflows", "sonarqube.yml"):
+        return None
+    if not isinstance(data, dict):
+        return None
+    jobs = data.get("jobs")
+    job = jobs.get("sonarqube") if isinstance(jobs, dict) else None
+    steps = job.get("steps") if isinstance(job, dict) else None
+    if not isinstance(steps, list) or not steps:
+        return None
+    contract = runpy.run_path(
+        str(
+            Path(__file__).resolve().parents[3]
+            / "modsecurity_test_framework/sonar_diagnostics_contract.py"
+        )
+    )
+    reference = str(contract["REFERENCE"])
+    upstream = locked_action_details(str(contract["UPSTREAM"]))
+    if (
+        upstream is None
+        or actions.get(upstream[0], {}).get("immutable_commit") != upstream[1]
+    ):
+        return None
+    if list(parsed_uses_references(data)).count(reference) != 1:
+        return None
+    if steps[-1] != contract["scanner_step"]("framework"):
+        return None
+    return reference
+
+
 def pin_errors(path: Path, text: str, actions: dict[str, dict[str, Any]]) -> list[str]:
     errors: list[str] = []
+    try:
+        approved = private_sonar_reference(path, yaml.safe_load(text), actions)
+    except yaml.YAMLError:
+        approved = None
+    raw_references = [uses_reference_and_comment(line) for line in text.splitlines()]
+    if sum(item is not None and item[0] == approved for item in raw_references) != 1:
+        approved = None
     for line_number, line in enumerate(text.splitlines(), start=1):
+        parsed = uses_reference_and_comment(line)
+        if approved is not None and parsed == (approved, ""):
+            continue
         errors.extend(line_pin_errors(path, line_number, line, actions))
     return errors
 
@@ -1475,7 +1518,10 @@ def parsed_action_lock_errors(
     """
 
     errors: list[str] = []
+    approved = private_sonar_reference(path, data, actions)
     for reference in parsed_uses_references(data):
+        if approved is not None and reference == approved:
+            continue
         if not isinstance(reference, str):
             errors.append(f"{path}: workflow uses references must be strings")
             continue
