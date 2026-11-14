@@ -141,6 +141,21 @@ cases and 80 default selectors remain the required inventory contract. Native
 regeneration and focused validation results are recorded by the coordinating
 task; this note alone claims no test or hosted analysis result.
 
+The subsequent Common security checker correction covers the already supported
+external Framework layout. Product source labels remain unchanged; the four
+mapped test-result helpers retain their native submodule labels. Two real-Git/CLI
+layout methods check clean nested and external layouts, reject forbidden
+ModSecurity includes individually in all four helpers and in Common outside its
+runtime directory, and retain the permitted runtime include. All 40 architecture
+methods and 9 migration provenance methods passed without failures, errors or
+skips. The external-layout checker returned exit 0. After native archive
+generation, the complete native Parent lint returned exit 0 in 616.296 seconds.
+Native generation and freshness checks returned exit 0, preserving all 8323
+earlier definitions in order and adding the two methods for a total of 8325.
+The 100 default cases and 80 default selectors remain unchanged. These are local
+source results; final committed-pair validation and hosted analysis remain
+pending, and no host runtime result is claimed.
+
 Changes are handed to the coordinating task for scoped diff review, native
 documentation/generator checks and normal delivery on the existing Draft PR.
 This record does not declare the overall task complete.

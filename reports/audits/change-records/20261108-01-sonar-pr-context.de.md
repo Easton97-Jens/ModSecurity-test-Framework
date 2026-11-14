@@ -148,6 +148,23 @@ bleiben der geforderte Inventarvertrag. Native Neugenerierung und fokussierte
 Prüfergebnisse dokumentiert der koordinierende Auftrag; dieser Hinweis allein
 behauptet weder ein Testergebnis noch ein Hosted-Analyseergebnis.
 
+Die anschließende Korrektur des Common-Sicherheitsprüfers deckt das bereits
+unterstützte externe Framework-Layout ab. Produktquellpfad-Bezeichnungen bleiben
+unverändert; die vier zugeordneten Testresultat-Helfer behalten ihre nativen
+Submodul-Bezeichnungen. Zwei Layoutmethoden mit echtem Git und CLI prüfen
+unveränderte verschachtelte und externe Layouts, weisen verbotene
+ModSecurity-Includes einzeln in allen vier Helfern sowie in Common außerhalb
+seines Laufzeitverzeichnisses zurück und erhalten das erlaubte Laufzeit-Include.
+Alle 40 Architekturmethoden und 9 Migrations-Provenienzmethoden bestanden ohne
+Fehlschläge, Fehler oder Skips. Der Prüfer mit externem Layout endete mit Exit 0.
+Nach nativer Archivgenerierung endete der vollständige native Parent-Lint mit
+Exit 0 in 616,296 Sekunden. Native Generierung und Aktualitätsprüfungen endeten
+mit Exit 0, erhielten alle 8323 bisherigen Definitionen in ihrer Reihenfolge und
+ergänzten die zwei Methoden auf insgesamt 8325. Die 100 Standardfälle und
+80 Standardselektoren bleiben unverändert. Dies sind lokale Quellergebnisse;
+die Prüfung des endgültigen committeten Paars und gehostete Analyse stehen aus,
+und kein Host-Laufzeitergebnis wird behauptet.
+
 Die Änderungen gehen zur begrenzten Diff-Prüfung, nativen Dokumentations- und
 Generatorprüfung und regulären Auslieferung im bestehenden Draft-PR an den
 koordinierenden Auftrag. Dieser Record erklärt den Gesamtauftrag nicht für

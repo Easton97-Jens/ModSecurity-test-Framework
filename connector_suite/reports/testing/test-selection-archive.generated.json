@@ -1355,7 +1355,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8323,
+  "on_demand_definition_count": 8325,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -10075,6 +10075,8 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_repository_architecture.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_repository_architecture.CommonSecurityContractLayoutTests.test_native_submodule_layout_preserves_common_include_guards",
+        "modsecurity_connector_tests.test_repository_architecture.CommonSecurityContractLayoutTests.test_external_framework_layout_preserves_common_include_guards",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_valid_neutral_and_test_delegation_and_bound_reader",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_shell_grammar_preserves_ascii_and_unicode_boundaries",
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_ascii_make_identifiers_preserve_non_ascii_tail_exclusion",
@@ -10115,7 +10117,7 @@
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_unresolved_angle_local_dependency"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_repository_architecture.py",
-      "source_sha256": "cc8f6b55ac4208605f2a11c595a4ec0b6b2a7af7df05c1ff4e4b96553ca4bef8"
+      "source_sha256": "f88a05fac2e366c9d17f37d2227563c8399b710d130a366e01702267a319d520"
     },
     {
       "contains_selected_definitions": [],

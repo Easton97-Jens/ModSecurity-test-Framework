@@ -84,7 +84,11 @@ for function_name in FORBIDDEN_COMMON_CALLS:
     if re.search(rf"(?<![A-Za-z0-9_]){re.escape(function_name)}\s*\(", common_text):
         errors.append(f"forbidden common token {function_name}(")
 for path in common_files:
-    relative = path.relative_to(ROOT)
+    relative = (
+        path.relative_to(ROOT)
+        if path.is_relative_to(ROOT)
+        else Path("modules/ModSecurity-test-Framework") / path.relative_to(test_root())
+    )
     if not MODSECURITY_INCLUDE_PATTERN.search(path.read_text(errors="ignore")):
         continue
     if ALLOWED_MODSECURITY_INCLUDE_ROOT not in relative.parents:

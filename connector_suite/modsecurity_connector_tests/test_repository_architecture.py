@@ -2,6 +2,7 @@
 
 import os
 import runpy
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -15,6 +16,91 @@ CLI = (
     / "connector_suite/modsecurity_connector_ci/checks/common/check-repository-architecture.py"
 )
 MODEL = ROOT / "connector_suite/config/testing/repository-architecture.json"
+
+
+class CommonSecurityContractLayoutTests(unittest.TestCase):
+    def check_layout(self, nested):
+        from modsecurity_test_framework.connector_context import connector_root
+
+        checker = Path(
+            "connector_suite/modsecurity_connector_ci/checks/common/"
+            "check-common-security-contract.py"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            product = fixture / "product"
+            framework = (
+                product / "modules/ModSecurity-test-Framework"
+                if nested else fixture / "framework"
+            )
+            for source, destination in ((connector_root(), product), (ROOT, framework)):
+                subprocess.run(
+                    ["git", "clone", "--quiet", "--shared", str(source), str(destination)],
+                    check=True, capture_output=True, text=True,
+                )
+            shutil.copyfile(ROOT / checker, framework / checker)
+            environment = {
+                **os.environ,
+                "CONNECTOR_ROOT": str(product),
+                "CONNECTOR_REVISION": subprocess.check_output(
+                    ["git", "-C", str(product), "rev-parse", "HEAD"], text=True
+                ).strip(),
+                "FRAMEWORK_ROOT": str(framework),
+                "FRAMEWORK_REVISION": subprocess.check_output(
+                    ["git", "-C", str(framework), "rev-parse", "HEAD"], text=True
+                ).strip(),
+                "TEST_ROOT": str(framework),
+                "PYTHONPATH": os.pathsep.join((str(framework), str(framework / "connector_suite"))),
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "CONNECTOR_TEST_PROFILE": "h1",
+            }
+
+            def check(expected, marker):
+                completed = subprocess.run(
+                    [sys.executable, "-P", str(framework / checker)],
+                    cwd=product, env=environment,
+                    capture_output=True, text=True,
+                )
+                output = completed.stdout + completed.stderr
+                self.assertEqual(completed.returncode, expected, output)
+                self.assertIn(marker, output)
+
+            check(0, "common security contract: ok")
+            include = b"\n#include <modsecurity/modsecurity.h>\n"
+            for directory, suffix in (("src", ".c"), ("include/msconnector", ".h")):
+                for name in ("test_result", "test_result_json"):
+                    relative = Path(f"connector_suite/common/{directory}/{name}{suffix}")
+                    path = framework / relative
+                    original = path.read_bytes()
+                    with self.subTest(layout="nested" if nested else "external", helper=str(relative)):
+                        try:
+                            path.write_bytes(original + include)
+                            check(
+                                1,
+                                "forbidden ModSecurity host API include outside common/runtime: "
+                                f"modules/ModSecurity-test-Framework/{relative.as_posix()}",
+                            )
+                        finally:
+                            path.write_bytes(original)
+            forbidden = product / "common/src/layout_contract_probe.c"
+            try:
+                forbidden.write_bytes(include)
+                check(
+                    1,
+                    "forbidden ModSecurity host API include outside common/runtime: "
+                    "common/src/layout_contract_probe.c",
+                )
+            finally:
+                forbidden.unlink()
+            (product / "common/runtime/layout_contract_probe.c").write_bytes(include)
+            check(0, "common security contract: ok")
+
+    def test_native_submodule_layout_preserves_common_include_guards(self):
+        self.check_layout(nested=True)
+
+    def test_external_framework_layout_preserves_common_include_guards(self):
+        self.check_layout(nested=False)
 
 
 class RepositoryArchitectureTests(unittest.TestCase):
