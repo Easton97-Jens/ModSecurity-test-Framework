@@ -1355,7 +1355,7 @@
       "source_sha256": "c4b5192448e9045e6b1255fefa549ed45f470c30390ec58c611782069ad58449"
     }
   ],
-  "on_demand_definition_count": 8437,
+  "on_demand_definition_count": 8450,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -3299,6 +3299,11 @@
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheAdoptionCheckBatchingTests.test_batching_preserves_every_predicate_message_and_order",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheAdoptionCheckBatchingTests.test_reviewed_dump_retains_every_semantic_change",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheAdoptionCheckBatchingTests.test_status_comparison_is_not_a_second_assignment",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApachePhase4ObservationContractTests.test_complete_saturating_observations_are_accepted",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApachePhase4ObservationContractTests.test_unchecked_lossy_or_wrong_counter_observations_are_rejected",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApachePhase4ObservationContractTests.test_pointer_invariant_and_native_guards_cannot_be_bypassed",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApachePhase4ObservationContractTests.test_comment_foreign_duplicate_and_dead_code_decoys_are_rejected",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_phase4_unchecked_response_observation_is_rejected",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_current_helper_based_input_filter_is_accepted",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_masking_keeps_code_offsets_while_hiding_decoy_tokens",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_missing_eos_helper_call_is_rejected",
@@ -3319,7 +3324,7 @@
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_phase3_negotiated_protocol_guards_cannot_be_bypassed"
       ],
       "source": "tests/test_apache_common_adoption.py",
-      "source_sha256": "790b94219a2fc56051c56f14c2009eea8d812273181f8e2d129d1d251550585c"
+      "source_sha256": "f41ed7fc977fddb6613ab28996b251cfb93f2b1adb41d0ccc6b5f1112591b6da"
     },
     {
       "contains_selected_definitions": [],
@@ -5047,6 +5052,10 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_event_runtime_security_contract.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_event_runtime_security_contract.CommonSecuritySourceOwnershipTests.test_split_source_owners_keep_the_logical_common_identity",
+        "modsecurity_connector_tests.test_event_runtime_security_contract.CommonSecuritySourceOwnershipTests.test_forbidden_host_includes_are_rejected_for_both_source_owners",
+        "modsecurity_connector_tests.test_event_runtime_security_contract.CommonSecuritySourceOwnershipTests.test_forbidden_calls_are_rejected_for_both_source_owners",
+        "modsecurity_connector_tests.test_event_runtime_security_contract.CommonSecuritySourceOwnershipTests.test_only_the_logical_common_runtime_directory_allows_host_includes",
         "modsecurity_connector_tests.test_event_runtime_security_contract.EventRuntimeSecurityContractTests.test_protocol_metadata_is_json_escaped_and_null_safe",
         "modsecurity_connector_tests.test_event_runtime_security_contract.EventRuntimeSecurityContractTests.test_event_file_open_is_no_follow_regular_and_private",
         "modsecurity_connector_tests.test_event_runtime_security_contract.EventRuntimeSecurityContractTests.test_event_path_walk_rejects_ancestor_and_normalization_escapes",
@@ -5056,7 +5065,7 @@
         "modsecurity_connector_tests.test_event_runtime_security_contract.EventRuntimeSecurityContractTests.test_integrity_fields_document_non_cryptographic_correlation_only"
       ],
       "source": "tests/test_event_runtime_security_contract.py",
-      "source_sha256": "f4e1d77df527c50bfcb2d56a83e2485b9c924a6bcc4d07e77a021c63d8d8bd0e"
+      "source_sha256": "3e2dcbe36d87cc3d7abe56d0ac0479be639d7f5c3252e88a8710a6d4fe831bbb"
     },
     {
       "contains_selected_definitions": [],
@@ -5539,10 +5548,14 @@
         "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_comment_cannot_supply_the_guard",
         "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_missing_conversion_bounds_are_rejected",
         "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_early_return_is_rejected",
-        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_missing_helper_call_is_rejected"
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_missing_helper_call_is_rejected",
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_native_collector_must_check_and_forward_the_real_intervention",
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_details_early_return_and_dead_decode_are_rejected",
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_details_cannot_overwrite_or_bypass_the_decoded_decision",
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_details_enforcement_and_native_cleanup_cannot_be_bypassed"
       ],
       "source": "tests/test_haproxy_adoption_rule_id.py",
-      "source_sha256": "5da3f8e4a5d75cb6d635f455085bf64bc4ef1a4fff63e5af4d402234247af2e3"
+      "source_sha256": "90de9a3d128b340c7291596f88b94ef2b24260fe4f305683150e1b1b9178724b"
     },
     {
       "contains_selected_definitions": [],
@@ -5623,7 +5636,7 @@
         "modsecurity_connector_tests.test_haproxy_common_adoption.HaproxyCommonAdoptionCheckerTests.test_inverted_config_merge_is_rejected_despite_comment_decoy"
       ],
       "source": "tests/test_haproxy_common_adoption.py",
-      "source_sha256": "3616531a22a0ef1b0caab3d52d6049227601d5886aa45fbbb0db6587ebcd8fd4"
+      "source_sha256": "7600cf20b014ae30424dfc22d12f117464d63c0fdded34ebe9877aef3951007e"
     },
     {
       "contains_selected_definitions": [],
@@ -10216,7 +10229,7 @@
         "modsecurity_connector_tests.test_repository_architecture.RepositoryArchitectureTests.test_unresolved_angle_local_dependency"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_repository_architecture.py",
-      "source_sha256": "f88a05fac2e366c9d17f37d2227563c8399b710d130a366e01702267a319d520"
+      "source_sha256": "6c16f08b0ccb008c502604541bee53b9c887e7914cd9f86022963bb1218a6bcb"
     },
     {
       "contains_selected_definitions": [],

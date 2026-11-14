@@ -8,7 +8,12 @@ shared implementation without emitting request or response body payloads.
 from __future__ import annotations
 from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
 
+import ast
+import json
+import os
+import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -20,6 +25,101 @@ APACHE_SOURCE = source_path('connectors/apache/src/msc_filters.c', root=ROOT)
 EVENT_HEADER = source_path('common/include/msconnector/event.h', root=ROOT)
 INTEGRITY_HEADER = source_path('common/include/msconnector/integrity_event.h', root=ROOT)
 PRIVATE_EVENT_SMOKE = source_path('tests/private_event_file_smoke.c', root=ROOT)
+
+
+class CommonSecuritySourceOwnershipTests(unittest.TestCase):
+    """Run the checker's Common file guards through the real source-map API.
+
+    The bounded checker prefix ends before independent event/docs/Make/inventory
+    contracts. Only checkout validation is replaced for the small directory
+    fixtures; the source-map resolver and file security predicates remain real.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        checker = source_path("ci/checks/common/check-common-security-contract.py", root=ROOT)
+        tree = ast.parse(checker.read_text(encoding="utf-8"))
+        boundary = next(index for index, node in enumerate(tree.body)
+                        if isinstance(node, ast.For)
+                        and isinstance(node.target, ast.Name)
+                        and node.target.id == "source"
+                        and isinstance(node.iter, ast.Name)
+                        and node.iter.id == "EVENT_JSON_SOURCES")
+        tree.body = tree.body[:boundary]
+        cls.common_guards = compile(tree, str(checker), "exec")
+
+    def _scan(self, additions: dict[str, str]) -> dict:
+        from modsecurity_test_framework import connector_context
+
+        with tempfile.TemporaryDirectory(prefix="common-security-source-owners-") as temporary:
+            base = Path(temporary)
+            product, framework = base / "product", base / "framework"
+            mapping = {
+                f"common/{directory}/{name}{suffix}":
+                f"connector_suite/common/{directory}/{name}{suffix}"
+                for directory, suffix in (("src", ".c"), ("include/msconnector", ".h"))
+                for name in ("test_result", "test_result_json")
+            }
+            files = {
+                product / "common" / "include" / "msconnector" / f"{name}.h": "/* header */\n"
+                for name in ("resource_limits", "memory", "flow_guard", "integrity_event", "dos_guard")
+            }
+            files.update({
+                product / "common" / "src" / f"{name}.c": f'#include "msconnector/{name}.h"\n'
+                for name in ("resource_limits", "memory", "flow_guard", "integrity_event", "dos_guard")
+            })
+            files.update({framework / physical: "/* migrated test source */\n"
+                          for physical in mapping.values()})
+            files[framework / "modsecurity_test_framework" / "__init__.py"] = ""
+            files[framework / "connector_suite" / "source-map.json"] = json.dumps({
+                "schema_version": 1, "paths": mapping,
+            })
+            for logical, content in additions.items():
+                selected = framework / mapping[logical] if logical in mapping else product / logical
+                files[selected] = content
+            for path, content in files.items():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            with mock.patch.dict(os.environ, {
+                "CONNECTOR_ROOT": str(product), "TEST_ROOT": str(framework),
+            }), mock.patch.object(connector_context, "connector_root", return_value=product):
+                namespace = {}
+                exec(self.common_guards, namespace)
+            # Retain the actual file identities for assertions after cleanup.
+            return {"errors": namespace["errors"],
+                    "identities": {str(path): str(logical)
+                                   for path, logical in namespace["common_source_ids"].items()},
+                    "product": product, "framework": framework}
+
+    def test_split_source_owners_keep_the_logical_common_identity(self) -> None:
+        result = self._scan({})
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(result["identities"][str(result["framework"] /
+                         "connector_suite/common/src/test_result.c")], "common/src/test_result.c")
+        self.assertEqual(result["identities"][str(result["product"] /
+                         "common/src/memory.c")], "common/src/memory.c")
+
+    def test_forbidden_host_includes_are_rejected_for_both_source_owners(self) -> None:
+        for logical in ("common/src/test_result.c", "common/include/msconnector/test_result_json.h",
+                        "common/src/forbidden.c"):
+            with self.subTest(logical=logical):
+                result = self._scan({logical: "#include <modsecurity/modsecurity.h>\n"})
+                self.assertIn("forbidden ModSecurity host API include outside common/runtime: " + logical,
+                              result["errors"])
+
+    def test_forbidden_calls_are_rejected_for_both_source_owners(self) -> None:
+        for logical in ("common/src/test_result_json.c", "common/src/forbidden.c"):
+            with self.subTest(logical=logical):
+                result = self._scan({logical: "void bad(void) { strcpy(destination, source); }\n"})
+                self.assertIn("forbidden common token strcpy(", result["errors"])
+
+    def test_only_the_logical_common_runtime_directory_allows_host_includes(self) -> None:
+        self.assertEqual(self._scan({"common/runtime/allowed.c":
+                         "#include <modsecurity/modsecurity.h>\n"})["errors"], [])
+        result = self._scan({"common/runtime_other/forbidden.c":
+                             "#include <modsecurity/modsecurity.h>\n"})
+        self.assertIn("forbidden ModSecurity host API include outside common/runtime: "
+                      "common/runtime_other/forbidden.c", result["errors"])
 
 
 class EventRuntimeSecurityContractTests(unittest.TestCase):

@@ -85,11 +85,13 @@ class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
             else:
                 normalized.append(node)
         tree.body = normalized
-        # Reviewed full-chunk policy and combined I09/I11 AST after the six
-        # source-context migration replacements; predicates/messages/order are
-        # byte-preserved from Parent c5993ed9. Only batching is expanded here.
+        # Reviewed c5993ed9 policy plus the six source-context migrations.
+        # The only new semantic delta is phase4_append_observation_contract
+        # and replacement of the response SIZE_MAX token by that strict helper.
+        # All other predicates/messages/order remain unchanged; the dedicated
+        # Phase4 mutations below prove the replacement fails closed.
         digest = hashlib.sha256(reviewed_ast_dump(tree).encode()).hexdigest()
-        self.assertEqual(digest, "bb412c592b9d09f7e65224a51f005c8c7f07e150cad22302e2ff7e8fcf8c7722")
+        self.assertEqual(digest, "c02478e7b50b10f7c3ce509217aeec9c069975c15bd73521e0ea998170ff3ae7")
 
     def test_reviewed_dump_retains_every_semantic_change(self) -> None:
         source = "checks.append((predicate == 1, 'first'))\nchecks.append((other, 'second'))"
@@ -126,6 +128,88 @@ class ApacheAdoptionCheckBatchingTests(unittest.TestCase):
         self.assertFalse(checker_base.typed_event_status_assignment(source.replace(
             "technical ? MSCONNECTOR_STATUS_ERROR : MSCONNECTOR_STATUS_BLOCKED",
             "MSCONNECTOR_STATUS_BLOCKED")))
+
+
+class ApachePhase4ObservationContractTests(unittest.TestCase):
+    """Mutation controls for the live full-bucket observation contract."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.source = checker_base.function_section(
+            (ROOT / FILTERS_RELATIVE_PATH).read_text(encoding="utf-8"),
+            "apache_phase4_append_bucket",
+        )
+
+    def _changed(self, old: str, new: str) -> str:
+        self.assertEqual(self.source.count(old), 1, old)
+        return self.source.replace(old, new, 1)
+
+    def test_complete_saturating_observations_are_accepted(self) -> None:
+        self.assertTrue(checker_base.phase4_append_observation_contract(self.source))
+        self.assertTrue(checker_base.phase4_append_observation_contract(
+            self.source.replace("{", "{ /* harmless layout comment */", 1)))
+
+    def test_unchecked_lossy_or_wrong_counter_observations_are_rejected(self) -> None:
+        for counter in ("seen", "inspected"):
+            target = f"msr->response_body_bytes_{counter}"
+            other = "inspected" if counter == "seen" else "seen"
+            original = (f"{target} = msconnector_transaction_counter_add(\n"
+                        f"            {target}, len);")
+            for replacement in (
+                f"{target} += len;",
+                f"{target} = {target} + len;",
+                f"{target} = (apr_size_t)msconnector_transaction_counter_add({target}, len);",
+                f"{target} = msconnector_transaction_counter_add(msr->response_body_bytes_{other}, len);",
+                f"{target} = msconnector_transaction_counter_add({target}, len / 2U);",
+                original + f" {target} = 0;",
+            ):
+                with self.subTest(counter=counter, replacement=replacement):
+                    self.assertFalse(checker_base.phase4_append_observation_contract(
+                        self._changed(original, replacement)))
+
+    def test_pointer_invariant_and_native_guards_cannot_be_bypassed(self) -> None:
+        mutations = (
+            ("data == NULL ||", "data != NULL ||"),
+            ("data == NULL ||", "0 ||"),
+            ("msr->t == NULL", "msr->t != NULL"),
+            ("msr->response_body_bytes_inspected > msr->response_body_bytes_seen",
+             "msr->response_body_bytes_inspected < msr->response_body_bytes_seen"),
+            ("msr->response_body_bytes_inspected > msr->response_body_bytes_seen", "0"),
+            ("!msc_apache_contract_record_body(msr, 1, len)",
+             "msc_apache_contract_record_body(msr, 1, len)"),
+            ("!msconnector_native_body_append_can_continue(msc_append_response_body(msr->t,",
+             "msconnector_native_body_append_can_continue(msc_append_response_body(msr->t,"),
+            ("!msconnector_native_body_append_can_continue(msc_append_response_body(msr->t,",
+             "0 && !msconnector_native_body_append_can_continue(msc_append_response_body(msr->t,"),
+            ("!msconnector_native_body_append_can_continue(msc_append_response_body(msr->t,",
+             "!(msc_append_response_body(msr->t,"),
+            ("(const unsigned char *)data, len)))", "(const unsigned char *)data, len / 2U)))"),
+            ("return apache_phase4_capture_append_intervention(msr);", "return APR_SUCCESS;"),
+            ("MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE",
+             "MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR"),
+        )
+        for original, replacement in mutations:
+            with self.subTest(original=original, replacement=replacement):
+                self.assertFalse(checker_base.phase4_append_observation_contract(
+                    self._changed(original, replacement)))
+
+    def test_comment_foreign_duplicate_and_dead_code_decoys_are_rejected(self) -> None:
+        body = self.source.partition("{")[2].rsplit("}", 1)[0]
+        signature = self.source.partition("{")[0]
+        for source in (
+            "/* " + self.source + " */",
+            self.source.replace("apache_phase4_append_bucket", "foreign_helper", 1),
+            self.source + "\n" + self.source,
+            signature + "{ if (0) {" + body + "} return APR_SUCCESS; }",
+            signature + "{ return APR_SUCCESS; " + body + "}",
+            signature + "{\n#if 0\n" + body + "\n#endif\n}",
+            signature + "{ const char *decoy = \"" + body.replace("\n", " ") + "\"; }",
+            self._changed("data == NULL ||", "0 ||") + "\n/* " + body + " */",
+            self._changed("data == NULL ||", "0 ||") +
+            "\nvoid foreign_helper(void) {" + body + "}",
+        ):
+            with self.subTest(source=source):
+                self.assertFalse(checker_base.phase4_append_observation_contract(source))
 
 
 class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
@@ -185,6 +269,14 @@ class ApacheCommonAdoptionCheckerTests(unittest.TestCase):
         result = self._run_checker(mutate)
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(message, result.stdout + result.stderr)
+
+    def test_phase4_unchecked_response_observation_is_rejected(self) -> None:
+        def mutate(filters: Path) -> None:
+            replace_once(filters,
+                "msr->response_body_bytes_seen = msconnector_transaction_counter_add(\n"
+                "            msr->response_body_bytes_seen, len);",
+                "msr->response_body_bytes_seen += len;")
+        self._assert_rejected(mutate, "Apache Phase4 splits at EOS")
 
     def test_current_helper_based_input_filter_is_accepted(self) -> None:
         result = self._run_checker()

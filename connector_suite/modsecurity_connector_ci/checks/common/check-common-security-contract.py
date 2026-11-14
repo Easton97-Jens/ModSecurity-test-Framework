@@ -70,11 +70,21 @@ for name in COMMON_APIS:
     if src.is_file() and f'#include "msconnector/{name}.h"' not in src.read_text():
         errors.append(f"{src.relative_to(ROOT)} missing matching header include")
 
-common_files = sorted((source_path('common', root=ROOT)).rglob("*.c"))
-common_files += sorted((source_path('common', root=ROOT)).rglob("*.h"))
-common_files += [source_path(f"common/{directory}/{name}{suffix}", root=ROOT)
-                 for directory, suffix in (("src", ".c"), ("include/msconnector", ".h"))
-                 for name in ("test_result", "test_result_json")]
+common_root = source_path('common', root=ROOT)
+common_files = sorted(common_root.rglob("*.c"))
+common_files += sorted(common_root.rglob("*.h"))
+# Keep each logical Common identity alongside its actual selected source.
+# Exact source-map migrations may reside in a separate Framework checkout;
+# ownership must not alter either the scan scope or the runtime-only exception.
+common_source_ids = {
+    path: Path("common") / path.relative_to(common_root) for path in common_files
+}
+for directory, suffix in (("src", ".c"), ("include/msconnector", ".h")):
+    for name in ("test_result", "test_result_json"):
+        relative = Path(f"common/{directory}/{name}{suffix}")
+        path = source_path(relative, root=ROOT)
+        common_files.append(path)
+        common_source_ids[path] = relative
 common_text = "\n".join(path.read_text(errors="ignore") for path in common_files)
 for token in FORBIDDEN_COMMON_TOKENS:
     if token in common_text:
@@ -84,11 +94,7 @@ for function_name in FORBIDDEN_COMMON_CALLS:
     if re.search(rf"(?<![A-Za-z0-9_]){re.escape(function_name)}\s*\(", common_text):
         errors.append(f"forbidden common token {function_name}(")
 for path in common_files:
-    relative = (
-        path.relative_to(ROOT)
-        if path.is_relative_to(ROOT)
-        else Path("modules/ModSecurity-test-Framework") / path.relative_to(test_root())
-    )
+    relative = common_source_ids[path]
     if not MODSECURITY_INCLUDE_PATTERN.search(path.read_text(errors="ignore")):
         continue
     if ALLOWED_MODSECURITY_INCLUDE_ROOT not in relative.parents:

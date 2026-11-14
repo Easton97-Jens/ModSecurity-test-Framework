@@ -79,7 +79,7 @@ class CommonSecurityContractLayoutTests(unittest.TestCase):
                             check(
                                 1,
                                 "forbidden ModSecurity host API include outside common/runtime: "
-                                f"modules/ModSecurity-test-Framework/{relative.as_posix()}",
+                                f"common/{directory}/{name}{suffix}",
                             )
                         finally:
                             path.write_bytes(original)
