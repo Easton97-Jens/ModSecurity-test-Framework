@@ -83,14 +83,18 @@ static int process_request_headers(Transaction *value,
         const haproxy_modsecurity_request *request, haproxy_modsecurity_decision *decision) {
     (void)value; (void)request; (void)decision; note('H'); return fail_at == 'H';
 }
-static int capture_intervention(Transaction *value, int phase, haproxy_modsecurity_decision *decision);
+static int capture_intervention(Transaction *value, int phase, haproxy_modsecurity_decision *decision,
+    int response_append_active, int response_body_eos);
 static int process_request_body(Transaction *value,
         const haproxy_modsecurity_request *request, haproxy_modsecurity_decision *decision) {
     (void)request; note('B');
     if (fail_at == 'B') { return 1; }
-    return capture_intervention(value, 2, decision);
+    return capture_intervention(value, 2, decision, 0, 0);
 }
-static int capture_intervention(Transaction *value, int phase, haproxy_modsecurity_decision *decision) {
+static int capture_intervention(Transaction *value, int phase, haproxy_modsecurity_decision *decision,
+        int response_append_active, int response_body_eos) {
+    /* The one-shot request evaluator must never claim response append/EOS. */
+    if (response_append_active != 0 || response_body_eos != 0) { abort(); }
     char operation = phase == 1 ? '1' : '2';
     (void)value; note(operation);
     decision->phase = phase;
@@ -129,6 +133,13 @@ int main(int argc, char **argv) {
     return 0;
 }
 '''
+
+
+def engine_rule_message(rule_id: str) -> str:
+    return ('[file "rules.conf"] [line "1"] [id "' + rule_id +
+            '"] [rev ""] [msg "rule match"] [data ""] [severity "2"] '
+            '[ver ""] [maturity "0"] [accuracy "0"] [hostname "example.test"] '
+            '[uri "/public"] [unique_id "fixture"] [ref ""]')
 
 
 def extract(source: str, name: str, result_type: str) -> str:
@@ -206,13 +217,18 @@ class HaproxyBindingRefactorTests(unittest.TestCase):
                 self.assertEqual(self.run_case("cleanup", str(mask))["trace"], trace)
 
     def test_rule_id_decoder_accepts_complete_bounded_ids(self):
-        for message, expected in (('[id "1001"]', 1001), ("id:42", 42), ('[id "0"]', 0)):
+        for message, expected in ((engine_rule_message("1001"), 1001),
+                                  (engine_rule_message("42"), 42),
+                                  (engine_rule_message("2147483647"), 2147483647),
+                                  (engine_rule_message("0"), 0)):
             with self.subTest(message=message):
                 self.assertEqual(self.run_case("rule", message)["rule_id"], expected)
 
     def test_absent_malformed_or_out_of_range_id_keeps_existing_value(self):
-        for message in ("NULL", "no id here", '[id "unterminated', '[id "-2"]',
-                        '[id "12suffix"]', '[id "2147483648"]', '[id "' + "9" * 128 + '"]'):
+        for message in ("NULL", "no id here", '[id "unterminated',
+                        '[id "1001"]', "id:42", '[id "0"]',
+                        engine_rule_message("-2"), engine_rule_message("12suffix"),
+                        engine_rule_message("2147483648"), engine_rule_message("9" * 128)):
             with self.subTest(message=message):
                 self.assertEqual(self.run_case("rule", message)["rule_id"], 73)
 

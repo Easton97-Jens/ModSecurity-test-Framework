@@ -152,6 +152,89 @@ int main(int argc,char **argv) {
 
 
 class HaproxyHostNativeResultsTests(unittest.TestCase):
+    def test_actual_htx_eos_never_downgrades_native_reject_or_engine_failure(self):
+        source = source_path("connectors/haproxy/htx-overlay/haproxy_modsecurity_htx_filter.c", root=ROOT).read_text()
+        eos = function_definition(source, "haproxy_modsecurity_htx_finish_response")
+        program = r'''
+#include "haproxy_modsecurity_binding.h"
+#include "msconnector/late_intervention.h"
+#include <assert.h>
+#include <sys/resource.h>
+struct stream { int unused; };
+struct http_msg { void *chn; };
+struct haproxy_modsecurity_htx_filter_config { msconnector_config common_config; };
+struct filter { struct haproxy_modsecurity_htx_filter_config *config; };
+#define FLT_CONF(filter) ((filter)->config)
+struct haproxy_modsecurity_htx_filter_context {
+ haproxy_modsecurity_transaction *transaction;
+ struct { int mode; } companion;
+ struct { int disabled, fail_closed; haproxy_modsecurity_decision error; } lifecycle;
+ struct { int headers_seen, finished; } response;
+};
+static haproxy_modsecurity_decision requested;
+static int native_calls, aborted, logged, finished;
+static void unregister_data_filter(struct stream *s,void *c,struct filter *f) {(void)s;(void)c;(void)f;}
+static int haproxy_modsecurity_htx_finish_companion_response(struct stream *s,struct filter *f,struct http_msg *m,struct haproxy_modsecurity_htx_filter_context *c) {(void)s;(void)f;(void)m;(void)c;return -1;}
+static void haproxy_modsecurity_htx_fail_closed_postcommit(struct stream *s,struct haproxy_modsecurity_htx_filter_context *ctx,const char *why) {(void)s;(void)why;ctx->lifecycle.fail_closed=1;++aborted;}
+int haproxy_modsecurity_transaction_finish_response_body(haproxy_modsecurity_transaction *tx,haproxy_modsecurity_decision *out) {(void)tx;++native_calls;*out=requested;return 0;}
+static void haproxy_modsecurity_htx_report_late_decision(const struct haproxy_modsecurity_htx_filter_config *cfg,struct haproxy_modsecurity_htx_filter_context *ctx,const haproxy_modsecurity_decision *d) {(void)cfg;(void)ctx;(void)d;++logged;}
+static void haproxy_modsecurity_htx_abort_context(struct haproxy_modsecurity_htx_filter_context *ctx) {ctx->transaction=NULL;++finished;}
+static void haproxy_modsecurity_htx_abort_response_stream(struct stream *s) {(void)s;++aborted;}
+static int haproxy_modsecurity_htx_finish_context(struct haproxy_modsecurity_htx_filter_context *ctx) {ctx->transaction=NULL;++finished;return 0;}
+/* ACTUAL EOS */
+int main(void) {
+ struct rlimit no_core={0,0};assert(setrlimit(RLIMIT_CORE,&no_core)==0);
+ for (int mode=0;mode<=2;++mode) {
+  for (int cause=0;cause<3;++cause) {
+   struct haproxy_modsecurity_htx_filter_config cfg={0};
+   struct haproxy_modsecurity_htx_filter_context ctx={0};
+   struct filter filter={&cfg};struct stream stream={0};struct http_msg msg={0};
+   cfg.common_config.phase4_mode=(enum msconnector_phase4_mode)mode;
+   ctx.transaction=(void *)1;ctx.response.headers_seen=1;
+   requested=(haproxy_modsecurity_decision){0};requested.phase=4;
+   requested.disruptive=1;requested.status=403;
+   requested.body_limit=cause==0;
+   requested.error_class=cause==0?MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT:
+     cause==2?MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE:MSCONNECTOR_TRANSACTION_ERROR_NONE;
+   native_calls=aborted=logged=finished=0;
+   int result=haproxy_modsecurity_htx_finish_response(&stream,&filter,&msg,&ctx);
+   assert(native_calls==1 && ctx.response.finished);
+   if (cause!=1 || mode==MSCONNECTOR_PHASE4_MODE_STRICT) {
+    assert(result==-1 && aborted==1 && ctx.lifecycle.fail_closed);
+    if(cause!=1) assert(logged==0);
+   } else {
+    assert(result==1 && aborted==0 && !ctx.lifecycle.fail_closed);
+    assert(logged==1 && finished==1);
+   }
+  }
+ }
+ return 0;
+}
+'''
+        parent = Path(os.environ.get("TMPDIR") or os.environ["RUNNER_TEMP"])
+        with tempfile.TemporaryDirectory(prefix="htx-eos-native-limit-", dir=parent) as temporary:
+            directory = Path(temporary)
+            for old_control in (False, True):
+                selected = eos
+                if old_control:
+                    start = selected.index("    /* Native Reject and real processing failures")
+                    end = selected.index("    haproxy_modsecurity_htx_report_late_decision", start)
+                    selected = selected[:start] + selected[end:]
+                fixture = directory / "eos.c"
+                fixture.write_text(program.replace("/* ACTUAL EOS */", selected))
+                binary = directory / ("old-eos" if old_control else "eos")
+                command = shlex.split(os.environ.get("CC", "cc")) + [
+                    "-std=c17", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT / "common/include"),
+                    "-I", str(ROOT / "connectors/haproxy/src"), str(fixture),
+                    str(ROOT / "common/src/late_intervention.c"), "-o", str(binary)]
+                built = subprocess.run(command, capture_output=True, text=True, timeout=30)
+                self.assertEqual(built.returncode, 0, built.stderr)
+                observed = subprocess.run([str(binary)], capture_output=True, text=True, timeout=5, cwd=directory)
+                if old_control:
+                    self.assertNotEqual(observed.returncode, 0, "old Safe native-limit downgrade survived")
+                else:
+                    self.assertEqual(observed.returncode, 0, observed.stderr)
+
     def test_host_error_reentry_and_bridge_error_classification(self):
         parent = Path(os.environ.get("TMPDIR") or os.environ.get("RUNNER_TEMP") or "/var/tmp/codex/ModSecurity-conector/tmp")
         parent.mkdir(parents=True, exist_ok=True)

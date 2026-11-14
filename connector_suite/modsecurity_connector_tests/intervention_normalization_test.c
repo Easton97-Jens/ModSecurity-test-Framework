@@ -12,6 +12,83 @@ static int failures;
     } \
 } while (0)
 
+/* Sonar's deliberate historical Product input has the old two-argument
+ * signature. Compile both typed interfaces without supplying replacement
+ * behavior; running the legacy predicate still fails these new assertions. */
+typedef int (*legacy_response_limit)(enum msconnector_phase,
+    const msconnector_intervention *);
+typedef int (*stateful_response_limit)(enum msconnector_phase,
+    const msconnector_intervention *, const char *, int, int);
+
+static inline int call_legacy_response_limit(legacy_response_limit predicate,
+    enum msconnector_phase phase, const msconnector_intervention *intervention,
+    const char *rule_id, int append_active, int body_eos)
+{
+    (void)rule_id;
+    (void)append_active;
+    (void)body_eos;
+    return predicate(phase, intervention);
+}
+
+static inline int call_stateful_response_limit(stateful_response_limit predicate,
+    enum msconnector_phase phase, const msconnector_intervention *intervention,
+    const char *rule_id, int append_active, int body_eos)
+{
+    return predicate(phase, intervention, rule_id, append_active, body_eos);
+}
+
+#define RESPONSE_LIMIT(...) \
+    _Generic(&msconnector_intervention_is_response_body_limit_rejection, \
+        legacy_response_limit: call_legacy_response_limit, \
+        stateful_response_limit: call_stateful_response_limit)( \
+            &msconnector_intervention_is_response_body_limit_rejection, __VA_ARGS__)
+
+static void check_response_limit_boundary(void)
+{
+    msconnector_intervention limit = msconnector_intervention_make(1, 403, NULL, NULL);
+    const char *messages[] = {MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG,
+        "changed engine diagnostic", "", NULL};
+
+    for (size_t i = 0; i < sizeof(messages) / sizeof(messages[0]); ++i) {
+        limit.log_message = messages[i];
+        CHECK(RESPONSE_LIMIT(
+            MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 1, 0) == 1);
+    }
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, "", 1, 0) == 1);
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_REQUEST_BODY, &limit, NULL, 1, 0) == 0);
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, NULL, NULL, 1, 0) == 0);
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, "910001", 1, 0) == 0);
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 0, 0) == 0);
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 1, 1) == 0);
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 2, 0) == 0);
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 1, 2) == 0);
+    limit.redirect_url = "";
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 1, 0) == 0);
+    limit.redirect_url = "/redirect";
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 1, 0) == 0);
+    limit.redirect_url = NULL;
+    limit.status = 413;
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 1, 0) == 0);
+    limit.status = 403;
+    limit.disruptive = 0;
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 1, 0) == 0);
+    limit.disruptive = 2;
+    CHECK(RESPONSE_LIMIT(
+        MSCONNECTOR_PHASE_RESPONSE_BODY, &limit, NULL, 1, 0) == 0);
+}
+
 int main(void)
 {
     const msconnector_intervention native_request_body_limit =
@@ -69,27 +146,7 @@ int main(void)
     CHECK(msconnector_intervention_is_request_body_limit_rejection(
         MSCONNECTOR_PHASE_REQUEST_BODY, &request_bad_status) == 0);
 
-    msconnector_intervention response_limit = msconnector_intervention_make(1, 403, NULL,
-        MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG);
-    CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 1);
-    CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_REQUEST_BODY, &response_limit) == 0);
-    response_limit.redirect_url = "/redirect";
-    CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
-    response_limit.redirect_url = NULL;
-    response_limit.status = 413;
-    CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
-    response_limit.status = 403;
-    response_limit.log_message = "ordinary rule intervention";
-    CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
-    response_limit.log_message = MSCONNECTOR_RESPONSE_BODY_LIMIT_REJECTION_LOG;
-    response_limit.disruptive = 0;
-    CHECK(msconnector_intervention_is_response_body_limit_rejection(
-        MSCONNECTOR_PHASE_RESPONSE_BODY, &response_limit) == 0);
+    check_response_limit_boundary();
 
     return failures == 0 ? 0 : 1;
 }

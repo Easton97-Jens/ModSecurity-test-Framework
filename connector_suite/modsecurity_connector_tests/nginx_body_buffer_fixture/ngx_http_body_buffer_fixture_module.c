@@ -360,7 +360,8 @@ ngx_http_body_buffer_fixture_plan_lengths(const ngx_str_t *mode,
     *file_length = 0;
 
     if (ngx_http_body_buffer_fixture_mode_is(mode, "memory-within") ||
-        ngx_http_body_buffer_fixture_mode_is(mode, "mixed-within")) {
+        ngx_http_body_buffer_fixture_mode_is(mode, "mixed-within") ||
+        ngx_http_body_buffer_fixture_mode_is(mode, "replaced-followup")) {
         *memory_length = FIXTURE_BODY_LENGTH;
     } else if (ngx_http_body_buffer_fixture_mode_is(mode,
                    "memory-over-limit") ||
@@ -465,7 +466,9 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     result = ngx_http_send_header(r);
-    if (result == NGX_ERROR || result > NGX_OK || r->header_only) {
+    if (result == NGX_ERROR || result > NGX_OK ||
+        (r->header_only &&
+         !ngx_http_body_buffer_fixture_mode_is(&conf->mode, "replaced-followup"))) {
         return result;
     }
 
@@ -494,6 +497,12 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
     }
     buffer->last_buf = 1;
     buffer->last_in_chain = 1;
+    if (ngx_http_body_buffer_fixture_mode_is(&conf->mode, "replaced-followup")) {
+        /* Deliberately ignore header_only after the P3 replacement. The first
+         * stale data callback is nonterminal and the second finishes it. */
+        buffer->last_buf = 0;
+        buffer->last_in_chain = 0;
+    }
     output.buf = buffer;
     output.next = NULL;
 
@@ -503,6 +512,25 @@ ngx_http_body_buffer_fixture_handler(ngx_http_request_t *r)
         (ngx_uint_t) buffer->in_file, buffer->file_pos, buffer->file_last,
         memory_length);
     result = ngx_http_output_filter(r, &output);
+    if (result != NGX_ERROR &&
+        ngx_http_body_buffer_fixture_mode_is(&conf->mode, "replaced-followup")) {
+        result = ngx_http_output_filter(r, NULL);
+        if (result == NGX_ERROR) {
+            return result;
+        }
+        buffer = ngx_create_temp_buf(r->pool, FIXTURE_BODY_LENGTH);
+        if (buffer == NULL) {
+            return NGX_ERROR;
+        }
+        ngx_memcpy(buffer->pos, FIXTURE_BODY, FIXTURE_BODY_LENGTH);
+        buffer->last = buffer->pos + FIXTURE_BODY_LENGTH;
+        buffer->last_buf = r == r->main;
+        buffer->last_in_chain = 1;
+        output.buf = buffer;
+        result = ngx_http_output_filter(r, &output);
+        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+            "body-buffer-fixture stale-followup-callbacks=2 null-callback=1");
+    }
     return result;
 }
 
@@ -533,7 +561,7 @@ ngx_http_body_buffer_fixture_set_mode(ngx_conf_t *cf, ngx_command_t *cmd,
         "memory-within", "memory-over-limit", "file-within",
         "file-over-limit", "mixed-within", "mixed-over-limit",
         "invalid-metadata", "missing-source", "read-error", "short-read",
-        "allocation-failure", NULL
+        "allocation-failure", "replaced-followup", NULL
     };
 
     (void) cmd;

@@ -32,8 +32,23 @@ int main(void)
         MAKE(2, 64, 65, 65, 2)) return 3;
     if (MAKE(1, 66, 65, 65, 2) || MAKE(1, 64, 64, 65, 2) ||
         MAKE(1, 64, 65, 65, 0)) return 4;
-    if (MAKE(1, UINT64_MAX, UINT64_MAX, UINT64_MAX, 2) ||
-        MAKE(1, 64, 65, 65, UINT64_MAX)) return 5;
+    if (!MAKE(1, UINT64_MAX, UINT64_MAX, UINT64_MAX, UINT64_MAX)) return 5;
+    if (!msconnector_event_write_jsonl_line(&event, json, sizeof(json), &truncated) ||
+        truncated || strstr(json, "18446744073709551615") == NULL) return 16;
+    /* Native append sizes remain representable on a 32-bit host. Cumulative
+     * observations cross that host boundary and saturate only at uint64 max. */
+    msconnector_transaction_contract counted;
+    const uint32_t host_chunk = UINT32_MAX;
+    if (msconnector_transaction_contract_init(&counted, NULL, "counter-boundary",
+            "nginx", "fixture", MSCONNECTOR_TRANSACTION_MODE_SAFE, 1U) != 0) return 17;
+    counted.active_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+    if (msconnector_transaction_contract_record_body(&counted, 1, host_chunk) != 0 ||
+        msconnector_transaction_contract_record_body(&counted, 1, 3U) != 0 ||
+        counted.response_body_bytes != UINT64_C(4294967298)) return 18;
+    counted.response_body_bytes = UINT64_MAX - 1U;
+    if (msconnector_transaction_contract_record_body(&counted, 1, 3U) != 0 ||
+        counted.response_body_bytes != UINT64_MAX ||
+        counted.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) return 19;
     contract.completed_phase_mask = 0;
     if (MAKE(1, 64, 65, 65, 2)) return 6;
     contract.completed_phase_mask = MSCONNECTOR_TRANSACTION_PHASE_MASK_P3;

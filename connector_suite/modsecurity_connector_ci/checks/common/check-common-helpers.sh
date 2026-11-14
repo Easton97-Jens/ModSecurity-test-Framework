@@ -1788,8 +1788,15 @@ int main(void) {
         assert(msconnector_limit_transaction_id_length() >= 128U);
         assert(msconnector_limit_log_message_length() >= 256U);
         assert(msconnector_rule_id_validate("123"));
-        assert(msconnector_rule_id_extract_from_message("[id \"123\"]", out, sizeof(out)) == 1);
+        assert(msconnector_rule_id_extract_from_message(
+            "matched id \"1\" [id \"2\"] [file \"rules.conf\"] [line \"1\"] "
+            "[id \"123\"] [rev \"\"] [msg \"test\"] [data \"test\"] "
+            "[severity \"0\"] [ver \"\"] [maturity \"0\"] [accuracy \"0\"] "
+            "[hostname \"localhost\"] [uri \"/\"] [unique_id \"tx\"] [ref \"\"]",
+            out, sizeof(out)) == 1);
         assert(strcmp(out, "123") == 0);
+        assert(msconnector_rule_id_extract_from_message("[id \"1\"]", out, sizeof(out)) == 0);
+        assert(out[0] == '\0');
         assert(msconnector_rule_id_extract_from_message("no id", out, sizeof(out)) == 0);
         assert(!msconnector_rule_id_validate("bad\nid"));
         assert(msconnector_sanitize_log_message("a\r\nb", 4, out, sizeof(out), &truncated) == 4U);

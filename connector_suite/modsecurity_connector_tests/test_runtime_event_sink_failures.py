@@ -26,10 +26,11 @@ FUNCTIONS = (
     "valid_host_action", "valid_host_transport_result", "bounded_c_string",
     "phase4_mode_name", "utc_calendar_time", "timestamp_now",
     "populate_event_body", "populate_event_response_state", "populate_event_host_action",
+    "optional_safe_rule_context", "optional_safe_rule_decision",
     "write_event_jsonl", "write_transaction_event_jsonl",
     "emit_integrity_chained_event_locked", "emit_decision_event",
     "contract_terminal_message_id", "contract_terminal_phase", "contract_terminal_http_status",
-    "emit_contract_terminal_event", "msconnector_runtime_transaction_record_host_action",
+    "emit_contract_terminal_event", "validate_body_limit_host_action", "msconnector_runtime_transaction_record_host_action",
     "reserve_cleanup_event_sequence", "emit_cleanup_event",
     "msconnector_runtime_transaction_snapshot_get", "runtime_transaction_cleanup_checked",
     "runtime_transaction_cleanup_best_effort", "msconnector_runtime_transaction_finalize_and_snapshot",
@@ -56,6 +57,7 @@ INCLUDES = r'''
 #include "msconnector/http_status.h"
 #include "msconnector/integrity_event.h"
 #include "msconnector/memory.h"
+#include "msconnector/rule_id.h"
 #include "msconnector/modsecurity_engine.h"
 #include "connectors/profile_registry.h"
 typedef void Transaction;

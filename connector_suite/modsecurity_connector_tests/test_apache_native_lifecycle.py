@@ -139,7 +139,7 @@ int msc_intervention(Transaction *transaction, ModSecurityIntervention *out) {
     out->status = native_status;
     out->disruptive = native_disruptive;
     out->url = native_redirect ? fixture_copy("/target") : NULL;
-    out->log = fixture_copy("[id \"42\"] fixture rule");
+    out->log = fixture_copy("[file \"fixture.conf\"] [line \"1\"] [id \"42\"] [rev \"\"] [msg \"fixture-rule\"] [data \"\"] [severity \"2\"] [ver \"\"] [maturity \"0\"] [accuracy \"0\"] [hostname \"localhost\"] [uri \"/\"] [unique_id \"fixture-rule\"] [ref \"\"]");
     native_url = out->url;
     native_log = out->log;
     if (recurse_intervention) {
@@ -210,6 +210,7 @@ static int check_intervention(int argc, char **argv, apr_pool_t *pool) {
     request_rec request;
     msc_t transaction;
     int result, repeated, rule;
+    msc_conf_t config = {0};
     REQUIRE(argc == 9);
     REQUIRE(prepare(&request, &transaction, pool, 0) == 0);
     native_result = (int)strtol(argv[2], NULL, 10);
@@ -230,6 +231,14 @@ static int check_intervention(int argc, char **argv, apr_pool_t *pool) {
     }
     recurse_intervention = strcmp(argv[7], "recursive") == 0;
     transaction.native_event_phase = (enum msconnector_phase)strtol(argv[8], NULL, 10);
+    if (strcmp(argv[7], "late_safe") == 0) {
+        transaction.native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+        config.common_config.phase4_mode = MSCONNECTOR_PHASE4_MODE_SAFE;
+        request.per_dir_config = (ap_conf_vector_t *)&config;
+        transaction.response_body_processed = 1;
+        transaction.response.body_eos_seen = 1;
+    }
+    if (strcmp(argv[7], "append") == 0) { transaction.native_event_phase = MSCONNECTOR_PHASE_RESPONSE_BODY; transaction.response.body_append_active = 1; }
     result = process_intervention(transaction.t, &request);
     rule = result != N_INTERVENTION_STATUS &&
         msc_apache_contract_record_intervention_decision(&transaction);
@@ -387,6 +396,17 @@ class ApacheNativeLifecycleTests(unittest.TestCase):
                      allocation=0, state="normal", phase=2, control=False) -> dict:
         return self.run_case("intervention", native, status, redirect, committed,
                              allocation, state, phase, control=control)
+
+    def test_late_safe_rule_retention_needs_no_pool_log_allocation(self):
+        result = self.intervention(committed=1, allocation=1, state="late_safe", phase=4)
+        self.assertEqual(result["result"], 403)
+        self.assertEqual(result["rule"], 1)
+        self.assertEqual(result["copies"], 0)
+
+    def test_append_rule_intervention_is_terminal_api_error(self):
+        result = self.intervention(state="append", phase=4)
+        self.assertEqual(result["result"], 500)
+        self.assertEqual(result["cause"], "invalid_engine_response")
 
     def test_zero_result_releases_native_buffers_without_a_rule(self):
         result = self.intervention(native=0, redirect=1)

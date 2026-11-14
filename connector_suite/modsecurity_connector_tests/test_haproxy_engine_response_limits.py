@@ -123,7 +123,7 @@ class HaproxyRealEngineResponseLimitTests(unittest.TestCase):
         if compiled.returncode:
             raise AssertionError(compiled.stdout + compiled.stderr)
 
-    def run_case(self, *, limit, action, length, reject, match, engine_mode, mode, representation, marker_offset=None, phase4_pass=False):
+    def run_case(self, *, limit, action, length, reject, match, engine_mode, mode, representation, marker_offset=None, phase4_pass=False, pass_before_deny=False):
         # Required arguments are deliberately explicit at every test invocation.
         if limit <= 0 or action not in {"Reject", "ProcessPartial"}:
             raise ValueError("explicit positive SecResponseBodyLimit and valid SecResponseBodyLimitAction required")
@@ -133,6 +133,9 @@ class HaproxyRealEngineResponseLimitTests(unittest.TestCase):
             f"SecResponseBodyLimitAction {action}\nSecAuditEngine Off\n"
             'SecRule RESPONSE_BODY "@contains Z" "id:1250801,phase:4,deny,status:403,log"\n')
         marker = length - 1 if marker_offset is None else marker_offset
+        if pass_before_deny:
+            with rules.open("a") as output:
+                output.write('SecAction "id:1250800,phase:1,pass,log"\n')
         if phase4_pass:
             with rules.open("a") as output:
                 output.write('SecAction "id:1250802,phase:4,pass,nolog"\n')
@@ -149,6 +152,54 @@ class HaproxyRealEngineResponseLimitTests(unittest.TestCase):
             str(int(match)), str(mode), representation, str(payload), str(marker)],
             capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_response_observation_counts_cross_32bit_and_saturate(self):
+        # Include the genuine private implementation to seed observation-only
+        # state. The real Engine still receives only the nine actual bytes.
+        program = PROGRAM.replace('#include "haproxy_modsecurity_binding.h"',
+            '#include "connectors/haproxy/src/haproxy_modsecurity_binding.c"')
+        program = program.replace("    memset(chunk, 'a', sizeof(chunk));", """
+    transaction->response_body.bytes_seen = TEST_COUNTER_SEED;
+    transaction->response_body.bytes_inspected = TEST_COUNTER_SEED;
+    transaction->contract.response_body_bytes = TEST_COUNTER_SEED;
+    memset(chunk, 'a', sizeof(chunk));""")
+        program = program.replace("    if (file) fclose(file);", """
+    if (transaction->response_body.bytes_seen != TEST_EXPECTED_COUNTER ||
+        transaction->response_body.bytes_inspected != TEST_EXPECTED_COUNTER ||
+        transaction->contract.response_body_bytes != TEST_EXPECTED_COUNTER) return 10;
+    if (file) fclose(file);""")
+        source = self.runroot / "private-counters.c"
+        source.write_text(program)
+        objroot = self.build / "haproxy-modsecurity-binding"
+        resolution = dict(line.split("=", 1) for line in (objroot / "paths.env").read_text().splitlines() if "=" in line)
+        objects = [str(p) for p in objroot.glob("*.o")
+                   if p.name not in {"haproxy_modsecurity_binding.o", "haproxy_modsecurity_binding_self_test.o"}
+                   and not p.name.startswith("verify_")]
+        original_binary = self.binary
+        try:
+            for label, seed, expected in (
+                ("u32", "UINT32_MAX-1ULL", "UINT32_MAX+8ULL"),
+                ("u64", "UINT64_MAX-1ULL", "UINT64_MAX"),
+            ):
+                with self.subTest(width=label):
+                    self.binary = self.runroot / ("counter-" + label)
+                    command = ["cc", "-std=c17", "-Wall", "-Wextra", "-Werror",
+                        "-I", str(ROOT), "-I", str(ROOT / "common/include"),
+                        "-I", os.environ.get("MODSECURITY_INCLUDE_DIR", "/usr/include"),
+                        "-DTEST_COUNTER_SEED=" + seed, "-DTEST_EXPECTED_COUNTER=" + expected,
+                        str(source), *objects, resolution["MODSECURITY_LIBRARY"],
+                        f'-Wl,-rpath,{resolution["MODSECURITY_LIB_DIR"]}', "-lstdc++", "-o", str(self.binary)]
+                    compiled = subprocess.run(command, capture_output=True, text=True, timeout=60)
+                    self.assertEqual(compiled.returncode, 0, compiled.stderr)
+                    self.run_case(limit=1000, action="Reject", length=9,
+                        reject=False, match=True, engine_mode="On", mode=1, representation="memory")
+        finally:
+            self.binary = original_binary
+
+    def test_prior_logged_pass_does_not_replace_disruptive_rule_id(self):
+        self.run_case(limit=1000, action="Reject", length=9,
+            reject=False, match=True, engine_mode="On", mode=1,
+            representation="memory", pass_before_deny=True)
 
     def test_explicit_engine_boundaries_and_actions(self):
         for action in ("Reject", "ProcessPartial"):

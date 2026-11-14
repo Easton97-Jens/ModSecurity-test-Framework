@@ -17,6 +17,12 @@ ROOT = connector_root()
 
 class TraefikI10DispatcherTest(unittest.TestCase):
     def test_technical_failure_and_terminal_reentry(self) -> None:
+        self.check_dispatcher(False)
+
+    def test_removing_native_reject_guard_fails_the_physical_wire_assertion(self) -> None:
+        self.check_dispatcher(True)
+
+    def check_dispatcher(self, remove_native_reject_guard: bool) -> None:
         compiler = shutil.which("cc")
         if compiler is None:
             self.skipTest("requires a C compiler")
@@ -30,6 +36,15 @@ class TraefikI10DispatcherTest(unittest.TestCase):
             dir=os.environ.get("TMPDIR"),
         ) as temporary_directory:
             binary = Path(temporary_directory) / "dispatcher"
+            include_root = ROOT
+            if remove_native_reject_guard:
+                include_root = Path(temporary_directory)
+                source = source_path('connectors/traefik/src/traefik_engine_service.c', root=ROOT).read_text()
+                anchor = "if (msconnector_decision_is_body_limit(decision) &&\n        (session->response_headers_sent || session->response_body_started)) {"
+                self.assertEqual(source.count(anchor), 1)
+                target = include_root / "connectors/traefik/src/traefik_engine_service.c"
+                target.parent.mkdir(parents=True)
+                target.write_text(source.replace(anchor, "if (0) {", 1))
             compile_result = subprocess.run(
                 [
                     compiler,
@@ -39,6 +54,8 @@ class TraefikI10DispatcherTest(unittest.TestCase):
                     "-Werror",
                     "-ffunction-sections",
                     "-fdata-sections",
+                    "-I",
+                    str(include_root),
                     "-I",
                     str(ROOT),
                     "-I",
@@ -82,7 +99,11 @@ class TraefikI10DispatcherTest(unittest.TestCase):
                 timeout=10.0,
                 check=False,
             )
-            self.assertEqual(run_result.returncode, 0, run_result.stderr)
+            if remove_native_reject_guard:
+                self.assertNotEqual(run_result.returncode, 0, "native Reject mutation escaped wire assertions")
+                self.assertIn("Assertion", run_result.stderr)
+            else:
+                self.assertEqual(run_result.returncode, 0, run_result.stderr)
 
 
 
