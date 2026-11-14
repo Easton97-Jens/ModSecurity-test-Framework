@@ -185,6 +185,9 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
         shutil.copytree(
             source_path('common/include', root=ROOT), destination / "common" / "include"
         )
+        (destination / "common/src").mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path("common/src/transaction_state.c", root=ROOT),
+                     destination / "common/src/transaction_state.c")
         shutil.copy2(NGINX / "config", destination / "connectors" / "nginx" / "config")
         return destination
 
@@ -218,6 +221,109 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             result.stdout,
         )
         self.assertIn(f"PASS: {RULE_ID_CONTRACT_MESSAGE}", result.stdout)
+
+    def test_response_observation_saturation_and_type_guards_are_required(self) -> None:
+        message = "NGINX preserves checked response accounting without a connector-owned inspection limit"
+        cases = (
+            ("saturation guard", "common/include/msconnector/transaction_contract.h",
+             "static inline uint64_t\nmsconnector_transaction_counter_add",
+             "if ((uintmax_t)amount > UINT64_MAX - current)", "if (0)"),
+            ("saturated value", "common/include/msconnector/transaction_contract.h",
+             "static inline uint64_t\nmsconnector_transaction_counter_add",
+             "return UINT64_MAX;", "return 0U;"),
+            ("unchecked native observation", "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+             "static ngx_int_t\nngx_http_modsecurity_account_response_body",
+             "ctx->response_body_bytes_seen = msconnector_transaction_counter_add(\n"
+             "        ctx->response_body_bytes_seen, len);",
+             "ctx->response_body_bytes_seen += len;"),
+            ("counter relation guard", "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+             "static ngx_int_t\nngx_http_modsecurity_account_response_body",
+             "if (ctx->response_body_bytes_inspected > ctx->response_body_bytes_seen)", "if (0)"),
+            ("unchecked Common response observation", "common/src/transaction_state.c",
+             "int msconnector_transaction_contract_record_body",
+             "contract->response_body_bytes = msconnector_transaction_counter_add(\n"
+             "            contract->response_body_bytes, bytes);",
+             "contract->response_body_bytes += bytes;"),
+        )
+        for label, path, signature, old, replacement in cases:
+            with self.subTest(mutation=label):
+                self._assert_rejected(
+                    lambda repo, path=path, signature=signature, old=old, replacement=replacement:
+                        replace_in_function(repo / path, signature, old, replacement), message)
+        for path, declaration in (
+            ("connectors/nginx/src/ngx_http_modsecurity_common.h", "uint64_t response_body_bytes_seen;"),
+            ("common/include/msconnector/transaction_contract.h", "uint64_t response_body_bytes;"),
+        ):
+            with self.subTest(narrowed_counter=declaration):
+                def narrow(repo, path=path, declaration=declaration):
+                    selected = repo / path
+                    source = selected.read_text(encoding="utf-8")
+                    # Preserve the existing alignment in declarations.
+                    import re
+                    pattern = re.compile(r"uint64_t\s+" + declaration.split()[1])
+                    source, count = pattern.subn("size_t " + declaration.split()[1], source)
+                    self.assertEqual(count, 1)
+                    selected.write_text(source, encoding="utf-8")
+                self._assert_rejected(narrow, message)
+
+    def test_bounded_file_chunks_keep_range_read_and_accounting_guards(self) -> None:
+        message = "NGINX response-body buffer route retains the bounded memory/file planner paths"
+        signature = "static ngx_int_t\nngx_http_modsecurity_append_file_response_body"
+        cases = (
+            ("host-narrowed file range", "uintmax_t remaining;", "size_t remaining;"),
+            ("unbounded scratch read",
+             "chunk = remaining > NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK\n"
+             "            ? NGX_HTTP_MODSECURITY_PHASE4_FILE_READ_CHUNK : (size_t)remaining;",
+             "chunk = (size_t)remaining;"),
+            ("failed read accepted", "if (read_count < 0 || (size_t)read_count != chunk)", "if (0)"),
+            ("negative file position accepted", "buffer->file_pos < 0", "0"),
+            ("file chunk bypasses accounting",
+             "ngx_http_modsecurity_append_accounted_response_body(ctx, mcf,",
+             "ngx_http_modsecurity_append_response_body_chunk(ctx,"),
+        )
+        for label, old, replacement in cases:
+            with self.subTest(mutation=label):
+                self._assert_rejected(
+                    lambda repo, old=old, replacement=replacement: replace_in_function(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+                        signature, old, replacement), message)
+
+    def test_replaced_body_dispatch_requires_controls_pending_drains_and_errors(self) -> None:
+        message = "NGINX response-body filter retains only the direct prepared chain path"
+        signature = "static ngx_int_t\nngx_http_modsecurity_discard_replaced_response_body"
+        cases = (
+            ("connection output lost", "out == NULL && !r->buffered && !r->connection->buffered",
+             "out == NULL && !r->buffered"),
+            ("request output lost", "out == NULL && !r->buffered && !r->connection->buffered",
+             "out == NULL && !r->connection->buffered"),
+            ("original data links forwarded", "return ngx_http_next_body_filter(r, out);",
+             "return ngx_http_next_body_filter(r, in);"),
+            ("delivery failure converted to success", "if (control == NULL) {\n            return NGX_ERROR;",
+             "if (control == NULL) {\n            return NGX_OK;"),
+            ("subrequest terminal loses special buffer", "control->buf->sync = source->sync || source->last_in_chain;",
+             "control->buf->sync = source->sync;"),
+            ("unconditional downstream success", "return ngx_http_next_body_filter(r, out);", "return NGX_OK;"),
+        )
+        for label, old, replacement in cases:
+            with self.subTest(mutation=label):
+                self._assert_rejected(
+                    lambda repo, old=old, replacement=replacement: replace_in_function(
+                        repo / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+                        signature, old, replacement), message)
+        def bypass_null_dispatch(repo):
+            replace_in_function(repo / "connectors/nginx/src/ngx_http_modsecurity_body_filter.c",
+                "static ngx_int_t\nngx_http_modsecurity_prepare_response_body_filter",
+                "    if (ctx->response_replaced) {",
+                "    if (in == NULL) { return NGX_DECLINED; }\n    if (ctx->response_replaced) {")
+        self._assert_rejected(bypass_null_dispatch, message)
+
+    def test_new_observation_and_buffer_controls_reject_macro_substitution(self) -> None:
+        for symbol in ("msconnector_transaction_counter_add", "UINT64_MAX", "buffered"):
+            with self.subTest(symbol=symbol):
+                self._assert_rejected(lambda repo, symbol=symbol: prepend_directive(
+                    repo / "connectors/nginx/src/ngx_http_modsecurity_common.h",
+                    f"#define {symbol} 0"),
+                    "NGINX critical macro inputs reject aliases of checked lifecycle and response-body controls")
 
     def test_rule_id_delegation_rejects_mutated_wrapper_and_inactive_twins(self) -> None:
         cases = (
@@ -1760,7 +1866,8 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
             replace_all_in_function(
                 path,
                 signature,
-                "ctx->response_body_bytes_seen += len;",
+                "ctx->response_body_bytes_seen = msconnector_transaction_counter_add(\n"
+                "        ctx->response_body_bytes_seen, len);",
                 "ctx->response_body_bytes_seen = 0U;",
                 1,
             )
@@ -2907,10 +3014,10 @@ class NginxCommonAdoptionCheckerTests(unittest.TestCase):
     def test_response_body_buffer_requires_limited_memory_path(self) -> None:
         limited_memory_path = (
             "        return ngx_http_modsecurity_append_accounted_response_body(ctx, mcf,\n"
-            "            data, len);\n"
+            "            buffer->pos, (size_t)span);\n"
         )
         direct_chunk = (
-            "        return ngx_http_modsecurity_append_response_body_chunk(ctx, data, len);\n"
+            "        return ngx_http_modsecurity_append_response_body_chunk(ctx, buffer->pos, (size_t)span);\n"
         )
 
         def mutate(repository: Path) -> None:
