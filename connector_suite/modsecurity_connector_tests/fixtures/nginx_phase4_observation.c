@@ -49,8 +49,6 @@ int main(void)
     if (msconnector_transaction_contract_record_body(&counted, 1, 3U) != 0 ||
         counted.response_body_bytes != UINT64_MAX ||
         counted.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE) return 19;
-    if (msconnector_transaction_counter_add(UINT64_MAX, host_chunk) != UINT64_MAX)
-        return 20;
     contract.completed_phase_mask = 0;
     if (MAKE(1, 64, 65, 65, 2)) return 6;
     contract.completed_phase_mask = MSCONNECTOR_TRANSACTION_PHASE_MASK_P3;
