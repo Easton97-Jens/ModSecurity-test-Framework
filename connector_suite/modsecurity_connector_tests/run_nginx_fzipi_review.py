@@ -597,8 +597,11 @@ def verify_final_audit(paths: RuntimePaths, receipt: dict) -> None:
         observed = audit_for(entries, scenario.name)
         result = receipt["cases"][scenario.name]
         result["native_audit_records"] = len(observed)
-        result["status"] = "failed"
-        result["rule_ids"] = validate_audit_result(scenario, observed)
+        try:
+            result["rule_ids"] = validate_audit_result(scenario, observed)
+        except FixtureFailure:
+            result["status"] = "failed"
+            raise
         result["status"] = "passed"
 
 
