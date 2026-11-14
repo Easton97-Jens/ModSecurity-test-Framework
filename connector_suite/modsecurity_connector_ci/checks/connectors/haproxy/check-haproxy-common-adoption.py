@@ -63,10 +63,109 @@ expected_rule_id_decoder = r'''static void capture_log_rule_id(haproxy_modsecuri
         decision->rule_id = (int)parsed;
     }
 }'''
+# The reviewed collector validates the native callback before delegating to
+# the metadata helper. Keep that live call chain scoped, not a token elsewhere.
+intervention_details = c_function(binding_checked, 'static int capture_intervention_details(')
+expected_intervention_capture = r"""static int capture_intervention(
+        Transaction *transaction,
+        int phase,
+        haproxy_modsecurity_decision *decision,
+        int response_append_active, int response_body_eos) {
+    ModSecurityIntervention intervention;
+    int native_result;
+    if (transaction == 0 || decision == 0) {
+        return 1;
+    }
+    init_decision(decision, phase);
+    init_intervention(&intervention);
+    native_result = msc_intervention(transaction, &intervention);
+    if ((native_result != 0 && native_result != 1) ||
+        (intervention.disruptive != 0 && intervention.disruptive != 1) ||
+        (native_result == 0 && intervention.disruptive)) {
+        native_error_decision(decision, "invalid native intervention result");
+        msc_intervention_cleanup(&intervention);
+        return 1;
+    }
+    if (native_result == 1 &&
+        capture_intervention_details(&intervention, phase, decision,
+            response_append_active, response_body_eos) != 0) {
+        msc_intervention_cleanup(&intervention);
+        return 1;
+    }
+    msc_intervention_cleanup(&intervention);
+    return 0;
+}"""
+# Bind the entire live metadata path, including its success tail: a matching
+# prefix must not hide a later decision reset, early return or unchecked branch.
+expected_intervention_details = r"""static int capture_intervention_details(
+        const ModSecurityIntervention *intervention,
+        int phase, haproxy_modsecurity_decision *decision,
+        int response_append_active, int response_body_eos) {
+    msconnector_intervention common_intervention;
+    int truncated = 0;
+    int body_limit;
+    enum msconnector_phase common_phase;
+    char rule_id[MSCONNECTOR_MAX_RULE_ID_LENGTH + 1U] = {0};
+
+    common_intervention = msconnector_intervention_make(
+        intervention->disruptive, intervention->status, intervention->url,
+        intervention->log);
+    common_phase = MSCONNECTOR_PHASE_CONNECTION;
+    if (phase == 2) {
+        common_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
+    }
+    body_limit = msconnector_intervention_is_request_body_limit_rejection(
+        common_phase, &common_intervention);
+
+    common_intervention.redirect_url = intervention->url;
+    capture_log_rule_id(decision, intervention->log);
+    if (msconnector_rule_id_extract_from_message(intervention->log,
+            rule_id, sizeof(rule_id)) < 0 && phase == 4 &&
+        response_append_active && intervention->disruptive) {
+        native_error_decision(decision, "malformed response append metadata");
+        return 1;
+    }
+    decision->body_limit = body_limit ||
+        msconnector_intervention_is_response_body_limit_rejection(
+            phase == 4 ? MSCONNECTOR_PHASE_RESPONSE_BODY : common_phase,
+            &common_intervention, rule_id, response_append_active,
+            response_body_eos);
+    if (phase == 4 && response_append_active &&
+        intervention->disruptive && !decision->body_limit) {
+        native_error_decision(decision, "unexpected disruptive response append");
+        return 1;
+    }
+    if (decision->body_limit) {
+        decision->error_class = MSCONNECTOR_TRANSACTION_ERROR_BODY_LIMIT;
+    }
+    decision->disruptive = intervention->disruptive;
+    if (intervention->status > 0) {
+        decision->status = intervention->status;
+    } else {
+        decision->status = HAPROXY_MODSECURITY_EXPECTED_STATUS;
+    }
+    if (capture_intervention_action(intervention, body_limit, decision) != 0) {
+        return 1;
+    }
+    copy_message(decision->log_message, sizeof(decision->log_message),
+        intervention->log);
+    msconnector_sanitize_log_message(intervention->log, intervention->log != 0 ? strlen(intervention->log) : 0U,
+        decision->log_message, sizeof(decision->log_message), &truncated);
+    return 0;
+}"""
+
+def normalized_c(source):
+    return re.sub(r'\s+', ' ', source).strip()
+
+rule_id_capture_path_is_checked = (
+    normalized_c(intervention_capture) == normalized_c(expected_intervention_capture)
+    and normalized_c(intervention_details) == normalized_c(expected_intervention_details)
+)
+
 rule_id_decoder_is_bounded = (
     re.sub(r'\s+', ' ', rule_id_decoder).strip()
     == re.sub(r'\s+', ' ', expected_rule_id_decoder).strip()
-    and 'capture_log_rule_id(decision, intervention.log);' in intervention_capture
+    and rule_id_capture_path_is_checked
 )
 spop_checked = mask_c_comments(spop_runtime)
 decision_log_writer = c_function(spop_checked, 'static int decision_log_write(')

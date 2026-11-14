@@ -13,6 +13,8 @@ import sys
 import tempfile
 import unittest
 
+from modsecurity_connector_tests.checker_fixture_repository import fixture_environment
+
 ROOT = connector_root()
 CHECKER = Path("ci/checks/connectors/haproxy/check-haproxy-common-adoption.py")
 BINDING = Path("connectors/haproxy/src/haproxy_modsecurity_binding.c")
@@ -26,8 +28,9 @@ class HaproxyRuleIdAdoptionTests(unittest.TestCase):
             root = Path(temporary)
             (root / "Makefile").write_text("# isolated checker fixture\n", encoding="utf-8")
             shutil.copytree(source_path('connectors/haproxy', root=ROOT), root / "connectors/haproxy")
+            shutil.copytree(source_path("common/include", root=ROOT), root / "common/include")
             (root / CHECKER).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ROOT / CHECKER, root / CHECKER)
+            shutil.copy2(source_path(str(CHECKER), root=ROOT), root / CHECKER)
             if old is not None:
                 path = root / BINDING
                 source = path.read_text(encoding="utf-8")
@@ -35,6 +38,7 @@ class HaproxyRuleIdAdoptionTests(unittest.TestCase):
                 path.write_text(source.replace(old, new, 1), encoding="utf-8")
             return subprocess.run(
                 [sys.executable, str(root / CHECKER)], cwd=root,
+                env=fixture_environment(root),
                 capture_output=True, text=True, timeout=30, check=False,
             )
 
@@ -76,8 +80,55 @@ class HaproxyRuleIdAdoptionTests(unittest.TestCase):
         self.assert_rejected("char common_rule_id[64] = {0};", "char common_rule_id[64] = {0};\n    return;")
 
     def test_missing_helper_call_is_rejected(self) -> None:
-        call = "capture_log_rule_id(decision, intervention.log);"
+        call = "capture_log_rule_id(decision, intervention->log);"
         self.assert_rejected(call, "/* " + call + " */")
+
+
+    def test_native_collector_must_check_and_forward_the_real_intervention(self) -> None:
+        mutations = (
+            ("if (native_result == 1 &&", "if (native_result != 1 &&"),
+            ("capture_intervention_details(&intervention, phase, decision,", "capture_intervention_details(0, phase, decision,"),
+            ("capture_intervention_details(&intervention, phase, decision,\n            response_append_active, response_body_eos) != 0)",
+             "capture_intervention_details(&intervention, phase, decision,\n            response_append_active, response_body_eos) == 0)"),
+            ("native_result = msc_intervention(transaction, &intervention);", "native_result = 1;"),
+            ("(native_result != 0 && native_result != 1)", "(native_result < 0)"),
+        )
+        for old, new in mutations:
+            with self.subTest(mutation=old):
+                self.assert_rejected(old, new)
+
+    def test_details_early_return_and_dead_decode_are_rejected(self) -> None:
+        call = "capture_log_rule_id(decision, intervention->log);"
+        for changed in ("return 0; " + call, "if (0) { " + call + " }", "/* " + call + " */", "capture_log_rule_id(decision, 0);"):
+            with self.subTest(changed=changed):
+                self.assert_rejected(call, changed)
+
+    def test_details_cannot_overwrite_or_bypass_the_decoded_decision(self) -> None:
+        call = "capture_log_rule_id(decision, intervention->log);"
+        for suffix in (
+            " decision->rule_id = 42;",
+            " init_decision(decision, phase);",
+            " memset(decision, 0, sizeof(*decision));",
+            " return 0;",
+            " if (phase == 4) { return 0; }",
+        ):
+            with self.subTest(suffix=suffix):
+                self.assert_rejected(call, call + suffix)
+
+    def test_details_enforcement_and_native_cleanup_cannot_be_bypassed(self) -> None:
+        mutations = (
+            ("intervention->disruptive && !decision->body_limit)",
+             "intervention->disruptive && decision->body_limit)"),
+            ("if (capture_intervention_action(intervention, body_limit, decision) != 0)",
+             "if (capture_intervention_action(intervention, body_limit, decision) == 0)"),
+            ("decision->disruptive = intervention->disruptive;", "decision->disruptive = 0;"),
+            ("decision->status = intervention->status;", "decision->status = 200;"),
+            ("capture_intervention_details(&intervention, phase, decision,\n            response_append_active, response_body_eos) != 0) {\n        msc_intervention_cleanup(&intervention);",
+             "capture_intervention_details(&intervention, phase, decision,\n            response_append_active, response_body_eos) != 0) {"),
+        )
+        for old, new in mutations:
+            with self.subTest(mutation=old):
+                self.assert_rejected(old, new)
 
 
 

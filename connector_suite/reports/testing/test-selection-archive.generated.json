@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "4fc4250acad1a690fe32617f585fcb2bd255884589050ecfaa2914a7cb601d86",
+  "inventory_sha256": "bf346309d75aaf0aa15c0c5939b35b2caed38754f6180ac9fd5c051485be632c",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1122,7 +1122,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/engine_response_limit_test.c",
       "source": "tests/engine_response_limit_test.c",
-      "source_sha256": "4751518c88c6b45e4dc3e21c52b95460d5648652fd4cc356ec69eb1fec93be80"
+      "source_sha256": "5a433bf3deeff30f375d6bb0a61405b863f9761cd1f5f6a38ac82a00cc4a2733"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/event_json_query_redaction_test.c",
@@ -1137,7 +1137,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/lighttpd_i10_native.c",
       "source": "tests/fixtures/lighttpd_i10_native.c",
-      "source_sha256": "ba83c24d640721b63304a6bc00f8a983ab0c9f60451ce34572b4314167433d40"
+      "source_sha256": "d456941749de398f3ee778254b2b646b7705cb4b85599b5304205f176a0cd491"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/lighttpd_i10_sidecar.c",
@@ -1172,12 +1172,12 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/nginx_phase4_observation.c",
       "source": "tests/fixtures/nginx_phase4_observation.c",
-      "source_sha256": "ba09867ff467cb3b8177bb49d1190afffc7e5cdb6b8888906f5194cfe37caab3"
+      "source_sha256": "af7a00b3d8b1767b6ea068aa575c18d7dc506e3754f13be949122644e438677f"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/nginx_response_body_limit.c",
       "source": "tests/fixtures/nginx_response_body_limit.c",
-      "source_sha256": "4ce4c009d67af6c38258e8252fb33e252cb67d6118719dc37ca0262d705c82b3"
+      "source_sha256": "ae268d45a7362de4d3c555b109686cd8af23d8ef0cdb8d71ac83f6812a35051d"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/nginx_transaction_fault.c",
@@ -1257,12 +1257,12 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/intervention_normalization_test.c",
       "source": "tests/intervention_normalization_test.c",
-      "source_sha256": "683263f7601295b6f526e5244e5855330d3385b370c1843ba8d2878b9230ac5d"
+      "source_sha256": "839b16502ead3fda2fca701df6c1092fd2772e04e7db93657ad2a28c262e86c4"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/nginx_body_buffer_fixture/ngx_http_body_buffer_fixture_module.c",
       "source": "tests/nginx_body_buffer_fixture/ngx_http_body_buffer_fixture_module.c",
-      "source_sha256": "619037fb1089e206767724edfa9b7045e5c37b7bd5d8421fd48bc207a4c9a21e"
+      "source_sha256": "4212bb4d7256b9fae48f54868e98ff677738db6621eb2a5cd89a3371399dad96"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/nginx_p3_header_injector_fixture/ngx_http_p3_header_injector_fixture_module.c",
@@ -1292,7 +1292,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/response_companion_transport_test.c",
       "source": "tests/response_companion_transport_test.c",
-      "source_sha256": "8cf956b49aa0a7cddf6a61642f24c694ddf36188a13302fda06dafb7e795de8b"
+      "source_sha256": "a9ed0085e58edce1e8775a16a8588b0150261e65614f3eae79f4356fc19cccd6"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_cleanup_observation.c",
@@ -1317,7 +1317,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/traefik_i10_dispatcher_test.c",
       "source": "tests/traefik_i10_dispatcher_test.c",
-      "source_sha256": "7a9abb9320e19c33c2486ffc04fa97254e24a97a44713defe9b7815fd56de3c4"
+      "source_sha256": "d06bfe5f075801423dd6463658388315bc9c80252d450041431341e2244656b5"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/traefik_i12_companion_invalid_outcome_probe.c",
@@ -1342,10 +1342,10 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/transaction_phase_runtime_companion_test.c",
       "source": "tests/transaction_phase_runtime_companion_test.c",
-      "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
+      "source_sha256": "c4b5192448e9045e6b1255fefa549ed45f470c30390ec58c611782069ad58449"
     }
   ],
-  "on_demand_definition_count": 8096,
+  "on_demand_definition_count": 8211,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -1711,7 +1711,7 @@
         "TestConnectorResponseInspectionHasNoCumulativeBudget"
       ],
       "source": "connectors/envoy/ext_proc/internal/processor/phase4_budget_test.go",
-      "source_sha256": "6f8ff027396578421764374d5e88a0e29e52a547e651f6cda5b5211bd3f9f064"
+      "source_sha256": "030b6f704616be47852cb7b13af8da8a800b074dec595597a7061d4f31dc9778"
     },
     {
       "contains_selected_definitions": [],
@@ -1725,6 +1725,7 @@
         "TestProcessEnforcesAbsoluteStreamLifetimeDuringBlockedSend",
         "TestProcessRecordsConfirmedResponseEvidenceAtStreamDeadline",
         "TestProcessRejectsExcessActiveStreamBeforeTransactionOpenAndReleasesSlot",
+        "TestResponseBodyObservationSaturatesAndStillProcessesEOS",
         "TestCumulativeBodyAccountingRejectsSignedOverflow",
         "TestProcessStopsAfterSuccessfulResponseEvidenceFailure",
         "TestProcessStuckNativeEquivalentReportsFatalAfterCleanupGrace",
@@ -1761,10 +1762,11 @@
         "TestRequestMetadataRejectsMissingAuthorityAndHost",
         "TestEnvoyEndpointAddressKeepsOnlyTheHostComponentOfSocketAttributes",
         "TestStreamCloseKeepsIncompleteFinishLocalAndSinkFailureFatal",
-        "TestStreamCloseMetadataSinkFailureRemainsFatalAfterIncompleteFinish"
+        "TestStreamCloseMetadataSinkFailureRemainsFatalAfterIncompleteFinish",
+        "TestRequestChunkObservationOverflowStillRejects"
       ],
       "source": "connectors/envoy/ext_proc/internal/processor/processor_test.go",
-      "source_sha256": "8463c368e15987de6474b1ee1835f08bfc32e390b791c978d70c26496c9cd78b"
+      "source_sha256": "fdd32f6c65392de433e9b46f29c0a5f13a61fdbf70f2b1952a941b7b0adedffd"
     },
     {
       "contains_selected_definitions": [
@@ -2299,10 +2301,12 @@
         "TestResponseCommitFailureStopsBodyAndEOS",
         "TestLateOutcomeFailureStopsEngineReentry",
         "TestAppliedOutcomeFailureStopsLaterProcessing",
-        "TestAppliedDenialConsumesUpstreamWithoutTerminalCommit"
+        "TestAppliedDenialConsumesUpstreamWithoutTerminalCommit",
+        "TestResponseBodyObservationSaturatesAndStillReachesEngineEOS",
+        "TestRequestBodyAccountingOverflowStillStopsBeforeEngine"
       ],
       "source": "connectors/traefik/native_middleware/api_failure_test.go",
-      "source_sha256": "d78ad9d1a6510edfcde296d7dfe0f264d575ecf8273c5914354ddef138cec30a"
+      "source_sha256": "d6c5475bb4946e4496e9a84018cb647733ea5931031c1fcc27b80b99311481d9"
     },
     {
       "contains_selected_definitions": [],
@@ -3244,6 +3248,11 @@
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheAdoptionCheckBatchingTests.test_batching_preserves_every_predicate_message_and_order",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheAdoptionCheckBatchingTests.test_reviewed_dump_retains_every_semantic_change",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheAdoptionCheckBatchingTests.test_status_comparison_is_not_a_second_assignment",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApachePhase4ObservationContractTests.test_complete_saturating_observations_are_accepted",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApachePhase4ObservationContractTests.test_unchecked_lossy_or_wrong_counter_observations_are_rejected",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApachePhase4ObservationContractTests.test_pointer_invariant_and_native_guards_cannot_be_bypassed",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApachePhase4ObservationContractTests.test_comment_foreign_duplicate_and_dead_code_decoys_are_rejected",
+        "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_phase4_unchecked_response_observation_is_rejected",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_current_helper_based_input_filter_is_accepted",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_masking_keeps_code_offsets_while_hiding_decoy_tokens",
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_missing_eos_helper_call_is_rejected",
@@ -3264,7 +3273,7 @@
         "modsecurity_connector_tests.test_apache_common_adoption.ApacheCommonAdoptionCheckerTests.test_phase3_negotiated_protocol_guards_cannot_be_bypassed"
       ],
       "source": "tests/test_apache_common_adoption.py",
-      "source_sha256": "790b94219a2fc56051c56f14c2009eea8d812273181f8e2d129d1d251550585c"
+      "source_sha256": "f41ed7fc977fddb6613ab28996b251cfb93f2b1adb41d0ccc6b5f1112591b6da"
     },
     {
       "contains_selected_definitions": [],
@@ -3289,7 +3298,7 @@
         "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_insecure_parent_is_rejected_without_write",
         "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_real_full_and_readonly_descriptors_propagate_write_error",
         "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_real_partial_write_is_not_complete_or_retried",
-        "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_compiled_ignored_result_control_reproduces_safe_host_success",
+        "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_compiled_old_safe_sink_failure_control_reproduces_abort",
         "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_close_failure_is_terminal_even_after_complete_line",
         "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_original_engine_cause_survives_sink_failure",
         "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_rule_match_failure_is_diagnostic_but_later_mandatory_fails",
@@ -3299,10 +3308,14 @@
         "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_phase2_no_native_reentry_after_sink_failure",
         "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_phase3_returns_error_to_precommit_filter",
         "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_phase4_precommit_fails_closed_for_off_safe_strict",
-        "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_phase4_postcommit_safe_strict_abort_without_second_response"
+        "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_phase4_postcommit_safe_sink_failures_continue_without_second_response",
+        "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_disruptive_append_rule_cannot_survive_until_safe_eos",
+        "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_actual_response_bucket_counters_cross_32bit_and_saturate",
+        "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_phase4_safe_keeps_real_processing_failure_terminal",
+        "modsecurity_connector_tests.test_apache_event_sink_failures.ApacheEventSinkFailureTests.test_phase4_postcommit_strict_sink_failure_still_aborts"
       ],
       "source": "tests/test_apache_event_sink_failures.py",
-      "source_sha256": "f3c065ebd07fdb936c45f0a7fbeb39bb254bbf5b2bf81b97f8e1e103f2c45dc7"
+      "source_sha256": "b229d1eaa91a8c41fe3f40801703ae558887f98122bf4b7980d67c4074b1da29"
     },
     {
       "contains_selected_definitions": [],
@@ -4045,6 +4058,8 @@
       ],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_apache_native_lifecycle.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_apache_native_lifecycle.ApacheNativeLifecycleTests.test_late_safe_rule_retention_needs_no_pool_log_allocation",
+        "modsecurity_connector_tests.test_apache_native_lifecycle.ApacheNativeLifecycleTests.test_append_rule_intervention_is_terminal_api_error",
         "modsecurity_connector_tests.test_apache_native_lifecycle.ApacheNativeLifecycleTests.test_compiled_original_zero_cleanup_control_exposes_leak",
         "modsecurity_connector_tests.test_apache_native_lifecycle.ApacheNativeLifecycleTests.test_invalid_native_values_never_become_rules_or_redirects",
         "modsecurity_connector_tests.test_apache_native_lifecycle.ApacheNativeLifecycleTests.test_real_rule_status_500_is_not_a_technical_failure",
@@ -4065,13 +4080,14 @@
         "modsecurity_connector_tests.test_apache_native_lifecycle.ApacheNativeLifecycleTests.test_host_failure_keeps_its_distinct_cause"
       ],
       "source": "tests/test_apache_native_lifecycle.py",
-      "source_sha256": "020f979cff8011bab18f71c6edca8e512890febfa190007eda81ee696ed2c9ce"
+      "source_sha256": "7c44ac580fbb00e08c04da0e4279289a99368f816a5d3e3ba927cd9d9f358dd7"
     },
     {
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_apache_native_response_limit.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_apache_native_response_limit.ApacheNativeResponseLimitTests.test_native_reject_after_flush_or_body_commit_never_releases_eos",
+        "modsecurity_connector_tests.test_apache_native_response_limit.ApacheNativeResponseLimitTests.test_native_reject_classification_ignores_changed_and_missing_logtext",
         "modsecurity_connector_tests.test_apache_native_response_limit.ApacheNativeResponseLimitTests.test_native_precommit_reject_preserves_native_status",
         "modsecurity_connector_tests.test_apache_native_response_limit.ApacheNativeResponseLimitTests.test_within_limit_partial_and_detection_only_continue",
         "modsecurity_connector_tests.test_apache_native_response_limit.ApacheNativeResponseLimitTests.test_ordinary_late_rule_safe_remains_log_only",
@@ -4082,7 +4098,7 @@
         "modsecurity_connector_tests.test_apache_native_response_limit.ApacheNativeResponseLimitTests.test_append_allow_partial_detection_and_ordinary_rule_keep_streaming"
       ],
       "source": "tests/test_apache_native_response_limit.py",
-      "source_sha256": "0ee3661719313c9953ad326cd3311310ed0ac504f283fddf8e7f3ab798a237dc"
+      "source_sha256": "ef5e62d06ee1e37dab1a275f968999e56e7e810a16a9713ec0253f2eac1d429f"
     },
     {
       "contains_selected_definitions": [],
@@ -4781,7 +4797,7 @@
         "modsecurity_connector_tests.test_engine_response_limits.EngineResponseLimits.test_missing_policy_parameters_fail_readably"
       ],
       "source": "tests/test_engine_response_limits.py",
-      "source_sha256": "39052fa302d34774c6fd005a3a9093829a6c5c81aa5b89ea142b4eb4c7bc685b"
+      "source_sha256": "8af50ace059b839b53834b9e480e6d629ed6fbf12a372a8cdc3869e60018531f"
     },
     {
       "contains_selected_definitions": [],
@@ -4801,6 +4817,9 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_envoy_bridge_failures.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_envoy_bridge_failures.EnvoyBridgeFailureTests.test_native_response_reject_fails_before_generic_deny_or_continue",
+        "modsecurity_connector_tests.test_envoy_bridge_failures.EnvoyBridgeFailureTests.test_real_safe_eos_rule_remains_available_for_log_only_host_outcome",
+        "modsecurity_connector_tests.test_envoy_bridge_failures.EnvoyBridgeFailureTests.test_removing_native_limit_guard_reproduces_untyped_deny",
         "modsecurity_connector_tests.test_envoy_bridge_failures.EnvoyBridgeFailureTests.test_checked_close_propagates_finish_failure_and_destroys_once",
         "modsecurity_connector_tests.test_envoy_bridge_failures.EnvoyBridgeFailureTests.test_checked_close_checks_incomplete_request_and_response",
         "modsecurity_connector_tests.test_envoy_bridge_failures.EnvoyBridgeFailureTests.test_void_close_compatibility_finishes_and_destroys_once",
@@ -4817,7 +4836,7 @@
         "modsecurity_connector_tests.test_envoy_bridge_failures.EnvoyBridgeFailureTests.test_valid_disruptive_decision_and_single_host_record_remain_valid"
       ],
       "source": "tests/test_envoy_bridge_failures.py",
-      "source_sha256": "82e8935534ecc5badcc419fac5c2e786ed5cc13e17f6586956ee9b1fe31330e0"
+      "source_sha256": "7900fb6e44837c414797deadb0434f8d6f61c98b33a6fe21507751a76b9fe18b"
     },
     {
       "contains_selected_definitions": [],
@@ -4940,6 +4959,10 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_event_runtime_security_contract.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_event_runtime_security_contract.CommonSecuritySourceOwnershipTests.test_split_source_owners_keep_the_logical_common_identity",
+        "modsecurity_connector_tests.test_event_runtime_security_contract.CommonSecuritySourceOwnershipTests.test_forbidden_host_includes_are_rejected_for_both_source_owners",
+        "modsecurity_connector_tests.test_event_runtime_security_contract.CommonSecuritySourceOwnershipTests.test_forbidden_calls_are_rejected_for_both_source_owners",
+        "modsecurity_connector_tests.test_event_runtime_security_contract.CommonSecuritySourceOwnershipTests.test_only_the_logical_common_runtime_directory_allows_host_includes",
         "modsecurity_connector_tests.test_event_runtime_security_contract.EventRuntimeSecurityContractTests.test_protocol_metadata_is_json_escaped_and_null_safe",
         "modsecurity_connector_tests.test_event_runtime_security_contract.EventRuntimeSecurityContractTests.test_event_file_open_is_no_follow_regular_and_private",
         "modsecurity_connector_tests.test_event_runtime_security_contract.EventRuntimeSecurityContractTests.test_event_path_walk_rejects_ancestor_and_normalization_escapes",
@@ -4949,7 +4972,7 @@
         "modsecurity_connector_tests.test_event_runtime_security_contract.EventRuntimeSecurityContractTests.test_integrity_fields_document_non_cryptographic_correlation_only"
       ],
       "source": "tests/test_event_runtime_security_contract.py",
-      "source_sha256": "f4e1d77df527c50bfcb2d56a83e2485b9c924a6bcc4d07e77a021c63d8d8bd0e"
+      "source_sha256": "3e2dcbe36d87cc3d7abe56d0ac0479be639d7f5c3252e88a8710a6d4fe831bbb"
     },
     {
       "contains_selected_definitions": [],
@@ -5427,10 +5450,14 @@
         "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_comment_cannot_supply_the_guard",
         "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_missing_conversion_bounds_are_rejected",
         "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_early_return_is_rejected",
-        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_missing_helper_call_is_rejected"
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_missing_helper_call_is_rejected",
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_native_collector_must_check_and_forward_the_real_intervention",
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_details_early_return_and_dead_decode_are_rejected",
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_details_cannot_overwrite_or_bypass_the_decoded_decision",
+        "modsecurity_connector_tests.test_haproxy_adoption_rule_id.HaproxyRuleIdAdoptionTests.test_details_enforcement_and_native_cleanup_cannot_be_bypassed"
       ],
       "source": "tests/test_haproxy_adoption_rule_id.py",
-      "source_sha256": "5da3f8e4a5d75cb6d635f455085bf64bc4ef1a4fff63e5af4d402234247af2e3"
+      "source_sha256": "90de9a3d128b340c7291596f88b94ef2b24260fe4f305683150e1b1b9178724b"
     },
     {
       "contains_selected_definitions": [],
@@ -5462,7 +5489,7 @@
         "modsecurity_connector_tests.test_haproxy_binding_refactor.HaproxyBindingRefactorTests.test_absent_malformed_or_out_of_range_id_keeps_existing_value"
       ],
       "source": "tests/test_haproxy_binding_refactor.py",
-      "source_sha256": "cc5f9821645034ffeee59f1ccadc79100f61642f50d5501a0ec90601fce3eb1b"
+      "source_sha256": "2ffd2f55e528f15992897631a4f0c565a8dd1e31a97811e34bd1842bafe2a9cf"
     },
     {
       "contains_selected_definitions": [],
@@ -5511,7 +5538,7 @@
         "modsecurity_connector_tests.test_haproxy_common_adoption.HaproxyCommonAdoptionCheckerTests.test_inverted_config_merge_is_rejected_despite_comment_decoy"
       ],
       "source": "tests/test_haproxy_common_adoption.py",
-      "source_sha256": "3616531a22a0ef1b0caab3d52d6049227601d5886aa45fbbb0db6587ebcd8fd4"
+      "source_sha256": "7600cf20b014ae30424dfc22d12f117464d63c0fdded34ebe9877aef3951007e"
     },
     {
       "contains_selected_definitions": [],
@@ -5542,6 +5569,8 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_haproxy_engine_response_limits.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_haproxy_engine_response_limits.HaproxyRealEngineResponseLimitTests.test_response_observation_counts_cross_32bit_and_saturate",
+        "modsecurity_connector_tests.test_haproxy_engine_response_limits.HaproxyRealEngineResponseLimitTests.test_prior_logged_pass_does_not_replace_disruptive_rule_id",
         "modsecurity_connector_tests.test_haproxy_engine_response_limits.HaproxyRealEngineResponseLimitTests.test_explicit_engine_boundaries_and_actions",
         "modsecurity_connector_tests.test_haproxy_engine_response_limits.HaproxyRealEngineResponseLimitTests.test_same_engine_configuration_across_modes_and_chunks",
         "modsecurity_connector_tests.test_haproxy_engine_response_limits.HaproxyRealEngineResponseLimitTests.test_large_file_has_no_hidden_one_mib_connector_limit",
@@ -5551,7 +5580,7 @@
         "modsecurity_connector_tests.test_haproxy_engine_response_limits.HaproxyRealEngineResponseLimitTests.test_missing_fixture_limit_or_action_fails_at_creation"
       ],
       "source": "tests/test_haproxy_engine_response_limits.py",
-      "source_sha256": "866e4ccee13f7f6e2b0ca884bafa41046cc197c1644b3fbd786898f4e1521dc7"
+      "source_sha256": "969cdbc85b325ccf7536e672be5e1de1eddf61a7a81e4f59f9485a0ad39ad271"
     },
     {
       "contains_selected_definitions": [],
@@ -5650,10 +5679,11 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_haproxy_host_native_results.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_haproxy_host_native_results.HaproxyHostNativeResultsTests.test_actual_htx_eos_never_downgrades_native_reject_or_engine_failure",
         "modsecurity_connector_tests.test_haproxy_host_native_results.HaproxyHostNativeResultsTests.test_host_error_reentry_and_bridge_error_classification"
       ],
       "source": "tests/test_haproxy_host_native_results.py",
-      "source_sha256": "b2ad5cfdb884dfe9557c52ffba9af862dcd82b441eb9018580cf6f11afffcf68"
+      "source_sha256": "5fd94763aeb2d45a3a6e695aa38703541543141f9d80a82f7a795627b12f115f"
     },
     {
       "contains_selected_definitions": [],
@@ -6036,25 +6066,28 @@
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_haproxy_native_physical_events.NativePhysicalEvents.test_configured_native_common_sink_is_physical",
         "modsecurity_connector_tests.test_haproxy_native_physical_events.NativePhysicalEvents.test_native_events_under_asan_ubsan",
+        "modsecurity_connector_tests.test_haproxy_native_physical_events.NativePhysicalEvents.test_optional_stream_indicator_cleanup_mutation_is_detected",
         "modsecurity_connector_tests.test_haproxy_native_physical_events.NativePhysicalEvents.test_sink_phase_guessing_mutation_is_detected",
         "modsecurity_connector_tests.test_haproxy_native_physical_events.NativePhysicalEvents.test_omitted_physical_write_mutation_is_detected"
       ],
       "source": "tests/test_haproxy_native_physical_events.py",
-      "source_sha256": "601c7175146884f50fd6161a2ba8b9679eb489825a6884b8b17b68266af9ca94"
+      "source_sha256": "ba699ba244fd6219d8f6dd8e6e2cfb75b4a10b4dd203e35d0fd0e235878f5fc4"
     },
     {
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_haproxy_native_results.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_haproxy_native_results.HaproxyNativeResultsTests.test_disruptive_append_rule_ids_are_errors_never_native_limits",
         "modsecurity_connector_tests.test_haproxy_native_results.HaproxyNativeResultsTests.test_native_errors_are_technical_and_terminal",
         "modsecurity_connector_tests.test_haproxy_native_results.HaproxyNativeResultsTests.test_body_native_boundaries_and_reentry",
-        "modsecurity_connector_tests.test_haproxy_native_results.HaproxyNativeResultsTests.test_first_overflowing_body_chunk_emits_technical_body_phase_once",
+        "modsecurity_connector_tests.test_haproxy_native_results.HaproxyNativeResultsTests.test_request_overflow_and_response_prior_error_preserve_terminal_cause",
+        "modsecurity_connector_tests.test_haproxy_native_results.HaproxyNativeResultsTests.test_response_counter_saturation_is_not_a_technical_failure",
         "modsecurity_connector_tests.test_haproxy_native_results.HaproxyNativeResultsTests.test_typed_error_is_metadata_only_and_has_no_actual_action",
         "modsecurity_connector_tests.test_haproxy_native_results.HaproxyNativeResultsTests.test_documented_success_with_no_or_nondisruptive_intervention",
         "modsecurity_connector_tests.test_haproxy_native_results.HaproxyNativeResultsTests.test_first_cause_phase_and_single_terminal_event_survive_reentry"
       ],
       "source": "tests/test_haproxy_native_results.py",
-      "source_sha256": "1f348ba17313d81a54c209e54b27e5fe540a4951571e8c54a7bb9e6e9f9fa840"
+      "source_sha256": "e70007fecf6efb1dfe1f3428848ff474a64e7df976ec177a9bbcb01ca3a3bcc7"
     },
     {
       "contains_selected_definitions": [],
@@ -6401,7 +6434,7 @@
         "modsecurity_connector_tests.test_i09_native_decision.NativeDecisionTests.test_exact_intervention_results_and_stale_metadata"
       ],
       "source": "tests/test_i09_native_decision.py",
-      "source_sha256": "5cfc398c27ac4b6af4cd283709ba68eb478e885a7493be6b17cef4b5bf567b65"
+      "source_sha256": "8a3a87f4bd710b806aa79b92c8ec2cc64c2f7d64c923afefc1fac6a573a820a7"
     },
     {
       "contains_selected_definitions": [],
@@ -6926,11 +6959,13 @@
         "modsecurity_connector_tests.test_lighttpd_i10_adapter_errors.LighttpdI10AdapterErrors.test_native_allocation_failure_cannot_restart_transaction",
         "modsecurity_connector_tests.test_lighttpd_i10_adapter_errors.LighttpdI10AdapterErrors.test_native_failed_host_action_or_ack_cannot_restart_or_select_second_response",
         "modsecurity_connector_tests.test_lighttpd_i10_adapter_errors.LighttpdI10AdapterErrors.test_native_reset_finish_ack_failure_is_terminal_after_one_cleanup",
+        "modsecurity_connector_tests.test_lighttpd_i10_adapter_errors.LighttpdI10AdapterErrors.test_native_reject_and_errors_never_use_safe_rule_downgrade",
+        "modsecurity_connector_tests.test_lighttpd_i10_adapter_errors.LighttpdI10AdapterErrors.test_removing_native_reject_or_error_guard_reproduces_safe_downgrade",
         "modsecurity_connector_tests.test_lighttpd_i10_adapter_errors.LighttpdI10AdapterErrors.test_native_successful_control",
         "modsecurity_connector_tests.test_lighttpd_i10_adapter_errors.LighttpdI10AdapterErrors.test_native_mutations_are_red"
       ],
       "source": "tests/test_lighttpd_i10_adapter_errors.py",
-      "source_sha256": "5b720002bc2b1d148ffc76d6e75ce04924aff6577735820439cf3d24960c4c51"
+      "source_sha256": "6ced356eb3290ac0ec67ff5fa0a22c040481dc0c13245b7cf159368d6f757b58"
     },
     {
       "contains_selected_definitions": [],
@@ -7431,7 +7466,7 @@
         "modsecurity_connector_tests.test_native_result_event_protocol.NativeResultWiringTests.test_runtime_consumer_families_share_the_native_owner"
       ],
       "source": "tests/test_native_result_event_protocol.py",
-      "source_sha256": "daede16c0183226433cda938b94add4ec07e861f0e56a032e3c3cdc82149bbf3"
+      "source_sha256": "7e789cc431c3ce38450a90c62499a594a0d8e196c62e428d69df441bcc0f09af"
     },
     {
       "contains_selected_definitions": [
@@ -7562,6 +7597,10 @@
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_common_adoption.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_current_helper_aware_contract_is_accepted",
+        "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_response_observation_saturation_and_type_guards_are_required",
+        "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_bounded_file_chunks_keep_range_read_and_accounting_guards",
+        "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_replaced_body_dispatch_requires_controls_pending_drains_and_errors",
+        "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_new_observation_and_buffer_controls_reject_macro_substitution",
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_rule_id_delegation_rejects_mutated_wrapper_and_inactive_twins",
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_rule_id_delegation_rejects_missing_gated_or_late_caller",
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_rule_id_delegation_rejects_extra_local_helpers_and_direct_parsers",
@@ -7679,7 +7718,7 @@
         "modsecurity_connector_tests.test_nginx_common_adoption.NginxCommonAdoptionCheckerTests.test_chain_error_dispatch_result_cannot_be_discarded"
       ],
       "source": "tests/test_nginx_common_adoption.py",
-      "source_sha256": "3113ca6f12521ae752c757430f864971c320accd0d279afe5a6cff2fb80a19d4"
+      "source_sha256": "950b7c20562af1c4f74b7891751b147f85f8de0b686bb59a1fa0993b649a66ef"
     },
     {
       "contains_selected_definitions": [],
@@ -7787,7 +7826,7 @@
         "modsecurity_connector_tests.test_nginx_context_accounting.NginxContextAccountingTests.test_context_accounting_and_terminal_state_remain_independent"
       ],
       "source": "tests/test_nginx_context_accounting.py",
-      "source_sha256": "89c8b0de30a9dedf6ee857aeb6e3f89c3dcbe4a335540cbe3c5c9b9b883c2b2c"
+      "source_sha256": "de1c728af93392f5be1b91275b89752bb6e177306a17404b10a927f52f2b1009"
     },
     {
       "contains_selected_definitions": [],
@@ -7863,13 +7902,25 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_error_page_intervention.py",
       "on_demand_definitions": [
-        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_access_handler_does_not_recover_pre_redirect_context",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_equal_inherited_policy_recovers_and_republishes_original_owner",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_different_rules_or_mode_cannot_recover_source_policy",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_disabled_location_and_subrequest_never_inherit_an_owner",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_exact_configured_block_error_page_can_use_different_target_policy",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_arbitrary_error_flag_status_or_destination_does_not_authorize_bypass",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_same_policy_unrelated_redirect_cannot_reuse_a_blocked_owner",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_technical_failure_cannot_be_recovered_as_allow",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_current_blocked_context_remains_available_for_original_finalization",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_access_reentry_does_not_create_another_transaction_for_equivalent_policy_or_block_page",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageContextContractTests.test_log_iteration_visits_each_owned_transaction_and_excludes_subrequests",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxPhase4ModeSetterTests.test_same_context_duplicate_is_rejected_without_replacing_first_mode",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxPhase4ModeSetterTests.test_off_safe_strict_and_invalid_modes_share_the_common_parser",
+        "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxPhase4ModeSetterTests.test_parent_mode_inherits_but_explicit_child_off_and_strict_are_allowed",
         "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageInterventionTests.test_positive_decisions_take_precedence_in_both_paths",
         "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageInterventionTests.test_p1_allow_continues_to_p2_even_on_error_pages",
         "modsecurity_connector_tests.test_nginx_error_page_intervention.NginxErrorPageInterventionTests.test_native_error_remains_fail_closed_without_a_success_event"
       ],
       "source": "tests/test_nginx_error_page_intervention.py",
-      "source_sha256": "df25e360edac3cee1726e61156ae2d67a855c790aa298bf0f9c60a361feb4aef"
+      "source_sha256": "92c8fea2d750d4a46fd612a3b11f931ce85a3b0bff6313abb529680261473656"
     },
     {
       "contains_selected_definitions": [],
@@ -8108,6 +8159,33 @@
       "source_sha256": "acba9bcd428ba3796db5a8d9e0f2ee69d9fef5f263c2c61400a145e0c26989da"
     },
     {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_fzipi_runner.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_cli_rejects_a_symlink_binary_before_any_execution",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_checked_artifact_paths_preserve_canonical_ownership_and_link_controls",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_artifacts_reject_replaceable_ancestors_before_any_execution",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_output_root_retains_safe_root_owned_sticky_ancestor_support",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_manifest_rejects_head_source_binary_and_fixture_mismatches",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_output_root_rejects_source_overlap_symlinks_and_shared_ancestors",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_configuration_grammar_rejections_happen_before_execution_or_output_creation",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_nginx_quoting_preserves_literal_space_quote_backslash_unicode_and_dollar",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_modsecurity_audit_path_uses_its_own_literal_backslash_grammar",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_admitted_executable_and_generated_config_are_passed_as_literal_argv",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_preflight_has_fixed_options_literal_values_and_rejects_bad_ports",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_credentials_accept_the_real_positive_pid_and_reject_malformed_inputs_before_io",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_success_scenarios_traverse_real_response_audit_and_receipt_assertions",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_lost_original_audit_status_is_a_failure_not_a_success_receipt",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_final_completion_rejects_a_late_duplicate_for_every_scenario",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_final_completion_rechecks_the_original_native_status",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_final_completion_refreshes_receipt_metadata_from_one_final_audit_read",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_managed_process_reaps_its_real_child_even_when_scenario_execution_fails",
+        "modsecurity_connector_tests.test_nginx_fzipi_runner.FzipiRunnerTests.test_preflight_failure_still_writes_a_bounded_failed_receipt"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_nginx_fzipi_runner.py",
+      "source_sha256": "612a6fbfef7438fa3b78f47e71eaf361dad952606f27ab2103fe94041eaeb193"
+    },
+    {
       "contains_selected_definitions": [
         "modsecurity_connector_tests.test_nginx_h1_request_protocol.NginxH1RequestProtocolTest.test_h1_request_forces_http11_without_curlrc_and_preserves_payload"
       ],
@@ -8222,13 +8300,16 @@
         "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_successful_empty_finalization_still_allows_normal_forwarding",
         "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_real_safe_policy_applies_only_to_a_rule_intervention",
         "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_real_strict_rule_abort_remains_terminal_without_technical_reclassification",
-        "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_mandatory_log_write_failure_seals_safe_reentry_without_recursive_logging",
+        "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_event_only_metadata_allocation_failure_is_diagnosed_without_host_error",
+        "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_optional_log_failure_keeps_safe_late_response_and_reentry_open",
+        "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_log_failure_does_not_change_strict_abort_or_precommit_error",
         "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_invalid_canonical_transitions_fail_closed",
         "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_specific_body_limit_cause_survives_generic_error_dispatch",
-        "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_completion_observation_failure_is_terminal_before_intervention"
+        "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_impossible_native_eos_retained_length_fails_even_without_event_log",
+        "modsecurity_connector_tests.test_nginx_late_error_results.NginxLateErrorResultsTests.test_optional_completion_failure_still_collects_safe_and_strict_decisions"
       ],
       "source": "tests/test_nginx_late_error_results.py",
-      "source_sha256": "c28f641bd673b99a25193422fa4cfab41d9e2e059d946afecd08fbacbb096464"
+      "source_sha256": "fdfb786f46f60e636096817a586301b88352a775a8bd060f473a6ba34cc6fe75"
     },
     {
       "contains_selected_definitions": [],
@@ -8388,12 +8469,14 @@
         "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_missing_context_transaction_or_config_is_technical",
         "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_unexpected_append_time_rule_does_not_forge_engine_eos",
         "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_missing_rule_correlation_does_not_become_safe_allow",
-        "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_exact_native_response_body_limit_is_not_a_rule_or_safe_allow",
+        "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_native_append_reject_uses_boundary_state_independently_of_log_prose",
+        "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_native_process_partial_still_continues_with_no_disruptive_result",
+        "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_append_engine_error_is_never_a_limit_or_safe_allow",
         "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_failed_evaluation_does_not_call_native_intervention",
-        "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_safe_sink_failure_never_forwards_body"
+        "modsecurity_connector_tests.test_nginx_native_intervention_chain.NativeInterventionChainTests.test_safe_sink_failure_continues_through_actual_optional_event_logger"
       ],
       "source": "tests/test_nginx_native_intervention_chain.py",
-      "source_sha256": "59ab668ed00b7f0eeeae253a0ea705f5c358cd1a7812c5e4097161443130a360"
+      "source_sha256": "c9a38c234c01fdf538be401a62cbde9a4079f0de76ef173ad922d70f7b9d1b3f"
     },
     {
       "contains_selected_definitions": [],
@@ -8405,11 +8488,15 @@
         "modsecurity_connector_tests.test_nginx_native_logging.NativeLoggingTests.test_native_success_does_not_repair_failed_contract_completion",
         "modsecurity_connector_tests.test_nginx_native_logging.NativeLoggingTests.test_existing_failure_class_survives_native_audit_failure",
         "modsecurity_connector_tests.test_nginx_native_logging.NativeLoggingTests.test_native_callback_cannot_reenter_the_audit_phase",
+        "modsecurity_connector_tests.test_nginx_native_logging.NativeLoggingTests.test_cleanup_fallback_uses_retained_pool_after_request_pool_is_cleared",
         "modsecurity_connector_tests.test_nginx_native_logging.NativeLoggingTests.test_disabled_context_remains_noop",
-        "modsecurity_connector_tests.test_nginx_native_logging.NativeLoggingTests.test_missing_request_is_rejected"
+        "modsecurity_connector_tests.test_nginx_native_logging.NativeLoggingTests.test_missing_request_is_rejected",
+        "modsecurity_connector_tests.test_nginx_native_logging.NativeSupersededScopeTests.test_superseded_request_owner_audits_and_cleans_without_inventing_response_phases",
+        "modsecurity_connector_tests.test_nginx_native_logging.NativeSupersededScopeTests.test_ordinary_finish_stays_strict_without_an_explicit_transfer",
+        "modsecurity_connector_tests.test_nginx_native_logging.NativeSupersededScopeTests.test_active_committed_partial_companion_and_blocked_owners_cannot_be_superseded"
       ],
       "source": "tests/test_nginx_native_logging.py",
-      "source_sha256": "cfac6ce511c99ad8c9817956a5c6a98a50f397a9d90cc2058b2cb7796a76bb6d"
+      "source_sha256": "78f18388707e1811569c3e2d69fb4974df464c8b413479467623e1aa32babdb5"
     },
     {
       "contains_selected_definitions": [],
@@ -8740,6 +8827,23 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_replaced_body.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_nginx_replaced_body.NginxReplacedBodyTests.test_memory_file_and_late_body_are_consumed_without_forwarding_data",
+        "modsecurity_connector_tests.test_nginx_replaced_body.NginxReplacedBodyTests.test_subrequest_control_is_special_and_finishes_once",
+        "modsecurity_connector_tests.test_nginx_replaced_body.NginxReplacedBodyTests.test_null_and_data_only_callbacks_drain_downstream",
+        "modsecurity_connector_tests.test_nginx_replaced_body.NginxReplacedBodyTests.test_data_only_unbuffered_callback_does_not_manufacture_empty_writer_input",
+        "modsecurity_connector_tests.test_nginx_replaced_body.NginxReplacedBodyTests.test_file_only_data_callback_does_not_forward_an_empty_data_link",
+        "modsecurity_connector_tests.test_nginx_replaced_body.NginxReplacedBodyTests.test_request_buffered_output_is_drained_after_discarding_data",
+        "modsecurity_connector_tests.test_nginx_replaced_body.NginxReplacedBodyTests.test_connection_buffered_output_is_drained_after_discarding_data",
+        "modsecurity_connector_tests.test_nginx_replaced_body.NginxReplacedBodyTests.test_replaced_response_null_callback_without_pending_output_is_noop",
+        "modsecurity_connector_tests.test_nginx_replaced_body.NginxReplacedBodyTests.test_control_allocation_failure_is_still_a_delivery_failure"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_nginx_replaced_body.py",
+      "source_sha256": "e4e35056b901cc3e54f6e6b0c165787d444da24fc5b705eead98236bbc888d99"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_request_error_events.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_nginx_request_error_events.NginxRequestErrorEventsTests.test_uri_native_failure_emits_one_typed_error_not_a_rule_block",
@@ -8815,10 +8919,10 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_response_body_limit.py",
       "on_demand_definitions": [
-        "modsecurity_connector_tests.test_nginx_response_body_limit.NginxResponseBodyLimitTests.test_exact_signature_and_negative_controls"
+        "modsecurity_connector_tests.test_nginx_response_body_limit.NginxResponseBodyLimitTests.test_append_state_independent_of_log_prose"
       ],
       "source": "tests/test_nginx_response_body_limit.py",
-      "source_sha256": "916bd47555be575f1e89e84761bc1acc9621475f1df7c7b3eeffd96719785a12"
+      "source_sha256": "0db872dc3ab4d92698fc840b692cc755e4f6b236d3d544790d7fba15cf559b0b"
     },
     {
       "contains_selected_definitions": [],
@@ -9965,6 +10069,17 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_response_companion_counters.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_response_companion_counters.ResponseCompanionCounterTests.test_actual_handler_crosses_modelled_32_bit_boundary_and_saturates",
+        "modsecurity_connector_tests.test_response_companion_counters.ResponseCompanionCounterTests.test_actual_handler_retains_chunk_phase_and_backend_errors_on_64_bit_host",
+        "modsecurity_connector_tests.test_response_companion_counters.ResponseCompanionCounterTests.test_reintroduced_cumulative_guard_reproduces_the_delivery_failure"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_response_companion_counters.py",
+      "source_sha256": "9dd7ed35c8fdf22fea062cf0332a7d5269c057a7e59899511e542b0824aec799"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_response_fixture_omission.py",
       "on_demand_definitions": [
         "modsecurity_connector_tests.test_response_fixture_omission.ResponseFixtureOmissionTests.test_real_wire_content_type_is_missing_not_empty_or_default",
@@ -10110,6 +10225,18 @@
       ],
       "source": "tests/test_reviewed_version_handoff.py",
       "source_sha256": "eddb33eea12da66e3fee360675eb72e0fdd66d09e344d3c5e0ac1e659b4fe344"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_rule_id_metadata.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_rule_id_metadata.RuleIdMetadataTests.test_payload_before_and_inside_metadata_cannot_supply_the_id",
+        "modsecurity_connector_tests.test_rule_id_metadata.RuleIdMetadataTests.test_supported_hex_escapes_are_not_metadata_delimiters",
+        "modsecurity_connector_tests.test_rule_id_metadata.RuleIdMetadataTests.test_missing_malformed_and_ambiguous_records_clear_stale_output",
+        "modsecurity_connector_tests.test_rule_id_metadata.RuleIdMetadataTests.test_real_engine_metadata_with_attacker_like_match_excerpt"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_rule_id_metadata.py",
+      "source_sha256": "f789591994ac274b1c0291eeeee8588866e162bc6e4ed8377746c59e1fdf6e06"
     },
     {
       "contains_selected_definitions": [],
@@ -10334,12 +10461,15 @@
         "modsecurity_connector_tests.test_runtime_event_sink_failures.RuntimeEventSinkFailureTests.test_compiled_old_classification_control_reproduces_original_defect"
       ],
       "source": "tests/test_runtime_event_sink_failures.py",
-      "source_sha256": "ad3b4200cb92a74a7acb7718e07713dc0f7a369e3c7aaf3b69669809b91b5e28"
+      "source_sha256": "c0c13a1be2a8d69931de30e9e19b2b69e1908a296d71a93edf8122a31122ceb4"
     },
     {
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_runtime_host_action_validation.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_runtime_host_action_validation.RuntimeHostActionValidationTests.test_response_limit_cannot_become_log_only_or_a_false_replacement",
+        "modsecurity_connector_tests.test_runtime_host_action_validation.RuntimeHostActionValidationTests.test_native_denial_and_real_transport_stop_remain_available",
+        "modsecurity_connector_tests.test_runtime_host_action_validation.RuntimeHostActionValidationTests.test_removing_the_p4_guard_reproduces_the_original_safe_downgrade",
         "modsecurity_connector_tests.test_runtime_host_action_validation.RuntimeHostActionValidationTests.test_stream_reset_cannot_claim_connection_abort",
         "modsecurity_connector_tests.test_runtime_host_action_validation.RuntimeHostActionValidationTests.test_valid_reset_and_connection_abort_remain_distinct",
         "modsecurity_connector_tests.test_runtime_host_action_validation.RuntimeHostActionValidationTests.test_reset_transport_must_match_action_in_both_directions",
@@ -10348,7 +10478,7 @@
         "modsecurity_connector_tests.test_runtime_host_action_validation.RuntimeHostActionValidationTests.test_body_limit_keeps_http_413_contract"
       ],
       "source": "tests/test_runtime_host_action_validation.py",
-      "source_sha256": "6f7d4d976745423caa05b008b7e073af8dd0c7e5f3e9ffeac41e8705d96f21d9"
+      "source_sha256": "6c3cf1f5e1312820f31d828b970d687f356cdc3683a391fd19e3f54fa93b2834"
     },
     {
       "contains_selected_definitions": [],
@@ -10495,6 +10625,30 @@
       ],
       "source": "tests/test_runtime_producer_readiness_path_policy.py",
       "source_sha256": "08c96eabc1f18e5c367281a1b8947db3e075efb78274629f08cad7fc19e3a844"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_runtime_response_observation_policy.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeLateSafeEventTests.test_real_write_short_flush_serialization_and_allocation_failures_do_not_abort_safe",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeLateSafeEventTests.test_same_shared_policy_uses_actual_direct_and_companion_profile_contracts",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeLateSafeEventTests.test_header_only_and_body_commit_are_already_late",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeLateSafeEventTests.test_host_and_cleanup_sink_failure_do_not_cancel_prior_native_audit",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeLateSafeEventTests.test_strict_limits_errors_nonlate_or_uncorrelated_rules_remain_mandatory",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeLateSafeEventTests.test_host_abort_cannot_inherit_safe_optional_writer_permission",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeLateSafeEventTests.test_native_audit_and_flowguard_failures_are_never_log_only_success",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeLateSafeEventTests.test_successful_sink_keeps_the_native_once_only_epilogue",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeLateSafeEventTests.test_original_sticky_failure_control_blocks_the_same_safe_response",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeResponseObservationCounterTests.test_actual_runtime_public_progress_crosses_32bit_boundary_and_saturates",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeResponseObservationCounterTests.test_old_guard_control_reproduces_additional_32bit_delivery_limit",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeNativeResponseLimitContextTests.test_native_append_reject_survives_changed_and_absent_prose",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeNativeResponseLimitContextTests.test_process_partial_remains_nondisruptive",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeNativeResponseLimitContextTests.test_unexpected_rule_flag_url_and_engine_errors_are_not_native_limits",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeNativeResponseLimitContextTests.test_eos_rule_and_rulefree_log_prose_are_never_append_limit_signals",
+        "modsecurity_connector_tests.test_runtime_response_observation_policy.RuntimeNativeResponseLimitContextTests.test_genuine_eos_failure_cannot_replay_pending_reject_as_success"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_runtime_response_observation_policy.py",
+      "source_sha256": "13f0e58bbac6cf165754e0ace2255b8ccc5a3340bdb02bda04658daf2036f3a7"
     },
     {
       "contains_selected_definitions": [],
@@ -10871,10 +11025,11 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_traefik_i10_dispatcher.py",
       "on_demand_definitions": [
-        "modsecurity_connector_tests.test_traefik_i10_dispatcher.TraefikI10DispatcherTest.test_technical_failure_and_terminal_reentry"
+        "modsecurity_connector_tests.test_traefik_i10_dispatcher.TraefikI10DispatcherTest.test_technical_failure_and_terminal_reentry",
+        "modsecurity_connector_tests.test_traefik_i10_dispatcher.TraefikI10DispatcherTest.test_removing_native_reject_guard_fails_the_physical_wire_assertion"
       ],
       "source": "tests/test_traefik_i10_dispatcher.py",
-      "source_sha256": "2b0436624c9da87f622b4a3e69b9cc5281c3403deb6de48135a304a1668cad65"
+      "source_sha256": "0d9b2f9d4cc34a1a0c30ac3ec2c5a1d86154f4edcc047f5168139cd0e9e20f11"
     },
     {
       "contains_selected_definitions": [],

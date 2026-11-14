@@ -12,6 +12,8 @@ import sys
 import tempfile
 import unittest
 
+from modsecurity_connector_tests.checker_fixture_repository import fixture_environment
+
 
 ROOT = connector_root()
 CHECKER_DIRECTORY = source_path('ci/checks/connectors/haproxy', root=ROOT)
@@ -40,6 +42,7 @@ class HaproxyCommonAdoptionCheckerTests(unittest.TestCase):
         haproxy_destination = destination / "connectors" / "haproxy"
         haproxy_destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree(HAPROXY_DIRECTORY, haproxy_destination)
+        shutil.copytree(source_path("common/include", root=ROOT), destination / "common/include")
         return destination / MAPPER_RELATIVE_PATH
 
     def _run_checker(self, mutate=None) -> subprocess.CompletedProcess[str]:
@@ -48,8 +51,7 @@ class HaproxyCommonAdoptionCheckerTests(unittest.TestCase):
             mapper = self._copy_repository(repository)
             if mutate is not None:
                 mutate(mapper)
-            environment = os.environ.copy()
-            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+            environment = fixture_environment(repository)
             return subprocess.run(
                 [
                     sys.executable,

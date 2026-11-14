@@ -230,6 +230,74 @@ def typed_event_status_assignment(text: str) -> bool:
     return assignment.endswith("?MSCONNECTOR_STATUS_ERROR:MSCONNECTOR_STATUS_BLOCKED")
 
 
+def phase4_append_observation_contract(text: str) -> bool:
+    """Require the complete live full-bucket path with saturating observations.
+
+    This intentionally narrow source contract matches the entire masked helper
+    body, ignoring whitespace. Extra statements, nested decoys, counter writes,
+    early returns and altered guards fail closed; token presence alone cannot
+    prove that both observations and the native append share the live path.
+    This is a structure check, not a general C reachability or runtime proof.
+    """
+    section = function_section(text, "apache_phase4_append_bucket")
+    if not section or has_forbidden_contract_control_flow(section):
+        return False
+    expected_body = """
+        const char *data = NULL;
+        apr_size_t len = 0;
+        apr_status_t rc;
+        if (msr == NULL || conf == NULL || bucket == NULL || msr->t == NULL)
+        {
+            return APR_EGENERAL;
+        }
+        if (APR_BUCKET_IS_EOS(bucket) || APR_BUCKET_IS_METADATA(bucket))
+        {
+            return APR_SUCCESS;
+        }
+        rc = apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
+        if (rc != APR_SUCCESS)
+        {
+            return rc;
+        }
+        if (len > 0)
+        {
+            if (msr->contract.active_phase != MSCONNECTOR_PHASE_RESPONSE_BODY &&
+                !msc_apache_contract_begin(msr, MSCONNECTOR_PHASE_RESPONSE_BODY))
+            {
+                return APR_EGENERAL;
+            }
+            msr->response_body_seen = 1;
+            if (data == NULL ||
+                msr->response_body_bytes_inspected > msr->response_body_bytes_seen)
+            {
+                (void)msc_apache_contract_fail(msr,
+                    MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
+                return APR_EGENERAL;
+            }
+            msr->response_body_bytes_seen = msconnector_transaction_counter_add(
+                msr->response_body_bytes_seen, len);
+            if (!msc_apache_contract_record_body(msr, 1, len))
+            {
+                return APR_EGENERAL;
+            }
+            if (len > 0 &&
+                !msconnector_native_body_append_can_continue(msc_append_response_body(msr->t,
+                    (const unsigned char *)data, len)))
+            {
+                (void)msc_apache_contract_fail(msr,
+                    MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+                return APR_EGENERAL;
+            }
+            msr->response_body_bytes_inspected = msconnector_transaction_counter_add(
+                msr->response_body_bytes_inspected, len);
+            return apache_phase4_capture_append_intervention(msr);
+        }
+        return APR_SUCCESS;
+    }"""
+    body = section.partition("{")[2]
+    return "".join(body.split()) == "".join(expected_body.split())
+
+
 def native_redirect_storage_is_checked(text: str) -> bool:
     """Follow the actual native collector and its one request-owned sink.
 
@@ -415,7 +483,7 @@ checks.extend([
         and DISCARD_RESPONSE_BRIGADE_CALL in filters_c
         and DISCARD_RESPONSE_BRIGADE_CALL in utils_c
         and "msconnector_body_limit_plan_chunk" not in phase4_append_helper
-        and "SIZE_MAX - msr->response_body_bytes_seen" in phase4_append_helper
+        and phase4_append_observation_contract(filters_c)
         and "apache_phase4_in_scope" not in filters_c
         and "SecResponseBodyMimeType selection" in filters_c
         and re.search(r"!msconnector_native_body_append_can_continue\(msc_append_response_body\(msr->t,\s*"
