@@ -22,7 +22,7 @@ from modsecurity_connector_tests.test_runtime_event_sink_failures import INCLUDE
 FUNCTIONS = (
     "runtime_error", "replay_event_write_failure", "contract_error",
     "valid_host_action", "valid_host_transport_result", "bounded_c_string",
-    "msconnector_runtime_transaction_record_host_action",
+    "validate_body_limit_host_action", "msconnector_runtime_transaction_record_host_action",
 )
 EMITTER = r'''
 static int emitted;

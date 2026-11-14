@@ -485,67 +485,90 @@ typedef struct {
   int acks;
 } fixture_verification_snapshot;
 
+static void fixture_verify_native_response(
+    const fixture_verification_snapshot *snapshot, const request_st *r,
+    const plugin_data *p, const handler_ctx *ctx) {
+  assert(native_calls == 1);
+  if (snapshot->operation == 14) {
+    assert(snapshot->result == PLUGIN_BODY_HOOK_ERROR && ctx->technical_failed);
+    assert(status_calls == (snapshot->commit ? 0 : 1));
+    assert(r->http_status == (snapshot->commit ? 200 : 500));
+    return;
+  }
+  if (snapshot->commit && snapshot->operation == 12) {
+    assert(snapshot->result == PLUGIN_BODY_HOOK_ERROR && ctx->technical_failed);
+    assert(status_calls == 0 && ack_calls == 0 && r->http_status == 200);
+    return;
+  }
+  if (snapshot->commit && p->runtime->mode != MSCONNECTOR_PHASE4_MODE_OFF) {
+    /* Genuine EOS rules keep Safe behavior. Strict's transport capability
+     * remains unproven; this callback never manufactures abort evidence. */
+    assert(snapshot->result == PLUGIN_BODY_HOOK_CONTINUE && !ctx->technical_failed);
+    assert(status_calls == 0 && r->http_status == 200);
+    assert(ack_calls == (p->runtime->mode == MSCONNECTOR_PHASE4_MODE_SAFE ? 1 : 0));
+    return;
+  }
+  if (snapshot->commit) {
+    assert(snapshot->result == PLUGIN_BODY_HOOK_ERROR && ctx->technical_failed);
+    assert(status_calls == 0 && r->http_status == 200);
+    return;
+  }
+  assert(snapshot->result == PLUGIN_BODY_HOOK_ABORT && !ctx->technical_failed);
+  assert(status_calls == 1 && ack_calls == 1 && r->http_status == 403);
+}
+
+static void fixture_verify_failure_status(
+    const fixture_verification_snapshot *snapshot, const request_st *r) {
+  assert(snapshot->commit ? snapshot->statuses == 0 : snapshot->statuses == 1);
+  if (snapshot->operation == 8) {
+    /* Reset retired the uncommitted upstream200 before the injected host
+     * setter failed. No replacement status was successfully selected. */
+    assert(r->http_status == 0);
+  } else if (snapshot->operation == 9) {
+    assert(r->http_status == 403);
+  } else {
+    int expected = fixture_expected_status(snapshot->operation);
+    assert(r->http_status == (snapshot->commit ? 200 : expected));
+  }
+}
+
+static void fixture_verify_terminal_failure(
+    const fixture_verification_snapshot *snapshot, request_st *r,
+    plugin_data *p, handler_ctx *ctx,
+    const msconnector_runtime_transaction *tx) {
+  assert(ctx->technical_failed || fault == 9);
+  assert(snapshot->operation == 0 || snapshot->result == HANDLER_ERROR ||
+         snapshot->result == PLUGIN_BODY_HOOK_ERROR ||
+         (snapshot->operation == 4 && snapshot->result == HANDLER_FINISHED));
+  fixture_verify_failure_status(snapshot, r);
+  assert(fault == 9 ||
+         tx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE);
+  msconnector_transaction_error_class first_cause = tx->contract.error_class;
+  fixture_reenter(snapshot->operation, r, p, ctx);
+  assert(tx->contract.error_class == first_cause);
+  assert(native_calls == snapshot->calls);
+  assert(status_calls == snapshot->statuses);
+  assert(ack_calls == snapshot->acks);
+  assert(mod_msconnector_handle_request_reset(r, p) == HANDLER_ERROR);
+  assert(mod_msconnector_handle_request_reset(r, p) == HANDLER_GO_ON);
+  assert(cleanup_calls == 1);
+  assert(native_calls == snapshot->calls);
+}
+
 static void fixture_verify(const fixture_verification_snapshot *snapshot,
                            request_st *r, plugin_data *p, handler_ctx *ctx,
                            const msconnector_runtime_transaction *tx) {
   if (snapshot->operation >= 12 && snapshot->operation <= 14) {
-    assert(native_calls == 1);
-    if (snapshot->operation == 14) {
-      assert(snapshot->result == PLUGIN_BODY_HOOK_ERROR && ctx->technical_failed);
-      assert(status_calls == (snapshot->commit ? 0 : 1));
-      assert(r->http_status == (snapshot->commit ? 200 : 500));
-    } else if (snapshot->commit && snapshot->operation == 12) {
-      assert(snapshot->result == PLUGIN_BODY_HOOK_ERROR && ctx->technical_failed);
-      assert(status_calls == 0 && ack_calls == 0 && r->http_status == 200);
-    } else if (snapshot->commit && p->runtime->mode != MSCONNECTOR_PHASE4_MODE_OFF) {
-      /* Genuine EOS rules keep Safe behavior. Strict's transport capability
-       * remains unproven; this callback never manufactures abort evidence. */
-      assert(snapshot->result == PLUGIN_BODY_HOOK_CONTINUE && !ctx->technical_failed);
-      assert(status_calls == 0 && r->http_status == 200);
-      assert(ack_calls == (p->runtime->mode == MSCONNECTOR_PHASE4_MODE_SAFE ? 1 : 0));
-    } else if (snapshot->commit) {
-      assert(snapshot->result == PLUGIN_BODY_HOOK_ERROR && ctx->technical_failed);
-      assert(status_calls == 0 && r->http_status == 200);
-    } else {
-      assert(snapshot->result == PLUGIN_BODY_HOOK_ABORT && !ctx->technical_failed);
-      assert(status_calls == 1 && ack_calls == 1 && r->http_status == 403);
-    }
+    fixture_verify_native_response(snapshot, r, p, ctx);
     return;
   }
   if (fault || snapshot->operation == 3 || snapshot->operation == 4) {
-    assert(ctx->technical_failed || fault == 9);
-    assert(snapshot->operation == 0 || snapshot->result == HANDLER_ERROR ||
-           snapshot->result == PLUGIN_BODY_HOOK_ERROR ||
-           (snapshot->operation == 4 && snapshot->result == HANDLER_FINISHED));
-    assert(snapshot->commit ? snapshot->statuses == 0
-                            : snapshot->statuses == 1);
-    int expected = fixture_expected_status(snapshot->operation);
-    if (snapshot->operation == 8) {
-      /* Reset retired the uncommitted upstream200 before the injected host
-       * setter failed. No replacement status was successfully selected. */
-      assert(r->http_status == 0);
-    }
-    else if (snapshot->operation == 9)
-      assert(r->http_status == 403);
-    else
-      assert(r->http_status == (snapshot->commit ? 200 : expected));
-    assert(fault == 9 ||
-           tx->contract.error_class != MSCONNECTOR_TRANSACTION_ERROR_NONE);
-    msconnector_transaction_error_class first_cause = tx->contract.error_class;
-    fixture_reenter(snapshot->operation, r, p, ctx);
-    assert(tx->contract.error_class == first_cause);
-    assert(native_calls == snapshot->calls);
-    assert(status_calls == snapshot->statuses);
-    assert(ack_calls == snapshot->acks);
-    assert(mod_msconnector_handle_request_reset(r, p) == HANDLER_ERROR);
-    assert(mod_msconnector_handle_request_reset(r, p) == HANDLER_GO_ON);
-    assert(cleanup_calls == 1);
-    assert(native_calls == snapshot->calls);
-  } else {
-    assert(!ctx->technical_failed);
-    assert(snapshot->result == 0);
-    assert(snapshot->statuses == 0);
+    fixture_verify_terminal_failure(snapshot, r, p, ctx, tx);
+    return;
   }
+  assert(!ctx->technical_failed);
+  assert(snapshot->result == 0);
+  assert(snapshot->statuses == 0);
 }
 int main(int argc, char **argv) {
   assert(argc == 5);

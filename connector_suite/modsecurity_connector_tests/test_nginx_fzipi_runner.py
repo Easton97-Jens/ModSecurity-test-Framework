@@ -92,9 +92,10 @@ class FzipiRunnerTests(unittest.TestCase):
         link.symlink_to(self.binary)
         processes = self.disabled_processes()
         output = self.base / "output"
+        arguments = self.cli(link, output)
         with mock.patch.object(runner, "subprocess", processes):
             with self.assertRaises(runner.FixtureFailure):
-                runner.main(self.cli(link, output))
+                runner.main(arguments)
         self.assertFalse(output.exists())
         processes.run.assert_not_called()
         processes.Popen.assert_not_called()
@@ -131,11 +132,12 @@ class FzipiRunnerTests(unittest.TestCase):
         self.assertEqual(runner.require_absolute_directory(parent, "parent"), parent)
         self.assertEqual(runner.require_regular_file(binary, "binary"), binary)
         processes = self.disabled_processes()
+        arguments = self.cli(binary, self.base / "output")
         with mock.patch.object(runner, "subprocess", processes):
             with self.assertRaisesRegex(runner.FixtureFailure, "unsafe ancestry"):
                 runner.checked_file(binary, "binary")
             with self.assertRaisesRegex(runner.FixtureFailure, "unsafe ancestry"):
-                runner.main(self.cli(binary, self.base / "output"))
+                runner.main(arguments)
         processes.run.assert_not_called()
         processes.Popen.assert_not_called()
         # The filesystem substitution mechanism itself works at the unsafe
@@ -182,8 +184,9 @@ class FzipiRunnerTests(unittest.TestCase):
             self.identity()
 
     def test_output_root_rejects_source_overlap_symlinks_and_shared_ancestors(self) -> None:
+        overlapping_output = connector_root() / "uncreated-fzipi-output"
         with self.assertRaises(runner.FixtureFailure):
-            runner.validate_output_root(connector_root() / "uncreated-fzipi-output")
+            runner.validate_output_root(overlapping_output)
         linked = self.base / "linked-parent"
         linked.symlink_to(self.source, target_is_directory=True)
         with self.assertRaises(runner.FixtureFailure):
@@ -200,10 +203,11 @@ class FzipiRunnerTests(unittest.TestCase):
         processes = self.disabled_processes()
         for component in ('quote"name', "single'quote", "dollar$var", "new\nline", "semi;colon", "über"):
             output = self.base / component
+            arguments = self.cli(self.binary, output)
             with self.subTest(component=repr(component)):
                 with mock.patch.object(runner, "subprocess", processes):
                     with self.assertRaises(runner.FixtureFailure):
-                        runner.main(self.cli(self.binary, output))
+                        runner.main(arguments)
                 self.assertFalse(output.exists())
         processes.run.assert_not_called()
         processes.Popen.assert_not_called()
@@ -339,14 +343,19 @@ class FzipiRunnerTests(unittest.TestCase):
         self.manifest["nginx_binary_sha256"] = hashlib.sha256(self.binary.read_bytes()).hexdigest()
         self.write_manifest(self.manifest)
         receipt = {"cleanup": {}}
-        with self.assertRaisesRegex(runner.FixtureFailure, "controlled scenario failure"):
-            with runner.managed_server(self.admitted(), paths, receipt) as process:
+        admitted = self.admitted()
+
+        def fail_scenario() -> None:
+            with runner.managed_server(admitted, paths, receipt) as process:
                 deadline = time.monotonic() + 3
                 while not marker.exists() and time.monotonic() < deadline:
                     self.assertIsNone(process.poll())
                     time.sleep(0.02)
                 self.assertTrue(marker.exists())
                 raise runner.FixtureFailure("controlled scenario failure")
+
+        with self.assertRaisesRegex(runner.FixtureFailure, "controlled scenario failure"):
+            fail_scenario()
         self.assertEqual(receipt["cleanup"], {"master_reaped": True, "exit_code": 0,
                                               "process_group_absent": True})
 

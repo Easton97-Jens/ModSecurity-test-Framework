@@ -30,7 +30,7 @@ FILTER_FUNCTIONS = (
     "apache_emit_contract_failure_event_with_action", "apache_emit_contract_failure_event",
     "apache_phase4_log_event", "apache_phase4_response_committed",
     "apache_phase4_abort_response_connection", "apache_phase4_fail_closed",
-    "apache_phase4_handle_intervention", "apache_phase4_append_bucket",
+    "apache_phase4_handle_intervention", "apache_phase4_capture_append_intervention", "apache_phase4_append_bucket",
     "apache_phase4_finish_response_body", "apache_phase4_brigade_starts_response",
     "apache_phase4_release_response_brigade", "apache_output_filter_finish_response",
     "apache_output_filter_terminal_result",

@@ -23,6 +23,8 @@ class NativePhysicalEvents(unittest.TestCase):
             "haproxy_modsecurity_htx_prepare_event",
             "haproxy_modsecurity_htx_event_sink_failed",
             "haproxy_modsecurity_htx_write_optional_late_event",
+            "haproxy_modsecurity_htx_is_optional_late_event",
+            "haproxy_modsecurity_htx_record_event_failure",
             "haproxy_modsecurity_htx_write_event",
             "haproxy_modsecurity_htx_error_phase",
             "haproxy_modsecurity_htx_append_data",

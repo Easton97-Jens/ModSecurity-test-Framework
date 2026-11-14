@@ -147,39 +147,46 @@ func TestAppliedDenialConsumesUpstreamWithoutTerminalCommit(t *testing.T) {
 	}
 }
 
+type responseObservationBoundaryCase struct {
+	name       string
+	bytes      int64
+	chunks     uint64
+	wantBytes  int64
+	wantChunks uint64
+}
+
 func TestResponseBodyObservationSaturatesAndStillReachesEngineEOS(t *testing.T) {
-	for _, test := range []struct {
-		name       string
-		bytes      int64
-		chunks     uint64
-		wantBytes  int64
-		wantChunks uint64
-	}{
+	for _, test := range []responseObservationBoundaryCase{
 		{name: "cross32", bytes: math.MaxInt32 - 1, chunks: math.MaxUint32 - 1, wantBytes: math.MaxInt32 + 3, wantChunks: math.MaxUint32 + 1},
 		{name: "cross64", bytes: math.MaxInt64 - 1, chunks: math.MaxUint64 - 1, wantBytes: math.MaxInt64, wantChunks: math.MaxUint64},
 		{name: "already_saturated", bytes: math.MaxInt64, chunks: math.MaxUint64, wantBytes: math.MaxInt64, wantChunks: math.MaxUint64},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			transaction := &recordingTransaction{}
-			state := &streamState{engine: transaction, responseBodyBytes: test.bytes, responseBodyChunks: test.chunks}
-			for _, eos := range []bool{false, true} {
-				body := []byte("data")
-				if eos {
-					body = nil
-				}
-				decision, err := state.processResponseBody(context.Background(), body, eos, false)
-				if err != nil || decision.Action != ActionAllow {
-					t.Fatalf("processResponseBody(eos=%v) = (%#v, %v), want allow, nil", eos, decision, err)
-				}
-			}
-			if len(transaction.bodyCalls) != 2 || transaction.bodyCalls[0].length != 4 || transaction.bodyCalls[0].end || !transaction.bodyCalls[1].end || !state.responseEOS {
-				t.Fatalf("processResponseBody() engine calls=%#v, eos=%v, want data then EOS", transaction.bodyCalls, state.responseEOS)
-			}
-			if state.responseBodyBytes != test.wantBytes || state.responseBodyChunks != test.wantChunks {
-				t.Errorf("processResponseBody() counters=(%d,%d), want (%d,%d)", state.responseBodyBytes, state.responseBodyChunks, test.wantBytes, test.wantChunks)
-			}
+			assertResponseObservationBoundary(t, test)
 		})
+	}
+}
+
+func assertResponseObservationBoundary(t *testing.T, test responseObservationBoundaryCase) {
+	t.Helper()
+	transaction := &recordingTransaction{}
+	state := &streamState{engine: transaction, responseBodyBytes: test.bytes, responseBodyChunks: test.chunks}
+	for _, eos := range []bool{false, true} {
+		body := []byte("data")
+		if eos {
+			body = nil
+		}
+		decision, err := state.processResponseBody(context.Background(), body, eos, false)
+		if err != nil || decision.Action != ActionAllow {
+			t.Fatalf("processResponseBody(eos=%v) = (%#v, %v), want allow, nil", eos, decision, err)
+		}
+	}
+	if len(transaction.bodyCalls) != 2 || transaction.bodyCalls[0].length != 4 || transaction.bodyCalls[0].end || !transaction.bodyCalls[1].end || !state.responseEOS {
+		t.Fatalf("processResponseBody() engine calls=%#v, eos=%v, want data then EOS", transaction.bodyCalls, state.responseEOS)
+	}
+	if state.responseBodyBytes != test.wantBytes || state.responseBodyChunks != test.wantChunks {
+		t.Errorf("processResponseBody() counters=(%d,%d), want (%d,%d)", state.responseBodyBytes, state.responseBodyChunks, test.wantBytes, test.wantChunks)
 	}
 }
 

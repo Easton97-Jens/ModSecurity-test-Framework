@@ -187,9 +187,9 @@ static int msc_append_response_body(Transaction *t, const unsigned char *data, s
 }
 static int msc_process_request_body(Transaction *t) { (void)t; calls++; return native_result; }
 static int msc_process_response_body(Transaction *t) { (void)t; calls++; return native_result; }
-static int native_decision(msconnector_runtime *runtime, msconnector_native_transaction *tx,
-        int phase, msconnector_decision *decision, msconnector_error *error) {
-    (void)runtime; (void)tx; (void)error; decision->phase=phase; decisions++; return 1;
+static int native_decision(const msconnector_runtime *runtime, msconnector_native_transaction *tx,
+        int phase, int response_append_active, msconnector_decision *decision, msconnector_error *error) {
+    (void)runtime; (void)tx; (void)error; (void)response_append_active; decision->phase=phase; decisions++; return 1;
 }
 '''
 CALLBACK_MAIN = r'''

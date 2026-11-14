@@ -438,43 +438,50 @@ func TestProcessRejectsExcessActiveStreamBeforeTransactionOpenAndReleasesSlot(t 
 	}
 }
 
+type responseObservationBoundaryCase struct {
+	name       string
+	bytes      int64
+	chunks     uint64
+	wantBytes  int64
+	wantChunks uint64
+}
+
 func TestResponseBodyObservationSaturatesAndStillProcessesEOS(t *testing.T) {
-	for _, test := range []struct {
-		name       string
-		bytes      int64
-		chunks     uint64
-		wantBytes  int64
-		wantChunks uint64
-	}{
+	for _, test := range []responseObservationBoundaryCase{
 		{name: "cross32", bytes: math.MaxInt32 - 1, chunks: math.MaxUint32 - 1, wantBytes: math.MaxInt32 + 3, wantChunks: math.MaxUint32 + 1},
 		{name: "cross64", bytes: math.MaxInt64 - 1, chunks: math.MaxUint64 - 1, wantBytes: math.MaxInt64, wantChunks: math.MaxUint64},
 		{name: "already_saturated", bytes: math.MaxInt64, chunks: math.MaxUint64, wantBytes: math.MaxInt64, wantChunks: math.MaxUint64},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			transaction := &recordingTransaction{}
-			state := newStreamState(testConfig(LateActionSafe), recordingEngine{transaction: transaction}, discardObserver{})
-			state.transaction = transaction
-			state.responseHeadersSeen = true
-			state.summary.ResponseBodyBytes = test.bytes
-			state.summary.ResponseBodyChunks = test.chunks
-			for _, eos := range []bool{false, true} {
-				body := []byte("data")
-				if eos {
-					body = nil
-				}
-				response, done, err := state.handleBody(context.Background(), DirectionResponse, &extprocv3.HttpBody{Body: body, EndOfStream: eos})
-				if err != nil || response == nil || response.GetResponseBody() == nil || done != eos {
-					t.Fatalf("handleBody(response, eos=%v) = (%v, %v, %v), want CONTINUE, done=%v, nil", eos, response, done, err, eos)
-				}
-			}
-			if !sameInts(transaction.responseBodyLengths, []int{4, 0}) || !state.responseDone {
-				t.Fatalf("handleBody(response) engine lengths=%v, done=%v, want [4 0], true", transaction.responseBodyLengths, state.responseDone)
-			}
-			if state.summary.ResponseBodyBytes != test.wantBytes || state.summary.ResponseBodyChunks != test.wantChunks {
-				t.Errorf("handleBody(response) counters=(%d,%d), want (%d,%d)", state.summary.ResponseBodyBytes, state.summary.ResponseBodyChunks, test.wantBytes, test.wantChunks)
-			}
+			assertResponseObservationBoundary(t, test)
 		})
+	}
+}
+
+func assertResponseObservationBoundary(t *testing.T, test responseObservationBoundaryCase) {
+	t.Helper()
+	transaction := &recordingTransaction{}
+	state := newStreamState(testConfig(LateActionSafe), recordingEngine{transaction: transaction}, discardObserver{})
+	state.transaction = transaction
+	state.responseHeadersSeen = true
+	state.summary.ResponseBodyBytes = test.bytes
+	state.summary.ResponseBodyChunks = test.chunks
+	for _, eos := range []bool{false, true} {
+		body := []byte("data")
+		if eos {
+			body = nil
+		}
+		response, done, err := state.handleBody(context.Background(), DirectionResponse, &extprocv3.HttpBody{Body: body, EndOfStream: eos})
+		if err != nil || response == nil || response.GetResponseBody() == nil || done != eos {
+			t.Fatalf("handleBody(response, eos=%v) = (%v, %v, %v), want CONTINUE, done=%v, nil", eos, response, done, err, eos)
+		}
+	}
+	if !sameInts(transaction.responseBodyLengths, []int{4, 0}) || !state.responseDone {
+		t.Fatalf("handleBody(response) engine lengths=%v, done=%v, want [4 0], true", transaction.responseBodyLengths, state.responseDone)
+	}
+	if state.summary.ResponseBodyBytes != test.wantBytes || state.summary.ResponseBodyChunks != test.wantChunks {
+		t.Errorf("handleBody(response) counters=(%d,%d), want (%d,%d)", state.summary.ResponseBodyBytes, state.summary.ResponseBodyChunks, test.wantBytes, test.wantChunks)
 	}
 }
 

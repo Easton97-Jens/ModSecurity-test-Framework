@@ -491,7 +491,7 @@ static int msc_process_response_body(Transaction *transaction) {
 }
 """
 NATIVE_FUNCTIONS = ("runtime_error", "native_is_request_body_limit_rejection", "native_copy_redirect_target",
-                    "native_capture_rule_id", "native_decision", "native_append_response_body", "native_finish_response_body")
+                    "native_capture_rule_id", "native_intervention_validation_error", "native_decision", "native_append_response_body", "native_finish_response_body")
 NATIVE_MAIN = r"""
 static const char rule_text[] = "rule [file \"rules.conf\"] [line \"1\"] [id \"900007\"] "
     "[rev \"\"] [msg \"fixture\"] [data \"\"] [severity \"2\"] [ver \"\"] "

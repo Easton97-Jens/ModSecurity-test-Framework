@@ -34,7 +34,7 @@ FILTER_FUNCTIONS = (
     "apache_phase4_response_committed", "apache_phase4_abort_response_connection",
     "apache_phase4_fail_closed", "apache_phase4_handle_intervention",
     "msc_finalize_request_body", "apache_output_filter_process_headers",
-    "apache_input_filter_process_bucket", "apache_phase4_append_bucket",
+    "apache_input_filter_process_bucket", "apache_phase4_capture_append_intervention", "apache_phase4_append_bucket",
     "apache_phase4_finish_response_body",
 )
 MODULE_FUNCTIONS = (
