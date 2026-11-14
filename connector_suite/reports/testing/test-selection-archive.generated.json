@@ -1355,7 +1355,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8325,
+  "on_demand_definition_count": 8327,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -14273,10 +14273,12 @@
         "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.HttpdSourceRecoveryTests.test_missing_malformed_and_unavailable_metadata_cannot_reach_extraction",
         "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.HttpdSourceRecoveryTests.test_actual_build_extracts_private_copy_only_after_metadata",
         "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.HttpdSourceRecoveryTests.test_cache_replaced_with_symlink_during_metadata_cannot_be_extracted",
-        "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.HttpdSourceRecoveryTests.test_build_consumes_private_verified_archive_before_extraction"
+        "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.HttpdSourceRecoveryTests.test_build_consumes_private_verified_archive_before_extraction",
+        "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.CurrentHttpdReleaseContractTests.test_current_common_tuple_selects_independently_reviewed_metadata",
+        "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.CurrentHttpdReleaseContractTests.test_current_production_cli_rejects_mutated_release_tuples_before_cache_io"
       ],
       "source": "framework/tests/security_regression/test_httpd_source_recovery.py",
-      "source_sha256": "97f14f3f1e3b6c894814e78d11918d73fa181f59aa447f34e3f0fe40bc94bf34"
+      "source_sha256": "b73d7cca204f073a35a31914f85fda10a7260f7413785ba41ef2e155871db9db"
     },
     {
       "contains_selected_definitions": [],

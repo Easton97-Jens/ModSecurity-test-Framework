@@ -28,8 +28,8 @@ def approved_contract():
 
 # Immutable official release-distribution object, observed over verified TLS.
 # A version update requires an independently reviewed object and metadata digest.
-HTTPD_METADATA_URL = "https://dist.apache.org/repos/dist/!svn/bc/89000/release/httpd/httpd-2.4.69.tar.bz2.sha256"
-HTTPD_METADATA_SHA256 = "7351aea97f61589f9803d432dc59e1002ba06e3b344fdba9ca281c2e82cf0b08"
+HTTPD_METADATA_URL = "https://dist.apache.org/repos/dist/!svn/bc/89127/release/httpd/httpd-2.4.70.tar.bz2.sha256"
+HTTPD_METADATA_SHA256 = "f412d65db7585db8e5e20e0d10dd0e6deaa6a08f52ed07bd29437777b347d29e"
 
 
 def reviewed_archive_name():

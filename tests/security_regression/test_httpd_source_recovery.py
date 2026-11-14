@@ -6,7 +6,9 @@ import ast
 import hashlib
 import os
 from pathlib import Path
+import runpy
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -355,6 +357,74 @@ build_httpd_from_source
         self.assertLess(build.index("verify_sha256_url httpd"), build.index("extract_tar_strip httpd"))
         self.assertLess(build.index("verify_sha256_url httpd"), build.index("runtime_component_stage_verified_archive"))
         self.assertIn("download_apr_util_file apr-util", build)
+
+
+class CurrentHttpdReleaseContractTests(unittest.TestCase):
+    source_url = "https://downloads.apache.org/httpd/httpd-2.4.70.tar.bz2"
+    release_sha = "1eefd7dc95836c5872894ce8e6a37f773d5a6764f0766869d39b8bcf0b1bafc3"
+    metadata_url = "https://dist.apache.org/repos/dist/!svn/bc/89127/release/httpd/httpd-2.4.70.tar.bz2.sha256"
+
+    def run_current_helper(self, root, flag, **overrides):
+        values = {
+            "source-url": self.source_url,
+            "checksum-url": self.source_url + ".sha256",
+            "expected-sha": self.release_sha,
+        }
+        values.update(overrides)
+        arguments = [
+            sys.executable, "-B", str(ROOT / "ci/provisioning/httpd-checksum-cache.py"),
+            "--archive", str(root / "httpd-2.4.70.tar.bz2"),
+            "--checksum", str(root / "httpd.sha256"), flag,
+        ]
+        for name, value in values.items():
+            arguments.extend(("--" + name, value))
+        return subprocess.run(arguments, cwd=ROOT, capture_output=True, text=True, timeout=15)
+
+    def test_current_common_tuple_selects_independently_reviewed_metadata(self):
+        # These expectations come from the separately reviewed official object,
+        # rather than the candidate helper's constants or synthetic fixture.
+        helper = runpy.run_path(str(ROOT / "ci/provisioning/httpd-checksum-cache.py"))
+        self.assertEqual(helper["approved_contract"](), (self.source_url, self.release_sha))
+        metadata = (self.release_sha + " *httpd-2.4.70.tar.bz2\n").encode("ascii")
+        self.assertEqual(len(metadata), 87)
+        self.assertEqual(
+            hashlib.sha256(metadata).hexdigest(),
+            "f412d65db7585db8e5e20e0d10dd0e6deaa6a08f52ed07bd29437777b347d29e",
+        )
+        self.assertEqual(helper["HTTPD_METADATA_SHA256"], hashlib.sha256(metadata).hexdigest())
+        with tempfile.TemporaryDirectory(prefix="httpd-current-contract-") as temporary:
+            root = Path(temporary)
+            for flag, expected in (
+                ("--print-download-url", self.metadata_url),
+                ("--print-archive-url", self.metadata_url.removesuffix(".sha256")),
+            ):
+                with self.subTest(flag=flag):
+                    result = self.run_current_helper(root, flag)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, expected + "\n")
+                    self.assertEqual(list(root.iterdir()), [])
+
+    def test_current_production_cli_rejects_mutated_release_tuples_before_cache_io(self):
+        unknown = "https://downloads.apache.org/httpd/httpd-2.4.999.tar.bz2"
+        mutations = (
+            {"expected-sha": ""},
+            {"expected-sha": "bad"},
+            {"expected-sha": "b" * 64},
+            {"source-url": "https://example.invalid/httpd/httpd-2.4.70.tar.bz2"},
+            {"checksum-url": "https://example.invalid/checksum"},
+            {"source-url": unknown, "checksum-url": unknown + ".sha256"},
+            {"source-url": self.source_url + "?other=1"},
+            {"checksum-url": self.source_url + ".sha256?other=1"},
+        )
+        with tempfile.TemporaryDirectory(prefix="httpd-current-denials-") as temporary:
+            root = Path(temporary)
+            for flag in ("--print-download-url", "--print-archive-url"):
+                for mutation in mutations:
+                    with self.subTest(flag=flag, mutation=mutation):
+                        result = self.run_current_helper(root, flag, **mutation)
+                        self.assertEqual(result.returncode, 1, result.stderr)
+                        self.assertEqual(result.stdout, "")
+                        self.assertEqual(list(root.iterdir()), [])
 
 
 if __name__ == "__main__":
