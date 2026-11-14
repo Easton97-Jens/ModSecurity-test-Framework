@@ -22,7 +22,10 @@ class NativePhysicalEvents(unittest.TestCase):
             "haproxy_modsecurity_htx_event_eos",
             "haproxy_modsecurity_htx_prepare_event",
             "haproxy_modsecurity_htx_event_sink_failed",
+            "haproxy_modsecurity_htx_write_optional_late_event",
             "haproxy_modsecurity_htx_write_event",
+            "haproxy_modsecurity_htx_error_phase",
+            "haproxy_modsecurity_htx_append_data",
         ):
             if name + "(" in source:
                 names.insert(0, name)
@@ -48,6 +51,7 @@ class NativePhysicalEvents(unittest.TestCase):
 #include "response_companion_client.h"
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,11 +63,28 @@ int haproxy_modsecurity_error_event_write_checked(const haproxy_modsecurity_deci
  const char *id, char *line, size_t size, msconnector_error *e) {
  (void)d; (void)id; (void)line; (void)size; (void)e; return 0;
 }
+struct ist { char *ptr; size_t len; };
+typedef int (*haproxy_modsecurity_htx_append_body_chunk)(
+    haproxy_modsecurity_transaction *, const unsigned char *, unsigned int,
+    haproxy_modsecurity_decision *);
+static int append_calls;
+int haproxy_modsecurity_transaction_append_request_body_chunk(
+ haproxy_modsecurity_transaction *tx, const unsigned char *body, unsigned int size,
+ haproxy_modsecurity_decision *decision) {
+ (void)tx; (void)body; (void)size; (void)decision; ++append_calls; return 0;
+}
+int haproxy_modsecurity_transaction_append_response_body_chunk(
+ haproxy_modsecurity_transaction *tx, const unsigned char *body, unsigned int size,
+ haproxy_modsecurity_decision *decision) {
+ (void)tx; (void)body; (void)size; (void)decision; ++append_calls; return 0;
+}
 /* STRUCTS */
 /* FUNCTIONS */
-static int sink_fault_writes;
+static int sink_fault_writes, sink_recovered;
 static ssize_t native_sink_fault(void *opaque, const char *data, size_t size) {
- (void)opaque; (void)data; (void)size; sink_fault_writes++; errno = EIO; return -1;
+ (void)opaque; (void)data; sink_fault_writes++;
+ if (sink_recovered) { return (ssize_t)size; }
+ errno = EIO; return -1;
 }
 struct writer_arg { struct haproxy_modsecurity_htx_filter_config *config; unsigned int index; };
 static void *write_parallel_event(void *opaque) {
@@ -84,6 +105,25 @@ int main(void) {
  struct haproxy_modsecurity_htx_filter_context ctx = {0};
  /* SETUP */
  strcpy(ctx.lifecycle.transaction_id, "native-independent-physical");
+ _Static_assert(sizeof(ctx.response.payload_bytes_seen) == sizeof(uint64_t),
+     "response observation width must not depend on size_t");
+ struct ist payload = {.ptr = "data", .len = 4U};
+ ctx.response.payload_bytes_seen = (uint64_t)UINT32_MAX - 1U;
+ assert(haproxy_modsecurity_htx_append_data(&ctx, payload,
+     haproxy_modsecurity_transaction_append_response_body_chunk,
+     &ctx.response.payload_bytes_seen) == 0);
+ assert(ctx.response.payload_bytes_seen == (uint64_t)UINT32_MAX + 3U);
+ ctx.response.payload_bytes_seen = UINT64_MAX - 1U;
+ assert(haproxy_modsecurity_htx_append_data(&ctx, payload,
+     haproxy_modsecurity_transaction_append_response_body_chunk,
+     &ctx.response.payload_bytes_seen) == 0);
+ assert(ctx.response.payload_bytes_seen == UINT64_MAX && append_calls == 2);
+ ctx.request.payload_bytes_seen = (uint64_t)SIZE_MAX - 1U;
+ assert(haproxy_modsecurity_htx_append_data(&ctx, payload,
+     haproxy_modsecurity_transaction_append_request_body_chunk,
+     &ctx.request.payload_bytes_seen) == -1 && append_calls == 2);
+ ctx.lifecycle.error.error_class = MSCONNECTOR_TRANSACTION_ERROR_NONE;
+
  haproxy_modsecurity_decision d = {0};
  d.disruptive = 1; d.phase = 1; d.status = 403; d.rule_id = 1250921;
  strcpy(d.action, "deny"); strcpy(d.log_message, "SECRET-MATCHED-PAYLOAD");
@@ -170,7 +210,76 @@ int main(void) {
      assert(!msconnector_event_file_close(&cfg.events_file, &cfg.events_error));
    }
  }
+ /* Late Safe event failures stay local diagnostics; Strict and native
+  * Reject retain their terminal sink/control semantics. */
+ for (int mode = 1; mode <= 2; ++mode) {
+   msconnector_error_init(&cfg.events_error);
+   cfg.common_config.phase4_mode = (enum msconnector_phase4_mode)mode;
+   cfg.events_file = fopencookie(NULL, "w", ops); assert(cfg.events_file);
+   assert(setvbuf(cfg.events_file, NULL, _IONBF, 0) == 0);
+   struct haproxy_modsecurity_htx_filter_context late = {0};
+   late.config = &cfg; late.response.headers_committed = 1;
+   late.response.original_status = 200; late.response.finished = 1;
+   strcpy(late.lifecycle.transaction_id, "late-safe-fault");
+   haproxy_modsecurity_decision rule = {0};
+   rule.phase = 4; rule.disruptive = 1; rule.status = 403;
+   rule.rule_id = 1250923; strcpy(rule.action, "deny");
+   assert(!haproxy_modsecurity_htx_write_event(&late, &rule));
+   if (mode == MSCONNECTOR_PHASE4_MODE_SAFE) {
+     assert(!late.lifecycle.fail_closed);
+     assert(late.lifecycle.error.error_class == MSCONNECTOR_TRANSACTION_ERROR_NONE);
+     assert(cfg.events_error.code == MSCONNECTOR_ERROR_NONE);
+     sink_recovered = 1;
+     struct haproxy_modsecurity_htx_filter_context recovered = {0};
+     recovered.config = &cfg;
+     haproxy_modsecurity_decision mandatory = rule; mandatory.phase = 2;
+     assert(haproxy_modsecurity_htx_write_event(&recovered, &mandatory));
+     assert(!recovered.lifecycle.fail_closed && cfg.events_error.code == MSCONNECTOR_ERROR_NONE);
+     mandatory.disruptive = 0; mandatory.rule_id = 0;
+     assert(haproxy_modsecurity_htx_write_event(&recovered, &mandatory));
+     assert(!recovered.lifecycle.fail_closed && !ferror(cfg.events_file));
+     sink_recovered = 0;
+   } else {
+     assert(late.lifecycle.fail_closed && cfg.events_error.code == MSCONNECTOR_ERROR_IO);
+   }
+   msconnector_error close_error; msconnector_error_init(&close_error);
+   (void)msconnector_event_file_close(&cfg.events_file, &close_error);
+ }
+ /* An existing stdio indicator or mandatory error remains sticky even
+  * when a later late-Safe event would otherwise be optional. */
+ for (int prior = 0; prior < 2; ++prior) {
+   msconnector_error_init(&cfg.events_error);
+   cfg.common_config.phase4_mode = MSCONNECTOR_PHASE4_MODE_SAFE;
+   cfg.events_file = fopencookie(NULL, "w", ops); assert(cfg.events_file);
+   assert(setvbuf(cfg.events_file, NULL, _IONBF, 0) == 0);
+   sink_recovered = 0;
+   if (prior == 0) {
+     (void)fputs("earlier mandatory event\n", cfg.events_file);
+     assert(ferror(cfg.events_file));
+   } else {
+     msconnector_error_set(&cfg.events_error, MSCONNECTOR_ERROR_EVENT_TOO_LARGE,
+         "prior mandatory failure", "test");
+   }
+   sink_recovered = 1;
+   int before_optional = sink_fault_writes;
+   struct haproxy_modsecurity_htx_filter_context late = {0};
+   late.config = &cfg; late.response.headers_committed = 1;
+   haproxy_modsecurity_decision rule = {0};
+   rule.phase = 4; rule.disruptive = 1; rule.status = 403;
+   rule.rule_id = 1250924; strcpy(rule.action, "deny");
+   assert(!haproxy_modsecurity_htx_write_event(&late, &rule));
+   assert(late.lifecycle.fail_closed && sink_fault_writes == before_optional);
+   assert(cfg.events_error.code == (prior == 0 ? MSCONNECTOR_ERROR_IO : MSCONNECTOR_ERROR_EVENT_TOO_LARGE));
+   if (prior == 0) { assert(ferror(cfg.events_file)); }
+   struct haproxy_modsecurity_htx_filter_context allow = {0}; allow.config = &cfg;
+   rule.disruptive = 0; rule.rule_id = 0;
+   assert(!haproxy_modsecurity_htx_write_event(&allow, &rule) && allow.lifecycle.fail_closed);
+   msconnector_error close_error; msconnector_error_init(&close_error);
+   (void)msconnector_event_file_close(&cfg.events_file, &close_error);
+   sink_recovered = 0;
+ }
  msconnector_error_init(&cfg.events_error);
+ cfg.common_config.phase4_mode = MSCONNECTOR_PHASE4_MODE_OFF;
  cfg.events_file = fopen("parallel-events.jsonl", "w+"); assert(cfg.events_file != NULL);
  pthread_t threads[32]; struct writer_arg args[32];
  for (unsigned int i = 0; i < 32; ++i) {
@@ -215,6 +324,13 @@ int main(void) {
     def test_native_events_under_asan_ubsan(self):
         result = self.compile_probe(FILTER.read_text(), sanitizers=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_optional_stream_indicator_cleanup_mutation_is_detected(self):
+        source = FILTER.read_text()
+        cleanup = "if (ferror(config->events_file)) { clearerr(config->events_file); }"
+        self.assertIn(cleanup, source)
+        result = self.compile_probe(source.replace(cleanup, "/* old sticky stdio indicator */", 1))
+        self.assertNotEqual(result.returncode, 0, "optional stdio poisoning mutation survived")
 
     def test_sink_phase_guessing_mutation_is_detected(self):
         source = FILTER.read_text()

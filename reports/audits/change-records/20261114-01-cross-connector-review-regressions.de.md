@@ -1,0 +1,82 @@
+# Change Record: 20261114-01-cross-connector-review-regressions
+
+**Sprache:** [English](20261114-01-cross-connector-review-regressions.md) | Deutsch
+
+## Identität
+
+| Feld | Wert |
+| --- | --- |
+| Change-ID | 20261114-01-cross-connector-review-regressions |
+| UTC-Datum | 2026-11-14 |
+| Framework-Basisrevision | `6e2c433a9c4e63df0634442b2bb63f151917dac5` |
+| Issue oder Pull Request | [Framework PR 171](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/171) |
+
+## Motivation und Problemstellung
+
+Framework-Regressionen müssen korrigiertes Connector-Verhalten von reinen Source-Assertions unterscheiden und ehrliche Source-/Host-Evidenzgrenzen erhalten.
+
+## Betroffene Komponenten und Sicherheitsgrenzen
+
+Framework besitzt wiederverwendbare Tests/Checker/Runner; Parent besitzt Produktverhalten. MRTS bleibt unverändert. Die zehn logischen Profile sind Apache nativ; NGINX nativ; HAProxy HTX; HAProxy SPOE/SPOP mit nativem Response-Companion; Envoy ext_proc; Envoy ext_authz mit Response-Companion; Traefik native Middleware; Traefik forwardAuth mit Response-Companion; Lighttpd Stock-Sidecar; und Lighttpd gepatcht nativ.
+
+## Akzeptanzkriterien
+
+Response-Beobachtung darf kein doppeltes Body-Limit setzen; Append-Reject und EOS-Regelergebnisse bleiben getrennt; optionale Eventfehler dürfen native Durchsetzung oder Strict-Abbruch nicht abschwächen. Runner-Ablehnung erfolgt vor Ausführung, zugelassenes argv bleibt wörtlich, Pfadgrammatik wird geprüft und Fehler räumen Kindprozesse auf. Tests und Dokumentation müssen die Parent-/Framework-Eigentumsgrenze erhalten und ausstehende Evidenz ausdrücklich beschreiben.
+
+## Untersuchte Alternativen
+
+Reine Source-Muster-Prüfungen können weder kausales Append-/EOS-Verhalten noch ausführbare Runner-Grenzen belegen. Vorhandene kompilierte Produkt-Seams, native Engine-Fixtures und tatsächliche Helper-/Prozesstests wurden erweitert, statt Zulassung abzuschwächen oder ein festes System-Binary einzusetzen.
+
+## Implementierungsentscheidung
+
+Common verwendet für Response-Beobachtungen bei `UINT64_MAX` sättigende `uint64_t`-Zähler ohne zweite Response-Inspektions-/Auslieferungsgrenze bei `SIZE_MAX` oder 4 GiB. Native API-Chunklängen bleiben `size_t`; Request-Überlaufprüfungen und separate Speicher-, Storage-, Chunk-, Frame- und Timeout-Kontrollen bleiben bestehen. Verbraucher der Runtime-Body-Progress-ABI müssen mit passenden Headern neu gebaut werden. Go-Response-Summary-Bytefelder bleiben `int64` und sättigen bei `MaxInt64`; `uint64`-Chunk-Zähler sättigen bei `MaxUint64`. Beide erreichen nach Sättigung weiterhin den tatsächlichen Engine-/EOS-Pfad und erhalten Request- und Transportprüfungen.
+
+Ein nativer Response-Body-Reject erfordert einen gültigen angenommenen Append vor EOS sowie tatsächliche Intervention-Metadaten: RESPONSE_BODY, disruptive 1, Status 403, rohe Redirect-URL NULL und keine Rule-ID. Exakter englischer Logtext und die SDK-Liste geloggter IDs sind keine kausale Autorität. Eine echte EOS-Regelintervention bleibt getrennt; fehlerhafte/API-/technische Fehler bleiben Fehler. Apache versiegelt/bricht einen nativen Reject nach Commit in jedem Modus ab und erhält nativen Status/Erstursache ohne zweite Response.
+
+Die optionale Safe-Event-Ausnahme gilt ausschließlich für gesunde, abgeschlossene, bereits committete Phase 4 mit einer tatsächlichen kausal zugeordneten Regelintervention. Sie gilt niemals für nativen Body-Limit-Reject, API-/Verarbeitungs-/Native-Audit-Fehler oder einen früheren verpflichtenden Eventfehler. Reine Event-Sink-/Short-Write-/Serialisierungs-/Allokationsfehler warnen, ohne Response oder erforderliches natives Audit/Cleanup zu ändern. Strict-Abbruch bleibt auch bei fehlgeschlagener Eventausgabe wirksam. Lighttpd gepatcht nativ behandelt Reject in jedem Modus terminal; Common weist Body-Limit-LOG_ONLY-Host-Aktionen in Phase 4 ebenso wie in Phase 2 zurück. Traefik erhält physisches Wire-DENY 403 vor Commit und meldet danach einen typisierten Native-Reject-Fehler; Envoy erhält den typisierten Fehler, bevor generisches Deny/Continue dessen Ursache verlieren kann.
+
+Die Runner-Zulassung liefert jetzt typisierte validierte Binary-/Modul-/Ausgabewerte, die an Ausführungssenken verwendet werden. Wörtliche argv-Verarbeitung erhält legitime zugelassene Binary-Namen; NGINX- und SecAuditLog-Pfade haben getrennte grammatikgerechte Darstellungen und weisen nicht unterstützte Syntax ausdrücklich zurück. Die PID-Verarbeitung akzeptiert positive Ganzzahlen vor Prozessdateizugriffen. Zusammenhängende Hilfsfunktionen reduzieren die Komplexität der Hauptfunktion und erhalten Source-/Manifest-Zulassung, Credentials-, Worker-, Audit- und Cleanup-Prüfungen. NGINX-Constness-, Callback-Adress-, redundante Cast-/Semikolon- und zusammenhängende Kontextfeldänderungen adressieren die gemeldeten lokalen Sonar-Regelursachen ohne Unterdrückungen oder Gate-Änderungen.
+
+## Geänderte Dateien und Tests
+
+Geänderte wiederverwendbare Fixtures und Auswahlen unter `connector_suite/modsecurity_connector_tests`: native Intervention-Normalisierung und Engine-Limit-C-Fixtures; Companion-Transport-/Runtime-Fixtures; Apache-Lifecycle-, Native-Limit- und Event-Sink-Tests; HAProxy-Native-/Host-/Physical-Event-/Engine-Limit-Tests; NGINX-Logging-/Error-Page-Tests; Runtime-Event-/Beobachtungs-, Companion-Zähler- und Rule-ID-Tests; Runner und dessen neue verhaltensbasierte Regressionsdatei. Der NGINX-Adoption-Checker und seine vollständige Mutationssuite erhalten Evidenzprüfungen nach der Kontextgruppierung. Runner-Tests prüfen echte Pfadzulassung, Symlink-/Eigentümer-/Manifest-Ablehnung vor Ausführung, wörtliches Prozess-argv, Ablehnung fehlerhafter PIDs, Konfigurationsgrammatikgrenzen, Szenario-Orchestrierung und Kindprozess-Cleanup. Abschließende Envoy-/Traefik-Response-Beobachtungs- und Lighttpd-/Traefik-/Envoy-Native-Reject-Regressionen prüfen tatsächliche Engine-/EOS-Pfade und physische Bridge-Fixtures, erhalten Request-Überlaufprüfungen und unterscheiden Ablehnung vor Commit von Fehlern nach Commit.
+
+## Befehle und Ergebnisse
+
+Die folgenden vom Koordinator beobachteten Läufe endeten mit Exit 0. Es sind getrennte Auswahlen, die nicht als eindeutige End-to-End-Fälle addiert werden dürfen. Es gelten `P=<parent-root>`, `F=<framework-root>`, `E=<evidence-root>`, `PY=<framework-python>` und `SDK` als der tatsächlich vom Koordinator verwendete gecachte ModSecurity-3.0.17-Prefix. Die Pfad-Aliase stehen für die tatsächlich verwendeten externen Checkout-, Evidenz- und Interpreter-Pfade; maschinenspezifische Präfixe werden hier nicht versioniert. Der folgende Prefix lautet `rtk bypass env CONNECTOR_ROOT=$P CONNECTOR_REVISION=b50b3d4c0e051c63df649fd15d4a2442c8df14b3 TEST_ROOT=$F PYTHONPATH=$F:$F/connector_suite ON_DEMAND_TESTS=1 PYTHONDONTWRITEBYTECODE=1 RUNNER_TEMP=$E/sonar-followup`.
+
+| Befehl nach Prefix | Beobachtetes Ergebnis |
+| --- | --- |
+| `$PY -m unittest -v modsecurity_connector_tests.test_runtime_response_observation_policy modsecurity_connector_tests.test_runtime_event_sink_failures modsecurity_connector_tests.test_nginx_fzipi_runner modsecurity_connector_tests.test_response_companion_counters modsecurity_connector_tests.test_rule_id_metadata` | 48 Methoden bestanden; Koordinator-Terminallauf 4961, Exit 0. |
+| `MODSECURITY_PREFIX=$SDK $PY -m unittest -v modsecurity_connector_tests.test_engine_response_limits.EngineResponseLimits.test_boundaries_actions_chunking_and_modes modsecurity_connector_tests.test_engine_response_limits.EngineResponseLimits.test_native_transaction_companion_serialization_and_phase_contracts modsecurity_connector_tests.test_engine_response_limits.EngineResponseLimits.test_engine_partial_prefix_excludes_marker_after_limit modsecurity_connector_tests.test_engine_response_limits.EngineResponseLimits.test_marker_after_old_one_megabyte_connector_default` | 4 Methoden gegen Engine 3.0.17 bestanden: 72 Varianten, nativer Companion, 3 Partial-Prefix- und 6 alte-1-MiB-Fälle; Terminallauf 6298, Exit 0. |
+| `$PY -m unittest -v modsecurity_connector_tests.test_nginx_common_adoption` | 120 Checker-/Mutationstests bestanden; Terminallauf 8192, Exit 0. |
+
+Die Engine-Zeile verwendet dieselbe Umgebung mit zusätzlicher Zuweisung `MODSECURITY_PREFIX` vor dem Interpreter. In `P`: `rtk make check-common-helpers ON_DEMAND_TESTS=1 FRAMEWORK_ROOT=$F PYTHON=$PY BUILD_ROOT=$E/sonar-followup/common-helpers` bestand (Terminallauf 32751, Exit 0); `rtk make check-nginx-common-adoption FRAMEWORK_ROOT=$F PYTHON=$PY` bestand (Terminallauf 98654, Exit 0). `rtk make check-bilingual-docs check-doc-links FRAMEWORK_ROOT=$F PYTHON=$PY` bestand vor diesen neuen Records: Bilingual-Prüfungen, Pfadreferenzen und Links.
+
+Ausgewählte Worker-Evidenz unter `E/sonar-followup`: `nginx/verification.json` dokumentiert 66 bestandene NGINX-Methoden und `check-nginx-c17`; `apache-haproxy/review-validation.json` dokumentiert 80 bestandene Apache-/HAProxy-Methoden und C17-Prüfungen. Der Koordinator meldet außerdem die später bestandene HTX-Auswahl mit 31 Methoden. Ältere Receipts identifizieren ihre eigenen Source-Bytes und bestätigen keine späteren Änderungen. Die Klassifikator-Negativkontrolle auf unveränderter Basis kompilierte mit strengen C17-Warnungen und endete bei vier Assertions für geänderten/leeren/fehlenden Text mit Exit 1; der korrigierte Pfad besteht die frische Regressionsauswahl. Exact-Source-Secrets-Prüfungen bestanden für die von diesem Record-Autor gelesenen ausgewählten Dateien; sie bestätigen keine Codequalität.
+
+Abschließende Go-Beobachtungsregressionen bestanden mit `rtk bypass make -C connectors/envoy test-envoy-ext-proc FRAMEWORK_ROOT=$F PYTHON=$PY` (8 Paketergebnisse) und `rtk bypass make -C connectors/traefik test-native-middleware FRAMEWORK_ROOT=$F PYTHON=$PY` (1 Paket). Beide verwendeten `ON_DEMAND_TESTS=1 GOWORK=off GOTOOLCHAIN=local GOPROXY=off`, externe `GOMODCACHE`/`GOCACHE` und aufgabeneigene temporäre Pfade. Neue Grenzfälle im tatsächlichen Engine-/EOS-Pfad scheitern mit den ursprünglichen Zählern, einschließlich physischer Go-Overlays der ursprünglichen Source, und bestehen mit Response-Sättigung. Diese Standardtargets schließen libmodsecurity-Tag-Integration aus. Lighttpd-/Common-Host-Action-Tests bestanden 19 Methoden einschließlich OFF/SAFE/STRICT bei keinem/Header-/Body-Commit und Negativkontrollen mit entfernter Schutzprüfung. Die abschließende kombinierte Bridge-/Runtime-Auswahl wird unten separat dokumentiert.
+
+Der Koordinator führte abschließend die vollständige kombinierte Auswahl auf den finalen lokalen Quellen erneut aus: `$PY -m unittest -v modsecurity_connector_tests.test_runtime_host_action_validation modsecurity_connector_tests.test_lighttpd_i10_adapter_errors modsecurity_connector_tests.test_traefik_i10_dispatcher modsecurity_connector_tests.test_envoy_bridge_failures modsecurity_connector_tests.test_runtime_event_sink_failures modsecurity_connector_tests.test_runtime_response_observation_policy`. Gleicher Prefix wie beim 48-Methoden-Lauf, aber `RUNNER_TEMP=$E/sonar-followup/runtime`, Arbeitsverzeichnis `P`, ohne zusätzliches `FRAMEWORK_ROOT` (die Helper lösen `TEST_ROOT` auf). Alle 63 Methoden bestanden in 48,897 s; Terminallauf 31658, beobachteter Exit 0. Dies ersetzt den früheren 62/63-Lauf nach Korrektur des einen Traefik-Precommit-Testorakels; der separate 2-Methoden-Nachlauf bestand ebenfalls.
+
+Historisch bestanden neun native NGINX-H1-Szenarien bei Parent `4b87783a62b13bbb5f4c60809c779379e487345c` mit Framework `6e2c433a9c4e63df0634442b2bb63f151917dac5`. Dieser datierte frühere Scope ist keine Qualifikation des aktuellen Followups. Der frühere Record beschreibt außerdem seine eigene separate frühere Source-Identität; dessen Receipt wird diesem Followup nicht neu zugeordnet.
+
+## Sicherheitsauswirkung
+
+Die Änderungen erhalten die Durchsetzung und trennen native Limits, echte Regelentscheidungen und technische Fehler. Das Runner-Review belegte keine vier Command-/Path-Injection-Schwachstellen im bestehenden zugelassenen argv-Pfad; die Korrekturen machen die Autorität von Zulassung bis Senke ausdrücklich und beheben einen reproduzierten Fehler der Konfigurationspfad-Serialisierung. Source-/Binary-Zulassung, kanonische Pfade, Symlink-, Eigentümer-, Single-Link-, Manifest-, Worker-, Audit- und Cleanup-Kontrollen bleiben bestehen. Unterdrückungen, Gate-Abschwächungen, Abhängigkeitsinstallationen oder MRTS-Änderungen gehören nicht zu diesem Followup.
+
+## Dokumentation und Runtime-Evidenz
+
+Parent-EN/DE-Dokumentation zu Phasen, ABI und Profilen wird in `CR-20261114-cross-connector-review-followup` koordiniert. Dieses Framework-Paar dokumentiert wiederverwendbare Regressionsevidenz. Frische native Host-Ausführung mit neu gebauten Artefakten und die entfernte Sonar-Analyse des aktuellen Heads wurden zum Record-Commit nicht ausgeführt: Native-Artefakt-Zulassung benötigt den sauberen Produkt-Commit, CI-/Sonar-Auslieferungsanalyse benötigt Push. Spätere Receipts werden in [Parent PR 448](https://github.com/Easton97-Jens/ModSecurity-conector/pull/448) und [Framework PR 171](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/171) verfolgt. Frühere native Ergebnisse gehören zu ihren ursprünglichen Source-Identitäten. Kompilierte Seams und echte Engine-Fixtures belegen kein Runtime-Verhalten sämtlicher Hosts. Es wird weder native 32-Bit-Ausführung noch eine Hostmatrix aller Profile, vollständige Go-Validierung oder ein neues Sonar-Nullergebnis behauptet. Diese ausgelassenen Auslieferungsprüfungen bleiben erforderlich; dieser Record befreit nicht davon.
+
+## Nicht ausgeführte Prüfungen
+
+Frischer Native-Lauf sowie CI-/Sonar-Analyse nach Commit/Push bleiben erforderlich; Gründe und zugehörige PRs stehen im Abschnitt „Dokumentation und Runtime-Evidenz“.
+
+## Einschränkungen und Restrisiko
+
+Die oben dokumentierten Source-/Host-Evidenzgrenzen bleiben bestehen. Ausgewählte Regressionen ersetzen weder Hostmatrix noch native 32-Bit-Ausführung; abschließende Auslieferungsprüfungen sind weiterhin erforderlich.
+
+## Finaler Diff- und Review-Status
+
+Record-Paar für Koordinator-Review erstellt; kein Commit, Push oder Merge durch diesen Autor. Das native Parent-Scaffold war erfolgreich; Framework verwendet die dokumentierte Begleitvorlagen-Alternative, da kein Framework-Scaffold-Generator gefunden wurde. Beide neuen Paare bestanden ihre repositoryspezifischen abgegrenzten Strukturverträge, EN/DE-Inline-Technik-Token-Parität, gegenseitige Begleitlinks und Whitespace-Prüfungen sowie Exact-File-Secrets-Scans. Finales Source-Review, abschließender Evidenzabgleich für den exakten Head und PR-Auslieferung verbleiben beim Koordinator.

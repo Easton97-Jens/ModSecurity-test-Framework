@@ -33,6 +33,7 @@ typedef struct {int dummy;} Transaction;
 typedef struct {int status,pause; char *url,*log; int disruptive;} ModSecurityIntervention;
 #define HAPROXY_MODSECURITY_EXPECTED_STATUS 403
 static int result=1, calls, cleaned, intervention_result, intervention_cleaned;
+static const char *intervention_log;
 static int msc_process_connection(Transaction *t,const char *a,int b,const char *c,int d) {(void)t;(void)a;(void)b;(void)c;(void)d;calls++;return result;}
 static int msc_process_uri(Transaction *t,const char *a,const char *b,const char *c) {(void)t;(void)a;(void)b;(void)c;calls++;return result;}
 static int msc_add_request_header(Transaction *t,const unsigned char *a,const unsigned char *b) {(void)t;(void)a;(void)b;calls++;return result;}
@@ -45,7 +46,7 @@ static int msc_process_response_body(Transaction *t) {(void)t;calls++;return res
 static int msc_process_request_headers(Transaction *t) {(void)t;calls++;return result;}
 static int msc_process_logging(Transaction *t) {(void)t;calls++;return result;}
 static void msc_transaction_cleanup(Transaction *t) {(void)t;cleaned++;}
-static int msc_intervention(Transaction *t,ModSecurityIntervention *i) {(void)t;(void)i;return intervention_result;}
+static int msc_intervention(Transaction *t,ModSecurityIntervention *i) {(void)t;if(intervention_log){i->disruptive=1;i->status=403;i->log=(char *)intervention_log;}return intervention_result;}
 static void msc_intervention_cleanup(ModSecurityIntervention *i) {(void)i;intervention_cleaned++;}
 '''
 
@@ -61,7 +62,24 @@ int main(int argc,char **argv) {
  CHECK(msconnector_transaction_contract_init(&tx->contract,msconnector_profile_registry_find("haproxy-htx"),"test-id","haproxy","test",MSCONNECTOR_TRANSACTION_MODE_STRICT,1)==0);
  tx->contract_initialized=1;
  engine.common_config.phase4_mode=MSCONNECTOR_PHASE4_MODE_SAFE;
- if(strcmp(argv[1],"connection")==0) {
+ if (strstr(argv[1], "rule") != NULL) {
+  intervention_result=1;intervention_log=result==1 ? "[file \"f\"] [line \"1\"] [id \"123\"] [rev \"\"] [msg \"m\"] [data \"\"] [severity \"2\"] [ver \"\"] [maturity \"0\"] [accuracy \"0\"] [hostname \"h\"] [uri \"/\"] [unique_id \"u\"] [ref \"\"]" : "[file \"f\"] [line \"1\"] [id \"4000000000\"] [rev \"\"] [msg \"m\"] [data \"\"] [severity \"2\"] [ver \"\"] [maturity \"0\"] [accuracy \"0\"] [hostname \"h\"] [uri \"/\"] [unique_id \"u\"] [ref \"\"]";
+  result=1;
+ }
+ if(strcmp(argv[1],"append_rule")==0) {
+
+  CHECK(capture_intervention(&native,4,&decision,1,0)!=0);
+  CHECK(decision.error_class==MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE && !decision.body_limit);
+  intervention_result=0;
+  CHECK(capture_intervention(&native,4,&decision,1,0)!=0);
+  CHECK(decision.error_class==MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+  if (atoi(argv[2])==1) {
+   intervention_result=1;
+   CHECK(capture_intervention(&native,4,&decision,0,1)==0);
+   CHECK(decision.rule_id==123 && decision.disruptive && !decision.body_limit);
+   CHECK(decision.error_class==MSCONNECTOR_TRANSACTION_ERROR_NONE);
+  }
+ } else if(strcmp(argv[1],"connection")==0) {
   init_decision(&decision,1);CHECK(process_request_connection(&native,&request,&decision)==-1);
   CHECK(strcmp(decision.action,"error")==0 && decision.rule_id==0);
  } else if(strcmp(argv[1],"p1")==0) {
@@ -77,7 +95,7 @@ int main(int argc,char **argv) {
   tx->contract.last_completed_phase=MSCONNECTOR_TRANSACTION_PHASE_P4;
   CHECK(haproxy_modsecurity_transaction_finish(tx)!=0);CHECK(cleaned==1 && calls==1);return 0;
  } else if(strcmp(argv[1],"intervention")==0) {
-  intervention_result=result;CHECK(capture_intervention(&native,1,&decision)!=0);
+  intervention_result=result;CHECK(capture_intervention(&native,1,&decision,0,0)!=0);
   CHECK(strcmp(decision.action,"error")==0 && intervention_cleaned==1);
  } else if(strcmp(argv[1],"intervention_phase")==0) {
   intervention_result=result;result=1;init_decision(&decision,1);
@@ -130,10 +148,25 @@ int main(int argc,char **argv) {
    tx->response_headers_processed=1;
   }
   haproxy_modsecurity_body_phase state=response_phase?response_body_phase(tx):request_body_phase(tx);
+  if (strcmp(argv[1], "response_rule_append") == 0) {
+   CHECK(append_body_chunk(tx,(const unsigned char *)"x",1,&decision,&state)==1);
+   CHECK(tx->contract.error_class==MSCONNECTOR_TRANSACTION_ERROR_INVALID_ENGINE_RESPONSE);
+   CHECK(!decision.body_limit && decision.rule_id==0);
+   intervention_result=0; int old=calls;
+   CHECK(finish_body(tx,&decision,&state)==1 && calls==old);
+   free(tx);return 0;
+  }
   if(strstr(argv[1],"overflow")!=NULL) {
    unsigned char body[101]={0}; char line[4096];
    *state.body_bytes_seen=SIZE_MAX;
    int prior=strstr(argv[1],"prior")!=NULL;
+   if (response_phase && !prior) {
+    *state.body_bytes_inspected = SIZE_MAX;
+    CHECK(append_body_chunk(tx,body,sizeof(body),&decision,&state)==0);
+    CHECK(*state.body_bytes_seen==UINT64_MAX && *state.body_bytes_inspected==UINT64_MAX);
+    CHECK(tx->contract.error_class==MSCONNECTOR_TRANSACTION_ERROR_NONE && calls==1);
+    transaction_cleanup(tx,0); CHECK(cleaned==1); return 0;
+   }
    if(prior) CHECK(msconnector_transaction_contract_fail(&tx->contract,
        MSCONNECTOR_TRANSACTION_ERROR_ENGINE_TIMEOUT,0U)==MSCONNECTOR_TRANSACTION_TRANSITION_OK);
    const msconnector_transaction_error_class expected=prior?
@@ -183,6 +216,13 @@ class HaproxyNativeResultsTests(unittest.TestCase):
         if result.returncode:
             raise AssertionError(result.stderr)
 
+    def test_disruptive_append_rule_ids_are_errors_never_native_limits(self):
+        for boundary in ("append_rule", "response_rule_append"):
+            for value in (1, 2):
+                with self.subTest(boundary=boundary, rule_id=123 if value == 1 else 4000000000):
+                    observed = subprocess.run([str(self.binary), boundary, str(value)], capture_output=True, text=True, timeout=10)
+                    self.assertEqual(observed.returncode, 0, observed.stderr)
+
     def test_native_errors_are_technical_and_terminal(self):
         for boundary in ("connection", "p1", "header", "logging", "intervention", "intervention_phase", "p3"):
             for result in (-1, 0, 2, 17):
@@ -199,8 +239,8 @@ class HaproxyNativeResultsTests(unittest.TestCase):
                     observed = subprocess.run([str(self.binary), boundary, str(result)], capture_output=True, text=True, timeout=10)
                     self.assertEqual(observed.returncode, 0, observed.stderr)
 
-    def test_first_overflowing_body_chunk_emits_technical_body_phase_once(self):
-        for boundary, phase in (("overflow", "request_body"), ("response_overflow", "response_body"),
+    def test_request_overflow_and_response_prior_error_preserve_terminal_cause(self):
+        for boundary, phase in (("overflow", "request_body"),
                                 ("overflow_prior", "request_headers"), ("response_overflow_prior", "response_headers")):
             with self.subTest(boundary=boundary):
                 observed = subprocess.run([str(self.binary), boundary, "1"], capture_output=True, text=True, timeout=10)
@@ -213,6 +253,11 @@ class HaproxyNativeResultsTests(unittest.TestCase):
                 self.assertEqual(event["status"], "error")
                 self.assertEqual(event["rule_id"], "")
                 self.assertEqual(event["actual_action"], "")
+
+    def test_response_counter_saturation_is_not_a_technical_failure(self):
+        observed = subprocess.run([str(self.binary), "response_overflow", "1"],
+                                  capture_output=True, text=True, timeout=10)
+        self.assertEqual(observed.returncode, 0, observed.stderr)
 
     def test_typed_error_is_metadata_only_and_has_no_actual_action(self):
         observed = subprocess.run([str(self.binary), "event", "1"], capture_output=True, text=True, timeout=10)

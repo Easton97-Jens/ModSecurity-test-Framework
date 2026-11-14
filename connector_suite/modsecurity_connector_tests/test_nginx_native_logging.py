@@ -23,6 +23,7 @@ PREAMBLE = r'''
 #include "msconnector/transaction_contract.h"
 typedef int ngx_int_t;
 typedef struct { int unused; } ngx_pool_t;
+typedef struct ngx_http_modsecurity_conf_s ngx_http_modsecurity_conf_t;
 typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { void *log; } connection_t;
 typedef struct { connection_t *connection; ngx_pool_t *pool; } ngx_http_request_t;
@@ -30,7 +31,12 @@ typedef struct {
     msconnector_transaction_contract contract;
     void *modsec_transaction;
     ngx_http_request_t *r;
-    ngx_pool_t *pool;
+    struct {
+        ngx_pool_t *pool;
+        const ngx_http_modsecurity_conf_t *conf;
+        const char *cleanup_method;
+        const char *cleanup_uri;
+    } lifetime;
     int contract_initialized, logged, native_logging_failed;
 } ngx_http_modsecurity_ctx_t;
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_LOG_ERR = 4 };
@@ -83,7 +89,7 @@ int main(int argc, char **argv) {
     context.modsec_transaction = &context;
     context.contract_initialized = 1;
     context.r = &request;
-    context.pool = &pool;
+    context.lifetime.pool = &pool;
     if (strcmp(argv[1], "cleanup") == 0) { request.pool = NULL; }
     if (strcmp(argv[1], "missing") == 0) { context.modsec_transaction = NULL; }
     if (strcmp(argv[1], "disabled") == 0) { no_context = 1; }
@@ -198,6 +204,7 @@ RETIREMENT_PREAMBLE = r"""
 #include "msconnector/transaction_contract.h"
 typedef int ngx_int_t;
 typedef struct { int unused; } ngx_pool_t;
+typedef struct ngx_http_modsecurity_conf_s ngx_http_modsecurity_conf_t;
 typedef ngx_pool_t *ngx_http_modsecurity_pcre_pool_snapshot_t;
 typedef struct { void *log; } connection_t;
 typedef struct { connection_t *connection; ngx_pool_t *pool; } ngx_http_request_t;
@@ -205,7 +212,12 @@ typedef struct {
     msconnector_transaction_contract contract;
     void *modsec_transaction;
     ngx_http_request_t *r;
-    ngx_pool_t *pool;
+    struct {
+        ngx_pool_t *pool;
+        const ngx_http_modsecurity_conf_t *conf;
+        const char *cleanup_method;
+        const char *cleanup_uri;
+    } lifetime;
     int contract_initialized, logged, native_logging_failed;
 } ngx_http_modsecurity_ctx_t;
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_LOG_ERR = 4 };
@@ -266,7 +278,7 @@ int main(int argc, char **argv) {
     if (strcmp(argv[1], "missing-transfer") != 0)
         retirement = msconnector_transaction_contract_supersede_response(&ctx.contract, 7U);
     equal = memcmp(&ctx.contract, &before, sizeof(before)) == 0;
-    ctx.r = &request; ctx.pool = &pool;
+    ctx.r = &request; ctx.lifetime.pool = &pool;
     ctx.modsec_transaction = &ctx; ctx.contract_initialized = 1;
     audit_result = ngx_http_modsecurity_log_context(&ctx);
     (void)ngx_http_modsecurity_log_context(&ctx);

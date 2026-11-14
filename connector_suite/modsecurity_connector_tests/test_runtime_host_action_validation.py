@@ -49,6 +49,12 @@ int main(int argc, char **argv) {
         action = MSCONNECTOR_DECISION_ACTION_ABORT_CONNECTION;
     } else if (strcmp(argv[1], "drop") == 0) {
         action = MSCONNECTOR_DECISION_ACTION_DROP;
+    } else if (strcmp(argv[1], "log") == 0) {
+        action = MSCONNECTOR_DECISION_ACTION_LOG_ONLY;
+    } else if (strcmp(argv[1], "allow") == 0) {
+        action = MSCONNECTOR_DECISION_ACTION_ALLOW;
+    } else if (strcmp(argv[1], "redirect") == 0) {
+        action = MSCONNECTOR_DECISION_ACTION_REDIRECT;
     } else {
         action = MSCONNECTOR_DECISION_ACTION_DENY;
     }
@@ -66,6 +72,14 @@ int main(int argc, char **argv) {
         transaction.host_action_event_emitted = 1;
     } else if (strcmp(argv[5], "limit") == 0) {
         msconnector_decision_set_body_limit(&decision, 413, "fixture limit");
+    } else if (strncmp(argv[5], "response-limit", 14) == 0) {
+        msconnector_decision_set_response_body_limit(&decision, "native Reject");
+        transaction.contract.response_committed = strcmp(argv[5], "response-limit-committed") == 0;
+    } else if (strcmp(argv[5], "p4-rule") == 0) {
+        msconnector_decision_set_deny(&decision, 403, "900007", "genuine P4 rule");
+        decision.phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+        runtime.config.phase4_mode = MSCONNECTOR_PHASE4_MODE_SAFE;
+        transaction.contract.response_committed = 1;
     }
     result = msconnector_runtime_transaction_record_host_action(&transaction,
         &decision, action, status, argv[4], aborted, &error);
@@ -92,28 +106,67 @@ class RuntimeHostActionValidationTests(unittest.TestCase):
         types = source[source.index("#define RUNTIME_NAME_SIZE"):source.index("static void set_text_error")]
         definitions = [function_definition(source, name) for name in FUNCTIONS]
         fixture = directory / "host-action.c"
-        fixture.write_text(INCLUDES + types + EMITTER + "\n".join(definitions) + MAIN, encoding="utf-8")
+        text = INCLUDES + types + EMITTER + "\n".join(definitions) + MAIN
+        anchor = "decision->phase == MSCONNECTOR_PHASE_RESPONSE_BODY) {"
+        if text.count(anchor) != 1:
+            raise AssertionError("P4 native-limit guard mutation anchor drifted")
+        variants = {"current": text, "without-response-guard": text.replace(anchor,
+                    "decision->phase == MSCONNECTOR_PHASE_REQUEST_BODY) {", 1)}
         sources = (
             "transaction_state.c", "decision.c", "decision_action.c", "intervention.c",
             "block_statuses.c", "http_status.c", "error.c", "status.c", "event.c",
             "event_jsonl.c", "integrity_event.c", "json_escape.c", "memory.c",
             "body_policy.c", "flow_guard.c", "dos_guard.c", "resource_limits.c", "rule_id.c",
         )
-        cls.binary = directory / "host-action"
-        command = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
-                              "-I", str(source_path('common/include', root=ROOT)), "-I", str(ROOT), str(fixture)]
-        command += [str(source_path('common/src', root=ROOT) / name) for name in sources]
-        command += [str(source_path('connectors/profile_registry.c', root=ROOT)), "-o", str(cls.binary)]
-        result = subprocess.run(command, capture_output=True, text=True, timeout=90, check=False)
-        if result.returncode:
-            raise AssertionError("host-action fixture compilation failed:\n" + result.stderr[-6000:])
+        cls.binaries = {}
+        for name, text in variants.items():
+            fixture = directory / (name + ".c")
+            fixture.write_text(text, encoding="utf-8")
+            binary = directory / name
+            command = compiler + ["-std=c17", "-Wall", "-Wextra", "-Werror", "-pthread",
+                                  "-I", str(source_path('common/include', root=ROOT)), "-I", str(ROOT), str(fixture)]
+            command += [str(source_path('common/src', root=ROOT) / name) for name in sources]
+            command += [str(source_path('connectors/profile_registry.c', root=ROOT)), "-o", str(binary)]
+            result = subprocess.run(command, capture_output=True, text=True, timeout=90, check=False)
+            if result.returncode:
+                raise AssertionError("host-action fixture compilation failed:\n" + result.stderr[-6000:])
+            cls.binaries[name] = binary
 
     def case(self, action: str, aborted: int, status: int, transport: str,
-             state: str = "normal") -> dict:
-        result = subprocess.run([str(self.binary), action, str(aborted), str(status), transport, state],
+             state: str = "normal", variant: str = "current") -> dict:
+        result = subprocess.run([str(self.binaries[variant]), action, str(aborted), str(status), transport, state],
                                 capture_output=True, text=True, timeout=10, check=False)
         self.assertEqual(result.returncode, 0, result.stderr[-2000:])
         return json.loads(result.stdout)
+
+    def test_response_limit_cannot_become_log_only_or_a_false_replacement(self) -> None:
+        for state in ("response-limit", "response-limit-committed"):
+            for action, status, transport in (("log", 200, "log_only"),
+                                               ("allow", 200, "completed"),
+                                               ("redirect", 302, "http_status"),
+                                               ("deny", 500, "http_status")):
+                with self.subTest(state=state, action=action):
+                    value = self.case(action, 0, status, transport, state)
+                    self.assertEqual((value["result"], value["emitted"], value["recorded"]), (0, 0, 0))
+                    self.assertEqual(value["error"], value["host_error"])
+        false_status = self.case("deny", 0, 403, "http_status", "response-limit-committed")
+        self.assertEqual((false_status["result"], false_status["emitted"]), (0, 0))
+
+    def test_native_denial_and_real_transport_stop_remain_available(self) -> None:
+        denial = self.case("deny", 0, 403, "http_status", "response-limit")
+        self.assertEqual((denial["result"], denial["emitted"]), (1, 1))
+        for action, aborted, transport in (("reset", 0, "stream_reset"),
+                                           ("abort", 1, "connection_aborted"),
+                                           ("drop", 1, "connection_aborted")):
+            value = self.case(action, aborted, 0, transport, "response-limit-committed")
+            self.assertEqual((value["result"], value["emitted"]), (1, 1))
+        rule = self.case("log", 0, 200, "log_only", "p4-rule")
+        self.assertEqual((rule["result"], rule["emitted"]), (1, 1))
+
+    def test_removing_the_p4_guard_reproduces_the_original_safe_downgrade(self) -> None:
+        value = self.case("log", 0, 200, "log_only", "response-limit-committed",
+                          "without-response-guard")
+        self.assertEqual((value["result"], value["emitted"], value["recorded"]), (1, 1, 1))
 
     def test_stream_reset_cannot_claim_connection_abort(self) -> None:
         for status in (0, 200, 500):

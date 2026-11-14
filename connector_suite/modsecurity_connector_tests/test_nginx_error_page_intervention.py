@@ -62,14 +62,23 @@ typedef struct request_s {
 } ngx_http_request_t;
 typedef struct {
     ngx_http_request_t *r;
-    const ngx_http_modsecurity_conf_t *conf;
+    struct {
+        ngx_pool_t *pool;
+        const ngx_http_modsecurity_conf_t *conf;
+        const char *cleanup_method;
+        const char *cleanup_uri;
+    } lifetime;
     void *modsec_transaction;
     msconnector_transaction_contract contract;
     int intervention_triggered, logged, request_policy_superseded;
     enum msconnector_phase native_event_phase;
-    ngx_int_t last_intervention_status, error_page_status, error_page_response_status;
+    ngx_int_t last_intervention_status;
     ngx_int_t request_error_status;
-    ngx_str_t error_page_target;
+    struct {
+        ngx_str_t target;
+        ngx_int_t status;
+        ngx_int_t response_status;
+    } error_page;
 } ngx_http_modsecurity_ctx_t;
 enum { NGX_OK = 0, NGX_ERROR = -1, NGX_DECLINED = -5, NGX_HTTP_INTERNAL_SERVER_ERROR = 500 };
 #define dd(...) ((void)0)
@@ -79,7 +88,8 @@ static int initializations;
 #define ngx_http_get_module_loc_conf(r, module) \
     ((module) == 1 ? (void *)(r)->conf : (void *)(r)->core)
 #define ngx_http_get_module_ctx(r, module) ((r)->ctx)
-#define ngx_http_set_ctx(r, context, module) ((r)->ctx = (context))
+/* NGINX's macro supplies the terminating semicolon itself. */
+#define ngx_http_set_ctx(r, context, module) ((r)->ctx = (context));
 #define ngx_strncmp(a,b,length) strncmp((const char *)(a),(const char *)(b),length)
 static u_char *ngx_strlchr(u_char *first, u_char *last, u_char c) {
     while (first < last) { if (*first == c) return first; ++first; }
@@ -150,7 +160,7 @@ int main(int argc, char **argv) {
     expected_request = &request;
     pool.cleanup = &cln;
     ctx.r = &request;
-    ctx.conf = &source;
+    ctx.lifetime.conf = &source;
     ctx.modsec_transaction = &ctx;
     ctx.native_event_phase = MSCONNECTOR_PHASE_REQUEST_BODY;
     ctx.last_intervention_status = 403;
@@ -206,7 +216,7 @@ int main(int argc, char **argv) {
     }
     if (strcmp(argv[1], "audit-all") == 0) {
         second = ctx;
-        second.conf = &target;
+        second.lifetime.conf = &target;
         foreign_ctx = ctx;
         foreign_ctx.r = &foreign;
         cln.next = &cln2;
@@ -218,7 +228,7 @@ int main(int argc, char **argv) {
         (void)ngx_http_modsecurity_access_handler(&request);
     found = ngx_http_modsecurity_get_module_ctx(&request) == &ctx;
     printf("%d %d %d %d %ld %d\n", found, request.ctx == &ctx,
-        audits, foreign_audits, (long)ctx.error_page_status, initializations);
+        audits, foreign_audits, (long)ctx.error_page.status, initializations);
     return 0;
 }
 """

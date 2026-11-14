@@ -111,6 +111,7 @@ typedef struct {
 } handler_ctx;
 static int fault;
 static int invalid_return;
+static int response_decision_kind;
 static int native_calls;
 static int status_calls;
 static int ack_calls;
@@ -221,6 +222,15 @@ int fixture_msconnector_runtime_transaction_finish_response_body(
     msconnector_error *e) {
   (void)t;
   msconnector_decision_init(d);
+  if (response_decision_kind == 1)
+    msconnector_decision_set_response_body_limit(d, "native Reject");
+  else if (response_decision_kind == 2) {
+    msconnector_decision_set_deny(d, 403, "900007", "genuine P4 rule");
+    d->phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+  } else if (response_decision_kind == 3) {
+    msconnector_decision_set_error(d, 500, "native engine failure");
+    d->phase = MSCONNECTOR_PHASE_RESPONSE_BODY;
+  }
   return native_result(e);
 }
 int fixture_msconnector_runtime_transaction_finish_request_body(
@@ -389,6 +399,10 @@ int lighttpd_modsecurity_visit_body_range(
 static int fixture_dispatch(int operation, request_st *r, plugin_data *p,
                             handler_ctx *ctx, const msconnector_runtime *runtime) {
   int result;
+  if (operation >= 12 && operation <= 14) {
+    response_decision_kind = operation - 11;
+    return mod_msconnector_finish_response_body(r, p, ctx);
+  }
   if (operation == 0)
     result = mod_msconnector_finish_request_body(r, p, ctx);
   else if (operation == 1)
@@ -474,6 +488,30 @@ typedef struct {
 static void fixture_verify(const fixture_verification_snapshot *snapshot,
                            request_st *r, plugin_data *p, handler_ctx *ctx,
                            const msconnector_runtime_transaction *tx) {
+  if (snapshot->operation >= 12 && snapshot->operation <= 14) {
+    assert(native_calls == 1);
+    if (snapshot->operation == 14) {
+      assert(snapshot->result == PLUGIN_BODY_HOOK_ERROR && ctx->technical_failed);
+      assert(status_calls == (snapshot->commit ? 0 : 1));
+      assert(r->http_status == (snapshot->commit ? 200 : 500));
+    } else if (snapshot->commit && snapshot->operation == 12) {
+      assert(snapshot->result == PLUGIN_BODY_HOOK_ERROR && ctx->technical_failed);
+      assert(status_calls == 0 && ack_calls == 0 && r->http_status == 200);
+    } else if (snapshot->commit && p->runtime->mode != MSCONNECTOR_PHASE4_MODE_OFF) {
+      /* Genuine EOS rules keep Safe behavior. Strict's transport capability
+       * remains unproven; this callback never manufactures abort evidence. */
+      assert(snapshot->result == PLUGIN_BODY_HOOK_CONTINUE && !ctx->technical_failed);
+      assert(status_calls == 0 && r->http_status == 200);
+      assert(ack_calls == (p->runtime->mode == MSCONNECTOR_PHASE4_MODE_SAFE ? 1 : 0));
+    } else if (snapshot->commit) {
+      assert(snapshot->result == PLUGIN_BODY_HOOK_ERROR && ctx->technical_failed);
+      assert(status_calls == 0 && r->http_status == 200);
+    } else {
+      assert(snapshot->result == PLUGIN_BODY_HOOK_ABORT && !ctx->technical_failed);
+      assert(status_calls == 1 && ack_calls == 1 && r->http_status == 403);
+    }
+    return;
+  }
   if (fault || snapshot->operation == 3 || snapshot->operation == 4) {
     assert(ctx->technical_failed || fault == 9);
     assert(snapshot->operation == 0 || snapshot->result == HANDLER_ERROR ||

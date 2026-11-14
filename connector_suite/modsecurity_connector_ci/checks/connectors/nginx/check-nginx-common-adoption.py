@@ -578,7 +578,7 @@ def c_checked_function(source, signature, allow_outer_include_guard=False):
 # and C whitespace are not the contract; inactive branches cannot satisfy it.
 def c_reviewed_contract_pattern(specification):
     active, _ = c_noncode_views(specification)
-    tokens = re.findall(r'[A-Za-z_]\w*|[0-9]+[UuLl]*|->|!=|==|>=|<=|\|\||&&|[^\s]', active)
+    tokens = re.findall(r'[A-Za-z_]\w*|(?a:\d)+[UuLl]*|->|!=|==|>=|<=|\|\||&&|[^\s]', active)
     return re.compile(r'\s*' + r'\s*'.join(re.escape(token) for token in tokens) + r'\s*')
 
 BODY_RESPONSE_BUFFER_CONTRACT_PATTERN = c_reviewed_contract_pattern(r"""

@@ -8,7 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "common/runtime/msconnector_runtime.h"
-#include "tests/transaction_phase_test_support.h"
+#include "transaction_phase_test_support.h"
 #include "connectors/profile_registry.h"
 #include "modsecurity/modsecurity.h"
 #include "modsecurity/rules_set.h"
