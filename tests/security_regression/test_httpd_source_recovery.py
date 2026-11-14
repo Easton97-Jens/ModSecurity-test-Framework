@@ -360,9 +360,9 @@ build_httpd_from_source
 
 
 class CurrentHttpdReleaseContractTests(unittest.TestCase):
-    source_url = "https://downloads.apache.org/httpd/httpd-2.4.70.tar.bz2"
-    release_sha = "1eefd7dc95836c5872894ce8e6a37f773d5a6764f0766869d39b8bcf0b1bafc3"
-    metadata_url = "https://dist.apache.org/repos/dist/!svn/bc/89127/release/httpd/httpd-2.4.70.tar.bz2.sha256"
+    source_url = "https://downloads.apache.org/httpd/httpd-2.4.71.tar.bz2"
+    release_sha = "2bc5da5a33c247341de082717d4ebcb5cb49e8b73a05b7fddf7d5d6dc2f8de62"
+    metadata_url = "https://dist.apache.org/repos/dist/!svn/bc/89368/release/httpd/httpd-2.4.71.tar.bz2.sha256"
 
     def run_current_helper(self, root, flag, **overrides):
         values = {
@@ -373,7 +373,7 @@ class CurrentHttpdReleaseContractTests(unittest.TestCase):
         values.update(overrides)
         arguments = [
             sys.executable, "-B", str(ROOT / "ci/provisioning/httpd-checksum-cache.py"),
-            "--archive", str(root / "httpd-2.4.70.tar.bz2"),
+            "--archive", str(root / "httpd-2.4.71.tar.bz2"),
             "--checksum", str(root / "httpd.sha256"), flag,
         ]
         for name, value in values.items():
@@ -385,11 +385,11 @@ class CurrentHttpdReleaseContractTests(unittest.TestCase):
         # rather than the candidate helper's constants or synthetic fixture.
         helper = runpy.run_path(str(ROOT / "ci/provisioning/httpd-checksum-cache.py"))
         self.assertEqual(helper["approved_contract"](), (self.source_url, self.release_sha))
-        metadata = (self.release_sha + " *httpd-2.4.70.tar.bz2\n").encode("ascii")
+        metadata = (self.release_sha + " *httpd-2.4.71.tar.bz2\n").encode("ascii")
         self.assertEqual(len(metadata), 87)
         self.assertEqual(
             hashlib.sha256(metadata).hexdigest(),
-            "f412d65db7585db8e5e20e0d10dd0e6deaa6a08f52ed07bd29437777b347d29e",
+            "70a701f5fb69bc96355859a4519bc00d17050135142ab57f5f7bf74a20eb7c8c",
         )
         self.assertEqual(helper["HTTPD_METADATA_SHA256"], hashlib.sha256(metadata).hexdigest())
         with tempfile.TemporaryDirectory(prefix="httpd-current-contract-") as temporary:
@@ -410,7 +410,7 @@ class CurrentHttpdReleaseContractTests(unittest.TestCase):
             {"expected-sha": ""},
             {"expected-sha": "bad"},
             {"expected-sha": "b" * 64},
-            {"source-url": "https://example.invalid/httpd/httpd-2.4.70.tar.bz2"},
+            {"source-url": "https://example.invalid/httpd/httpd-2.4.71.tar.bz2"},
             {"checksum-url": "https://example.invalid/checksum"},
             {"source-url": unknown, "checksum-url": unknown + ".sha256"},
             {"source-url": self.source_url + "?other=1"},

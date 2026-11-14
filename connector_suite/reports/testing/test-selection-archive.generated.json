@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "31844f85be0b9485ed091157f2b1bd320b2e069fa611b381365ee5e073a7bee7",
+  "inventory_sha256": "756410ab7f382ee2bff625bd70887da6d790564d0c71750edb76a7ccaa521445",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -14428,7 +14428,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_httpd_source_recovery.CurrentHttpdReleaseContractTests.test_current_production_cli_rejects_mutated_release_tuples_before_cache_io"
       ],
       "source": "framework/tests/security_regression/test_httpd_source_recovery.py",
-      "source_sha256": "b73d7cca204f073a35a31914f85fda10a7260f7413785ba41ef2e155871db9db"
+      "source_sha256": "3b43f5887a028db528835f3f47ca101c0668026767d1852cdb31499ce0e40911"
     },
     {
       "contains_selected_definitions": [],
