@@ -118,6 +118,26 @@ bleiben bis zur unabhängigen Klärung von den korrigierten PR-Kontexten getrenn
 
 ## Finaler Diff- und Review-Status
 
+Die kanonische Git-Fixture des Kandidatenprüfers committet nun den tatsächlichen
+Diagnosebegleiter zusammen mit dem vertrauenswürdigen Parser und versieht
+Kandidaten-Parser, Begleiter und Paketinitialisierer mit Ausführungssperren.
+Weitere Varianten mit echtem Git prüfen eine ausdrücklich minimale begleiterfreie
+Loader-Fixture, fehlende oder ungültige Begleiter-Blobs, falsche Exporttypen,
+ungeprüfte Imports und unveränderten umgebenden Importzustand. Getrennte lokale
+Prüfungen luden die tatsächlichen historischen Parser `62b411` und `31531f` aus
+unveränderlichem Git und expandierten deren tatsächliche Workflow-Daten ohne
+Begleiter; CI-Fixtures benötigen diese historischen Objekte nicht. Die erste
+Korrektur bestand alle 40 kanonischen Prüfermethoden ohne Fehlschläge, Fehler
+oder Skips; die ursprüngliche Parent-Python-3.14-Kandidatenprüfung von `15f2e2`
+nach `476ada7` endete mit Exit 0. Weitere Quellsnapshots behalten getrennte
+Wiederholungsbelege. Der Parent-Prüfer besitzt die Korrektur des geschlossenen
+Loaders; geschützter Publisher und feste Diagnoseaktion bleiben unverändert.
+Native Generierung und anschließende Aktualitätsprüfung endeten jeweils mit
+Exit 0. Alle 8319 vorhandenen archivierten Definitionen blieben erhalten;
+vier ergänzte Methoden erhöhten die Zahl auf 8323. Die 100 Standardfälle und
+80 Standardselektoren sind unverändert. Die Prüfung des endgültigen committeten
+Paars und gehostete Analyse stehen aus; kein Laufzeitergebnis wird behauptet.
+
 Die Wartungsabstimmung vom 2026-11-14 erhält die aktuellen Master-Toolupdates,
 einschließlich der geprüften Sonar-v8.4.1-Action-Identität. Das private
 Diagnoseprogramm bleibt auf seinen unveränderten geprüften Commit gepinnt.

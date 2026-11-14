@@ -114,6 +114,24 @@ the corrected PR contexts until independently reconciled.
 
 ## Final diff and review status
 
+The canonical candidate-verifier Git fixture now commits the real diagnostic
+companion together with the trusted parser and poisons candidate parser,
+companion and package initializer sources. Additional real-Git variants cover
+an explicitly minimal companion-free loader fixture, missing or invalid companion
+blobs, wrong export types, unreviewed imports and unchanged ambient import state.
+Separate local checks loaded the genuine historical `62b411` and `31531f` parsers
+from immutable Git and expanded their actual workflow data without a companion;
+CI fixtures do not depend on those historical objects. The initial correction
+passed all 40 canonical verifier methods without failures, errors or skips, and
+the original Parent Python 3.14 candidate check from `15f2e2` to `476ada7` returned
+exit 0. Follow-up source snapshots retain separate rerun evidence. The Parent
+verifier owns the closed-loader correction; the protected publisher and frozen
+diagnostic executable are unchanged. Native generation and its subsequent
+freshness check both returned exit 0. All 8319 existing archived definitions
+were retained; four authored methods increased the count to 8323. The 100
+default cases and 80 default selectors are unchanged. Final committed-pair
+validation and hosted analysis remain pending; no runtime result is claimed.
+
 Maintenance reconciliation on 2026-11-14 preserves the current master tool
 updates, including the reviewed Sonar v8.4.1 action identity. The private
 diagnostic executable remains pinned to its unchanged reviewed commit. A Git

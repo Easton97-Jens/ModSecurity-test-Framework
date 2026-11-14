@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "472f9854da0214ba143ffa194346583837f6c84312a7b7b6b694300b4abeae9b",
+  "inventory_sha256": "75a5feda3425e768cedad7b2a51c0167e0c090ba44819896db37da417bdb5662",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 8319,
+  "on_demand_definition_count": 8323,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -12020,6 +12020,10 @@
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateContractTests.test_unsafe_candidate_expression_fails_before_parent_projection",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateContractTests.test_cli_reports_the_verified_candidate",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateContractTests.test_cli_rejects_an_invalid_expected_parent_framework_sha",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_trusted_companion_ignores_candidate_and_ambient_packages",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_companion_free_git_parser_module_needs_no_companion",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_invalid_trusted_companion_is_rejected_without_checkout_fallback",
+        "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_unreviewed_trusted_imports_fail_before_side_effects",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_explicit_candidate_mrts_requires_real_approved_pair_and_default_stays_locked",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_explicit_candidate_mrts_refuses_malformed_missing_mismatch_and_dishonest_old_lock",
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_explicit_candidate_mrts_refuses_symlink_authority_and_missing_gitlink",
@@ -12029,7 +12033,7 @@
         "modsecurity_connector_tests.test_verify_framework_candidate_contract.VerifyFrameworkCandidateGitContextTests.test_missing_selected_action_blob_is_rejected"
       ],
       "source": "tests/test_verify_framework_candidate_contract.py",
-      "source_sha256": "b616b29c168404c573592ff51a703287b1cfcf1250c69ad0ca0da309cb85fcfa"
+      "source_sha256": "0748b8ffacc075ef237ecbdf90ac18253e1333ce8c25b1fba47166f2b4f14d94"
     },
     {
       "contains_selected_definitions": [],

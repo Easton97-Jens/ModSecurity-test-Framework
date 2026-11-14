@@ -568,6 +568,9 @@ class VerifyFrameworkCandidateGitContextTests(unittest.TestCase):
         parser = (test_root() / "modsecurity_test_framework/workflow_sources.py").read_text()
         self.write(self.framework, "modsecurity_test_framework/workflow_sources.py",
                    parser if version == "1.31.6" else "raise AssertionError('candidate parser executed')\n")
+        companion = (test_root() / "modsecurity_test_framework/sonar_diagnostics_contract.py").read_text()
+        self.write(self.framework, "modsecurity_test_framework/sonar_diagnostics_contract.py",
+                   companion if version == "1.31.6" else "raise AssertionError('candidate companion executed')\n")
         self.write(self.framework, "modsecurity_test_framework/__init__.py", "raise AssertionError('candidate imported')\n")
         values = {"source_mode": "github-release", "source_repository": "https://github.com/nginx/nginx",
                   "release_tag": "release-" + version, "source_ref": "release-" + version,
@@ -594,6 +597,133 @@ class VerifyFrameworkCandidateGitContextTests(unittest.TestCase):
         self.git(self.framework, "add", ".")
         self.git(self.framework, "commit", "-qm", version)
         return self.git(self.framework, "rev-parse", "HEAD")
+
+    def trusted_parser_variant(self, changes, *, symlink_companion=False):
+        """Commit actual fixture objects; retain a poisoned candidate checkout."""
+        self.git(self.framework, "checkout", "-q", self.old)
+        for relative, contents in changes.items():
+            path = self.framework / relative
+            if contents is None:
+                path.unlink()
+            elif isinstance(contents, bytes):
+                path.write_bytes(contents)
+            else:
+                self.write(self.framework, relative, contents)
+        if symlink_companion:
+            companion = self.framework / "modsecurity_test_framework/sonar_diagnostics_contract.py"
+            companion.unlink()
+            companion.symlink_to("unreviewed-diagnostics.py")
+        self.git(self.framework, "add", "--", "modsecurity_test_framework")
+        self.git(self.framework, "commit", "-qm", "trusted parser variant")
+        trusted = self.git(self.framework, "rev-parse", "HEAD")
+        self.git(self.root, "update-index", "--cacheinfo",
+                 "160000," + trusted + ",modules/ModSecurity-test-Framework")
+        self.git(self.root, "commit", "-qm", "select trusted parser variant")
+        self.select(trusted, "1.31.6", "a" * 64)
+        self.git(self.framework, "checkout", "-q", self.new)
+        return trusted
+
+    def test_trusted_companion_ignores_candidate_and_ambient_packages(self):
+        from types import ModuleType
+        from unittest.mock import patch
+
+        poison = ModuleType("ambient_diagnostics")
+        poison.ACTION_PATH = "unreviewed"
+        poison.REFERENCE = "unreviewed"
+        poison.scanner_step = lambda *_args: self.fail("ambient companion executed")
+        injected = {
+            "_parent_trusted_framework": poison,
+            "_parent_trusted_framework.sonar_diagnostics_contract": poison,
+            "modsecurity_test_framework.sonar_diagnostics_contract": poison,
+        }
+        before_path = sys.path[:]
+        with patch.dict(sys.modules, injected):
+            before_modules = {
+                key: value for key, value in sys.modules.items()
+                if key.startswith(("modsecurity_test_framework", "_parent_trusted_framework"))
+            }
+            self.assertEqual(self.verify(self.old, self.new)["release_tag"], "release-1.31.6")
+            after_modules = {
+                key: value for key, value in sys.modules.items()
+                if key.startswith(("modsecurity_test_framework", "_parent_trusted_framework"))
+            }
+            self.assertEqual(before_modules, after_modules)
+            self.assertEqual(before_path, sys.path)
+
+    def test_companion_free_git_parser_module_needs_no_companion(self):
+        # This minimal loader fixture makes no production-parser parity claim.
+        # Genuine historical parser compatibility is verified separately.
+        parser = ("from __future__ import annotations\nimport json\n"
+                  "PARSER_FIXTURE = 'companion-free'\n"
+                  "def expand_workflow_source(text, **_kwargs):\n"
+                  "    return json.loads(text)['value']\n")
+        trusted = self.trusted_parser_variant({
+            "modsecurity_test_framework/workflow_sources.py": parser,
+            "modsecurity_test_framework/sonar_diagnostics_contract.py": None,
+        })
+        before_path = sys.path[:]
+        before_modules = {
+            key: value for key, value in sys.modules.items()
+            if key.startswith(("modsecurity_test_framework", "_parent_trusted_framework"))
+        }
+        namespace = VERIFIER._trusted_workflow_parser(self.framework, trusted)
+        self.assertEqual(namespace["PARSER_FIXTURE"], "companion-free")
+        self.assertEqual(namespace["expand_workflow_source"]('{"value": "fixture-result"}'),
+                         "fixture-result")
+        self.assertNotIn("SONAR_ACTION_PATH", namespace)
+        after_modules = {
+            key: value for key, value in sys.modules.items()
+            if key.startswith(("modsecurity_test_framework", "_parent_trusted_framework"))
+        }
+        self.assertEqual(before_modules, after_modules)
+        self.assertEqual(before_path, sys.path)
+
+    def test_invalid_trusted_companion_is_rejected_without_checkout_fallback(self):
+        relative = "modsecurity_test_framework/sonar_diagnostics_contract.py"
+        valid = (test_root() / relative).read_bytes()
+        cases = (
+            ("missing", None, False, "regular blob"),
+            ("symlink", valid, True, "regular blob"),
+            ("oversized", b"#" * (VERIFIER.MAX_INPUT_BYTES + 1), False, "size limit"),
+            ("non-UTF8", b"\xff", False, "UTF-8"),
+            ("missing-export", b"ACTION_PATH = 'reviewed'\nREFERENCE = 'reviewed'\n",
+             False, "diagnostics exports"),
+            ("wrong-path-type", valid + b"\nACTION_PATH = 1\n", False, "diagnostics exports"),
+            ("wrong-reference-type", valid + b"\nREFERENCE = 1\n", False, "diagnostics exports"),
+            ("noncallable-helper", valid + b"\nscanner_step = False\n", False, "diagnostics exports"),
+            ("syntax-error", b"invalid syntax (\n", False, "parser closure"),
+        )
+        for label, contents, symlink, error in cases:
+            with self.subTest(case=label):
+                trusted = self.trusted_parser_variant({relative: contents},
+                                                      symlink_companion=symlink)
+                with self.assertRaisesRegex(VERIFIER.ContractError, error):
+                    self.verify(trusted, self.new)
+
+    def test_unreviewed_trusted_imports_fail_before_side_effects(self):
+        relative = "modsecurity_test_framework/workflow_sources.py"
+        parser = (test_root() / relative).read_text()
+        marker = Path(self.temporary.name) / "unreviewed-import-executed"
+        cases = (
+            "from .unreviewed import marker",
+            "from .sonar_diagnostics_contract import validate_frozen_metadata",
+            "from .sonar_diagnostics_contract import *",
+            "from ..sonar_diagnostics_contract import scanner_step",
+            "from .connector_context import test_root",
+            "from .workflow_sources import _read",
+            "import subprocess",
+        )
+        for statement in cases:
+            with self.subTest(statement=statement):
+                suffix = "\n" + statement + "\nPath(" + repr(str(marker)) + ").write_text('executed')\n"
+                unknown = "from pathlib import Path\nPath(" + repr(str(marker)) + ").write_text('executed')\n"
+                trusted = self.trusted_parser_variant({
+                    relative: parser + suffix,
+                    "modsecurity_test_framework/unreviewed.py": unknown,
+                })
+                with self.assertRaisesRegex(VERIFIER.ContractError, "unsupported trusted Framework import"):
+                    self.verify(trusted, self.new)
+                self.assertFalse(marker.exists())
 
     def select(self, revision, version, digest):
         lock = {"schema_version": 1, "framework_sha": revision, "mrts_sha": "c" * 40,
