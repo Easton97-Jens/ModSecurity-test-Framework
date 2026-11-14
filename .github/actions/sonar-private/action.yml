@@ -1,0 +1,18 @@
+name: Private Sonar diagnostics
+description: Capture the pinned official action privately and report bounded diagnostic facts.
+inputs:
+  owner-mode:
+    description: Exact framework or parent-cpp17/20/23 analysis contract.
+    required: true
+  upstream-action:
+    description: Canonically pinned official Sonar action reference.
+    required: true
+  scannerVersion:
+    description: Existing reviewed scanner version.
+    required: true
+  args:
+    description: Exact existing scanner arguments; scope changes are rejected.
+    required: true
+runs:
+  using: node24
+  main: main.cjs

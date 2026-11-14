@@ -5,6 +5,7 @@ from modsecurity_test_framework.connector_context import connector_root
 import json
 from pathlib import Path
 import re
+from modsecurity_test_framework.sonar_diagnostics_contract import REFERENCE as SONAR_PRIVATE_REFERENCE
 
 SOURCE_ROOT = connector_root()
 LOCK_PATH = "ci/tooling/project-versions.lock.json"
@@ -51,8 +52,11 @@ def _render_fixture_workflows(root, framework_sha):
             raise ValueError("copied workflow must not be a symlink")
         original_workflow = workflow.read_text()
         rendered = original_workflow
+        frozen_marker = "__reviewed_private_sonar_reference__"
+        rendered = rendered.replace(SONAR_PRIVATE_REFERENCE, frozen_marker)
         for pattern in patterns:
             rendered = re.sub(pattern, lambda match: match[1] + framework_sha, rendered)
+        rendered = rendered.replace(frozen_marker, SONAR_PRIVATE_REFERENCE)
         if rendered != original_workflow:
             workflow.write_text(rendered)
 

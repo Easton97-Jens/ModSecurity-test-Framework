@@ -1079,6 +1079,30 @@ func TestStrictPolicyIsRejectedBeforeStreamAdmission(t *testing.T) {
 	}
 }
 
+func TestCommittedStrictDecisionRequestsNativeLocalReply(t *testing.T) {
+	t.Parallel()
+	state := &streamState{config: testConfig(LateActionStrict), responseCommitted: true, responseStatus: 200}
+	response, terminal, err := state.responseForDecision(phaseResponseBody, Decision{Action: ActionDeny, Status: 403}, true)
+	if err != nil || !terminal || response.GetImmediateResponse() == nil {
+		t.Fatalf("responseForDecision(committed strict deny) = response=%v terminal=%t err=%v, want terminal ImmediateResponse", response, terminal, err)
+	}
+	if response.GetImmediateResponse().GetStatus().GetCode() != 403 {
+		t.Errorf("responseForDecision(committed strict deny).status = %v, want 403", response.GetImmediateResponse().GetStatus())
+	}
+	if state.pendingHostAction != nil {
+		t.Errorf("responseForDecision(committed strict deny).pendingHostAction = %v, want nil until native outcome is observed", state.pendingHostAction)
+	}
+	if state.summary.LateAction != LateActionStrictRequested {
+		t.Errorf("responseForDecision(committed strict deny).LateAction = %q, want requested before Send", state.summary.LateAction)
+	}
+	if err := state.recordSuccessfulResponseEvidence(context.Background(), nil, response); err != nil {
+		t.Fatalf("recordSuccessfulResponseEvidence(late ImmediateResponse) = %v, want nil", err)
+	}
+	if state.summary.LateAction != LateActionStrictSent {
+		t.Errorf("recordSuccessfulResponseEvidence(late ImmediateResponse).LateAction = %q, want sent", state.summary.LateAction)
+	}
+}
+
 func TestLatePolicyAdmissionDelegatesToRuleEvaluatingEngine(t *testing.T) {
 	engine := &policyValidationEngine{
 		recordingEngine: recordingEngine{transaction: &recordingTransaction{}},

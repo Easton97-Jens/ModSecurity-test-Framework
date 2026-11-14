@@ -1863,5 +1863,70 @@ jobs:
         self.assertFalse(FETCHER.is_safe_archive_member("/absolute"))
 
 
+class PrivateSonarSourceRoleTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.path = ROOT / ".github/workflows/sonarqube.yml"
+        self.data = CHECKER.load_yaml(self.path)
+        self.actions, _tools, errors = CHECKER.load_lock(LOCK_PATH)
+        self.assertEqual(errors, [])
+
+    def assert_role_rejected(self, data, path=None) -> None:
+        path = path or self.path
+        text = CHECKER.yaml.safe_dump(data, sort_keys=False)
+        self.assertTrue(CHECKER.pin_errors(path, text, self.actions))
+        self.assertTrue(CHECKER.parsed_action_lock_errors(path, data, self.actions))
+
+    def test_complete_current_role_passes_both_pin_passes(self) -> None:
+        text = self.path.read_text(encoding="utf-8")
+        self.assertEqual(CHECKER.pin_errors(self.path, text, self.actions), [])
+        self.assertEqual(
+            CHECKER.parsed_action_lock_errors(self.path, self.data, self.actions), []
+        )
+
+    def test_source_role_rejects_wrong_path_job_fields_and_duplicates(self) -> None:
+        self.assert_role_rejected(
+            self.data, ROOT / ".github/workflows/nested/sonarqube.yml"
+        )
+        self.assert_role_rejected(self.data, ROOT / ".github/workflows/other.yml")
+        copied = CHECKER.yaml.safe_load(CHECKER.yaml.safe_dump(self.data))
+        copied["jobs"]["other"] = copied["jobs"].pop("sonarqube")
+        self.assert_role_rejected(copied)
+        for field, value in (
+            (
+                "uses",
+                "Easton97-Jens/ModSecurity-test-Framework/.github/actions/other-node@"
+                + "a" * 40,
+            ),
+            (
+                "uses",
+                "Easton97-Jens/ModSecurity-test-Framework/.github/actions/sonar-private@"
+                + "a" * 40,
+            ),
+            ("owner-mode", "parent-cpp17"),
+            ("scannerVersion", "0.0.0"),
+            ("upstream-action", "SonarSource/sonarqube-scan-action@" + "a" * 40),
+            ("args", "-Dsonar.exclusions=**/*"),
+            ("env", {"SONAR_TOKEN": "${{ secrets.OTHER_TOKEN }}"}),
+        ):
+            with self.subTest(field=field):
+                data = CHECKER.yaml.safe_load(CHECKER.yaml.safe_dump(self.data))
+                step = data["jobs"]["sonarqube"]["steps"][-1]
+                (step if field in ("uses", "env") else step["with"])[field] = value
+                self.assert_role_rejected(data)
+        data = CHECKER.yaml.safe_load(CHECKER.yaml.safe_dump(self.data))
+        data["jobs"]["sonarqube"]["steps"].append(
+            data["jobs"]["sonarqube"]["steps"][-1].copy()
+        )
+        self.assert_role_rejected(data)
+
+    def test_upstream_lock_and_generic_release_checks_remain_required(self) -> None:
+        self.actions.pop("SonarSource/sonarqube-scan-action", None)
+        self.assert_role_rejected(self.data)
+        reference = "actions/checkout@" + "a" * 40
+        self.assertTrue(
+            CHECKER.action_pin_errors(self.path, 1, reference, "v999.0.0", self.actions)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

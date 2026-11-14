@@ -554,6 +554,9 @@ CI_OSV_LEGACY_BASE_VERSION="3.13.14"
 CI_ACTION_SONARQUBE_SCAN_REPOSITORY="SonarSource/sonarqube-scan-action"
 CI_ACTION_SONARQUBE_SCAN_VERSION="v8.4.1"
 CI_ACTION_SONARQUBE_SCAN_COMMIT="e805d875275f728fac1885b413934be6d7c63f65"
+CI_SONAR_DIAGNOSTIC_REPOSITORY="Easton97-Jens/ModSecurity-test-Framework"
+CI_SONAR_DIAGNOSTIC_ACTION_PATH=".github/actions/sonar-private"
+CI_SONAR_DIAGNOSTIC_COMMIT="9ae8ecc4f686e9cc70413e5494bc098a24eb18d7"
 CI_ACTION_CHECKOUT_REPOSITORY="actions/checkout"
 CI_ACTION_CHECKOUT_VERSION="v7.0.1"
 CI_ACTION_CHECKOUT_COMMIT="3d3c42e5aac5ba805825da76410c181273ba90b1"
@@ -2619,10 +2622,15 @@ ci_modsecurity_v3_require_host_git() {
         ci_blocked "ModSecurity v3 host Git must be root-owned: $ci_v3_host_git_bin"
         return 77
     fi
-    if [ "$((0$ci_v3_host_git_mode & 022))" -ne 0 ]; then
-        ci_blocked "ModSecurity v3 host Git must not be group- or world-writable: $ci_v3_host_git_bin"
-        return 77
-    fi
+    case "$ci_v3_host_git_mode" in
+        *[2367]|*[2367][0-7])
+            ci_blocked "ModSecurity v3 host Git must not be group- or world-writable: $ci_v3_host_git_bin"
+            return 77
+            ;;
+        *)
+            :
+            ;;
+    esac
     return 0
 }
 
@@ -2779,10 +2787,15 @@ ci_modsecurity_v3_create_private_fresh_root() {
         ci_blocked "ModSecurity v3 private source root must be owned by the current user: $ci_v3_private_root"
         return 77
     fi
-    if [ "$((0$ci_v3_private_mode & 077))" -ne 0 ]; then
-        ci_blocked "ModSecurity v3 private source root must not grant group or other access: $ci_v3_private_root"
-        return 77
-    fi
+    case "$ci_v3_private_mode" in
+        *[1-7]|*[1-7][0-7])
+            ci_blocked "ModSecurity v3 private source root must not grant group or other access: $ci_v3_private_root"
+            return 77
+            ;;
+        *)
+            :
+            ;;
+    esac
     return 0
 }
 

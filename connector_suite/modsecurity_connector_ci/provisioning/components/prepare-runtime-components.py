@@ -2536,6 +2536,15 @@ def httpd_archive_recovery_url(url: str, expected_sha: str) -> str:
     )
     if match is None:
         raise RuntimeError("httpd_source_recovery_requires_canonical_release_url")
+    # The current retired release has a separately reviewed immutable official
+    # distribution object. Other release recovery retains its existing policy.
+    from modsecurity_test_framework.connector_context import load_source
+    metadata = load_source(test_root() / "ci/provisioning/httpd-checksum-cache.py")
+    if metadata.is_reviewed_release(url):
+        try:
+            return metadata.metadata_source(url, url + ".sha256", expected_sha).removesuffix(".sha256")
+        except ValueError as error:
+            raise RuntimeError("httpd_immutable_distribution_identity_mismatch") from error
     return f"https://archive.apache.org/dist/httpd/{match.group(1)}"
 
 
@@ -2549,6 +2558,8 @@ def download_httpd_source_archive(url: str, dest: Path, expected_sha: str) -> st
             with opener.open(selected_url, timeout=60) as response:
                 if response.geturl() != selected_url:
                     raise RuntimeError("httpd_source_redirect_forbidden")
+                if response.status != 200:
+                    raise RuntimeError("httpd_source_requires_direct_http_200")
                 return response.read()
         except urllib.error.HTTPError as error:
             error.close()
@@ -2907,6 +2918,18 @@ def prepare_archive_with_lock(
         return record
 
 
+def record_archive_acquisition(record: dict[str, Any], url: str, acquired_url: str | None) -> None:
+    if acquired_url is None:
+        return
+    record["download_url"] = acquired_url
+    if acquired_url != url:
+        record["source_recovery"] = (
+            "official_httpd_immutable_distribution_after_direct_404"
+            if acquired_url.startswith("https://dist.apache.org/repos/dist/!svn/bc/")
+            else "official_httpd_archive_after_direct_404"
+        )
+
+
 def prepare_archive_unlocked(
     record: dict[str, Any],
     name: str,
@@ -2944,10 +2967,7 @@ def prepare_archive_unlocked(
         verify_digest_before_archive_list=verify_digest_before_archive_list,
         allow_httpd_source_recovery=allow_httpd_source_recovery,
     )
-    if acquired_url is not None:
-        record["download_url"] = acquired_url
-        if acquired_url != url:
-            record["source_recovery"] = "official_httpd_archive_after_direct_404"
+    record_archive_acquisition(record, url, acquired_url)
     size = path.stat().st_size
     if size <= 0:
         return corrupt_archive_record(record, path, managed_root, "empty_archive")
@@ -5803,8 +5823,12 @@ def connector_input_paths(connector_root: Path, framework_root: Path, connector:
     paths = [connector_root / "connectors" / connector, *common_paths]
     if framework_script:
         paths.append(framework_script)
-    if connector == "nginx":
-        # The NGINX module uses the canonical profile registry in addition to
+    if connector == "apache":
+        paths.append(framework_root / "ci/provisioning/httpd-checksum-cache.py")
+        # Bind the native HTTPD dependency correction into Apache cache identity.
+        paths.append(framework_root / "ci/provisioning/patches/apache")
+    if connector in {"apache", "nginx"}:
+        # Both native modules use the canonical profile registry in addition to
         # its materialized adapter/Common sources.  Bind both files directly
         # into the source hash so a registry-only revision cannot reuse an old
         # connector artifact when connector_commit is intentionally ignored.
@@ -5814,9 +5838,13 @@ def connector_input_paths(connector_root: Path, framework_root: Path, connector:
                 connector_root / "connectors/profile_registry.h",
             ]
         )
+    if connector == "nginx":
         # common.sh owns the protocol profile defaults and pinned TLS source
         # inputs, so changing it must invalidate an NGINX host build.
         paths.append(framework_root / "ci/lib/common.sh")
+        # Versioned native-host fixes are build inputs, just like the script
+        # that applies them. Never reuse an unpatched or differently patched host.
+        paths.append(framework_root / "ci/provisioning/patches/nginx")
     return paths
 
 
@@ -6496,6 +6524,11 @@ def apache_log_reports_missing_expat_header(text: str) -> bool:
 
 def map_apache_blocker(text: str, missing: list[str]) -> str:
     lowered = text.lower()
+    if any(message in lowered for message in (
+        "apache_poc: blocked could not download the reviewed archived httpd release",
+        "apache_poc: blocked could not download the reviewed httpd artifact",
+    )):
+        return "httpd_source_download_failed"
     if "undefined reference to `crypt" in lowered or "undefined reference to 'crypt" in lowered:
         return "missing_crypt_library"
     # Build commands legitimately contain the managed Expat prefix.  Do not
@@ -7482,6 +7515,8 @@ def claim_apache_cache_entry(plan: dict[str, Any], cache_root: Path) -> str:
 
 
 def apache_blocker_details(blocker: str, env: dict[str, str]) -> dict[str, Any]:
+    if blocker == "httpd_source_download_failed":
+        return {"build_component": "apache_httpd_source_acquisition", "source_url": env.get("HTTPD_SOURCE_URL", "")}
     if blocker == "missing_expat_headers":
         return {
             "missing_file": EXPAT_HEADER_FILENAME,
@@ -7615,6 +7650,20 @@ def build_apache_source(
         blocker_reason=blocker,
         missing_files=missing,
         **apache_blocker_details(blocker, env),
+    )
+    write_json(
+        build_root / "logs/runtime-components/apache-build-failure.json",
+        {
+            "schema_version": 1,
+            "record_type": "apache_component_build_failure",
+            "status": "FAIL",
+            "build_exit_code": proc.returncode,
+            "blocker_reason": blocker,
+            "missing_files": missing,
+            "connector_build_id": record.get("connector_build_id", ""),
+            "httpd_version": env.get("HTTPD_VERSION", ""),
+            "httpd_sha256": env.get("HTTPD_SHA256", ""),
+        },
     )
     return ready, missing, False
 
