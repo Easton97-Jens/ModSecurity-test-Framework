@@ -1355,7 +1355,7 @@
       "source_sha256": "c4b5192448e9045e6b1255fefa549ed45f470c30390ec58c611782069ad58449"
     }
   ],
-  "on_demand_definition_count": 8469,
+  "on_demand_definition_count": 8476,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -10096,6 +10096,21 @@
       ],
       "source": "tests/test_python_version_contract.py",
       "source_sha256": "805787d166045e7f2bd6d640d6ee3fd13362e54bf5419e61f1bceef5d7628734"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_remaining_connectors_c_standard_temp.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_remaining_connectors_c_standard_temp.RemainingConnectorsCStandardTempTests.test_private_namespace_tmpdir_without_runner_temp",
+        "modsecurity_connector_tests.test_remaining_connectors_c_standard_temp.RemainingConnectorsCStandardTempTests.test_existing_runner_temp_contract_without_tmpdir",
+        "modsecurity_connector_tests.test_remaining_connectors_c_standard_temp.RemainingConnectorsCStandardTempTests.test_runner_temp_retains_precedence",
+        "modsecurity_connector_tests.test_remaining_connectors_c_standard_temp.RemainingConnectorsCStandardTempTests.test_missing_explicit_parents_prevent_compilation",
+        "modsecurity_connector_tests.test_remaining_connectors_c_standard_temp.RemainingConnectorsCStandardTempTests.test_empty_runner_temp_is_not_replaced_by_tmpdir",
+        "modsecurity_connector_tests.test_remaining_connectors_c_standard_temp.RemainingConnectorsCStandardTempTests.test_nonexistent_runner_temp_is_not_replaced_by_tmpdir",
+        "modsecurity_connector_tests.test_remaining_connectors_c_standard_temp.RemainingConnectorsCStandardTempTests.test_compile_failure_remains_failure_and_cleans_private_output"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_remaining_connectors_c_standard_temp.py",
+      "source_sha256": "12a0db08b2b2beacc5fb24db330d2fdc81e6a89ff876aa97d8a4762b932d2d95"
     },
     {
       "contains_selected_definitions": [],

@@ -90,8 +90,9 @@ run_profile() {
   profile=$1
   std=""
   detect_std "$profile" || return "$?"
-  : "${RUNNER_TEMP:?RUNNER_TEMP must select an existing external output parent}"
-  tmp=$(mktemp -d "$RUNNER_TEMP/remaining-connectors-standards-$profile.XXXXXX")
+  temp_parent=${RUNNER_TEMP-${TMPDIR-}}
+  : "${temp_parent:?RUNNER_TEMP or TMPDIR must select an existing external output parent}"
+  tmp=$(mktemp -d "$temp_parent/remaining-connectors-standards-$profile.XXXXXX")
   compile_one() {
     src=$1
     obj=$2
