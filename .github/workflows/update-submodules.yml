@@ -32,6 +32,7 @@ jobs:
     timeout-minutes: 15
     outputs:
       candidate_sha: ${{ steps.resolve.outputs.candidate_sha }}
+      current_sha: ${{ steps.resolve.outputs.current_sha }}
       changed: ${{ steps.resolve.outputs.changed }}
     steps:
       - name: Checkout Framework metadata
@@ -58,7 +59,15 @@ jobs:
             exit 1
           fi
 
+          if [ "$candidate_sha" != "$current_sha" ]; then
+            lineage_repo="$(mktemp -d "$RUNNER_TEMP/mrts-resolve-lineage.XXXXXX")"
+            git init --bare "$lineage_repo"
+            git -c protocol.file.allow=never -C "$lineage_repo" fetch --no-tags "$SUBMODULE_URL" "$current_sha" "$candidate_sha"
+            bash ci/tools/verify-mrts-update-lineage.sh "$lineage_repo" "$current_sha" "$candidate_sha"
+          fi
+
           printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+          printf 'current_sha=%s\n' "$current_sha" >> "$GITHUB_OUTPUT"
           if [ "$candidate_sha" = "$current_sha" ]; then
             printf 'changed=false\n' >> "$GITHUB_OUTPUT"
             echo "No MRTS submodule changes detected."
@@ -77,6 +86,7 @@ jobs:
     timeout-minutes: 20
     env:
       CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
+      CURRENT_GITLINK_SHA: ${{ needs.resolve-submodule-update.outputs.current_sha }}
     steps:
       - name: Checkout candidate for read-only validation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -102,8 +112,15 @@ jobs:
             echo "Candidate MRTS revision is not a full SHA-1: $CANDIDATE_SHA" >&2
             exit 1
           fi
+          actual_current_sha="$(git ls-tree HEAD -- "$SUBMODULE_PATH" | awk '{ print $3 }')"
+          if [ "$actual_current_sha" != "$CURRENT_GITLINK_SHA" ]; then
+            echo "Framework MRTS gitlink changed after resolution; refusing stale validation." >&2
+            exit 1
+          fi
           git submodule update --init -- "$SUBMODULE_PATH"
+          git -C "$SUBMODULE_PATH" fetch --no-tags origin "$CURRENT_GITLINK_SHA"
           git -C "$SUBMODULE_PATH" fetch --no-tags origin "$CANDIDATE_SHA"
+          bash ci/tools/verify-mrts-update-lineage.sh "$SUBMODULE_PATH" "$CURRENT_GITLINK_SHA" "$CANDIDATE_SHA"
           git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
 
       - name: Run Framework quick check without write permissions
@@ -225,6 +242,15 @@ jobs:
           set -euo pipefail
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          current_sha="$(git ls-tree "origin/$DEFAULT_BRANCH" -- "$SUBMODULE_PATH" | awk '{ print $3 }')"
+          lineage_repo="$(mktemp -d "$RUNNER_TEMP/mrts-publish-lineage.XXXXXX")"
+          git init --bare "$lineage_repo"
+          git -c protocol.file.allow=never -C "$lineage_repo" fetch --no-tags "$SUBMODULE_URL" "$current_sha" "$CANDIDATE_SHA"
+          # An existing maintenance branch may predate the checker. Execute only
+          # the checker from the trusted default revision, never branch content.
+          lineage_checker="$lineage_repo/verify-lineage.sh"
+          git show "origin/$DEFAULT_BRANCH:ci/tools/verify-mrts-update-lineage.sh" > "$lineage_checker"
+          bash "$lineage_checker" "$lineage_repo" "$current_sha" "$CANDIDATE_SHA"
           git update-index --add --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
 
           if git diff --cached --quiet; then

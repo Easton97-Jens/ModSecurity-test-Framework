@@ -80,7 +80,7 @@ SUBMODULE_UPDATER_FIRST_PARTY_HEAD_REQUIREMENTS = (
 # repository write permissions, so every key, step, action input, environment,
 # and run body must remain review-bound rather than merely contain snippets.
 SUBMODULE_UPDATER_PUBLISHER_SHA256 = (
-    "982750eb88cc2325bc4f7ed35055e24601033ea139d102b381759f72075460e0"
+    "9eb62da1c72de0a2a409a9225bf27bbd6b5682823f5a1b55f21b99a9d2ec54a7"
 )
 CHECKOUT_WITHOUT_SUBMODULES = "submodules: false"
 CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS = "persist-credentials: false"
@@ -2796,13 +2796,24 @@ def submodule_updater_reader_job_errors(
 def submodule_updater_validator_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
     """Bind the validator to immutable resolver output."""
 
+    errors: list[str] = []
     validator = jobs["validate-submodule-update"]
-    if (
-        isinstance(validator, dict)
-        and validator.get("needs") != "resolve-submodule-update"
-    ):
-        return [f"{path}: MRTS validator must depend on the resolver"]
-    return []
+    if isinstance(validator, dict):
+        if validator.get("needs") != "resolve-submodule-update":
+            errors.append(f"{path}: MRTS validator must depend on the resolver")
+        if validator.get("env") != {
+            "CANDIDATE_SHA": "${{ needs.resolve-submodule-update.outputs.candidate_sha }}",
+            "CURRENT_GITLINK_SHA": "${{ needs.resolve-submodule-update.outputs.current_sha }}",
+        }:
+            errors.append(f"{path}: MRTS validator must bind both resolver identities")
+    resolver = jobs["resolve-submodule-update"]
+    if isinstance(resolver, dict) and resolver.get("outputs") != {
+        "candidate_sha": "${{ steps.resolve.outputs.candidate_sha }}",
+        "current_sha": "${{ steps.resolve.outputs.current_sha }}",
+        "changed": "${{ steps.resolve.outputs.changed }}",
+    }:
+        errors.append(f"{path}: MRTS resolver must expose both reviewed identities")
+    return errors
 
 
 def submodule_updater_publisher_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
@@ -2877,6 +2888,8 @@ def submodule_updater_errors(path: Path, text: str, data: dict[str, Any]) -> lis
                     'git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF"',
                     'git ls-tree HEAD -- "$SUBMODULE_PATH"',
                     "candidate_sha=%s",
+                    "current_sha=%s",
+                    'bash ci/tools/verify-mrts-update-lineage.sh "$lineage_repo" "$current_sha" "$candidate_sha"',
                     "changed=false",
                     "changed=true",
                 ),
@@ -2885,11 +2898,15 @@ def submodule_updater_errors(path: Path, text: str, data: dict[str, Any]) -> lis
                     CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
                     CI_DEPENDENCY_INSTALLER_COMMAND,
                     'git submodule update --init -- "$SUBMODULE_PATH"',
+                    'bash ci/tools/verify-mrts-update-lineage.sh "$SUBMODULE_PATH" "$CURRENT_GITLINK_SHA" "$CANDIDATE_SHA"',
+                    "refusing stale validation.",
                     'git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"',
                     "quick-check",
                 ),
                 "create-submodule-update-pr": (
                     CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
+                    'git show "origin/$DEFAULT_BRANCH:ci/tools/verify-mrts-update-lineage.sh" > "$lineage_checker"',
+                    'bash "$lineage_checker" "$lineage_repo" "$current_sha" "$CANDIDATE_SHA"',
                     'git update-index --add --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"',
                     'git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
                     "--draft",
