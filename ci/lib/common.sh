@@ -795,6 +795,7 @@ ci_trusted_sha256_file() {
             ci_blocked "trusted sha256sum returned an invalid digest for runtime artifact: $ci_sha_file" >&2
             return 77
             ;;
+        *) : ;;
     esac
     if [ "${#ci_sha_value}" -ne 64 ]; then
         ci_blocked "trusted sha256sum returned a non-SHA-256 digest for runtime artifact: $ci_sha_file" >&2
@@ -819,6 +820,7 @@ ci_trusted_sha256_stream() {
             ci_blocked "trusted sha256sum returned an invalid digest for runtime data stream" >&2
             return 77
             ;;
+        *) : ;;
     esac
     if [ "${#ci_sha_value}" -ne 64 ]; then
         ci_blocked "trusted sha256sum returned a non-SHA-256 digest for runtime data stream" >&2
@@ -1362,12 +1364,14 @@ ci_require_runtime_series_version() {
             ci_blocked "$ci_label series is not a numeric major.minor value"
             return 77
             ;;
+        *) : ;;
     esac
     case "$ci_version" in
         ''|*[!0-9.]*|*.*.*.*)
             ci_blocked "$ci_label version is not a numeric release"
             return 77
             ;;
+        *) : ;;
     esac
     case "$ci_version" in
         "$ci_series".[0-9]*) return 0 ;;
@@ -1396,6 +1400,7 @@ ci_validate_runtime_series_config() {
             ci_blocked "LIGHTTPD_LATEST_URL contains a double slash"
             return 77
             ;;
+        *) : ;;
     esac
     [ "$HAPROXY_SOURCE_URL" = "$HAPROXY_SERIES_BASE_URL/$HAPROXY_ARCHIVE_NAME" ] || {
         ci_blocked "HAPROXY_SOURCE_URL is not derived from HAPROXY_SERIES_BASE_URL"
@@ -1445,6 +1450,7 @@ ci_require_inherited_canonical_pin() {
             # values are treated as attempted source-identity overrides.
             return 0
             ;;
+        *) : ;;
     esac
     if [ "$ci_inherited_pin_value" != "$ci_inherited_pin_expected" ]; then
         ci_blocked "$ci_inherited_pin_name override is not permitted"
@@ -2617,6 +2623,7 @@ ci_modsecurity_v3_require_host_git() {
             ci_blocked "ModSecurity v3 host Git mode is invalid: $ci_v3_host_git_bin"
             return 77
             ;;
+        *) : ;;
     esac
     if [ "$ci_v3_host_git_owner" != "0" ]; then
         ci_blocked "ModSecurity v3 host Git must be root-owned: $ci_v3_host_git_bin"
@@ -2782,6 +2789,7 @@ ci_modsecurity_v3_create_private_fresh_root() {
             ci_blocked "ModSecurity v3 private source root mode is invalid: $ci_v3_private_root"
             return 77
             ;;
+        *) : ;;
     esac
     if [ -z "$ci_v3_current_uid" ] || [ "$ci_v3_private_owner" != "$ci_v3_current_uid" ]; then
         ci_blocked "ModSecurity v3 private source root must be owned by the current user: $ci_v3_private_root"
@@ -2820,6 +2828,7 @@ ci_modsecurity_v3_require_fresh_destination() {
             ci_blocked "ModSecurity v3 provisioning destination must name a child directory: $ci_v3_destination"
             return 77
             ;;
+        *) : ;;
     esac
     if [ ! -d "$ci_v3_destination_parent" ] || [ -L "$ci_v3_destination_parent" ]; then
         ci_blocked "ModSecurity v3 provisioning parent must be an existing non-symlinked directory: $ci_v3_destination_parent"

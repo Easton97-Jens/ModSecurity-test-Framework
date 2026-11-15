@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import socket
 import struct
 import sys
@@ -10,6 +11,8 @@ import time
 
 
 def run(port, label, expected):
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", label) is None:
+        raise ValueError('client label must be one bounded filename component')
     root = Path('/task/client')
     root.mkdir(mode=0o700, exist_ok=True)
     payload = ('i12-request-marker:' + label + '\n').encode()

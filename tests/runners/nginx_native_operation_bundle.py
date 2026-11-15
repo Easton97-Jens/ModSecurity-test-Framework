@@ -155,10 +155,14 @@ def unique_object(pairs):
     return value
 
 
+def reject_nonfinite_number(_):
+    raise ValueError("nonfinite JSON number")
+
+
 def json_object(raw):
     try:
         value = json.loads(raw, object_pairs_hook=unique_object,
-                           parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON number")),
+                           parse_constant=reject_nonfinite_number,
                            parse_float=finite_float)
     except (UnicodeError, json.JSONDecodeError) as exc:
         raise ValueError("invalid retained JSON") from exc
@@ -531,14 +535,45 @@ def observed_roles(roles, cleanup, run_id):
                     "master_running": False, "worker_running": False, "listener_open": False}, "actual bounded cleanup")
 
 
+LOAD_MODULE_DIRECTIVE = rb'\bload_module\s+"([^"\r\n]+)"\s*;'
+
+
+def _config_directive_values(config, name):
+    """Read one directive per terminated statement in linear bounded pieces.
+
+    Splitting at semicolons prevents repeated candidate names from rescanning
+    the same unterminated suffix. Keep the original whitespace capture behavior.
+    """
+    prefix = re.compile(rb"\b" + name + rb"(\s+)")
+    values = []
+    for statement in config.split(b";")[:-1]:
+        match = prefix.search(statement)
+        if match is None:
+            continue
+        value = statement[match.end():]
+        if value:
+            values.append(value)
+        elif len(match.group(1)) > 1:
+            values.append(match.group(1)[-1:])
+    return values
+
+
+def _projection_directory_name(case_id, token):
+    if case_id in SEQUENCE_CASES:
+        return "sequence-" + token[:24]
+    if case_id in INPUT_CASES:
+        return "common-input-" + token[:32]
+    return "phase4-" + token[:24]
+
+
 def projection_and_config(receipt, raw, case_id, run_id, sources):
     config = raw[NGINX_CONFIG_LEAF]
-    require(re.findall(rb'\bload_module\s+"([^"\r\n]+)"\s*;', config)
-            and re.findall(rb'\bload_module\s+"([^"\r\n]+)"\s*;', config)[0].endswith(b"/nginx-module.so"), "actual snapshotted module configuration required")
-    require(re.findall(rb'\buser\s+([^;]+);', config) == [b"nobody nogroup"]
-            and re.findall(rb'\bworker_processes\s+([^;]+);', config) == [b"1"]
-            and re.findall(rb'\bdaemon\s+([^;]+);', config) == [b"off"]
-            and re.findall(rb'\bmodsecurity\s+([^;]+);', config) == [b"on"], "closed owned native host configuration required")
+    require(re.findall(LOAD_MODULE_DIRECTIVE, config)
+            and re.findall(LOAD_MODULE_DIRECTIVE, config)[0].endswith(b"/nginx-module.so"), "actual snapshotted module configuration required")
+    require(_config_directive_values(config, b"user") == [b"nobody nogroup"]
+            and _config_directive_values(config, b"worker_processes") == [b"1"]
+            and _config_directive_values(config, b"daemon") == [b"off"]
+            and _config_directive_values(config, b"modsecurity") == [b"on"], "closed owned native host configuration required")
     if case_id in RAW_CASES:
         return
     parent_field = "docroot_projection_parent" if case_id in PHASE4_CASES | MIME_CASES | EVENT_CASES else "projection_parent"
@@ -549,7 +584,7 @@ def projection_and_config(receipt, raw, case_id, run_id, sources):
     require(parent.is_absolute() and root.is_absolute() and ".." not in parent.parts and ".." not in root.parts
             and root.parent == parent and root != Path("/"), "projection must be an exact direct child")
     token = hashlib.sha256((run_id + ":" + case_id).encode()).hexdigest()
-    expected = "sequence-" + token[:24] if case_id in SEQUENCE_CASES else "common-input-" + token[:32] if case_id in INPUT_CASES else "phase4-" + token[:24]
+    expected = _projection_directory_name(case_id, token)
     require(root.name == expected, "projection does not bind the actual driver run/case")
     for source in (sources["parent_root"], sources["framework_root"]):
         require(root != source and source not in root.parents and root not in source.parents, "projection overlaps source authority")
@@ -576,7 +611,7 @@ def producer_fields(receipt, case_id, source_bytes):
     exact(receipt, {"upstream_driver_sha256": digest(source_bytes[upstream])}, "actual upstream source bytes")
 
 
-def build_artifacts(receipt, raw, case_id, sources, source_bytes):
+def build_artifacts(raw, case_id, sources, source_bytes):
     if case_id in INPUT_CASES | SEQUENCE_CASES | RAW_CASES:
         require_leaves(raw, {BASELINE_CONFIG_LEAF})
         rules = source_bytes["framework:tests/rules/no-crs-baseline.conf"]
@@ -717,7 +752,7 @@ def validate_configtest(receipt, raw, case_id):
     exact(receipt, {exit_field: 0}, "actual configtest outcome")
     leaf = STDERR_LOG_LEAF if case_id in RAW_CASES else CONFIGTEST_STDERR_LEAF
     require_leaves(raw, {leaf, STDOUT_LOG_LEAF if case_id in RAW_CASES else CONFIGTEST_STDOUT_LEAF, STARTUP_STDOUT_LEAF, STARTUP_STDERR_LEAF})
-    modules = re.findall(rb'\bload_module\s+"([^"\r\n]+)"\s*;', raw[NGINX_CONFIG_LEAF])
+    modules = re.findall(LOAD_MODULE_DIRECTIVE, raw[NGINX_CONFIG_LEAF])
     require(len(modules) == 1, "one actual module load required")
     configuration_path = modules[0].rsplit(b"/", 1)[0] + b"/nginx.conf"
     require(configuration_path in raw[leaf] and b"syntax is ok" in raw[leaf] and b"test is successful" in raw[leaf], "actual successful configtest diagnostics must bind configuration")
@@ -773,6 +808,14 @@ def sequence_denials(observed, accesses, events):
                   "actual native request denial source fields")
 
 
+def _sequence_cleanup_error_class(case_id):
+    if case_id in {"engine_timeout_before_commit", "engine_timeout_after_commit"}:
+        return "engine_timeout"
+    if case_id == "finish_failure_propagation":
+        return "invalid_engine_response"
+    return "none"
+
+
 def sequence_cleanup(case_id, observed, accesses, events, raw):
     transactions = [item["transaction_id"] for item in accesses]
     uris = {item["transaction_id"]: item["uri"] for item in accesses}
@@ -794,7 +837,7 @@ def sequence_cleanup(case_id, observed, accesses, events, raw):
                           "worker_pid": observed["roles"]["worker_pid"], "worker_uid": 65534,
                           "master_pid": observed["roles"]["master_pid"], "transaction_id": transactions[0], "injected": True}, "actual native NULL return scope")
     else:
-        error_class = "engine_timeout" if case_id in {"engine_timeout_before_commit", "engine_timeout_after_commit"} else "invalid_engine_response" if case_id == "finish_failure_propagation" else "none"
+        error_class = _sequence_cleanup_error_class(case_id)
         cleanup_events(events, transactions, error_class=error_class, uris=uris)
         if case_id == "finish_failure_propagation":
             native_error(events, "invalid_engine_response", "MSCONN_EVENT_INVALID_ENGINE_RESPONSE", "logging", transactions[0], observed["requests"][0]["path"])
@@ -842,17 +885,29 @@ def bundle_envelope(record):
     return case_id, run_id, operation, envelope
 
 
+def _invocation_variant(name, case_id):
+    if name in {"at", "over"}:
+        return {"at": "at255", "over": "over256"}[name]
+    if case_id in EVENT_CASES:
+        return "long-query"
+    return None
+
+
+def _validate_invocation_descriptor(descriptor, name):
+    require(isinstance(descriptor, dict) and set(descriptor) == {"name", "receipt_path", "receipt_sha256"}
+            and descriptor.get("name") == name and isinstance(descriptor.get("receipt_sha256"), str)
+            and SHA256.fullmatch(descriptor["receipt_sha256"]), "closed invocation descriptor/seal mismatch")
+
+
 def invocation_artifacts(reader, envelope, case_id, run_id, operation, sources, source_bytes):
     descriptors = envelope.get("invocations")
     names = ["at", "over"] if case_id == "event_json_limit" else ["main"]
     require(isinstance(descriptors, list) and len(descriptors) == len(names), "closed invocation count mismatch")
     receipts, raws, originals = {}, {}, {}
     for descriptor, name in zip(descriptors, names):
-        require(isinstance(descriptor, dict) and set(descriptor) == {"name", "receipt_path", "receipt_sha256"}
-                and descriptor.get("name") == name and isinstance(descriptor.get("receipt_sha256"), str)
-                and SHA256.fullmatch(descriptor["receipt_sha256"]), "closed invocation descriptor/seal mismatch")
+        _validate_invocation_descriptor(descriptor, name)
         receipt, raw, original = read_invocation(reader, descriptor, case_id, operation, sources)
-        variant = "at255" if name == "at" else "over256" if name == "over" else "long-query" if case_id in EVENT_CASES else None
+        variant = _invocation_variant(name, case_id)
         expected_run = run_id + "-" + variant if variant else run_id
         require(receipt["run_id"] == expected_run, "original invocation run differs from enclosing run")
         if variant:
@@ -861,7 +916,7 @@ def invocation_artifacts(reader, envelope, case_id, run_id, operation, sources, 
             require(receipt.get("source_record_id") == envelope["source_record_id"], "actual source record alias mismatch")
         projection_and_config(receipt, raw, case_id, expected_run, sources)
         validate_configtest(receipt, raw, case_id)
-        build_artifacts(receipt, raw, case_id, sources, source_bytes)
+        build_artifacts(raw, case_id, sources, source_bytes)
         producer_fields(receipt, case_id, source_bytes)
         receipts[name], raws[name], originals[name] = receipt, raw, original
     return names, receipts, raws, originals

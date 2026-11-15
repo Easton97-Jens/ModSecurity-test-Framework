@@ -17,12 +17,12 @@ from modsecurity_test_framework.runners import nginx_phase4_contracts as phase4
 
 
 CASE_RESULTS = MappingProxyType({
-    **{key: "rejected_by_host_before_connector_or_connector_rejection" for key in bundle.RAW_CASES},
-    **{key: "mapping_error" for key in bundle.INPUT_CASES},
+    **dict.fromkeys(bundle.RAW_CASES, "rejected_by_host_before_connector_or_connector_rejection"),
+    **dict.fromkeys(bundle.INPUT_CASES, "mapping_error"),
     "event_metadata_truncation": "event_metadata_truncated", "event_json_limit": "event_bounded_or_truncated",
     "single_request_cleanup": "clean_shutdown", "clean_shutdown": "clean_shutdown",
     "multiple_sequential_requests": "sequence_complete", "keep_alive_requests_if_supported": "sequence_complete_or_host_unsupported",
-    **{key: "failure_propagated_and_cleaned" for key in ("early_mapping_failure_cleanup", "transaction_begin_failure_cleanup", "finish_failure_propagation")},
+    **dict.fromkeys(("early_mapping_failure_cleanup", "transaction_begin_failure_cleanup", "finish_failure_propagation"), "failure_propagated_and_cleaned"),
     "phase4_marker_split_across_chunks": "marker_split_across_chunks", "phase4_end_of_stream_evaluation": "end_of_stream_evaluation",
     "phase4_deny_after_commit_log_only_minimal": "late_intervention_log_only_safe",
     "phase4_in_scope_content_type": "content_type_in_scope", "phase4_content_type_with_charset": "content_type_in_scope_with_charset",
@@ -30,8 +30,8 @@ CASE_RESULTS = MappingProxyType({
     **{key: key for key in ("transport_http11_content_length", "transport_http11_chunked", "transport_keep_alive", "transport_sequential_requests",
                           "keepalive_allow_allow", "keepalive_allow_deny_allow", "keepalive_safe_followup", "engine_timeout_before_commit",
                           "engine_timeout_after_commit", "response_short_write_resume", "response_write_would_block_resume")},
-    **{key: "connection_aborted_strict" for key in ("phase4_strict_http1_client_abort", "phase4_strict_host_survives",
-                                                  "phase4_strict_followup_request_succeeds", "keepalive_after_strict_new_connection")},
+    **dict.fromkeys(("phase4_strict_http1_client_abort", "phase4_strict_host_survives",
+                     "phase4_strict_followup_request_succeeds", "keepalive_after_strict_new_connection"), "connection_aborted_strict"),
     **{"phase4_body_" + suffix: "response_body_" + suffix for suffix in ("at_limit", "over_limit", "process_partial", "reject")},
     "full_lifecycle_event_metadata_bounded": "event_bounded_or_truncated",
 })
@@ -67,7 +67,12 @@ def observation_origin(proof, pointer):
 
 
 def receipt_origin(proof, name, field):
-    leaf = "sequence-source.json" if proof["case_id"] in bundle.SEQUENCE_CASES else "input-fault-source.json" if proof["case_id"] in bundle.INPUT_CASES else "source-result.json"
+    if proof["case_id"] in bundle.SEQUENCE_CASES:
+        leaf = "sequence-source.json"
+    elif proof["case_id"] in bundle.INPUT_CASES:
+        leaf = "input-fault-source.json"
+    else:
+        leaf = "source-result.json"
     candidates = [key for key in proof.get("files", {}) if key == leaf or key.endswith("/" + leaf)]
     if proof["case_id"] in bundle.EVENT_CASES:
         variant = {"at": "at255", "over": "over256", "main": "long-query"}[name]
@@ -97,119 +102,155 @@ def actual_reason_values(proof, selected, key):
     return rows
 
 
-def mapped_field(field, case_id, proof, selected):
+def _mapped_receipt_identity(field, proof):
+    key = "run_id" if field == "run_id" else "case_id"
+    value = proof["receipt"][key]
+    return [value], [receipt_origin(proof, "main", key)]
+
+
+def _mapped_connection(field, proof):
     observation = proof.get("observation", {})
     requests = observation.get("requests", [])
-    # These identities are authenticated receipt/host facts, not Common keys.
-    if field in {"run_id", "transport_case_id"}:
-        key = "run_id" if field == "run_id" else "case_id"
-        value = proof["receipt"][key]
-        return [value], [receipt_origin(proof, "main", key)]
-    if field in {"connection_id", "connection_reused"}:
-        accesses = observation.get("native_access", [])
-        bundle.require(len(accesses) == len(requests) and accesses, "actual access connection counters required")
-        connections = [row["connection"] for row in accesses]
-        counters = [row["connection_requests"] for row in accesses]
-        bundle.require(all(isinstance(conn, str) and conn.isdecimal() for conn in connections)
-                       and all(type(count) is int and count > 0 for count in counters), "invalid actual connection measurements")
-        value = connections if field == "connection_id" else [len(connections) > 1 and len(set(connections)) == 1 and counters == list(range(1, len(counters) + 1))]
-        return value, [observation_origin(proof, "native_access/" + str(index)) for index in range(len(accesses))]
-    if field == "transport_protocol":
-        bundle.require(observation.get("protocol") == "http1", "only actual H1 transport is supported")
-        return ["http1"], [observation_origin(proof, "protocol")]
-    if field == "transfer_encoding":
-        raw = proof["raw_artifacts"]["main"].get("response-wire.bin")
-        bundle.require(type(raw) is bytes, "original downstream H1 wire required")
-        wire = framing.parse_http11_response(raw)
-        return [wire["framing"]], [{"kind": "downstream_wire", "invocation": "main", "artifact": "response-wire.bin",
-                                   "artifact_sha256": bundle.digest(raw), "source_pointer": "/parsed/framing"}]
-    if field == "cleanup_reason":
-        cleanup = [row for row in proof["events"] if row.get("event") == "transaction_cleanup"]
-        return native_values(proof, cleanup, field)
-    if field == "timeout_stage":
-        bundle.require(case_id in {"engine_timeout_before_commit", "engine_timeout_after_commit"}, "foreign timeout mapping")
-        event = next((row for row in selected if row.get("event") == "engine_timeout"), None)
-        stage = "before_commit" if event and event["phase"] == "request_headers" else "after_commit" if event and event["phase"] == "response_body" else None
-        bundle.require(stage is not None, "actual timeout Source phase required")
-        index = proof["events"].index(event)
-        return [stage], [event_origin(proof, event, index, "phase")]
-    if field == "write_result":
-        writes = observation.get("native_writes")
-        bundle.require(case_id in {"response_short_write_resume", "response_write_would_block_resume"}
-                       and isinstance(writes, list) and writes, "actual native write ledger required")
-        bundle.require(not sequence.write_observation_errors(observation, case_id), "actual write fault/resume identity mismatch")
-        keys = {"pid", "fd", "peer_port", "requested_bytes", "returned_bytes", "errno", "fault_triggered"}
-        bundle.require(all(isinstance(row, dict) and set(row) == keys for row in writes), "closed payload-free native write rows required")
-        bundle.require(all(type(row["fd"]) is int and 0 <= row["fd"] <= 2**31 - 1 for row in writes),
-                       "actual native write fd must be a nonnegative signed C-int descriptor")
-        triggered = [row for row in writes if row["fault_triggered"] is True]
-        bundle.require(len(triggered) == 1, "one actual write fault required")
-        short = 0 < triggered[0]["returned_bytes"] < triggered[0]["requested_bytes"] and triggered[0]["errno"] == 0
-        blocked = triggered[0]["returned_bytes"] == -1 and triggered[0]["errno"] == 11
-        bundle.require(short if case_id == "response_short_write_resume" else blocked, "actual write fault mismatch")
-        return ["short_write_resumed" if short else "would_block_resumed"], [observation_origin(proof, "native_writes")]
-    if field == "content_type_scope":
-        values, origins = native_values(proof, selected, "content_type")
-        retained = actual_reason_values(proof, selected, "engine_retained_bytes")
-        content = set(values)
-        bundle.require(len(content) == 1, "actual MIME type contradiction")
-        value = "missing" if content == {""} else "in_scope" if next(iter(content)).split(";", 1)[0] == "text/plain" and any(row[2] > 0 for row in retained) else "out_of_scope"
-        origins += [event_origin(proof, row, index, "reason") for index, row, _ in retained]
-        return [value], origins
-    if field in {"end_of_stream_evaluation", "body_started", "marker_split_across_chunks"}:
-        completes = [row for row in selected if row.get("event") == "phase4_completion" and row.get("eos_seen") is True]
-        interventions = [row for row in selected if row.get("event") == "phase4_intervention" and row.get("rule_id") == "1100301" and row.get("eos_seen") is True]
-        appends = actual_reason_values(proof, selected, "append_size")
-        bundle.require(completes and interventions and appends and sum(row[2] for row in appends) > 0, "actual append/EOS/Rule evidence required")
-        origins = [event_origin(proof, row, index, "reason") for index, row, _ in appends]
-        origins += [event_origin(proof, row, proof["events"].index(row), "eos_seen") for row in completes + interventions]
-        if field == "marker_split_across_chunks":
-            receipt = proof["invocation_receipts"]["main"]
-            bundle.require(len(appends) >= 2 and receipt.get("first_body_byte_before_upstream_eos") is True,
-                           "actual split streaming boundary missing")
-            raw = proof["raw_artifacts"]["main"].get("response.bin")
-            bundle.require(type(raw) is bytes, "actual split marker body capture required")
-            marker_start = raw.find(phase4.MARKER.encode())
-            boundaries = []
-            supplied = 0
-            for _, _, size in appends[:-1]:
-                supplied += size
-                boundaries.append(supplied)
-            bundle.require(marker_start >= 0 and any(marker_start < boundary < marker_start + len(phase4.MARKER) for boundary in boundaries),
-                           "actual marker does not cross an observed native append boundary")
-            origins.append({"kind": "response_capture_boundary", "invocation": "main", "artifact": "response.bin",
-                            "artifact_sha256": bundle.digest(raw), "source_pointer": "/parsed/marker_append_boundary"})
-            origins.append(receipt_origin(proof, "main", "first_body_byte_before_upstream_eos"))
-        return [True], origins
-    if field == "body_limit_outcome":
-        if case_id == "phase4_body_reject":
-            return native_values(proof, selected, field)
-        retained = actual_reason_values(proof, selected, "engine_retained_bytes")
-        seen, origins = native_values(proof, selected, "body_bytes_seen")
-        inspected, more = native_values(proof, selected, "body_bytes_inspected")
-        bundle.require(seen == inspected and max(seen) > 0, "actual Common supplied bytes contradiction")
-        bundle.require(case_id in {"phase4_body_at_limit", "phase4_body_over_limit", "phase4_body_process_partial"}, "foreign body limit mapping")
-        rules = proof["raw_artifacts"]["main"].get("rules.conf")
-        bundle.require(type(rules) is bytes, "actual response limit rules required")
-        limits = re.findall(rb"(?m)^SecResponseBodyLimit ([1-9][0-9]*)$", rules)
-        actions = re.findall(rb"(?m)^SecResponseBodyLimitAction ([A-Za-z]+)$", rules)
-        bundle.require(len(limits) == 1 and actions == [b"ProcessPartial"], "actual closed response limit/action required")
-        limit = int(limits[0])
-        bundle.require(max(row[2] for row in retained) == min(max(seen), limit), "actual retained length differs from configured limit")
-        if case_id == "phase4_body_at_limit":
-            bundle.require(max(seen) == limit, "actual at-limit boundary missing")
-            outcome = "at_limit"
-        else:
-            bundle.require(max(seen) > limit, "actual over-limit boundary missing")
-            # Same native ProcessPartial API evidence, different explicit
-            # catalog questions: over-limit boundary versus partial retention.
-            outcome = "over_limit" if case_id == "phase4_body_over_limit" else "process_partial"
-        origins.append({"kind": "engine_configuration", "invocation": "main", "artifact": "rules.conf",
-                        "artifact_sha256": bundle.digest(rules), "source_pointer": "/SecResponseBodyLimit"})
-        return [outcome], origins + more + [event_origin(proof, row, index, "reason") for index, row, _ in retained]
+    accesses = observation.get("native_access", [])
+    bundle.require(len(accesses) == len(requests) and accesses, "actual access connection counters required")
+    connections = [row["connection"] for row in accesses]
+    counters = [row["connection_requests"] for row in accesses]
+    bundle.require(all(isinstance(conn, str) and conn.isdecimal() for conn in connections)
+                   and all(type(count) is int and count > 0 for count in counters), "invalid actual connection measurements")
+    value = connections if field == "connection_id" else [len(connections) > 1 and len(set(connections)) == 1 and counters == list(range(1, len(counters) + 1))]
+    return value, [observation_origin(proof, "native_access/" + str(index)) for index in range(len(accesses))]
+
+
+def _mapped_protocol(proof):
+    observation = proof.get("observation", {})
+    bundle.require(observation.get("protocol") == "http1", "only actual H1 transport is supported")
+    return ["http1"], [observation_origin(proof, "protocol")]
+
+
+def _mapped_transfer_encoding(proof):
+    raw = proof["raw_artifacts"]["main"].get("response-wire.bin")
+    bundle.require(type(raw) is bytes, "original downstream H1 wire required")
+    wire = framing.parse_http11_response(raw)
+    return [wire["framing"]], [{"kind": "downstream_wire", "invocation": "main", "artifact": "response-wire.bin",
+                               "artifact_sha256": bundle.digest(raw), "source_pointer": "/parsed/framing"}]
+
+
+def _mapped_cleanup(field, proof):
+    cleanup = [row for row in proof["events"] if row.get("event") == "transaction_cleanup"]
+    return native_values(proof, cleanup, field)
+
+
+def _mapped_timeout_stage(case_id, proof, selected):
+    bundle.require(case_id in {"engine_timeout_before_commit", "engine_timeout_after_commit"}, "foreign timeout mapping")
+    event = next((row for row in selected if row.get("event") == "engine_timeout"), None)
+    stage = None
+    if event and event["phase"] == "request_headers":
+        stage = "before_commit"
+    elif event and event["phase"] == "response_body":
+        stage = "after_commit"
+    bundle.require(stage is not None, "actual timeout Source phase required")
+    index = proof["events"].index(event)
+    return [stage], [event_origin(proof, event, index, "phase")]
+
+
+def _mapped_write_result(case_id, proof):
+    observation = proof.get("observation", {})
+    writes = observation.get("native_writes")
+    bundle.require(case_id in {"response_short_write_resume", "response_write_would_block_resume"}
+                   and isinstance(writes, list) and writes, "actual native write ledger required")
+    bundle.require(not sequence.write_observation_errors(observation, case_id), "actual write fault/resume identity mismatch")
+    keys = {"pid", "fd", "peer_port", "requested_bytes", "returned_bytes", "errno", "fault_triggered"}
+    bundle.require(all(isinstance(row, dict) and set(row) == keys for row in writes), "closed payload-free native write rows required")
+    bundle.require(all(type(row["fd"]) is int and 0 <= row["fd"] <= 2**31 - 1 for row in writes),
+                   "actual native write fd must be a nonnegative signed C-int descriptor")
+    triggered = [row for row in writes if row["fault_triggered"] is True]
+    bundle.require(len(triggered) == 1, "one actual write fault required")
+    short = 0 < triggered[0]["returned_bytes"] < triggered[0]["requested_bytes"] and triggered[0]["errno"] == 0
+    blocked = triggered[0]["returned_bytes"] == -1 and triggered[0]["errno"] == 11
+    bundle.require(short if case_id == "response_short_write_resume" else blocked, "actual write fault mismatch")
+    return ["short_write_resumed" if short else "would_block_resumed"], [observation_origin(proof, "native_writes")]
+
+
+def _mapped_content_type_scope(proof, selected):
+    values, origins = native_values(proof, selected, "content_type")
+    retained = actual_reason_values(proof, selected, "engine_retained_bytes")
+    content = set(values)
+    bundle.require(len(content) == 1, "actual MIME type contradiction")
+    if content == {""}:
+        value = "missing"
+    elif next(iter(content)).split(";", 1)[0] == "text/plain" and any(row[2] > 0 for row in retained):
+        value = "in_scope"
+    else:
+        value = "out_of_scope"
+    origins += [event_origin(proof, row, index, "reason") for index, row, _ in retained]
+    return [value], origins
+
+
+def _mapped_streaming_boundary(field, proof, selected):
+    completes = [row for row in selected if row.get("event") == "phase4_completion" and row.get("eos_seen") is True]
+    interventions = [row for row in selected if row.get("event") == "phase4_intervention" and row.get("rule_id") == "1100301" and row.get("eos_seen") is True]
+    appends = actual_reason_values(proof, selected, "append_size")
+    bundle.require(completes and interventions and appends and sum(row[2] for row in appends) > 0, "actual append/EOS/Rule evidence required")
+    origins = [event_origin(proof, row, index, "reason") for index, row, _ in appends]
+    origins += [event_origin(proof, row, proof["events"].index(row), "eos_seen") for row in completes + interventions]
+    if field == "marker_split_across_chunks":
+        receipt = proof["invocation_receipts"]["main"]
+        bundle.require(len(appends) >= 2 and receipt.get("first_body_byte_before_upstream_eos") is True,
+                       "actual split streaming boundary missing")
+        raw = proof["raw_artifacts"]["main"].get("response.bin")
+        bundle.require(type(raw) is bytes, "actual split marker body capture required")
+        marker_start = raw.find(phase4.MARKER.encode())
+        boundaries = []
+        supplied = 0
+        for _, _, size in appends[:-1]:
+            supplied += size
+            boundaries.append(supplied)
+        bundle.require(marker_start >= 0 and any(marker_start < boundary < marker_start + len(phase4.MARKER) for boundary in boundaries),
+                       "actual marker does not cross an observed native append boundary")
+        origins.append({"kind": "response_capture_boundary", "invocation": "main", "artifact": "response.bin",
+                        "artifact_sha256": bundle.digest(raw), "source_pointer": "/parsed/marker_append_boundary"})
+        origins.append(receipt_origin(proof, "main", "first_body_byte_before_upstream_eos"))
+    return [True], origins
+
+
+def _mapped_body_limit(case_id, proof, selected):
+    if case_id == "phase4_body_reject":
+        return native_values(proof, selected, "body_limit_outcome")
+    retained = actual_reason_values(proof, selected, "engine_retained_bytes")
+    seen, origins = native_values(proof, selected, "body_bytes_seen")
+    inspected, more = native_values(proof, selected, "body_bytes_inspected")
+    bundle.require(seen == inspected and max(seen) > 0, "actual Common supplied bytes contradiction")
+    bundle.require(case_id in {"phase4_body_at_limit", "phase4_body_over_limit", "phase4_body_process_partial"}, "foreign body limit mapping")
+    rules = proof["raw_artifacts"]["main"].get("rules.conf")
+    bundle.require(type(rules) is bytes, "actual response limit rules required")
+    limits = re.findall(rb"(?m)^SecResponseBodyLimit ([1-9]\d*)$", rules)
+    actions = re.findall(rb"(?m)^SecResponseBodyLimitAction ([A-Za-z]+)$", rules)
+    bundle.require(len(limits) == 1 and actions == [b"ProcessPartial"], "actual closed response limit/action required")
+    limit = int(limits[0])
+    bundle.require(max(row[2] for row in retained) == min(max(seen), limit), "actual retained length differs from configured limit")
+    if case_id == "phase4_body_at_limit":
+        bundle.require(max(seen) == limit, "actual at-limit boundary missing")
+        outcome = "at_limit"
+    else:
+        bundle.require(max(seen) > limit, "actual over-limit boundary missing")
+        # Same native ProcessPartial API evidence, different explicit
+        # catalog questions: over-limit boundary versus partial retention.
+        outcome = "over_limit" if case_id == "phase4_body_over_limit" else "process_partial"
+    origins.append({"kind": "engine_configuration", "invocation": "main", "artifact": "rules.conf",
+                    "artifact_sha256": bundle.digest(rules), "source_pointer": "/SecResponseBodyLimit"})
+    return [outcome], origins + more + [event_origin(proof, row, index, "reason") for index, row, _ in retained]
+
+
+def _uses_client_completion(field, case_id):
+    return field in {"eos_seen", "transport_result"} and case_id in {"keepalive_allow_allow", "keepalive_allow_deny_allow"}
+
+
+def _mapped_completion_field(field, case_id, proof, selected):
+    observation = proof.get("observation", {})
+    requests = observation.get("requests", [])
     if field == "truncated" and case_id in bundle.PHASE4_CASES:
         return native_values(proof, selected, "body_truncated")
-    if field in {"eos_seen", "transport_result"} and case_id in {"keepalive_allow_allow", "keepalive_allow_deny_allow"}:
+    if _uses_client_completion(field, case_id):
         # Request-header native EOS/transport fields describe the pre-send
         # callback, not subsequent complete client framing. Keep them intact
         # in native_events; expose client completion as a separate host fact.
@@ -228,6 +269,36 @@ def mapped_field(field, case_id, proof, selected):
         return ["completed"], [observation_origin(proof, "requests/0/transport_result")]
     bundle.require(field not in HOST_FIELDS and field not in DERIVED_FIELDS - {"truncated", "eos_seen", "transport_result"}, "unproved closed operation field: " + field)
     return native_values(proof, selected, field)
+
+
+def _mapped_host_field(field, case_id, proof, selected):
+    if field in {"run_id", "transport_case_id"}:
+        return _mapped_receipt_identity(field, proof)
+    if field in {"connection_id", "connection_reused"}:
+        return _mapped_connection(field, proof)
+    if field == "transport_protocol":
+        return _mapped_protocol(proof)
+    if field == "transfer_encoding":
+        return _mapped_transfer_encoding(proof)
+    if field == "cleanup_reason":
+        return _mapped_cleanup(field, proof)
+    if field == "timeout_stage":
+        return _mapped_timeout_stage(case_id, proof, selected)
+    return _mapped_write_result(case_id, proof)
+
+
+def mapped_field(field, case_id, proof, selected):
+    # Host identities stay separate from unchanged Common/native event keys.
+    if field in HOST_FIELDS:
+        return _mapped_host_field(field, case_id, proof, selected)
+    if field == "content_type_scope":
+        return _mapped_content_type_scope(proof, selected)
+    if field in {"end_of_stream_evaluation", "body_started", "marker_split_across_chunks"}:
+        return _mapped_streaming_boundary(field, proof, selected)
+    if field == "body_limit_outcome":
+        return _mapped_body_limit(case_id, proof, selected)
+    return _mapped_completion_field(field, case_id, proof, selected)
+
 
 
 def semantic_event(proof, result, expected):
@@ -268,6 +339,31 @@ def semantic_event(proof, result, expected):
     return deepcopy(candidates[0][1]), origins[0], origins
 
 
+def _validate_p1_completion(selected):
+    for event in selected:
+        if event.get("event") == "request_headers_complete":
+            bundle.exact(event, {"phase": "request_headers", "message_id": "MSCONN_PHASE1_COMPLETE", "rule_id": "",
+                                 "status": "ok", "action": "allow", "requested_action": "allow", "actual_action": "",
+                                 "http_status": 0, "visible_http_status": 0, "transport_result": "not_observable",
+                                 "reason": "native_return=1;common_completed=1"}, "actual native P1 completion")
+
+
+def _native_phase_scope(case_id, phase, proof, result, selected):
+    phase_scope = "native_event"
+    if case_id in bundle.RAW_CASES:
+        phase_scope = "host_preconnector"
+    elif phase == 5:
+        phase_scope = "lifecycle_cleanup"
+        if case_id == "early_mapping_failure_cleanup":
+            bundle.require(proof.get("observation", {}).get("cleanup", {}).get("verified") is True,
+                           "actual preadmission host cleanup required")
+        else:
+            bundle.require(result["cleanup_native_events"], "actual LOGGING cleanup required")
+    else:
+        bundle.require(any(row["phase"] == PHASES[phase] for row in selected), "actual required native phase missing")
+    return phase_scope
+
+
 def derive_native_operation_contract(case, strict_reader_proof):
     """Return transparent actual facts, mappings and semantics; raise on gaps.
 
@@ -286,24 +382,8 @@ observed_event_fields. Native and downstream status retain different meanings.
         bundle.require(status is None or type(status) is int and status == result["actual_status"], "explicit native/wire status expectation mismatch")
         phase = expected["phase"]
         selected = result["selected_native_events"]
-        for event in selected:
-            if event.get("event") == "request_headers_complete":
-                bundle.exact(event, {"phase": "request_headers", "message_id": "MSCONN_PHASE1_COMPLETE", "rule_id": "",
-                                     "status": "ok", "action": "allow", "requested_action": "allow", "actual_action": "",
-                                     "http_status": 0, "visible_http_status": 0, "transport_result": "not_observable",
-                                     "reason": "native_return=1;common_completed=1"}, "actual native P1 completion")
-        phase_scope = "native_event"
-        if case_id in bundle.RAW_CASES:
-            phase_scope = "host_preconnector"
-        elif phase == 5:
-            phase_scope = "lifecycle_cleanup"
-            if case_id == "early_mapping_failure_cleanup":
-                bundle.require(proof.get("observation", {}).get("cleanup", {}).get("verified") is True,
-                               "actual preadmission host cleanup required")
-            else:
-                bundle.require(result["cleanup_native_events"], "actual LOGGING cleanup required")
-        else:
-            bundle.require(any(row["phase"] == PHASES[phase] for row in selected), "actual required native phase missing")
+        _validate_p1_completion(selected)
+        phase_scope = _native_phase_scope(case_id, phase, proof, result, selected)
         selected = [row for row in selected if phase == 5 or row["phase"] == PHASES[phase]]
         rule_ids = sorted({row["rule_id"] for row in result["selected_native_events"] if row["rule_id"]})
         rule = expected.get("expected_rule_id")

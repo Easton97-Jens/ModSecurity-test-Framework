@@ -6,12 +6,18 @@ import os
 from pathlib import Path
 
 
+PYTHON_BINDINGS_PATH = "bindings/python"
+LIBINJECTION_PATH = "others/libinjection"
+MBEDTLS_PATH = "others/mbedtls"
+SECRULES_LANGUAGE_TESTS_PATH = "test/test-cases/secrules-language-tests"
+
+
 APPROVED_MODSECURITY_V3_ROOT_LINKS = (
-    ("bindings/python", "bc625d5bb0bac6a64bcce8dc9902208612399348"),
-    ("others/libinjection", "211782219663f889f471650150df12b623c5766e"),
-    ("others/mbedtls", "0fe989b6b514192783c469039edd325fd0989806"),
+    (PYTHON_BINDINGS_PATH, "bc625d5bb0bac6a64bcce8dc9902208612399348"),
+    (LIBINJECTION_PATH, "211782219663f889f471650150df12b623c5766e"),
+    (MBEDTLS_PATH, "0fe989b6b514192783c469039edd325fd0989806"),
     (
-        "test/test-cases/secrules-language-tests",
+        SECRULES_LANGUAGE_TESTS_PATH,
         "f73c73027ef49ccf99c7911744929a71d15ff419",
     ),
 )
@@ -20,24 +26,24 @@ APPROVED_MODSECURITY_V3_ROOT_LINKS = (
 # and the direct Gitlinks tracked by that child.
 APPROVED_MODSECURITY_V3_TOPOLOGY = (
     (
-        "bindings/python",
+        PYTHON_BINDINGS_PATH,
         "https://github.com/owasp-modsecurity/ModSecurity-Python-bindings.git",
         "bc625d5bb0bac6a64bcce8dc9902208612399348",
-        "bindings/python",
+        PYTHON_BINDINGS_PATH,
         (),
     ),
     (
-        "others/libinjection",
+        LIBINJECTION_PATH,
         "https://github.com/libinjection/libinjection.git",
         "211782219663f889f471650150df12b623c5766e",
-        "others/libinjection",
+        LIBINJECTION_PATH,
         (),
     ),
     (
-        "others/mbedtls",
+        MBEDTLS_PATH,
         "https://github.com/Mbed-TLS/mbedtls.git",
         "0fe989b6b514192783c469039edd325fd0989806",
-        "others/mbedtls",
+        MBEDTLS_PATH,
         (
             ("framework", "dff9da04438d712f7647fd995bc90fadd0c0e2ce"),
             ("tf-psa-crypto", "29160dd877d29658279fd683b2ae57b320ddcf09"),
@@ -78,10 +84,10 @@ APPROVED_MODSECURITY_V3_TOPOLOGY = (
         (),
     ),
     (
-        "test/test-cases/secrules-language-tests",
+        SECRULES_LANGUAGE_TESTS_PATH,
         "https://github.com/owasp-modsecurity/secrules-language-tests",
         "f73c73027ef49ccf99c7911744929a71d15ff419",
-        "test/test-cases/secrules-language-tests",
+        SECRULES_LANGUAGE_TESTS_PATH,
         (),
     ),
 )

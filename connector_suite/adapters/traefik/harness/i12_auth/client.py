@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import socket
 import sys
 import time
@@ -10,6 +11,8 @@ import time
 
 def main():
     port, name = int(sys.argv[1]), sys.argv[2]
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", name) is None:
+        raise ValueError('client name must be one bounded filename component')
     root = Path('/task/client');root.mkdir(mode=0o700, exist_ok=True)
     identity = 'i12-auth-' + name
     bodies = {'p2-deny': b'i12-block-request', 'engine-limit': b'x' * 1500,

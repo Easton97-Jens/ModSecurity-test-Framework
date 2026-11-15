@@ -154,7 +154,7 @@ def reason_measurements(events):
     measured = []
     for event in events:
         reason = event.get("reason")
-        if not isinstance(reason, str) or not re.fullmatch(r"[a-z_]+=-?[0-9]+(?:;[a-z_]+=-?[0-9]+)*", reason):
+        if not isinstance(reason, str) or not re.fullmatch(r"[a-z_]+=-?\d+(?:;[a-z_]+=-?\d+)*", reason, re.ASCII):
             continue
         pairs = [part.split("=", 1) for part in reason.split(";")]
         if len({key for key, _ in pairs}) == len(pairs):

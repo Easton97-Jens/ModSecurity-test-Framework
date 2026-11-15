@@ -174,6 +174,7 @@ jobs:
           }
           mkdir -p "$RESULTS_DIR"
           scan_osv_attempt() {
+            local result_file="$1"
             set +e
             "$TOOLS_DIR/osv-scanner" scan source --format json --output-file "$result_file" \
               "${lockfiles[@]}"
@@ -186,14 +187,14 @@ jobs:
             local scanner_status=0
             local -a lockfiles=(--lockfile "$input_directory/requirements-dev.txt")
             lockfiles+=(--lockfile "$input_directory/requirements-ci.txt")
-            scan_osv_attempt
+            scan_osv_attempt "$result_file"
             for retry_delay in 1 2; do
               case "$scanner_status" in
                 0|1) return 0 ;;
                 127)
                   printf '%s\n' "OSV scanner returned transient status 127; retrying." >&2
                   sleep "$retry_delay"
-                  scan_osv_attempt
+                  scan_osv_attempt "$result_file"
                   ;;
                 *) return "$scanner_status" ;;
               esac

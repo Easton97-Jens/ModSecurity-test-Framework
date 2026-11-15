@@ -69,7 +69,7 @@ def parse_http11_response(raw):
         if transfer.lower() != b"chunked":
             raise ValueError("only actual chunked transfer coding is supported")
         body, framing, declared = decode_chunks(encoded), "chunked", None
-    elif length is not None and re.fullmatch(rb"[0-9]{1,5}", length) is not None:
+    elif length is not None and re.fullmatch(rb"\d{1,5}", length) is not None:
         declared = int(length)
         if declared != len(encoded):
             raise ValueError("actual body bytes must match the exact Content-Length")

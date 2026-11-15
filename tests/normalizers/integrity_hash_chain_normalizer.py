@@ -14,13 +14,17 @@ def _canonical(row: dict[str, Any]) -> str:
 def compute_event_hash(row: dict[str, Any]) -> str:
     return hashlib.sha256(_canonical(row).encode()).hexdigest()
 
+def _row_shape_errors(row: dict[str, Any], idx: int) -> list[str]:
+    errors = [f"line {idx}: missing {key}"
+              for key in ("sequence", "previous_event_hash", "event_hash") if key not in row]
+    errors.extend(f"line {idx}: body payload field is not allowed: {field}"
+                  for field in find_body_payload_fields(row))
+    return errors
+
 def validate_hash_chain(text: str) -> tuple[list[dict[str, Any]], list[str]]:
     rows, errors = parse_jsonl(text); prev=""
     for idx,row in enumerate(rows,1):
-        row_errors: list[str] = []
-        for key in ("sequence","previous_event_hash","event_hash"):
-            if key not in row: row_errors.append(f"line {idx}: missing {key}")
-        for field in find_body_payload_fields(row): row_errors.append(f"line {idx}: body payload field is not allowed: {field}")
+        row_errors = _row_shape_errors(row, idx)
         if row_errors:
             errors.extend(row_errors)
             continue

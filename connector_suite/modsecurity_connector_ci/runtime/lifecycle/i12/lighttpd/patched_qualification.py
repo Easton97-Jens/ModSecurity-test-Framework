@@ -1467,9 +1467,9 @@ def propose(case_root, attempt, inputs, output, source_count_review=None, qualif
     helper = load_source(helper_source)
     ref = helper.reference
     root = Path(case_root); attempt = Path(attempt); inputs = Path(inputs)
-    receipt = json.loads((root / CAPTURE_RECEIPT).read_text())
-    spec = json.loads((root / FIXTURE_SPEC).read_text())
-    source = json.loads((inputs / "source-build-binding.json").read_text())
+    receipt = read_json(root / CAPTURE_RECEIPT)
+    spec = read_json(root / FIXTURE_SPEC)
+    source = read_json(inputs / "source-build-binding.json")
     count_review, original_counts = amend_source_counts(spec, root, source_count_review)
     identity = {"run_id": receipt["run_id"], "parent_sha": source["actual_checkout_head"],
         "framework_sha": "99a7985c1be92a2297b1b59208f64df6768f2cbf",
