@@ -47,6 +47,15 @@ jobs:
       - name: Install hash-locked CI dependency
         run: bash ci/tools/install-hash-locked-ci-dependencies.sh
 
+      - name: Verify Connector inventory bindings and archive
+        env:
+          TEST_ROOT: ${{ github.workspace }}
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/connector_suite
+        run: |
+          set -euo pipefail
+          python3 -P connector_suite/modsecurity_connector_ci/tools/update-inventory-bindings.py --check
+          python3 -P connector_suite/modsecurity_connector_ci/tools/update-test-archive.py --check
+
       - name: Run framework lint
         run: |
           set -euo pipefail

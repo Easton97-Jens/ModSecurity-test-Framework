@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "756410ab7f382ee2bff625bd70887da6d790564d0c71750edb76a7ccaa521445",
+  "inventory_sha256": "c584a7053ee497978bbd96b0505792ecb30ef52a4eb060c0317cb7ef97f00fe5",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "c4b5192448e9045e6b1255fefa549ed45f470c30390ec58c611782069ad58449"
     }
   ],
-  "on_demand_definition_count": 8450,
+  "on_demand_definition_count": 8469,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -12436,6 +12436,8 @@
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_unallowlisted_github_token_reference_is_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_consolidated_workflow_rejects_reader_token_permission_trigger_and_topology_bypasses",
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_submodule_updater_uses_the_reviewed_framework_profile",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_submodule_updater_requires_lineage_checks_at_all_boundaries",
+        "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_submodule_updater_requires_both_resolved_identity_bindings",
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_submodule_updater_rejects_fork_head_pr_identity_bypasses",
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_submodule_updater_rejects_mrts_ref_token_and_force_push_bypasses",
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.CiSecurityContractTest.test_submodule_updater_rejects_extra_publisher_code_and_token_steps",
@@ -12458,7 +12460,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_ci_security_contract.PrivateSonarSourceRoleTest.test_upstream_lock_and_generic_release_checks_remain_required"
       ],
       "source": "framework/tests/ci_security/test_ci_security_contract.py",
-      "source_sha256": "db6c5d828505c644cf9739da03b00a86e333da30cebe74c3b31eb8d03b0e2d5c"
+      "source_sha256": "4a51804d51cc44f72f95ec093e98bd8f8dd7da4517fd61168505fb4b78622dc0"
     },
     {
       "contains_selected_definitions": [],
@@ -12694,6 +12696,24 @@
       ],
       "source": "framework/tests/ci_security/test_maintenance_test_views.py",
       "source_sha256": "456f0689abf75e47f1b856528b647e91e0050bca28fa36ce58b1eabb48acef67"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "tests/ci_security/test_mrts_update_lineage.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_accepts_same_commit",
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_accepts_descendant",
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_rejects_backward_update",
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_rejects_divergent_update",
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_rejects_missing_objects",
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_rejects_noncommit_objects",
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_rejects_malformed_sha_arguments",
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_rejects_wrong_argument_count",
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_rejects_git_repository_error",
+        "modsecurity_test_framework.selftests.ci_security.test_mrts_update_lineage.MrtsUpdateLineageTest.test_replace_ref_cannot_forge_ancestry"
+      ],
+      "source": "framework/tests/ci_security/test_mrts_update_lineage.py",
+      "source_sha256": "7a7408444b9df10855617a557df499efda525f0cd653320a84384f6b119ff943"
     },
     {
       "contains_selected_definitions": [],
@@ -15001,6 +15021,21 @@
       ],
       "source": "framework/tests/security_regression/test_sonar_diagnostics_callers.py",
       "source_sha256": "f909c80ff7f055ece99eea4a56da4ca45b152f1094b594e6918803b74b43727a"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "tests/security_regression/test_sonar_path_boundaries.py",
+      "on_demand_definitions": [
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_path_boundaries.ClientFilenameBoundaryTest.test_native_rejects_unsafe_names_before_filesystem_or_network",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_path_boundaries.ClientFilenameBoundaryTest.test_auth_rejects_unsafe_names_before_filesystem_or_network",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_path_boundaries.ClientFilenameBoundaryTest.test_native_keeps_valid_label_and_failure_receipt",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_path_boundaries.ClientFilenameBoundaryTest.test_auth_keeps_valid_name_and_failure_receipt",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_path_boundaries.ProposalEvidenceBoundaryTest.test_case_root_outside_declared_evidence_roots_is_rejected",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_path_boundaries.ProposalEvidenceBoundaryTest.test_source_binding_outside_declared_evidence_roots_is_rejected",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_path_boundaries.ProposalEvidenceBoundaryTest.test_existing_admitted_json_reaches_qualification_boundary"
+      ],
+      "source": "framework/tests/security_regression/test_sonar_path_boundaries.py",
+      "source_sha256": "0bf7f04edf90ff4d86a19c8b8b799c192addc5b7d0f9fd45c6924d23ed705dfe"
     },
     {
       "contains_selected_definitions": [],
