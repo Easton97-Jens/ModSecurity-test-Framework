@@ -48,19 +48,21 @@ Three existing core inventory regressions also passed (exit 0, 0.276 seconds): c
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
-| `/var/tmp/codex/ModSecurity-test-Framework/venv/bin/python -B -m modsecurity_test_framework.connector --check`, before repair | 1 | Reproduced `ACTIVE_INVENTORY_REJECTED` at the Traefik client binding. | Parent run `43717327488` |
+| `"$PYTHON" -B -m modsecurity_test_framework.connector --check`, before repair | 1 | Reproduced `ACTIVE_INVENTORY_REJECTED` at the Traefik client binding. | Parent run `43717327488` |
 | `python -B "$TEST_ROOT/connector_suite/modsecurity_connector_ci/tools/update-inventory-bindings.py" --check`, canonical Linux source | 1 | Ten stale bindings. | Local Framework validation |
 | `update-inventory-bindings.py --apply` | 0 | Ten source-hash slots updated; selectors unchanged. | Local Framework validation |
 | `update-inventory-bindings.py --check`, after repair | 0 | `INVENTORY_BINDINGS_VERIFIED`. | Local Framework validation |
 | `update-test-archive.py` | 0 | Archive regenerated through its native owner. | Local Framework validation |
 | `update-test-archive.py --check` | 0 | Archive matches generator inputs. | Local Framework validation |
-| `/var/tmp/codex/ModSecurity-test-Framework/venv/bin/python -B -m modsecurity_test_framework.connector --check`, after repair | 0 | `active_case_count=100`, `selected_executions=80`. | Local Framework validation |
+| `"$PYTHON" -B -m modsecurity_test_framework.connector --check`, after repair | 0 | `active_case_count=100`, `selected_executions=80`. | Local Framework validation |
 | Six existing binding/archive maintenance tests | 0 | Six tests passed in 0.084 seconds. | Local Framework validation |
 | Three selected `ActiveTestInventoryTests` for source-digest rejection, overflow rejection and closed case selection | 0 | Three tests passed in 0.276 seconds. | Local Framework validation |
 | `verify_framework_inventory.py` | 0 | Exactly ten canonical binding changes; 529 paths and all non-binding fields preserved; 100 cases / 80 executions unchanged. | External task verification artifact |
 | YAML parsing and `bash -n` on the new lint `run` block | 0 | Exactly two `--check` calls, no `--apply`, before existing Framework lint. | Local Framework validation |
 
 Checks used the Framework virtual environment on existing WSL Python `3.13.7`. A native Linux checkout with LF bytes was required: Windows CRLF materialization produced 529 false drift signals, and the Windows worktree Git path was incompatible with WSL. The task-owned native clone did not initialize MRTS.
+
+`PYTHON` denotes that Framework-owned virtual-environment interpreter. Hosted lint run `43721324960` passed the new binding/archive check, then rejected the machine-specific interpreter paths in this record pair. Those command examples now use the portable variable; the existing path-reference check remains unchanged.
 
 The explicit public-CLI context selected Parent revision `ab7a32ab464a3dd8fe119b10d3936acd4b4ae557`, the native Framework checkout through `TEST_ROOT` and `PYTHONPATH`, profile `h1`, and a task-owned external output root. `PYTHONNOUSERSITE=1` and `PYTHONDONTWRITEBYTECODE=1` were set. Source-owner commands used the same Framework-owned interpreter and exact native checkout.
 
