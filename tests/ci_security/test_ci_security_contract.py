@@ -471,6 +471,44 @@ jobs:
         )
         self.assertEqual(errors, [], "\n".join(errors))
 
+    def test_submodule_updater_requires_lineage_checks_at_all_boundaries(self) -> None:
+        path = ROOT / ".github/workflows/update-submodules.yml"
+        workflow = path.read_text(encoding="utf-8")
+        guards = (
+            'bash ci/tools/verify-mrts-update-lineage.sh "$lineage_repo" "$current_sha" "$candidate_sha"',
+            'bash ci/tools/verify-mrts-update-lineage.sh "$SUBMODULE_PATH" "$CURRENT_GITLINK_SHA" "$CANDIDATE_SHA"',
+            'bash "$lineage_checker" "$lineage_repo" "$current_sha" "$CANDIDATE_SHA"',
+        )
+        for guard in guards:
+            with self.subTest(guard=guard):
+                self.assertEqual(workflow.count(guard), 1)
+                unsafe = workflow.replace(guard, ":", 1)
+                errors = CHECKER.submodule_updater_errors(
+                    path, unsafe, CHECKER.yaml.safe_load(unsafe)
+                )
+                self.assertTrue(
+                    any(guard in error for error in errors), "\n".join(errors)
+                )
+
+    def test_submodule_updater_requires_both_resolved_identity_bindings(self) -> None:
+        path = ROOT / ".github/workflows/update-submodules.yml"
+        workflow = path.read_text(encoding="utf-8")
+        mutations = (
+            ("resolve-submodule-update", "outputs", "current_sha", None),
+            ("validate-submodule-update", "env", "CURRENT_GITLINK_SHA", "${{ needs.resolve-submodule-update.outputs.candidate_sha }}"),
+            ("validate-submodule-update", "env", "CANDIDATE_SHA", "${{ needs.resolve-submodule-update.outputs.current_sha }}"),
+        )
+        for job, section, key, value in mutations:
+            with self.subTest(job=job, key=key):
+                data = CHECKER.yaml.safe_load(workflow)
+                if value is None:
+                    del data["jobs"][job][section][key]
+                else:
+                    data["jobs"][job][section][key] = value
+                self.assertTrue(
+                    CHECKER.submodule_updater_validator_errors(path, data["jobs"])
+                )
+
     def test_submodule_updater_rejects_fork_head_pr_identity_bypasses(self) -> None:
         workflow_path = ROOT / ".github/workflows/update-submodules.yml"
         workflow = workflow_path.read_text(encoding="utf-8")
