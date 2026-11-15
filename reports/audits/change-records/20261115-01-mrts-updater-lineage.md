@@ -61,6 +61,8 @@ The focused selection is 16 unittest methods, representing 37 expanded Git/contr
 
 Exact selected commands and private terminal logs are retained in the task-owned external run directory. The selected contract methods are `test_submodule_updater_requires_lineage_checks_at_all_boundaries`, `test_submodule_updater_requires_both_resolved_identity_bindings`, `test_submodule_updater_uses_the_reviewed_framework_profile`, `test_submodule_updater_rejects_fork_head_pr_identity_bypasses`, `test_submodule_updater_rejects_mrts_ref_token_and_force_push_bypasses`, and `test_submodule_updater_rejects_extra_publisher_code_and_token_steps`.
 
+The first hosted quality job, `132748009785` at `defc43a5376431b9a056a52c236811be1ff376df`, passed Ruff lint and rejected formatting in two test files. The exact reported formatting changes were applied; both Python ASTs remain identical. No additional tool was installed. Current-head hosted results are recorded in the PR.
+
 ## Security impact
 
 The repair prevents an official but older MRTS branch tip from becoming an automated downgrade. Actual same/forward controls pass and the reported backward object pair rejects. Replace-ref forgery is exercised with real Git objects. Existing permissions, Draft/first-party PR rules, exact publisher profile and non-force publication remain effective. An independent static review found no material lineage/publisher trust defect.
@@ -71,7 +73,7 @@ Both Change Record languages describe the same scope and limits. There is no new
 
 ## Checks not run
 
-The Change Record contract, bilingual documentation and local documentation links passed. At this local verification checkpoint, hosted analysis/delivery had not yet been qualified. No updater publication, MRTS change, Parent candidate quick-check, connector campaign or comprehensive acceptance was launched. Ruff/Pyright are absent; no packages were installed.
+The Change Record contract, bilingual documentation and local documentation links passed. At this local verification checkpoint, hosted analysis/delivery had not yet been qualified. No updater publication, MRTS change, Parent candidate quick-check, connector campaign or comprehensive acceptance was launched. Ruff/Pyright are absent locally; no packages were installed.
 
 ## Limitations and residual risk
 

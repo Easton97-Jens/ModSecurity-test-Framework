@@ -495,8 +495,18 @@ jobs:
         workflow = path.read_text(encoding="utf-8")
         mutations = (
             ("resolve-submodule-update", "outputs", "current_sha", None),
-            ("validate-submodule-update", "env", "CURRENT_GITLINK_SHA", "${{ needs.resolve-submodule-update.outputs.candidate_sha }}"),
-            ("validate-submodule-update", "env", "CANDIDATE_SHA", "${{ needs.resolve-submodule-update.outputs.current_sha }}"),
+            (
+                "validate-submodule-update",
+                "env",
+                "CURRENT_GITLINK_SHA",
+                "${{ needs.resolve-submodule-update.outputs.candidate_sha }}",
+            ),
+            (
+                "validate-submodule-update",
+                "env",
+                "CANDIDATE_SHA",
+                "${{ needs.resolve-submodule-update.outputs.current_sha }}",
+            ),
         )
         for job, section, key, value in mutations:
             with self.subTest(job=job, key=key):

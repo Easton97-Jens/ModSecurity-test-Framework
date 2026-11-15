@@ -61,6 +61,8 @@ Die fokussierte Auswahl umfasst 16 unittest-Methoden mit 37 aufgelösten Git-/Ve
 
 Die exakten ausgewählten Befehle und privaten Abschlusslogs bleiben im externen Task-Laufverzeichnis erhalten. Die ausgewählten Vertragsmethoden sind `test_submodule_updater_requires_lineage_checks_at_all_boundaries`, `test_submodule_updater_requires_both_resolved_identity_bindings`, `test_submodule_updater_uses_the_reviewed_framework_profile`, `test_submodule_updater_rejects_fork_head_pr_identity_bypasses`, `test_submodule_updater_rejects_mrts_ref_token_and_force_push_bypasses` und `test_submodule_updater_rejects_extra_publisher_code_and_token_steps`.
 
+Der erste gehostete Qualitätsjob `132748009785` an `defc43a5376431b9a056a52c236811be1ff376df` bestand Ruff-Lint und wies die Formatierung zweier Testdateien zurück. Die exakt gemeldeten Formatänderungen wurden übernommen; beide Python-ASTs bleiben identisch. Es wurde kein zusätzliches Werkzeug installiert. Gehostete Ergebnisse des aktuellen Heads stehen im PR.
+
 ## Sicherheitsauswirkung
 
 Die Reparatur verhindert, dass ein offizieller, aber älterer MRTS-Branchstand automatisiert als Rückstufung veröffentlicht wird. Tatsächliche Gleich-/Vorwärtskontrollen bestehen; das gemeldete Rückwärts-Objektpaar wird abgewiesen. Eine Replace-Ref-Fälschung wird mit echten Git-Objekten geprüft. Bestehende Rechte, Draft-/Erstanbieter-PR-Regeln, exaktes Publisher-Profil und Veröffentlichung ohne Force-Push bleiben wirksam. Der unabhängige statische Review fand keinen wesentlichen Fehler an Abstammungs- oder Publisher-Vertrauensgrenzen.
@@ -71,7 +73,7 @@ Beide Change-Record-Sprachen beschreiben denselben Umfang und dieselben Grenzen.
 
 ## Nicht ausgeführte Prüfungen
 
-Change-Record-Vertrag, zweisprachige Dokumentation und lokale Dokumentationslinks wurden erfolgreich geprüft. Zu diesem lokalen Prüfzeitpunkt waren gehostete Analyse/Auslieferung noch nicht qualifiziert. Es wurden weder Updater-Veröffentlichung, MRTS-Änderung, Parent-Kandidaten-Quick-Check, Connector-Kampagne noch Gesamtabnahme gestartet. Ruff/Pyright fehlen; es wurden keine Pakete installiert.
+Change-Record-Vertrag, zweisprachige Dokumentation und lokale Dokumentationslinks wurden erfolgreich geprüft. Zu diesem lokalen Prüfzeitpunkt waren gehostete Analyse/Auslieferung noch nicht qualifiziert. Es wurden weder Updater-Veröffentlichung, MRTS-Änderung, Parent-Kandidaten-Quick-Check, Connector-Kampagne noch Gesamtabnahme gestartet. Ruff/Pyright fehlen lokal; es wurden keine Pakete installiert.
 
 ## Einschränkungen und Restrisiko
 

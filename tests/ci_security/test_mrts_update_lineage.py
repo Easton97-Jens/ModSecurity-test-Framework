@@ -17,30 +17,41 @@ class MrtsUpdateLineageTest(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.repository = Path(self.temporary.name) / "repository"
         self.environment = {
-            key: value for key, value in os.environ.items()
+            key: value
+            for key, value in os.environ.items()
             if not key.startswith("GIT_")
         }
-        self.environment.update({
-            "GIT_AUTHOR_NAME": "Lineage fixture",
-            "GIT_AUTHOR_EMAIL": "lineage@example.invalid",
-            "GIT_COMMITTER_NAME": "Lineage fixture",
-            "GIT_COMMITTER_EMAIL": "lineage@example.invalid",
-            "GIT_CONFIG_NOSYSTEM": "1",
-            "GIT_CONFIG_GLOBAL": os.devnull,
-        })
-        self.git("init", "--bare", "--object-format=sha1", str(self.repository), outside=True)
+        self.environment.update(
+            {
+                "GIT_AUTHOR_NAME": "Lineage fixture",
+                "GIT_AUTHOR_EMAIL": "lineage@example.invalid",
+                "GIT_COMMITTER_NAME": "Lineage fixture",
+                "GIT_COMMITTER_EMAIL": "lineage@example.invalid",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": os.devnull,
+            }
+        )
+        self.git(
+            "init", "--bare", "--object-format=sha1", str(self.repository), outside=True
+        )
         self.tree = self.git("mktree", input="")
         self.current = self.commit("current")
         self.descendant = self.commit("descendant", self.current)
         self.divergent = self.commit("divergent")
 
-    def git(self, *arguments: str, input: str | None = None, outside: bool = False) -> str:
+    def git(
+        self, *arguments: str, input: str | None = None, outside: bool = False
+    ) -> str:
         command = ["git", "-c", "commit.gpgsign=false"]
         if not outside:
             command.extend(["-C", str(self.repository)])
         result = subprocess.run(
-            [*command, *arguments], input=input, text=True, capture_output=True,
-            env=self.environment, check=True,
+            [*command, *arguments],
+            input=input,
+            text=True,
+            capture_output=True,
+            env=self.environment,
+            check=True,
         )
         return result.stdout.strip()
 
@@ -51,12 +62,17 @@ class MrtsUpdateLineageTest(unittest.TestCase):
         return self.git(*arguments, input=message + "\n")
 
     def check_lineage(self, current: str, candidate: str, *, accepted: bool) -> None:
-        self.check_arguments(str(self.repository), current, candidate, accepted=accepted)
+        self.check_arguments(
+            str(self.repository), current, candidate, accepted=accepted
+        )
 
     def check_arguments(self, *arguments: str, accepted: bool = False) -> None:
         result = subprocess.run(
-            ["bash", str(CHECKER), *arguments], text=True, capture_output=True,
-            env=self.environment, check=False,
+            ["bash", str(CHECKER), *arguments],
+            text=True,
+            capture_output=True,
+            env=self.environment,
+            check=False,
         )
         self.assertEqual(result.stdout, "")
         if accepted:
@@ -80,7 +96,10 @@ class MrtsUpdateLineageTest(unittest.TestCase):
         self.check_lineage(self.current, self.divergent, accepted=False)
 
     def test_rejects_missing_objects(self) -> None:
-        for current, candidate in (("0" * 40, self.descendant), (self.current, "0" * 40)):
+        for current, candidate in (
+            ("0" * 40, self.descendant),
+            (self.current, "0" * 40),
+        ):
             with self.subTest(current=current, candidate=candidate):
                 self.check_lineage(current, candidate, accepted=False)
 
@@ -98,10 +117,14 @@ class MrtsUpdateLineageTest(unittest.TestCase):
 
     def test_rejects_wrong_argument_count(self) -> None:
         self.check_arguments()
-        self.check_arguments(str(self.repository), self.current, self.descendant, "extra")
+        self.check_arguments(
+            str(self.repository), self.current, self.descendant, "extra"
+        )
 
     def test_rejects_git_repository_error(self) -> None:
-        self.check_arguments(str(self.repository / "missing"), self.current, self.descendant)
+        self.check_arguments(
+            str(self.repository / "missing"), self.current, self.descendant
+        )
 
     def test_replace_ref_cannot_forge_ancestry(self) -> None:
         self.git("replace", self.divergent, self.descendant)
