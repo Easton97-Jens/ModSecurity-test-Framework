@@ -43,9 +43,16 @@ def response_status(response: bytes) -> int:
     if not isinstance(response, bytes) or len(response) > 65536:
         raise ValueError("response must be bounded actual bytes")
     header, delimiter, body = response.partition(b"\r\n\r\n")
-    status = re.fullmatch(rb"HTTP/1\.1 ([1-5][0-9]{2}) [^\r\n]*", header.split(b"\r\n", 1)[0])
+    status = re.fullmatch(rb"HTTP/1\.1 ([1-5]\d{2}) [^\r\n]*", header.split(b"\r\n", 1)[0])
     if not delimiter or status is None:
         raise ValueError("complete H1 response headers are required")
+    lengths = _response_content_lengths(header)
+    if len(lengths) != 1 or len(body) != lengths[0]:
+        raise ValueError("one exact fully received response length is required")
+    return int(status.group(1))
+
+
+def _response_content_lengths(header: bytes) -> list[int]:
     lengths = []
     for line in header.split(b"\r\n")[1:]:
         name, colon, value = line.partition(b":")
@@ -54,12 +61,10 @@ def response_status(response: bytes) -> int:
         if name.lower() == b"transfer-encoding":
             raise ValueError("host rejection contract requires explicit Content-Length")
         if name.lower() == b"content-length":
-            if not re.fullmatch(rb"[0-9]{1,5}", value.strip()):
+            if not re.fullmatch(rb"\d{1,5}", value.strip()):
                 raise ValueError("invalid response Content-Length")
             lengths.append(int(value.strip()))
-    if len(lengths) != 1 or len(body) != lengths[0]:
-        raise ValueError("one exact fully received response length is required")
-    return int(status.group(1))
+    return lengths
 
 
 def validate_host_rejection(case_id: str, run_id: str, response: bytes,

@@ -15,10 +15,13 @@ from modsecurity_test_framework.runners import nginx_phase4_contracts as contrac
 MAX_RAW_BYTES = 1024 * 1024
 MAX_EVENT_BYTES = 8192
 NATIVE_MODE = "native-nginx-http-module"
-APPEND_REASON = re.compile(r"native_return=([01]);append_size=(0|[1-9][0-9]*);append_index=([1-9][0-9]*);engine_retained_bytes=(0|[1-9][0-9]*)")
-COMPLETE_REASON = re.compile(r"engine_retained_bytes=(0|[1-9][0-9]*);append_calls=(0|[1-9][0-9]*)")
-RAW_LEAVES = frozenset({"phase4-events.jsonl", "response.bin", "response.headers",
-                        "client.stdout", "client.stderr", "rules.conf", "nginx.conf", "nginx-error.log"})
+PHASE4_EVENTS_LEAF = "phase4-events.jsonl"
+RESPONSE_BODY_LEAF = "response.bin"
+CLIENT_STDERR_LEAF = "client.stderr"
+APPEND_REASON = re.compile(r"native_return=([01]);append_size=(0|[1-9]\d*);append_index=([1-9]\d*);engine_retained_bytes=(0|[1-9]\d*)", re.ASCII)
+COMPLETE_REASON = re.compile(r"engine_retained_bytes=(0|[1-9]\d*);append_calls=(0|[1-9]\d*)", re.ASCII)
+RAW_LEAVES = frozenset({PHASE4_EVENTS_LEAF, RESPONSE_BODY_LEAF, "response.headers",
+                        "client.stdout", CLIENT_STDERR_LEAF, "rules.conf", "nginx.conf", "nginx-error.log"})
 REJECT_LOG = b"Response body limit is marked to reject the request"
 
 
@@ -32,6 +35,10 @@ def _equal_fields(value, expected, label):
         observed = value.get(field)
         _require(type(observed) is type(wanted) and observed == wanted,
                  f"{label}: {field} does not match observed contract")
+
+
+def _reject_json_constant(_value):
+    raise ValueError("invalid JSON number")
 
 
 def _unique_object(pairs):
@@ -49,7 +56,7 @@ def _native_events(receipt, raw, path):
             continue
         _require(len(line) + 1 <= MAX_EVENT_BYTES, "native event exceeds bounded JSONL size")
         event = json.loads(line, object_pairs_hook=_unique_object,
-                           parse_constant=lambda value: (_ for _ in ()).throw(ValueError("invalid JSON number")))
+                           parse_constant=_reject_json_constant)
         _require(isinstance(event, dict), "native JSONL must contain objects")
         if (event.get("connector") == "nginx" and event.get("integration_mode") == NATIVE_MODE
                 and event.get("phase") == "response_body" and event.get("method") == "GET"
@@ -80,14 +87,14 @@ def _raw_inputs(receipt, artifacts, spec):
 
 def _wire(receipt, artifacts, status, expected_body, aborted=False):
     _equal_fields(receipt, {"client_exit_code": 18 if aborted else 0, "observed_http_status": status,
-                           "response_bytes_received": len(artifacts["response.bin"])}, "wire receipt")
+                           "response_bytes_received": len(artifacts[RESPONSE_BODY_LEAF])}, "wire receipt")
     _require(artifacts["client.stdout"] == str(status).encode(), "raw client status mismatch")
     if aborted:
-        _require(re.fullmatch(rb"curl: \(18\) (?:transfer closed with outstanding read data remaining|end of response with [1-9][0-9]* bytes missing)\n?", artifacts["client.stderr"]),
+        _require(re.fullmatch(rb"curl: \(18\) (?:transfer closed with outstanding read data remaining|end of response with [1-9]\d* bytes missing)\n?", artifacts[CLIENT_STDERR_LEAF]),
                  "committed immediate Reject requires actual incomplete-framing curl18")
-        _require(artifacts["response.bin"] == b"", "rejected append was forwarded to client")
+        _require(artifacts[RESPONSE_BODY_LEAF] == b"", "rejected append was forwarded to client")
     else:
-        _require(artifacts["client.stderr"] == b"", "client reports incomplete or failed response")
+        _require(artifacts[CLIENT_STDERR_LEAF] == b"", "client reports incomplete or failed response")
     headers = artifacts["response.headers"]
     _require(headers.endswith(b"\r\n\r\n"), "response headers incomplete")
     lines = headers[:-4].split(b"\r\n")
@@ -101,12 +108,12 @@ def _wire(receipt, artifacts, status, expected_body, aborted=False):
     encoding = fields.get(b"transfer-encoding")
     _require(not (length is not None and encoding is not None), "ambiguous response framing")
     if length is not None:
-        _require(re.fullmatch(rb"0|[1-9][0-9]*", length), "invalid response length")
-        _require(int(length) > 0 if aborted else int(length) == len(artifacts["response.bin"]), "response length framing mismatch")
+        _require(re.fullmatch(rb"0|[1-9]\d*", length), "invalid response length")
+        _require(int(length) > 0 if aborted else int(length) == len(artifacts[RESPONSE_BODY_LEAF]), "response length framing mismatch")
     else:
         _require(encoding == b"chunked", "response must retain explicit framing")
     if expected_body is not None:
-        _require(artifacts["response.bin"] == expected_body, "received body differs from exact split/limit fixture")
+        _require(artifacts[RESPONSE_BODY_LEAF] == expected_body, "received body differs from exact split/limit fixture")
         _require(fields.get(b"content-type") == b"text/plain", "actual MIME header mismatch")
 
 
@@ -190,7 +197,7 @@ def validate_phase4_operation(record_id, receipt, raw_artifacts):
         _require(receipt.get("driver_error") is None, "driver failed")
         _require(isinstance(receipt.get("run_id"), str) and re.fullmatch(r"[A-Za-z0-9_-]{1,128}", receipt["run_id"]), "invalid run identity")
         _raw_inputs(receipt, raw_artifacts, spec)
-        events = _native_events(receipt, raw_artifacts["phase4-events.jsonl"], spec["request_path"])
+        events = _native_events(receipt, raw_artifacts[PHASE4_EVENTS_LEAF], spec["request_path"])
         sizes = [len(chunk.encode()) for chunk in spec["response_chunks"]]
         body = "".join(spec["response_chunks"]).encode()
         reject = record_id == "phase4_body_reject"
@@ -209,7 +216,7 @@ def validate_phase4_operation(record_id, receipt, raw_artifacts):
             if spec["pause_between_chunks"]:
                 _equal_fields(receipt, {"first_body_byte_before_upstream_eos": True}, "streaming split")
         if record_id == "full_lifecycle_event_metadata_bounded":
-            _require(contracts.MARKER.encode() not in raw_artifacts["phase4-events.jsonl"], "native metadata contains response payload")
+            _require(contracts.MARKER.encode() not in raw_artifacts[PHASE4_EVENTS_LEAF], "native metadata contains response payload")
         return []
-    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError) as exc:
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
         return [str(exc)]

@@ -63,6 +63,10 @@ def projected_uri(uri):
     return text, truncated, bool(suffix)
 
 
+def _reject_json_constant(_value):
+    raise ValueError("invalid JSON number")
+
+
 def unique_object(pairs):
     result = {}
     for key, value in pairs:
@@ -73,7 +77,7 @@ def unique_object(pairs):
 
 def json_object(raw):
     value = json.loads(raw, object_pairs_hook=unique_object,
-                       parse_constant=lambda _: (_ for _ in ()).throw(ValueError("invalid JSON number")))
+                       parse_constant=_reject_json_constant)
     require(isinstance(value, dict), "raw event object required")
     return value
 
@@ -145,7 +149,7 @@ def validate_event_boundary_child(case_id, variant, receipt, raw_artifacts):
         check_raw(receipt, raw_artifacts, spec)
         check_callback(receipt, raw_artifacts["phase4-events.jsonl"], spec)
         return []
-    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError) as exc:
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
         return [str(exc)]
 
 
@@ -176,5 +180,5 @@ def validate_event_boundary_operation(case_id, receipt, retained_children):
             errors = validate_event_boundary_child(case_id, variant, child_receipt, child["raw_artifacts"])
             require(not errors, "; ".join(errors))
         return []
-    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError) as exc:
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
         return [str(exc)]

@@ -2293,9 +2293,11 @@ def render_connector_runtime_fail_details(snapshot: dict, connector: str, headin
         reason = smoke_unavailable_reason(smoke, connector)
         if reason:
             lines.append(f"- Reason: {md(reason)}")
-        lines.append(f"- Status: `{md(smoke.get('status', 'unknown'))}`")
-        lines.append(f"- Build status: `{md(smoke.get('build_status', 'unknown'))}`")
-        lines.append(f"- Summary evidence: `{md(smoke.get('summary_path', 'unknown'))}`")
+        lines.extend([
+            f"- Status: `{md(smoke.get('status', 'unknown'))}`",
+            f"- Build status: `{md(smoke.get('build_status', 'unknown'))}`",
+            f"- Summary evidence: `{md(smoke.get('summary_path', 'unknown'))}`",
+        ])
         text_summary = smoke.get("text_summary_path")
         if text_summary:
             lines.append(f"- Text summary: `{md(text_summary)}`")

@@ -19,8 +19,8 @@ RAW_LEAVES = frozenset({"phase4-events.jsonl", "response.bin", "response.headers
                         "client.stdout", "client.stderr", "rules.conf", "nginx.conf",
                         "response-header-fixture.json"})
 MAX_RAW_BYTES = 1024 * 1024
-APPEND_REASON = re.compile(r"native_return=([01]);append_size=([1-9][0-9]*);append_index=([1-9][0-9]*);engine_retained_bytes=(0|[1-9][0-9]*)")
-COMPLETE_REASON = re.compile(r"engine_retained_bytes=(0|[1-9][0-9]*);append_calls=([1-9][0-9]*)")
+APPEND_REASON = re.compile(r"native_return=([01]);append_size=([1-9]\d*);append_index=([1-9]\d*);engine_retained_bytes=(0|[1-9]\d*)", re.ASCII)
+COMPLETE_REASON = re.compile(r"engine_retained_bytes=(0|[1-9]\d*);append_calls=([1-9]\d*)", re.ASCII)
 REPEATABLE_WIRE_FIELDS = frozenset({b"set-cookie"})
 
 
@@ -55,6 +55,10 @@ def equal_fields(value, expected):
                 "MIME observation mismatch: " + field)
 
 
+def _reject_json_constant(_value):
+    raise ValueError("invalid JSON number")
+
+
 def unique_object(pairs):
     result = {}
     for key, value in pairs:
@@ -65,7 +69,7 @@ def unique_object(pairs):
 
 def json_object(raw):
     value = json.loads(raw, object_pairs_hook=unique_object,
-                       parse_constant=lambda _: (_ for _ in ()).throw(ValueError("invalid JSON number")))
+                       parse_constant=_reject_json_constant)
     require(isinstance(value, dict), "raw JSON object required")
     return value
 
@@ -219,5 +223,5 @@ def validate_mime_operation(case_id, receipt, raw_artifacts):
         check_config_and_rules(raw_artifacts, content_type)
         check_events(receipt, raw_artifacts["phase4-events.jsonl"], content_type)
         return []
-    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError) as exc:
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
         return [str(exc)]

@@ -433,6 +433,12 @@ def _validate_case_metadata(case: Mapping[str, Any], where: str) -> None:
     _validate_capabilities(case, where)
     _validate_origin(case, where)
     _validate_known_limitations(case, where)
+    _validate_case_classification(case, where)
+    if not materializable:
+        _validate_nonmaterializable_case(case, where)
+
+
+def _validate_case_classification(case: Mapping[str, Any], where: str) -> None:
     portable = case.get("portable")
     if portable is not None and not isinstance(portable, bool):
         raise ValueError(f"case portable must be a boolean{where}")
@@ -445,16 +451,18 @@ def _validate_case_metadata(case: Mapping[str, Any], where: str) -> None:
     status = case.get("status")
     if status is not None and str(status) not in CASE_STATUSES:
         raise ValueError(f"case status is unsupported{where}")
-    if not materializable:
-        capabilities = case.get("capabilities")
-        if not isinstance(capabilities, Mapping) or capabilities.get("runtime_verified") is not False:
-            raise ValueError(
-                f"non-materializable case requires capabilities.runtime_verified=false{where}"
-            )
-        if case.get("former_xfail") is not True:
-            raise ValueError(f"non-materializable case requires former_xfail=true{where}")
-        if str(status) != "connector-gap":
-            raise ValueError(f"non-materializable case requires status=connector-gap{where}")
+
+
+def _validate_nonmaterializable_case(case: Mapping[str, Any], where: str) -> None:
+    capabilities = case.get("capabilities")
+    if not isinstance(capabilities, Mapping) or capabilities.get("runtime_verified") is not False:
+        raise ValueError(
+            f"non-materializable case requires capabilities.runtime_verified=false{where}"
+        )
+    if case.get("former_xfail") is not True:
+        raise ValueError(f"non-materializable case requires former_xfail=true{where}")
+    if str(case.get("status")) != "connector-gap":
+        raise ValueError(f"non-materializable case requires status=connector-gap{where}")
 
 
 def _validate_capabilities(case: Mapping[str, Any], where: str) -> None:
@@ -765,11 +773,12 @@ def _validated_audit_render_paths(
         raise ValueError(f"audit output root must be an existing directory: {root}")
     _require_owner_private_audit_directory(root, "audit output root")
     audit_file = _private_audit_path(audit_log_file, root, "audit log file")
-    audit_dir = _private_audit_path(audit_log_dir, root, "audit log directory")
+    audit_dir_label = "audit log directory"
+    audit_dir = _private_audit_path(audit_log_dir, root, audit_dir_label)
     if not audit_dir.is_dir():
         raise ValueError(f"audit log directory must be an existing directory: {audit_dir}")
-    private_runtime_root(audit_dir, "audit log directory")
-    _require_owner_private_audit_directory(audit_dir, "audit log directory")
+    private_runtime_root(audit_dir, audit_dir_label)
+    _require_owner_private_audit_directory(audit_dir, audit_dir_label)
     if not audit_file.parent.is_dir():
         raise ValueError(f"audit log parent must be an existing directory: {audit_file.parent}")
     private_runtime_root(audit_file.parent, "audit log parent")
@@ -842,11 +851,7 @@ def _request_header_entries(request: Mapping[str, Any], where: str = "") -> list
     if isinstance(headers, Mapping):
         entries = list(headers.items())
     elif isinstance(headers, list):
-        entries = []
-        for entry in headers:
-            if not isinstance(entry, Mapping) or set(entry) != {"name", "value"}:
-                raise ValueError(f"request.headers entries require exactly name and value{where}")
-            entries.append((entry["name"], entry["value"]))
+        entries = _ordered_request_header_entries(headers, where)
     else:
         raise ValueError(f"request.headers must be a mapping or ordered list{where}")
     for name, value in entries:
@@ -856,6 +861,15 @@ def _request_header_entries(request: Mapping[str, Any], where: str = "") -> list
             raise ValueError(f"request.headers value must be a scalar{where}")
         if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in str(value)):
             raise ValueError(f"request.headers value must not contain control characters{where}")
+    return entries
+
+
+def _ordered_request_header_entries(headers: list[Any], where: str) -> list[tuple[str, Any]]:
+    entries = []
+    for entry in headers:
+        if not isinstance(entry, Mapping) or set(entry) != {"name", "value"}:
+            raise ValueError(f"request.headers entries require exactly name and value{where}")
+        entries.append((entry["name"], entry["value"]))
     return entries
 
 
