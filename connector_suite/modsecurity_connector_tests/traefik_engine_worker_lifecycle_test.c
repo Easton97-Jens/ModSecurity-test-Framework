@@ -1,7 +1,24 @@
 /* Exercise Traefik worker-slot ownership with real detached worker threads. */
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #define _GNU_SOURCE
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
@@ -49,9 +66,9 @@ static void wait_for_worker_count(traefik_engine_service *service,
     for (size_t attempt = 0U; attempt < 300U; ++attempt) {
         size_t count;
 
-        assert(pthread_mutex_lock(&service->worker_lock) == 0);
+        TEST_REQUIRE(pthread_mutex_lock(&service->worker_lock) == 0);
         count = service->worker_count;
-        assert(pthread_mutex_unlock(&service->worker_lock) == 0);
+        TEST_REQUIRE(pthread_mutex_unlock(&service->worker_lock) == 0);
         if (count == expected) {
             return;
         }
@@ -64,9 +81,9 @@ static size_t worker_count(traefik_engine_service *service)
 {
     size_t count;
 
-    assert(pthread_mutex_lock(&service->worker_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&service->worker_lock) == 0);
     count = service->worker_count;
-    assert(pthread_mutex_unlock(&service->worker_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&service->worker_lock) == 0);
     return count;
 }
 
@@ -79,23 +96,23 @@ static void init_service(traefik_engine_service *service, size_t max_workers)
     for (size_t index = 0U; index < max_workers; ++index) {
         service->worker_slots[index].socket_fd = -1;
     }
-    assert(pthread_mutex_init(&service->worker_lock, NULL) == 0);
-    assert(pthread_cond_init(&service->workers_idle, NULL) == 0);
+    TEST_REQUIRE(pthread_mutex_init(&service->worker_lock, NULL) == 0);
+    TEST_REQUIRE(pthread_cond_init(&service->workers_idle, NULL) == 0);
 }
 
 static void destroy_service(traefik_engine_service *service)
 {
     assert(service->worker_count == 0U);
     free(service->worker_slots);
-    assert(pthread_cond_destroy(&service->workers_idle) == 0);
-    assert(pthread_mutex_destroy(&service->worker_lock) == 0);
+    TEST_REQUIRE(pthread_cond_destroy(&service->workers_idle) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&service->worker_lock) == 0);
 }
 
 static void shutdown_workers(traefik_engine_service *service)
 {
-    assert(pthread_mutex_lock(&service->worker_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&service->worker_lock) == 0);
     traefik_engine_shutdown_active_workers_locked(service);
-    assert(pthread_mutex_unlock(&service->worker_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&service->worker_lock) == 0);
 }
 
 static int test_pthread_create(pthread_t *thread, const pthread_attr_t *attributes,
@@ -117,19 +134,19 @@ static int test_close(int socket_fd)
     }
     result = close(socket_fd);
     assert(result == 0);
-    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, race_replacement) == 0);
+    TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, race_replacement) == 0);
     if (race_replacement[0] != race_target_fd) {
-        assert(dup2(race_replacement[0], race_target_fd) == race_target_fd);
-        assert(close(race_replacement[0]) == 0);
+        TEST_REQUIRE(dup2(race_replacement[0], race_target_fd) == race_target_fd);
+        TEST_REQUIRE(close(race_replacement[0]) == 0);
         race_replacement[0] = race_target_fd;
     }
-    assert(pthread_mutex_lock(&race_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&race_lock) == 0);
     race_close_ready = 1;
-    assert(pthread_cond_broadcast(&race_condition) == 0);
+    TEST_REQUIRE(pthread_cond_broadcast(&race_condition) == 0);
     while (!race_shutdown_entered) {
         struct timespec deadline;
 
-        assert(clock_gettime(CLOCK_REALTIME, &deadline) == 0);
+        TEST_REQUIRE(clock_gettime(CLOCK_REALTIME, &deadline) == 0);
         deadline.tv_nsec += 200000000L;
         if (deadline.tv_nsec >= 1000000000L) {
             ++deadline.tv_sec;
@@ -139,7 +156,7 @@ static int test_close(int socket_fd)
             break;
         }
     }
-    assert(pthread_mutex_unlock(&race_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&race_lock) == 0);
     return result;
 }
 
@@ -147,18 +164,18 @@ static void *race_shutdown_worker(void *argument)
 {
     traefik_engine_service *service = argument;
 
-    assert(pthread_mutex_lock(&race_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&race_lock) == 0);
     while (!race_close_ready) {
-        assert(pthread_cond_wait(&race_condition, &race_lock) == 0);
+        TEST_REQUIRE(pthread_cond_wait(&race_condition, &race_lock) == 0);
     }
-    assert(pthread_mutex_unlock(&race_lock) == 0);
-    assert(pthread_mutex_lock(&service->worker_lock) == 0);
-    assert(pthread_mutex_lock(&race_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&race_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&service->worker_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&race_lock) == 0);
     race_shutdown_entered = 1;
-    assert(pthread_cond_broadcast(&race_condition) == 0);
-    assert(pthread_mutex_unlock(&race_lock) == 0);
+    TEST_REQUIRE(pthread_cond_broadcast(&race_condition) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&race_lock) == 0);
     traefik_engine_shutdown_active_workers_locked(service);
-    assert(pthread_mutex_unlock(&service->worker_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&service->worker_lock) == 0);
     return NULL;
 }
 
@@ -172,38 +189,38 @@ static void test_worker_cap_reuse_and_pthread_rollback(void)
     int fourth[2];
 
     init_service(&service, 2U);
-    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, first) == 0);
-    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, second) == 0);
-    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, third) == 0);
-    assert(traefik_engine_start_worker(&service, first[0]) ==
+    TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, first) == 0);
+    TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, second) == 0);
+    TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, third) == 0);
+    TEST_REQUIRE(traefik_engine_start_worker(&service, first[0]) ==
         TRAEFIK_ENGINE_WORKER_STARTED);
-    assert(traefik_engine_start_worker(&service, second[0]) ==
+    TEST_REQUIRE(traefik_engine_start_worker(&service, second[0]) ==
         TRAEFIK_ENGINE_WORKER_STARTED);
     wait_for_worker_count(&service, 2U);
-    assert(traefik_engine_start_worker(&service, third[0]) ==
+    TEST_REQUIRE(traefik_engine_start_worker(&service, third[0]) ==
         TRAEFIK_ENGINE_WORKER_CAPACITY);
     assert(worker_count(&service) == 2U);
-    assert(close(third[0]) == 0);
-    assert(close(third[1]) == 0);
+    TEST_REQUIRE(close(third[0]) == 0);
+    TEST_REQUIRE(close(third[1]) == 0);
 
     /* A deliberately slow/non-reading peer occupies one bounded worker only. */
-    assert(close(first[1]) == 0);
+    TEST_REQUIRE(close(first[1]) == 0);
     wait_for_worker_count(&service, 1U);
-    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, failed_start) == 0);
+    TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, failed_start) == 0);
     force_pthread_create_failure = 1;
-    assert(traefik_engine_start_worker(&service, failed_start[0]) ==
+    TEST_REQUIRE(traefik_engine_start_worker(&service, failed_start[0]) ==
         TRAEFIK_ENGINE_WORKER_ERROR);
     assert(worker_count(&service) == 1U);
-    assert(close(failed_start[0]) == 0);
-    assert(close(failed_start[1]) == 0);
+    TEST_REQUIRE(close(failed_start[0]) == 0);
+    TEST_REQUIRE(close(failed_start[1]) == 0);
 
-    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, fourth) == 0);
-    assert(traefik_engine_start_worker(&service, fourth[0]) ==
+    TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, fourth) == 0);
+    TEST_REQUIRE(traefik_engine_start_worker(&service, fourth[0]) ==
         TRAEFIK_ENGINE_WORKER_STARTED);
     wait_for_worker_count(&service, 2U);
     shutdown_workers(&service);
-    assert(close(second[1]) == 0);
-    assert(close(fourth[1]) == 0);
+    TEST_REQUIRE(close(second[1]) == 0);
+    TEST_REQUIRE(close(fourth[1]) == 0);
     wait_for_worker_count(&service, 0U);
     destroy_service(&service);
 }
@@ -243,7 +260,7 @@ static void test_fd_reuse_never_reaches_shutdown(void)
     unsigned char byte = 0x5aU;
 
     init_service(&service, 1U);
-    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, original) == 0);
+    TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, original) == 0);
     race_service = &service;
     race_target_fd = original[0];
     race_enabled = 1;
@@ -251,18 +268,18 @@ static void test_fd_reuse_never_reaches_shutdown(void)
     race_shutdown_entered = 0;
     race_replacement[0] = -1;
     race_replacement[1] = -1;
-    assert(traefik_engine_start_worker(&service, original[0]) ==
+    TEST_REQUIRE(traefik_engine_start_worker(&service, original[0]) ==
         TRAEFIK_ENGINE_WORKER_STARTED);
-    assert(pthread_create(&shutdown_thread, NULL, race_shutdown_worker, &service) == 0);
-    assert(close(original[1]) == 0);
+    TEST_REQUIRE(pthread_create(&shutdown_thread, NULL, race_shutdown_worker, &service) == 0);
+    TEST_REQUIRE(close(original[1]) == 0);
     wait_for_worker_count(&service, 0U);
-    assert(pthread_join(shutdown_thread, NULL) == 0);
+    TEST_REQUIRE(pthread_join(shutdown_thread, NULL) == 0);
     assert(race_shutdown_entered == 1);
     assert(race_replacement[0] == race_target_fd && race_replacement[1] >= 0);
-    assert(send(race_replacement[1], &byte, sizeof(byte), MSG_NOSIGNAL) ==
+    TEST_REQUIRE(send(race_replacement[1], &byte, sizeof(byte), MSG_NOSIGNAL) ==
         (ssize_t)sizeof(byte));
-    assert(close(race_replacement[0]) == 0);
-    assert(close(race_replacement[1]) == 0);
+    TEST_REQUIRE(close(race_replacement[0]) == 0);
+    TEST_REQUIRE(close(race_replacement[1]) == 0);
     race_enabled = 0;
     race_target_fd = -1;
     race_service = NULL;

@@ -1,7 +1,23 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #define _GNU_SOURCE
 #include "msconnector/event_jsonl.h"
 #include "msconnector/event_protocol.h"
 #include <assert.h>
+#include <stdlib.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -24,7 +40,7 @@ static FILE *stream(struct fault_sink *sink, int buffered) {
     cookie_io_functions_t functions = {.write = write_cookie, .close = close_cookie};
     FILE *file = fopencookie(sink, "w", functions);
     assert(file != NULL);
-    if (!buffered) assert(setvbuf(file, NULL, _IONBF, 0) == 0);
+    if (!buffered) TEST_REQUIRE(setvbuf(file, NULL, _IONBF, 0) == 0);
     return file;
 }
 int main(void) {
@@ -62,7 +78,7 @@ int main(void) {
     }
     /* A successful fputs does not clear an existing stream error. */
     sink = (struct fault_sink){.write_fault = 1}; file = stream(&sink, 0);
-    assert(fputs("prior-error", file) == EOF && ferror(file));
+    TEST_REQUIRE(fputs("prior-error", file) == EOF && ferror(file));
     sink.write_fault = 0;
     msconnector_error_init(&error);
     assert(!msconnector_event_file_write(file, "{}\n", &error));

@@ -1,3 +1,8 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include "envoy_ext_authz_response_companion.h"
 
 #include <assert.h>

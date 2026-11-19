@@ -1,3 +1,8 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #ifndef MSCONNECTOR_TEST_HTTP_AUTHORIZATION_REQUEST_STREAM_STUBS_H
 #define MSCONNECTOR_TEST_HTTP_AUTHORIZATION_REQUEST_STREAM_STUBS_H
 
@@ -6,6 +11,18 @@
 #include "msconnector/error.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <stdint.h>
 
 /* The three HTTP fixtures use one transaction model.  The timeout fixture
@@ -73,20 +90,20 @@ static void msconnector_test_request_stream_stubs_smoke(void) {
     msconnector_error error;
     msconnector_decision decision;
     const unsigned char body[] = "body";
-    assert(msconnector_runtime_transaction_append_request_body_chunk(&transaction, body, 2U, &error));
-    assert(msconnector_runtime_transaction_append_request_body_chunk(&transaction, body + 2U, 2U, &error));
+    TEST_REQUIRE(msconnector_runtime_transaction_append_request_body_chunk(&transaction, body, 2U, &error));
+    TEST_REQUIRE(msconnector_runtime_transaction_append_request_body_chunk(&transaction, body + 2U, 2U, &error));
     assert(transaction.request_body_bytes == 4U);
-    assert(msconnector_runtime_transaction_finish_request_body(&transaction, &decision, &error));
+    TEST_REQUIRE(msconnector_runtime_transaction_finish_request_body(&transaction, &decision, &error));
     assert(transaction.request_body_finished == 1);
-    assert(!msconnector_runtime_transaction_finish_request_body(&transaction, &decision, &error));
-    assert(!msconnector_runtime_transaction_append_request_body_chunk(&transaction, body, 1U, &error));
+    TEST_REQUIRE(!msconnector_runtime_transaction_finish_request_body(&transaction, &decision, &error));
+    TEST_REQUIRE(!msconnector_runtime_transaction_append_request_body_chunk(&transaction, body, 1U, &error));
     assert(transaction.request_body_bytes == 4U);
     transaction = (msconnector_runtime_transaction){0};
     assert(msconnector_runtime_transaction_fail(&transaction, MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL, &error));
     assert(msconnector_runtime_transaction_fail(&transaction, MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR, &error));
     assert(transaction.request_body_failure == MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
-    assert(!msconnector_runtime_transaction_append_request_body_chunk(&transaction, body, 1U, &error));
-    assert(!msconnector_runtime_transaction_finish_request_body(&transaction, &decision, &error));
+    TEST_REQUIRE(!msconnector_runtime_transaction_append_request_body_chunk(&transaction, body, 1U, &error));
+    TEST_REQUIRE(!msconnector_runtime_transaction_finish_request_body(&transaction, &decision, &error));
     assert(transaction.request_body_finished == 0);
     assert(transaction.request_body_bytes == 0U);
 }
