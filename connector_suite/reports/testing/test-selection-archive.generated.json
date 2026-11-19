@@ -1355,7 +1355,7 @@
       "source_sha256": "a9333d97479c8dcea933483723ef80a19e5fb5c65cb8afd4df501856c3c329bb"
     }
   ],
-  "on_demand_definition_count": 8478,
+  "on_demand_definition_count": 8479,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -6263,6 +6263,7 @@
         "modsecurity_connector_tests.test_haproxy_spop_event_sink_failures.HaproxySpopEventSinkFailureTests.test_open_directory_failure_cannot_become_optional_log_success",
         "modsecurity_connector_tests.test_haproxy_spop_event_sink_failures.HaproxySpopEventSinkFailureTests.test_real_response_caller_aborts_without_successful_finish_or_cache",
         "modsecurity_connector_tests.test_haproxy_spop_event_sink_failures.HaproxySpopEventSinkFailureTests.test_real_request_caller_aborts_before_companion_handoff_or_finish",
+        "modsecurity_connector_tests.test_haproxy_spop_event_sink_failures.HaproxySpopEventSinkFailureTests.test_phase4_event_renders_only_positive_signed_rule_ids",
         "modsecurity_connector_tests.test_haproxy_spop_event_sink_failures.HaproxySpopEventSinkFailureTests.test_direct_common_event_stdio_failures_remain_physical_io",
         "modsecurity_connector_tests.test_haproxy_spop_event_sink_failures.HaproxySpopEventSinkFailureTests.test_memory_stream_stdio_failure_is_serialization_not_physical_io",
         "modsecurity_connector_tests.test_haproxy_spop_event_sink_failures.HaproxySpopEventSinkFailureTests.test_compiled_old_staging_classification_control_reproduces_io_misclassification",
@@ -6271,7 +6272,7 @@
         "modsecurity_connector_tests.test_haproxy_spop_event_sink_failures.HaproxySpopEventSinkFailureTests.test_open_invalid_parent_failure_propagates"
       ],
       "source": "tests/test_haproxy_spop_event_sink_failures.py",
-      "source_sha256": "39fede12f71ba8309957d2a3a32a47995ebcde8fef43b6a38bb83fa7856dd5d3"
+      "source_sha256": "59ca7b1fdaaf931ddee4f19ab951fb429bfce080722dfaa6a7b7ad9557cc625c"
     },
     {
       "contains_selected_definitions": [],
