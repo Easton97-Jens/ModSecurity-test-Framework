@@ -1,3 +1,6 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #include <assert.h>
 #include <string.h>
 #include "msconnector/transaction_contract.h"

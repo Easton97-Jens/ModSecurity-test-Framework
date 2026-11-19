@@ -1,4 +1,7 @@
 
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/lighttpd/src/lighttpd_modsecurity_mapper.h"
 #include "connectors/profile_registry.h"

@@ -1,5 +1,18 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #define _POSIX_C_SOURCE 200809L
 #include <assert.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,9 +91,9 @@ int main(int argc, char **argv) {
     snprintf(rules_path, sizeof(rules_path), "%s/http.rules", argv[1]);
     snprintf(config_path, sizeof(config_path), "%s/http.conf", argv[1]);
     FILE *file = fopen(rules_path, "w"); assert(file);
-    assert(fprintf(file, "SecRuleEngine On\nSecRequestBodyAccess On\nSecRequestBodyLimit %zu\nSecRequestBodyNoFilesLimit %zu\nSecRequestBodyLimitAction %s\nSecAction \"id:93010,phase:1,pass,nolog,ctl:forceRequestBodyVariable=On\"\nSecRule REQUEST_BODY \"@rx PREFIX.*PREFIX\" \"id:93011,phase:2,deny,status:452,nolog\"\nSecRule REQUEST_BODY \"@contains MARKER\" \"id:93012,phase:2,deny,status:451,nolog\"\n", limit, no_files_limit, argv[4]) > 0); assert(fclose(file) == 0);
+    TEST_REQUIRE(fprintf(file, "SecRuleEngine On\nSecRequestBodyAccess On\nSecRequestBodyLimit %zu\nSecRequestBodyNoFilesLimit %zu\nSecRequestBodyLimitAction %s\nSecAction \"id:93010,phase:1,pass,nolog,ctl:forceRequestBodyVariable=On\"\nSecRule REQUEST_BODY \"@rx PREFIX.*PREFIX\" \"id:93011,phase:2,deny,status:452,nolog\"\nSecRule REQUEST_BODY \"@contains MARKER\" \"id:93012,phase:2,deny,status:451,nolog\"\n", limit, no_files_limit, argv[4]) > 0); TEST_REQUIRE(fclose(file) == 0);
     file=fopen(config_path,"w"); assert(file);
-    assert(fprintf(file,"enabled=on\nrules_file=%s\nrequest_body_mode=buffered\nresponse_body_mode=none\nphase4_mode=safe\n",rules_path)>0); assert(fclose(file)==0);
+    TEST_REQUIRE(fprintf(file,"enabled=on\nrules_file=%s\nrequest_body_mode=buffered\nresponse_body_mode=none\nphase4_mode=safe\n",rules_path)>0); TEST_REQUIRE(fclose(file)==0);
     authorization_service service; memset(&service,0,sizeof(service));
     msconnector_http_authorization_profile profile; memset(&profile,0,sizeof(profile));
     msconnector_error error; msconnector_error_init(&error);
@@ -91,22 +104,22 @@ int main(int argc, char **argv) {
     service.profile=&profile; service.connection_timeout_ms=15000UL;
     assert(msconnector_runtime_create("lighttpd", config_path, &service.runtime, error_text, sizeof(error_text)));
     assert(msconnector_runtime_set_transaction_profile(service.runtime,profile.transaction_profile));
-    assert(pthread_mutex_init(&service.runtime_lock,NULL)==0);
+    TEST_REQUIRE(pthread_mutex_init(&service.runtime_lock,NULL)==0);
     service.request_limits.total_header_limit = msconnector_runtime_total_header_limit(service.runtime);
     service.request_limits.header_count_limit = msconnector_runtime_header_count_limit(service.runtime);
     msconnector_runtime_request_contract(service.runtime, &service.request_limits.mapper_contract);
-    int sockets[2]; assert(socketpair(AF_UNIX,SOCK_STREAM,0,sockets)==0);
+    int sockets[2]; TEST_REQUIRE(socketpair(AF_UNIX,SOCK_STREAM,0,sockets)==0);
     writer input={sockets[1],(size_t)strtoull(argv[5],NULL,10),(size_t)strtoull(argv[6],NULL,10),atoi(argv[7])};
     expected_length=input.length;
     expected_retained = strcmp(argv[4], "ProcessPartial") == 0 && limit < input.length
         ? limit : input.length;
-    pthread_t thread; assert(pthread_create(&thread,NULL,client,&input)==0);
+    pthread_t thread; TEST_REQUIRE(pthread_create(&thread,NULL,client,&input)==0);
     struct sockaddr_in endpoint; memset(&endpoint,0,sizeof(endpoint)); endpoint.sin_family=AF_INET;
     endpoint.sin_addr.s_addr=htonl(INADDR_LOOPBACK); endpoint.sin_port=htons(12345);
     connection_deadline deadline; assert(connection_deadline_init(&deadline,15000UL));
     authorization_connection connection={sockets[0],&endpoint,&endpoint,&deadline};
-    assert(handle_authorization_request(&connection,&service));
-    close(sockets[0]); assert(pthread_join(thread,NULL)==0);
+    TEST_REQUIRE(handle_authorization_request(&connection,&service));
+    close(sockets[0]); TEST_REQUIRE(pthread_join(thread,NULL)==0);
     assert(handoff_calls==(input.expected_status==200));
     if (retained) {
         assert(msconnector_runtime_transaction_cancel(retained,0,&error));
@@ -114,7 +127,7 @@ int main(int argc, char **argv) {
         msconnector_runtime_transaction_destroy(&retained);
     }
     msconnector_runtime_destroy(&service.runtime);
-    assert(pthread_mutex_destroy(&service.runtime_lock)==0);
+    TEST_REQUIRE(pthread_mutex_destroy(&service.runtime_lock)==0);
     puts("genuine HTTP authorization stream PASS: full byte accounting, P2 before handoff, no duplicate prefix");
     return 0;
 }

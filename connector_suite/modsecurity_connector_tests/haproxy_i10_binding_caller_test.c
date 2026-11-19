@@ -1,3 +1,6 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #include "PRODUCT_BINDING"
 #include <assert.h>
 #include <stdio.h>

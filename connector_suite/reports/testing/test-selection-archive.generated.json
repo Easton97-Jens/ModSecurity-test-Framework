@@ -957,7 +957,7 @@
     {
       "framework_path": "connector_suite/adapters/envoy/src/envoy_ext_authz_response_companion_test.c",
       "source": "connectors/envoy/src/envoy_ext_authz_response_companion_test.c",
-      "source_sha256": "ac1d4ba69b909e6522c89aa486532cf69347d0437ef5b0433a85d4ee82f78faf"
+      "source_sha256": "96743066dfff37bee1859568c7c0d0062bb5a15c3921e75ae2d70ad9e6c348e5"
     },
     {
       "framework_path": "connector_suite/adapters/haproxy/harness/i12_request_scope_observer.c",
@@ -997,7 +997,7 @@
     {
       "framework_path": "connector_suite/adapters/traefik/src/traefik_forwardauth_response_companion_test.c",
       "source": "connectors/traefik/src/traefik_forwardauth_response_companion_test.c",
-      "source_sha256": "4dc0e345996e969707d3ae941db5f9472809e2380b05941bcb3b071d2adea324"
+      "source_sha256": "c6336e82df6d7d327d36fc88e338e3453343c00486a662dd2d21318a89b09df6"
     },
     {
       "framework_path": "connector_suite/common/scripts/modsecurity_targeted_eval.cc",
@@ -1027,12 +1027,12 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_ci/checks/connectors/apache/apache_request_transaction_cleanup.c",
       "source": "ci/checks/connectors/apache/apache_request_transaction_cleanup.c",
-      "source_sha256": "a5a893dc71f1ad801f3a53f5c744c9749f57ba36fc281f196fca2311f6ccddb1"
+      "source_sha256": "218caf7f5f078b2e2b3ca33124c32b4876b724cca80ecc4939d21418fbcf677f"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_ci/checks/connectors/apache/apache_rules_set_cleanup.c",
       "source": "ci/checks/connectors/apache/apache_rules_set_cleanup.c",
-      "source_sha256": "aa4e7f984fcfc4a0cef451a9b9d885134e7ab1b7414cf68623c990560341a9b4"
+      "source_sha256": "0fa74fbda28a23a731b33f9829b26d7f9db231dc9b0f552e5432d5bf8faaca48"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_ci/runtime/lifecycle/apache-i12/acceptance/common_sink_boundary.c",
@@ -1127,17 +1127,17 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/engine_http_request_stream_test.c",
       "source": "tests/engine_http_request_stream_test.c",
-      "source_sha256": "567e28a8e192e797ec48924d96c194488ca1853fc185da951a4d59625256b845"
+      "source_sha256": "9c8198926bdd6c0c4f76138506b5bb356afa629b93d7d8e8890b6670eea20974"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/engine_response_limit_test.c",
       "source": "tests/engine_response_limit_test.c",
-      "source_sha256": "5a433bf3deeff30f375d6bb0a61405b863f9761cd1f5f6a38ac82a00cc4a2733"
+      "source_sha256": "b1c859fbd9c7ea87996c915d367735e266aeb6ce2ed69e322eaa00f2e66f5e9d"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/event_json_query_redaction_test.c",
       "source": "tests/event_json_query_redaction_test.c",
-      "source_sha256": "47a7eea7a4a1aac236a2427212d7a2c82c2e315eeaec4712b8734b9eba9b2148"
+      "source_sha256": "8ce0f679ffa86f89dc1aba276c92e04c6d633b3d02b79f0e438632b1fee74276"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/event_json_utf8_smoke.c",
@@ -1147,12 +1147,12 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/lighttpd_i10_native.c",
       "source": "tests/fixtures/lighttpd_i10_native.c",
-      "source_sha256": "d456941749de398f3ee778254b2b646b7705cb4b85599b5304205f176a0cd491"
+      "source_sha256": "f499d37c5512bbb5f8f376dcd145d6f2474faf3587bb621ef88da0275f589234"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/lighttpd_i10_sidecar.c",
       "source": "tests/fixtures/lighttpd_i10_sidecar.c",
-      "source_sha256": "a8d45042c84169b52dfde640d6cf4f21dff6b3ff1f718850f75b6b515bebbfab"
+      "source_sha256": "f44331e886f9089257b5e6ec9cf32acefbba022665f487b40a1b2a825367ae6f"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/nginx_common_input_fault.c",
@@ -1207,27 +1207,27 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_common_event_stream_test.c",
       "source": "tests/haproxy_common_event_stream_test.c",
-      "source_sha256": "52ce01561b209dbb85d013049e7b963f4da7b870a5366ee5135640c42e7d1173"
+      "source_sha256": "82c6ece59224c593954c97ac56733544d339134550f28f74bccddacc6688e313"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_i10_binding_caller_test.c",
       "source": "tests/haproxy_i10_binding_caller_test.c",
-      "source_sha256": "f3e8267a4716062b4991d0bd2f6a31c89d6bb60763f1791403a4c77cbd9802be"
+      "source_sha256": "416eac2fdd6f39c2c7c7317b821032cf0ad74aba980609044d63aa3d65129459"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_i10_host_caller_test.c",
       "source": "tests/haproxy_i10_host_caller_test.c",
-      "source_sha256": "304b07367d591e1b28c0a1f361545f01f0f4f4ddfbd741d16c4f12850e12550d"
+      "source_sha256": "04921501efaf046cb0ce3682278b01140bbb8b15aa30fc241cae264a2e183311"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_i10_spop_caller_test.c",
       "source": "tests/haproxy_i10_spop_caller_test.c",
-      "source_sha256": "4939e2e3f1fb821b05d0e0bbbe73d04dfee4c4ef9ce7413c2e1b74acdcaeb5f1"
+      "source_sha256": "bea58f049c7924142eee457dda14601dabfb58701e8a52bc9b34f6d00e074ba5"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_request_authorization_contract_test.c",
       "source": "tests/haproxy_request_authorization_contract_test.c",
-      "source_sha256": "47e13afe0c7e89bc42828d1745f353a857f266af067d8e9851ad6cea5e1d9dab"
+      "source_sha256": "739e5db1aef192471a9fc46d904575c8589ee9598c8704e0dd7f18ba97b1922a"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_spop_request_target_test.c",
@@ -1237,12 +1237,12 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_spop_response_companion_backend_test.c",
       "source": "tests/haproxy_spop_response_companion_backend_test.c",
-      "source_sha256": "b7a01171d19c1be2ce59c739ac047fff81316c8080192cd1d2c786dd0913de64"
+      "source_sha256": "59b9a94ceaaf926596cbc7567ee48142855998595f4085549a2ff38a2ec6d654"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_spop_response_companion_lifetime_test.c",
       "source": "tests/haproxy_spop_response_companion_lifetime_test.c",
-      "source_sha256": "1a537684f1b25d25f4fc4b9533bc6a91bcdeff8355c0a27eae4651a72575f36f"
+      "source_sha256": "48784caec8378732bf72e285b69e97dea0a8c6e2fa9aab35344ba7fd252bea2e"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/http_authorization_service_detached_worker_smoke.c",
@@ -1257,7 +1257,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/http_authorization_service_response_companion_lifecycle_smoke.c",
       "source": "tests/http_authorization_service_response_companion_lifecycle_smoke.c",
-      "source_sha256": "b1923e33f54d3dcb8b0b512ed7828e8b56eab7a023d8380a71f33a0978b7edd5"
+      "source_sha256": "96a318ba403cd6d08a6d5a37706a3435d31a85681ceb3992c037a5acf3ca2e3c"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/http_authorization_service_trusted_binding_smoke.c",
@@ -1292,42 +1292,42 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/request_body_telemetry_test.c",
       "source": "tests/request_body_telemetry_test.c",
-      "source_sha256": "5ac99fbf46eb8468136c880f495bd04a74e321ab3c3783f8a3cf914952e1e21c"
+      "source_sha256": "f352e23249cc5cd4f35961e06526cbc1b0cec2c4a3f024dc4b8170d46f54ae43"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/response_companion_client_test.c",
       "source": "tests/response_companion_client_test.c",
-      "source_sha256": "276dad4c823ec936459f4f61d55d009cc4883fe2dcd4f766bf1ea9861ead0fa7"
+      "source_sha256": "c22198a83666ea467f805426d51d60a4221ff27b90d284a3780c8c33e045a836"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/response_companion_transport_test.c",
       "source": "tests/response_companion_transport_test.c",
-      "source_sha256": "a9ed0085e58edce1e8775a16a8588b0150261e65614f3eae79f4356fc19cccd6"
+      "source_sha256": "6d5fc8eaf521d53b65647b2740342d16ad8191da96153293d5a8f460b8072f4e"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_cleanup_observation.c",
       "source": "tests/test_nginx_cleanup_observation.c",
-      "source_sha256": "19104d0170e11040ce8c978e1e0dd5d534ad9db76d56f0d5d80a5c33e2a0d47f"
+      "source_sha256": "6db20cdf378c17722f3e1b38651f39a41b2e721c0f31b1798e067688788cfd8a"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_engine_call_budget.c",
       "source": "tests/test_nginx_engine_call_budget.c",
-      "source_sha256": "049bd1b3e8cbe75d699f8bcdec137c19b9cd3a031bd44af30fe809589c9ecc3e"
+      "source_sha256": "e382ccc3127ba098534db074cfd3d5cfb4e07af354694450059eed7784fbc0a9"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/test_resource_limits_hard_caps.c",
       "source": "tests/test_resource_limits_hard_caps.c",
-      "source_sha256": "8017d94efcab883ba42bc9f2179826240bb8dc92d0849f6e2e53910135cc4d67"
+      "source_sha256": "0497459ed26f0ce91842f5de8e8969fde8e864676b71b726307e33d866b46463"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/traefik_engine_worker_lifecycle_test.c",
       "source": "tests/traefik_engine_worker_lifecycle_test.c",
-      "source_sha256": "0a11e97d083750e91a81ed3003feb31a521bb991e6432bc4284953f4326058a3"
+      "source_sha256": "7601aeac327aba373e9659e4e843948d9218a9c2ad4f5bf79d2f0aff65afa2cf"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/traefik_i10_dispatcher_test.c",
       "source": "tests/traefik_i10_dispatcher_test.c",
-      "source_sha256": "d06bfe5f075801423dd6463658388315bc9c80252d450041431341e2244656b5"
+      "source_sha256": "cd64d9c6ce431a02bb0a43b7296425deb5e89f91e426988405274f4e8763c80c"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/traefik_i12_companion_invalid_outcome_probe.c",
@@ -1352,10 +1352,10 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/transaction_phase_runtime_companion_test.c",
       "source": "tests/transaction_phase_runtime_companion_test.c",
-      "source_sha256": "c4b5192448e9045e6b1255fefa549ed45f470c30390ec58c611782069ad58449"
+      "source_sha256": "a9333d97479c8dcea933483723ef80a19e5fb5c65cb8afd4df501856c3c329bb"
     }
   ],
-  "on_demand_definition_count": 8476,
+  "on_demand_definition_count": 8478,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -7527,6 +7527,16 @@
       ],
       "source": "tests/test_native_api_fail_closed_contract.py",
       "source_sha256": "450120c5987abf1a59d4c2808e7cccb05c50d10030d62a63bc89377789a6c447"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/modsecurity_connector_tests/test_native_assert_ndebug_contract.py",
+      "on_demand_definitions": [
+        "modsecurity_connector_tests.test_native_assert_ndebug_contract.NativeAssertNdebugContract.test_assert_users_undefine_ndebug_before_any_include",
+        "modsecurity_connector_tests.test_native_assert_ndebug_contract.NativeAssertNdebugContract.test_ndebug_build_executes_and_detects_broken_expectations"
+      ],
+      "source": "framework/connector_suite/modsecurity_connector_tests/test_native_assert_ndebug_contract.py",
+      "source_sha256": "87b52737c9ea1a28b941a01b49d5b75de386a6ed9f13386a40633fdfac4ddeb7"
     },
     {
       "contains_selected_definitions": [],

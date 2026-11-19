@@ -5,11 +5,26 @@
  * test-only hooks; the existing detached-worker fixture supplies a bounded
  * fake Common runtime and HTTP mapper.
  */
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #define main detached_worker_smoke_main
 #include "http_authorization_service_detached_worker_smoke.c"
 #undef main
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <sys/wait.h>
 
 #include "common/runtime/http_authorization_service.c"
@@ -37,19 +52,19 @@ static int runtime_destroy_count(void)
 
 static void reset_fake_runtime(void)
 {
-    assert(pthread_mutex_lock(&test_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&test_lock) == 0);
     authorization_stop = 0;
     memset(&fake_runtime, 0, sizeof(fake_runtime));
     runtime_entered = 0;
     runtime_release = 1;
     runtime_destroyed = 0;
-    assert(pthread_cond_broadcast(&test_changed) == 0);
-    assert(pthread_mutex_unlock(&test_lock) == 0);
+    TEST_REQUIRE(pthread_cond_broadcast(&test_changed) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&test_lock) == 0);
 }
 
 static void reset_companion(int should_fail)
 {
-    assert(pthread_mutex_lock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&companion_lock) == 0);
     assert(companion_transaction == NULL);
     companion_handoff_calls = 0;
     companion_shutdown_calls = 0;
@@ -57,7 +72,7 @@ static void reset_companion(int should_fail)
     companion_shutdown_permitted = 0;
     companion_shutdown_should_fail = should_fail;
     companion_transaction_finished = 0;
-    assert(pthread_mutex_unlock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
 }
 
 static int wait_for_companion_shutdown(void)
@@ -65,15 +80,15 @@ static int wait_for_companion_shutdown(void)
     struct timespec deadline;
     int result = 0;
 
-    assert(clock_gettime(CLOCK_REALTIME, &deadline) == 0);
+    TEST_REQUIRE(clock_gettime(CLOCK_REALTIME, &deadline) == 0);
     deadline.tv_sec += TEST_WAIT_SECONDS;
-    assert(pthread_mutex_lock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&companion_lock) == 0);
     while (!companion_shutdown_entered && result == 0) {
         result = pthread_cond_timedwait(&companion_changed, &companion_lock,
             &deadline);
     }
     result = companion_shutdown_entered;
-    assert(pthread_mutex_unlock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
     return result;
 }
 
@@ -81,18 +96,18 @@ static int companion_has_retained_transaction(void)
 {
     int result;
 
-    assert(pthread_mutex_lock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&companion_lock) == 0);
     result = companion_transaction != NULL;
-    assert(pthread_mutex_unlock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
     return result;
 }
 
 static void permit_companion_shutdown(void)
 {
-    assert(pthread_mutex_lock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&companion_lock) == 0);
     companion_shutdown_permitted = 1;
-    assert(pthread_cond_broadcast(&companion_changed) == 0);
-    assert(pthread_mutex_unlock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_cond_broadcast(&companion_changed) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
 }
 
 static int companion_handoff(
@@ -106,15 +121,15 @@ static int companion_handoff(
     if (runtime != &fake_runtime || transaction == NULL || response_handle == NULL) {
         return 0;
     }
-    assert(pthread_mutex_lock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&companion_lock) == 0);
     if (companion_transaction != NULL) {
-        assert(pthread_mutex_unlock(&companion_lock) == 0);
+        TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
         return 0;
     }
     companion_transaction = transaction;
     ++companion_handoff_calls;
-    assert(pthread_cond_broadcast(&companion_changed) == 0);
-    assert(pthread_mutex_unlock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_cond_broadcast(&companion_changed) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
     (void)snprintf(response_handle,
         MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE, "%s",
         "companion-fixture-handle");
@@ -129,15 +144,15 @@ static int companion_shutdown(void *userdata, msconnector_error *error)
     msconnector_runtime_transaction *transaction;
 
     (void)userdata;
-    assert(pthread_mutex_lock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&companion_lock) == 0);
     ++companion_shutdown_calls;
     companion_shutdown_entered = 1;
-    assert(pthread_cond_broadcast(&companion_changed) == 0);
+    TEST_REQUIRE(pthread_cond_broadcast(&companion_changed) == 0);
     while (!companion_shutdown_should_fail && !companion_shutdown_permitted) {
-        assert(pthread_cond_wait(&companion_changed, &companion_lock) == 0);
+        TEST_REQUIRE(pthread_cond_wait(&companion_changed, &companion_lock) == 0);
     }
     if (companion_shutdown_should_fail) {
-        assert(pthread_mutex_unlock(&companion_lock) == 0);
+        TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
         if (error != NULL) {
             msconnector_error_init(error);
         }
@@ -145,16 +160,16 @@ static int companion_shutdown(void *userdata, msconnector_error *error)
     }
     transaction = companion_transaction;
     companion_transaction = NULL;
-    assert(pthread_mutex_unlock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
     if (transaction == NULL || !msconnector_runtime_transaction_finish(transaction,
             error)) {
         return 0;
     }
     msconnector_runtime_transaction_destroy(&transaction);
-    assert(pthread_mutex_lock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&companion_lock) == 0);
     companion_transaction_finished = 1;
-    assert(pthread_cond_broadcast(&companion_changed) == 0);
-    assert(pthread_mutex_unlock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_cond_broadcast(&companion_changed) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
     return 1;
 }
 
@@ -206,7 +221,7 @@ static authorization_worker *install_worker(authorization_service *service)
     worker->next = service->workers;
     service->workers = worker;
     ++service->active_workers;
-    assert(pthread_mutex_unlock(&service->worker_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&service->worker_lock) == 0);
     return worker;
 }
 
@@ -305,11 +320,11 @@ static int run_successful_companion_lifecycle(void)
         goto done;
     }
     server_started = 0;
-    assert(pthread_mutex_lock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&companion_lock) == 0);
     result = args.result == 0 && companion_handoff_calls == 1 &&
         companion_shutdown_calls == 1 && companion_transaction == NULL &&
         companion_transaction_finished == 1;
-    assert(pthread_mutex_unlock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
     result = result && runtime_destroy_count() == 1;
 
 done:
@@ -356,11 +371,11 @@ static int run_failed_companion_lifecycle_child(void)
     if (client_fd >= 0) {
         (void)close(client_fd);
     }
-    assert(pthread_mutex_lock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&companion_lock) == 0);
     result = args.result == 1 && companion_handoff_calls == 1 &&
         companion_shutdown_calls == 1 && companion_transaction != NULL &&
         companion_transaction_finished == 0;
-    assert(pthread_mutex_unlock(&companion_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&companion_lock) == 0);
     /* Intentionally leave this service and transaction quarantined. A release
      * after failed companion shutdown would make this scenario fail. */
     return result && runtime_destroy_count() == 0;
@@ -393,13 +408,13 @@ typedef struct release_race {
 
 static void race_wait_for_start(release_race *race)
 {
-    assert(pthread_mutex_lock(&race->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&race->lock) == 0);
     ++race->ready;
-    assert(pthread_cond_broadcast(&race->changed) == 0);
+    TEST_REQUIRE(pthread_cond_broadcast(&race->changed) == 0);
     while (!race->go) {
-        assert(pthread_cond_wait(&race->changed, &race->lock) == 0);
+        TEST_REQUIRE(pthread_cond_wait(&race->changed, &race->lock) == 0);
     }
-    assert(pthread_mutex_unlock(&race->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&race->lock) == 0);
 }
 
 static void *race_owner_release(void *argument)
@@ -453,27 +468,27 @@ static int test_concurrent_owner_worker_release(void)
         return 0;
     }
     service->deferred_cleanup = 1;
-    assert(pthread_mutex_unlock(&service->worker_lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&service->worker_lock) == 0);
     race.service = service;
     race.worker = worker;
     if (pthread_create(&owner, NULL, race_owner_release, &race) != 0 ||
         pthread_create(&worker_thread, NULL, race_worker_release, &race) != 0) {
         return 0;
     }
-    assert(pthread_mutex_lock(&race.lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&race.lock) == 0);
     while (race.ready != 2) {
-        assert(pthread_cond_wait(&race.changed, &race.lock) == 0);
+        TEST_REQUIRE(pthread_cond_wait(&race.changed, &race.lock) == 0);
     }
     race.go = 1;
-    assert(pthread_cond_broadcast(&race.changed) == 0);
-    assert(pthread_mutex_unlock(&race.lock) == 0);
+    TEST_REQUIRE(pthread_cond_broadcast(&race.changed) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&race.lock) == 0);
     if (pthread_join(owner, NULL) != 0 || pthread_join(worker_thread, NULL) != 0) {
         return 0;
     }
     result = (race.owner_result == 0 || race.owner_result == 1) &&
         runtime_destroy_count() == 1;
-    assert(pthread_cond_destroy(&race.changed) == 0);
-    assert(pthread_mutex_destroy(&race.lock) == 0);
+    TEST_REQUIRE(pthread_cond_destroy(&race.changed) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&race.lock) == 0);
     return result;
 }
 

@@ -9,6 +9,9 @@
  *   /var/tmp/msconnector-resource-limits-hard-caps
  *
  */
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #include "msconnector/config.h"
 #include "msconnector/limits.h"
 #include "msconnector/resource_limits.h"

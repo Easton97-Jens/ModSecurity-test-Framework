@@ -5,6 +5,9 @@
  * without requiring a live ModSecurity engine.
  */
 
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>

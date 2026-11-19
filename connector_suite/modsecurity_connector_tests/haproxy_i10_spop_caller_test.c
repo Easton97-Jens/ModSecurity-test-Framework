@@ -1,8 +1,23 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #define _GNU_SOURCE
 #define main haproxy_spop_program_main
 #include "PRODUCT_RUNTIME"
 #undef main
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 extern const char *native_failure;
 extern int native_failure_result;
 extern unsigned int native_calls;
@@ -323,9 +338,9 @@ static void check_owner_outcome_line(agent_state *state, int phase, int strict) 
   } else if (strict) {
     expected_action = "\"actual_action\":\"abort_connection\"";
   }
-  assert(ftell(state->decision_log) > 0);
+  TEST_REQUIRE(ftell(state->decision_log) > 0);
   rewind(state->decision_log); char line[8192];
-  assert(fgets(line, sizeof(line), state->decision_log) != NULL);
+  TEST_REQUIRE(fgets(line, sizeof(line), state->decision_log) != NULL);
   assert(strstr(line, "native-owner-event") != NULL);
   assert(strstr(line, "\"rule_id\":\"123\"") != NULL);
   assert(strstr(line, "SECRET-INPUT-NATIVE-LOG") == NULL);
@@ -346,9 +361,9 @@ static void finish_owner_outcome(agent_state *state,
     if (!context->success) fprintf(stderr, "OUTCOME failed phase=%d fixture=%d error=%d %s\n",
         phase, fault, context->error.code, context->error.message ? context->error.message : "");
     assert(context->success);
-    assert(fflush(state->decision_log) == 0);
+    TEST_REQUIRE(fflush(state->decision_log) == 0);
     if (fault >= 2) {
-      assert(ftell(state->decision_log) == 0);
+      TEST_REQUIRE(ftell(state->decision_log) == 0);
     } else {
       check_owner_outcome_line(state, phase, strict);
     }
@@ -405,10 +420,10 @@ static void check_owner_outcome_event(agent_state *state, int phase, int fault, 
     cookie_io_functions_t ops = {.write = fail_outcome_event};
     state->decision_log = fopencookie(NULL, "w", ops);
     assert(state->decision_log != NULL);
-    assert(setvbuf(state->decision_log, NULL, _IONBF, 0) == 0);
+    TEST_REQUIRE(setvbuf(state->decision_log, NULL, _IONBF, 0) == 0);
   } else {
     state->decision_log = fopen("native-owner-event.jsonl", "w+");
-    assert(state->decision_log != NULL && ftell(state->decision_log) == 0);
+    TEST_REQUIRE(state->decision_log != NULL && ftell(state->decision_log) == 0);
   }
   spop_bridge_task_context context = {0};
   context.state = state; context.transaction = tx;
@@ -451,7 +466,7 @@ static void check_mode(const char *mode, const char *fail_mode, int enforces, co
   copy_cstring(state.config.mode, sizeof(state.config.mode), mode);
   copy_cstring(state.config.fail_mode, sizeof(state.config.fail_mode),
                fail_mode);
-  assert(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
+  TEST_REQUIRE(pthread_mutex_init(&state.decision_log_lock, NULL) == 0);
   state.decision_log_lock_initialized = 1;
   haproxy_modsecurity_engine_config cfg;
   memset(&cfg, 0, sizeof(cfg));

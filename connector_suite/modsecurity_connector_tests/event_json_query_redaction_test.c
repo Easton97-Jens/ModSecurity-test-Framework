@@ -1,3 +1,6 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #include "msconnector/event.h"
 #include "msconnector/event_jsonl.h"
 #include "msconnector/integrity_event.h"

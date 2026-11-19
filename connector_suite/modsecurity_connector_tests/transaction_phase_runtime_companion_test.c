@@ -1,6 +1,19 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #define _POSIX_C_SOURCE 200809L
 
 #include <assert.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -33,12 +46,12 @@ static const char *test_private_directory(void)
 
     if (test_private_root[0] == '\0') {
         char tmpdir[TEST_PATH_SIZE];
-        assert(getcwd(tmpdir, sizeof(tmpdir)) != NULL);
-        assert(snprintf(test_private_root, sizeof(test_private_root),
+        TEST_REQUIRE(getcwd(tmpdir, sizeof(tmpdir)) != NULL);
+        TEST_REQUIRE(snprintf(test_private_root, sizeof(test_private_root),
             "%s/msconnector-transaction-companion-XXXXXX", tmpdir) > 0);
-        assert(mkdtemp(test_private_root) != NULL);
+        TEST_REQUIRE(mkdtemp(test_private_root) != NULL);
         assert(stat(test_private_root, &directory_stat) == 0);
-        assert(directory_stat.st_uid == geteuid());
+        TEST_REQUIRE(directory_stat.st_uid == geteuid());
         assert((directory_stat.st_mode & 0777U) == 0700U);
     }
     return test_private_root;
@@ -60,17 +73,17 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     int event_fd;
     int rules_fd;
 
-    assert(snprintf(config_path, TEST_PATH_SIZE,
+    TEST_REQUIRE(snprintf(config_path, TEST_PATH_SIZE,
         "%s/msconnector-transaction-contract-config-XXXXXX", directory) > 0);
-    assert(snprintf(event_path, TEST_PATH_SIZE,
+    TEST_REQUIRE(snprintf(event_path, TEST_PATH_SIZE,
         "%s/msconnector-transaction-contract-events-XXXXXX", directory) > 0);
-    assert(snprintf(rules_path, TEST_PATH_SIZE,
+    TEST_REQUIRE(snprintf(rules_path, TEST_PATH_SIZE,
         "%s/msconnector-transaction-contract-rules-XXXXXX", directory) > 0);
     config_fd = mkstemp(config_path);
     assert(config_fd >= 0);
     event_fd = mkstemp(event_path);
     assert(event_fd >= 0);
-    assert(close(event_fd) == 0);
+    TEST_REQUIRE(close(event_fd) == 0);
     rules_fd = mkstemp(rules_path);
     assert(rules_fd >= 0);
     rules = fdopen(rules_fd, "w");
@@ -79,16 +92,16 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     assert(request_body_mode != NULL);
     assert(phase4_mode != NULL);
     assert(response_policy.limit > 0U && response_policy.action != NULL);
-    assert(fputs("SecRequestBodyLimit 1048576\n"
+    TEST_REQUIRE(fputs("SecRequestBodyLimit 1048576\n"
         "SecRequestBodyNoFilesLimit 1048576\n"
         "SecRequestBodyLimitAction Reject\n", rules) != EOF);
-    assert(fprintf(rules, "SecResponseBodyLimit %zu\nSecResponseBodyLimitAction %s\n",
+    TEST_REQUIRE(fprintf(rules, "SecResponseBodyLimit %zu\nSecResponseBodyLimitAction %s\n",
         response_policy.limit, response_policy.action) > 0);
-    assert(fputs(rules_text, rules) != EOF);
-    assert(fclose(rules) == 0);
+    TEST_REQUIRE(fputs(rules_text, rules) != EOF);
+    TEST_REQUIRE(fclose(rules) == 0);
     config = fdopen(config_fd, "w");
     assert(config != NULL);
-    assert(fprintf(config,
+    TEST_REQUIRE(fprintf(config,
         "enabled=on\n"
         "rules_file=%s\n"
         "transaction_id_header=x-request-id\n"
@@ -104,7 +117,7 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
         "max_event_json_bytes=16384\n"
         "event_path=%s\n", rules_path, request_body_mode, phase4_mode,
         event_path) > 0);
-    assert(fclose(config) == 0);
+    TEST_REQUIRE(fclose(config) == 0);
 }
 
 static void read_event_contents(const char *event_path, char *contents,
@@ -115,8 +128,8 @@ static void read_event_contents(const char *event_path, char *contents,
     event_file = fopen(event_path, "r");
     assert(event_file != NULL);
     size = fread(contents, 1U, capacity - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
+    TEST_REQUIRE(ferror(event_file) == 0);
+    TEST_REQUIRE(fclose(event_file) == 0);
     contents[size] = '\0';
 }
 
@@ -161,7 +174,7 @@ static void test_regular_block_emits_one_terminal_event(void) {
 
     create_authz_runtime_fixture(&fixture, blocking_rules,
         (response_fixture_policy){1024U, "Reject"});
-    assert(msconnector_test_begin_transaction(fixture.runtime, "/blocked", "rule-block",
+    TEST_REQUIRE(msconnector_test_begin_transaction(fixture.runtime, "/blocked", "rule-block",
         &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(msconnector_decision_action_from_decision(&decision) ==
@@ -178,9 +191,9 @@ static void test_regular_block_emits_one_terminal_event(void) {
     assert(strstr(contents, "MSCONN_EVENT_CONNECTOR_ERROR") == NULL);
     assert(strstr(contents, "\"transaction_id\":\"rule-block\"") != NULL);
     assert(strchr(contents, '\n') == strrchr(contents, '\n'));
-    assert(unlink(fixture.config_path) == 0);
-    assert(unlink(fixture.event_path) == 0);
-    assert(unlink(fixture.rules_path) == 0);
+    TEST_REQUIRE(unlink(fixture.config_path) == 0);
+    TEST_REQUIRE(unlink(fixture.event_path) == 0);
+    TEST_REQUIRE(unlink(fixture.rules_path) == 0);
 }
 
 static void test_invalid_byte_event_is_losslessly_written(void) {
@@ -228,9 +241,9 @@ static void test_invalid_byte_event_is_losslessly_written(void) {
     assert(strstr(contents, "\"previous_event_hash\":0") != NULL);
     assert(strstr(contents, "\"event_hash\":0") == NULL);
     assert(strchr(contents, '\n') == strrchr(contents, '\n'));
-    assert(unlink(fixture.config_path) == 0);
-    assert(unlink(fixture.event_path) == 0);
-    assert(unlink(fixture.rules_path) == 0);
+    TEST_REQUIRE(unlink(fixture.config_path) == 0);
+    TEST_REQUIRE(unlink(fixture.event_path) == 0);
+    TEST_REQUIRE(unlink(fixture.rules_path) == 0);
 }
 
 static void test_lossy_event_is_not_written_or_chained(void) {
@@ -270,11 +283,11 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     event_file = fopen(fixture.event_path, "r");
     assert(event_file != NULL);
     size = fread(contents, 1U, sizeof(contents), event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
+    TEST_REQUIRE(ferror(event_file) == 0);
+    TEST_REQUIRE(fclose(event_file) == 0);
     assert(size == 0U);
 
-    assert(msconnector_test_begin_transaction(fixture.runtime, "/blocked", "post-lossy",
+    TEST_REQUIRE(msconnector_test_begin_transaction(fixture.runtime, "/blocked", "post-lossy",
         &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(msconnector_decision_action_from_decision(&decision) ==
@@ -289,9 +302,9 @@ static void test_lossy_event_is_not_written_or_chained(void) {
     assert(strchr(contents, '\n') == strrchr(contents, '\n'));
 
     msconnector_runtime_destroy(&fixture.runtime);
-    assert(unlink(fixture.config_path) == 0);
-    assert(unlink(fixture.event_path) == 0);
-    assert(unlink(fixture.rules_path) == 0);
+    TEST_REQUIRE(unlink(fixture.config_path) == 0);
+    TEST_REQUIRE(unlink(fixture.event_path) == 0);
+    TEST_REQUIRE(unlink(fixture.rules_path) == 0);
 }
 
 static void begin_handed_off_ttl(
@@ -303,7 +316,7 @@ static void begin_handed_off_ttl(
     msconnector_decision decision;
     msconnector_error error;
 
-    assert(msconnector_test_begin_transaction(runtime, "/phase-contract",
+    TEST_REQUIRE(msconnector_test_begin_transaction(runtime, "/phase-contract",
         transaction_id, &transaction, &decision, &error));
     assert(transaction != NULL);
     assert(strcmp(msconnector_runtime_transaction_id(transaction), transaction_id) == 0);
@@ -355,12 +368,12 @@ static void test_trusted_preclaim_refresh(msconnector_runtime *runtime) {
     const uint64_t original_deadline = registry.entries[1].preclaim_deadline_ms;
     memset(foreign, 'f', 64U); foreign[64] = '\0';
     assert(!confirm_registry(&registry, foreign, &error));
-    assert(snprintf(path, sizeof(path), "%s/p.sock", test_private_directory()) > 0);
+    TEST_REQUIRE(snprintf(path, sizeof(path), "%s/p.sock", test_private_directory()) > 0);
     assert(strlen(path) < sizeof(address.sun_path));
     strcpy(address.sun_path, path);
     assert(msconnector_traefik_provenance_start_with_confirmation(path, confirm_registry, &registry));
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    assert(fd >= 0 && connect(fd, (struct sockaddr *)&address, sizeof(address)) == 0);
+    TEST_REQUIRE(fd >= 0 && connect(fd, (struct sockaddr *)&address, sizeof(address)) == 0);
     socket_exact(fd, reserve, sizeof(reserve), 1);
     socket_exact(fd, reply, 77U, 0);
     assert(reply[12] == 0U);
@@ -381,10 +394,10 @@ static void test_trusted_preclaim_refresh(msconnector_runtime *runtime) {
         registry.entries[1].trusted_preclaim_refreshed;
     atomic_flag_clear_explicit(&registry.lock, memory_order_release);
     assert(!confirm_registry(&registry, trusted, &error)); /* one refresh */
-    assert(close(fd) == 0);
+    TEST_REQUIRE(close(fd) == 0);
     msconnector_traefik_provenance_stop();
     struct timespec wait = {.tv_sec = 5, .tv_nsec = 100000000L};
-    assert(nanosleep(&wait, NULL) == 0);
+    TEST_REQUIRE(nanosleep(&wait, NULL) == 0);
     assert(!confirm_registry(&registry, ordinary, &error)); /* cannot resurrect */
     assert(!msconnector_runtime_response_companion_claim_handle(&registry, ordinary, &session, &error));
     assert(msconnector_runtime_response_companion_claim_handle(&registry, trusted, &session, &error));
@@ -397,7 +410,7 @@ static void test_trusted_preclaim_refresh(msconnector_runtime *runtime) {
     assert(msconnector_runtime_response_companion_session_cancel(&session, 0, &error));
     begin_handed_off_ttl(runtime, &registry, "expired-confirmation", expired, 1U);
     wait.tv_sec = 0; wait.tv_nsec = 10000000L;
-    assert(nanosleep(&wait, NULL) == 0);
+    TEST_REQUIRE(nanosleep(&wait, NULL) == 0);
     assert(!confirm_registry(&registry, expired, &error));
     assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
     assert(!confirm_registry(&registry, expired, &error));
@@ -438,9 +451,9 @@ static void test_buffered_request_body_handoff(void) {
     msconnector_error_init(&error);
     assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
     msconnector_runtime_destroy(&runtime);
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
+    TEST_REQUIRE(unlink(config_path) == 0);
+    TEST_REQUIRE(unlink(event_path) == 0);
+    TEST_REQUIRE(unlink(rules_path) == 0);
 }
 
 static void test_strict_profile_admission_is_fail_closed(void) {
@@ -472,9 +485,9 @@ static void test_strict_profile_admission_is_fail_closed(void) {
     assert(msconnector_runtime_set_transaction_profile(runtime,
         msconnector_profile_registry_find("lighttpd-stock")));
     msconnector_runtime_destroy(&runtime);
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
+    TEST_REQUIRE(unlink(config_path) == 0);
+    TEST_REQUIRE(unlink(event_path) == 0);
+    TEST_REQUIRE(unlink(rules_path) == 0);
 }
 
 static int finish_response(
@@ -554,7 +567,7 @@ static void test_trusted_provenance_native_lifecycle_mode(int mode) {
         assert(msconnector_runtime_response_companion_handoff_with_handle(&registry,
             transaction, UINT64_C(60000), handle, &error));
         transaction = NULL;
-        assert(finish_response(&registry, handle));
+        TEST_REQUIRE(finish_response(&registry, handle));
         assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
     } else {
         msconnector_runtime_transaction_snapshot snapshot;
@@ -576,9 +589,9 @@ static void test_trusted_provenance_native_lifecycle_mode(int mode) {
         assert(strstr(contents, "\"cleanup_reason\":\"client_cancel\"") != NULL);
         assert(strstr(contents, "\"eos_seen\":true") == NULL);
     }
-    assert(unlink(fixture.config_path) == 0);
-    assert(unlink(fixture.event_path) == 0);
-    assert(unlink(fixture.rules_path) == 0);
+    TEST_REQUIRE(unlink(fixture.config_path) == 0);
+    TEST_REQUIRE(unlink(fixture.event_path) == 0);
+    TEST_REQUIRE(unlink(fixture.rules_path) == 0);
 }
 
 static void test_trusted_provenance_native_lifecycle(void) {
@@ -614,7 +627,7 @@ int main(void) {
     char handle[MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_HANDLE_SIZE];
     test_trusted_preclaim_refresh(runtime);
     begin_handed_off(runtime, &registry, "live-happy", handle);
-    assert(finish_response(&registry, handle));
+    TEST_REQUIRE(finish_response(&registry, handle));
     msconnector_error_init(&error);
     assert(!msconnector_runtime_response_companion_claim_handle(&registry, handle,
         &(msconnector_runtime_response_companion_session){0}, &error));
@@ -656,17 +669,17 @@ int main(void) {
     first.result = 0;
     second.registry = &registry;
     second.result = 0;
-    assert(pthread_create(&first_thread, NULL, run_parallel_response, &first) == 0);
-    assert(pthread_create(&second_thread, NULL, run_parallel_response, &second) == 0);
-    assert(pthread_join(first_thread, NULL) == 0);
-    assert(pthread_join(second_thread, NULL) == 0);
+    TEST_REQUIRE(pthread_create(&first_thread, NULL, run_parallel_response, &first) == 0);
+    TEST_REQUIRE(pthread_create(&second_thread, NULL, run_parallel_response, &second) == 0);
+    TEST_REQUIRE(pthread_join(first_thread, NULL) == 0);
+    TEST_REQUIRE(pthread_join(second_thread, NULL) == 0);
     assert(first.result);
     assert(second.result);
 
     begin_handed_off(runtime, &registry, "stream-reuse", handle);
-    assert(finish_response(&registry, handle));
+    TEST_REQUIRE(finish_response(&registry, handle));
     begin_handed_off(runtime, &registry, "stream-reuse", handle);
-    assert(finish_response(&registry, handle));
+    TEST_REQUIRE(finish_response(&registry, handle));
 
     /* A host-request ID is an external correlation hint, not the Common
      * ownership key.  Concurrent requests may legitimately reuse it; their
@@ -675,8 +688,8 @@ int main(void) {
     begin_handed_off(runtime, &registry, "same-external-id", first.handle);
     begin_handed_off(runtime, &registry, "same-external-id", second.handle);
     assert(strcmp(first.handle, second.handle) != 0);
-    assert(finish_response(&registry, first.handle));
-    assert(finish_response(&registry, second.handle));
+    TEST_REQUIRE(finish_response(&registry, first.handle));
+    TEST_REQUIRE(finish_response(&registry, second.handle));
 
     /* The registry is fixed-capacity. Exhaustion must reject a new handoff
      * without evicting a live transaction; expiry must then reclaim every
@@ -685,14 +698,14 @@ int main(void) {
          index < MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_CAPACITY; ++index) {
         char transaction_id[64];
 
-        assert(snprintf(transaction_id, sizeof(transaction_id), "capacity-%zu", index) > 0);
+        TEST_REQUIRE(snprintf(transaction_id, sizeof(transaction_id), "capacity-%zu", index) > 0);
         begin_handed_off(runtime, &registry, transaction_id, handle);
     }
     {
         msconnector_runtime_transaction *overflow = NULL;
         msconnector_decision decision;
 
-        assert(msconnector_test_begin_transaction(runtime, "/phase-contract",
+        TEST_REQUIRE(msconnector_test_begin_transaction(runtime, "/phase-contract",
             "capacity-overflow", &overflow, &decision, &error));
         assert(overflow != NULL);
         assert(!msconnector_runtime_response_companion_handoff_with_handle(&registry,
@@ -704,22 +717,22 @@ int main(void) {
     assert(msconnector_runtime_response_companion_expire(&registry, UINT64_MAX) ==
         MSCONNECTOR_RUNTIME_RESPONSE_COMPANION_CAPACITY);
     begin_handed_off(runtime, &registry, "capacity-reclaimed", handle);
-    assert(finish_response(&registry, handle));
+    TEST_REQUIRE(finish_response(&registry, handle));
 
     begin_handed_off(runtime, &registry, "shutdown-cleanup", handle);
     msconnector_error_init(&error);
     assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
     msconnector_runtime_destroy(&runtime);
     assert_terminal_events(event_path);
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
+    TEST_REQUIRE(unlink(config_path) == 0);
+    TEST_REQUIRE(unlink(event_path) == 0);
+    TEST_REQUIRE(unlink(rules_path) == 0);
     test_strict_profile_admission_is_fail_closed();
     test_regular_block_emits_one_terminal_event();
     test_invalid_byte_event_is_losslessly_written();
     test_lossy_event_is_not_written_or_chained();
     test_buffered_request_body_handoff();
     test_trusted_provenance_native_lifecycle();
-    assert(rmdir(test_private_root) == 0);
+    TEST_REQUIRE(rmdir(test_private_root) == 0);
     return 0;
 }

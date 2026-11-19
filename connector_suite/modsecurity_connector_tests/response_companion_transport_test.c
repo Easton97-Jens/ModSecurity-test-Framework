@@ -1,6 +1,19 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #define _POSIX_C_SOURCE 200809L
 
 #include <assert.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -40,12 +53,12 @@ static const char *test_private_directory(void)
     struct stat directory_stat;
 
     if (test_private_root[0] == '\0') {
-        assert(snprintf(test_private_root, sizeof(test_private_root),
+        TEST_REQUIRE(snprintf(test_private_root, sizeof(test_private_root),
             "%s/msconnector-response-transport-XXXXXX",
             MSCONNECTOR_TEST_TEMPORARY_DIRECTORY) > 0);
-        assert(mkdtemp(test_private_root) != NULL);
+        TEST_REQUIRE(mkdtemp(test_private_root) != NULL);
         assert(stat(test_private_root, &directory_stat) == 0);
-        assert(directory_stat.st_uid == geteuid());
+        TEST_REQUIRE(directory_stat.st_uid == geteuid());
         assert((directory_stat.st_mode & 0777U) == 0700U);
     }
     return test_private_root;
@@ -243,12 +256,12 @@ static int connect_client(const char *socket_path)
     assert(socket_fd >= 0);
     timeout.tv_sec = 2;
     timeout.tv_usec = 0;
-    assert(setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
+    TEST_REQUIRE(setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout,
         sizeof(timeout)) == 0);
     memset(&address, 0, sizeof(address));
     address.sun_family = AF_UNIX;
     memcpy(address.sun_path, socket_path, size + 1U);
-    assert(connect(socket_fd, (const struct sockaddr *)&address,
+    TEST_REQUIRE(connect(socket_fd, (const struct sockaddr *)&address,
         sizeof(address)) == 0);
     return socket_fd;
 }
@@ -455,30 +468,30 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
     int event_fd;
     int rules_fd;
 
-    assert(snprintf(config_path, TEST_PATH_SIZE,
+    TEST_REQUIRE(snprintf(config_path, TEST_PATH_SIZE,
         "%s/msconnector-response-transport-config-XXXXXX", directory) > 0);
-    assert(snprintf(event_path, TEST_PATH_SIZE,
+    TEST_REQUIRE(snprintf(event_path, TEST_PATH_SIZE,
         "%s/msconnector-response-transport-events-XXXXXX", directory) > 0);
-    assert(snprintf(rules_path, TEST_PATH_SIZE,
+    TEST_REQUIRE(snprintf(rules_path, TEST_PATH_SIZE,
         "%s/msconnector-response-transport-rules-XXXXXX", directory) > 0);
     config_fd = mkstemp(config_path);
     event_fd = mkstemp(event_path);
     rules_fd = mkstemp(rules_path);
     assert(config_fd >= 0 && event_fd >= 0 && rules_fd >= 0);
-    assert(close(event_fd) == 0);
+    TEST_REQUIRE(close(event_fd) == 0);
     rules = fdopen(rules_fd, "w");
     assert(rules != NULL);
-    assert(fprintf(rules, "SecResponseBodyLimit %zu\nSecResponseBodyLimitAction %s\n",
+    TEST_REQUIRE(fprintf(rules, "SecResponseBodyLimit %zu\nSecResponseBodyLimitAction %s\n",
         engine_response_limit, engine_response_limit_action) > 0);
-    assert(fputs("SecRuleEngine On\n"
+    TEST_REQUIRE(fputs("SecRuleEngine On\n"
         "SecResponseBodyAccess On\n"
         "SecResponseBodyMimeType text/plain\n"
         "SecRule RESPONSE_HEADERS:X-Mrc-Block \"@streq yes\" "
         "\"id:1200901,phase:3,deny,status:451,log,t:none\"\n", rules) != EOF);
-    assert(fclose(rules) == 0);
+    TEST_REQUIRE(fclose(rules) == 0);
     config = fdopen(config_fd, "w");
     assert(config != NULL);
-    assert(fprintf(config,
+    TEST_REQUIRE(fprintf(config,
         "enabled=on\n"
         "rules_file=%s\n"
         "transaction_id_header=x-request-id\n"
@@ -493,7 +506,7 @@ static void create_runtime_fixture(char config_path[TEST_PATH_SIZE],
         "max_total_header_bytes=4096\n"
         "max_event_json_bytes=16384\n"
         "event_path=%s\n", rules_path, event_path) > 0);
-    assert(fclose(config) == 0);
+    TEST_REQUIRE(fclose(config) == 0);
 }
 
 static void handoff(msconnector_runtime *runtime,
@@ -505,7 +518,7 @@ static void handoff(msconnector_runtime *runtime,
     msconnector_decision decision;
     msconnector_error error;
 
-    assert(msconnector_test_begin_transaction(runtime, "/response-transport",
+    TEST_REQUIRE(msconnector_test_begin_transaction(runtime, "/response-transport",
         transaction_id, &transaction, &decision, &error));
     assert(msconnector_runtime_response_companion_handoff_with_handle(registry,
         transaction, UINT64_C(3000), handle, &error));
@@ -540,9 +553,9 @@ static void run_client_transport_interop_test(msconnector_runtime *runtime,
     response.header_count = 1U;
     handoff(runtime, registry, "mrc1-client-interop-allow", first_handle);
     msconnector_error_init(&error);
-    assert(msconnector_response_companion_client_open(&client, socket_path, 1000U,
+    TEST_REQUIRE(msconnector_response_companion_client_open(&client, socket_path, 1000U,
         geteuid(), getegid(), &error));
-    assert((fcntl(client.socket_fd, F_GETFD) & FD_CLOEXEC) != 0);
+    TEST_REQUIRE((fcntl(client.socket_fd, F_GETFD) & FD_CLOEXEC) != 0);
     assert(msconnector_response_companion_client_claim(&client, first_handle,
         &result, &error));
     assert(!msconnector_response_companion_client_release(&client, &result, &error));
@@ -592,7 +605,7 @@ static void *parallel_normal(void *opaque)
     const int socket_fd = connect_client(client->socket_path);
 
     client->result = claim(socket_fd, client->handle) && finish_normal(socket_fd);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     return NULL;
 }
 
@@ -603,7 +616,7 @@ static void *transport_exchange_in_thread(void *opaque)
     assert(call != NULL);
     assert(exchange(call->socket_fd, call->opcode, call->payload,
         call->payload_size, &call->result));
-    assert(close(call->socket_fd) == 0);
+    TEST_REQUIRE(close(call->socket_fd) == 0);
     return NULL;
 }
 
@@ -615,8 +628,8 @@ static void assert_metadata_only_events(const char *event_path)
 
     assert(event_file != NULL);
     size = fread(contents, 1U, sizeof(contents) - 1U, event_file);
-    assert(ferror(event_file) == 0);
-    assert(fclose(event_file) == 0);
+    TEST_REQUIRE(ferror(event_file) == 0);
+    TEST_REQUIRE(fclose(event_file) == 0);
     contents[size] = '\0';
     assert(strstr(contents, "\"event\":\"protocol_error\"") != NULL);
     assert(strstr(contents, "\"event\":\"engine_timeout\"") != NULL);
@@ -654,7 +667,7 @@ static int mock_backend_claim(void *opaque, const char *handle,
     if (backend == NULL || handle == NULL || session == NULL) {
         return mock_backend_error(error, "mock backend claim arguments are invalid");
     }
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     if (!backend->observation.active && session->opaque == NULL &&
         strcmp(handle, backend->handle) == 0) {
         backend->observation.active = 1;
@@ -665,7 +678,7 @@ static int mock_backend_claim(void *opaque, const char *handle,
         session->opaque = backend;
         result = 1;
     }
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
     return result ? 1 : mock_backend_error(error,
         "mock backend rejects unknown or already claimed handle");
 }
@@ -687,7 +700,7 @@ static int mock_backend_process_response_headers(void *opaque,
         sleep_milliseconds(350L);
         atomic_store_explicit(&backend->callback_active, 0, memory_order_release);
     }
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     if (mock_backend_session_is_active(backend, session) &&
         !backend->response_headers &&
         response->status == 200) {
@@ -696,7 +709,7 @@ static int mock_backend_process_response_headers(void *opaque,
         use_borrowed_decision = backend->use_borrowed_decision;
         result = 1;
     }
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
     if (!result) {
         return mock_backend_error(error, "mock backend response headers are out of order");
     }
@@ -720,7 +733,7 @@ static int mock_backend_append_response_body_chunk(void *opaque,
     if (backend == NULL || (size > 0U && data == NULL)) {
         return mock_backend_error(error, "mock backend response body is invalid");
     }
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     if (mock_backend_session_is_active(backend, session) &&
         backend->response_headers && backend->committed &&
         !backend->response_eos) {
@@ -728,7 +741,7 @@ static int mock_backend_append_response_body_chunk(void *opaque,
         backend->observation.response_body_bytes += size;
         result = 1;
     }
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
     return result ? 1 : mock_backend_error(error,
         "mock backend response body is out of order");
 }
@@ -743,7 +756,7 @@ static int mock_backend_finish_response_body(void *opaque,
     if (backend == NULL || decision == NULL) {
         return mock_backend_error(error, "mock backend response eos is invalid");
     }
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     if (mock_backend_session_is_active(backend, session) &&
         backend->response_headers && backend->committed &&
         !backend->response_eos) {
@@ -751,7 +764,7 @@ static int mock_backend_finish_response_body(void *opaque,
         backend->observation.response_eos++;
         result = 1;
     }
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
     if (!result) {
         return mock_backend_error(error, "mock backend response eos is out of order");
     }
@@ -769,14 +782,14 @@ static int mock_backend_set_response_commit_state(void *opaque,
     if (backend == NULL || !headers_sent || body_started) {
         return mock_backend_error(error, "mock backend commit state is invalid");
     }
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     if (mock_backend_session_is_active(backend, session) &&
         backend->response_headers && !backend->committed) {
         backend->committed = 1;
         backend->observation.commits++;
         result = 1;
     }
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
     return result ? 1 : mock_backend_error(error,
         "mock backend commit state is out of order");
 }
@@ -793,7 +806,7 @@ static int mock_backend_record_host_action(void *opaque,
         action->transport_result == NULL) {
         return mock_backend_error(error, "mock backend host outcome is invalid");
     }
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     if (mock_backend_session_is_active(backend, session) &&
         (backend->accept_any_outcome || (backend->use_borrowed_decision &&
             action->decision->kind == MSCONNECTOR_DECISION_KIND_DENY &&
@@ -809,7 +822,7 @@ static int mock_backend_record_host_action(void *opaque,
         backend->observation.outcomes++;
         result = 1;
     }
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
     return result ? 1 : mock_backend_error(error,
         "mock backend host outcome is out of order");
 }
@@ -830,7 +843,7 @@ static int mock_backend_cancel(void *opaque,
             sleep_milliseconds(1L);
         }
     }
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     if (mock_backend_session_is_active(backend, session)) {
         backend->observation.active = 0;
         backend->observation.cancels++;
@@ -839,7 +852,7 @@ static int mock_backend_cancel(void *opaque,
         }
         result = 1;
     }
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
     return result ? 1 : mock_backend_error(error,
         "mock backend cancel is out of order");
 }
@@ -854,7 +867,7 @@ static int mock_backend_release(void *opaque,
     if (backend == NULL) {
         return mock_backend_error(error, "mock backend release is invalid");
     }
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     if (mock_backend_session_is_active(backend, session) &&
         (backend->response_eos || (backend->accept_any_outcome &&
          backend->use_borrowed_decision && backend->response_headers))) {
@@ -865,7 +878,7 @@ static int mock_backend_release(void *opaque,
         }
         result = 1;
     }
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
     return result ? 1 : mock_backend_error(error,
         "mock backend release is out of order");
 }
@@ -879,14 +892,14 @@ static void mock_backend_fail(void *opaque,
     if (backend == NULL) {
         return;
     }
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     backend->observation.active = 0;
     backend->observation.failures++;
     backend->observation.last_failure = error_class;
     if (session != NULL) {
         session->opaque = NULL;
     }
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
 }
 
 static void mock_backend_expire(void *opaque, uint64_t now_ms)
@@ -908,19 +921,19 @@ static void mock_backend_snapshot(mock_backend *backend,
     mock_backend_observation *observation)
 {
     assert(backend != NULL && observation != NULL);
-    assert(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
     *observation = backend->observation;
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
 }
 
 static void mock_backend_set_borrowed_rule(mock_backend *backend,
     const char *rule)
 {
     assert(backend != NULL && rule != NULL);
-    assert(pthread_mutex_lock(&backend->lock) == 0);
-    assert(snprintf(backend->borrowed_rule, sizeof(backend->borrowed_rule), "%s",
+    TEST_REQUIRE(pthread_mutex_lock(&backend->lock) == 0);
+    TEST_REQUIRE(snprintf(backend->borrowed_rule, sizeof(backend->borrowed_rule), "%s",
         rule) > 0);
-    assert(pthread_mutex_unlock(&backend->lock) == 0);
+    TEST_REQUIRE(pthread_mutex_unlock(&backend->lock) == 0);
 }
 
 static void *stop_transport_in_thread(void *opaque)
@@ -956,12 +969,12 @@ static void setup_mock_transport(msconnector_response_companion_transport *trans
     vtable->expire = setup->expire;
     backend->handle = setup->handle;
     vtable->context = backend;
-    assert(pthread_mutex_init(&backend->lock, NULL) == 0);
-    assert(snprintf(socket_directory, TEST_PATH_SIZE, "%s/%s",
+    TEST_REQUIRE(pthread_mutex_init(&backend->lock, NULL) == 0);
+    TEST_REQUIRE(snprintf(socket_directory, TEST_PATH_SIZE, "%s/%s",
         test_private_directory(), setup->directory_template) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE,
+    TEST_REQUIRE(mkdtemp(socket_directory) != NULL);
+    TEST_REQUIRE(chmod(socket_directory, 0700) == 0);
+    TEST_REQUIRE(snprintf(socket_path, MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_SOCKET_SIZE,
         "%s/s", socket_directory) > 0);
     msconnector_error error;
     msconnector_error_init(&error);
@@ -1000,7 +1013,7 @@ static void run_precommit_outcome_release_mismatch_test(void)
         msconnector_response_companion_client client = {0};
         msconnector_response_companion_result result = {0};
         msconnector_error_init(&error);
-        assert(msconnector_response_companion_client_open(&client, socket_path,
+        TEST_REQUIRE(msconnector_response_companion_client_open(&client, socket_path,
             1000U, geteuid(), getegid(), &error));
         assert(msconnector_response_companion_client_claim(&client, handle, &result, &error));
         assert(msconnector_response_companion_client_response_headers(&client, &response, &result, &error));
@@ -1022,11 +1035,11 @@ static void run_precommit_outcome_release_mismatch_test(void)
         assert(exchange(fd, TEST_OUTCOME, outcome, sizeof(outcome), &raw) && raw.success);
         assert(exchange(fd, TEST_RELEASE, NULL, 0U, &raw));
         assert(!raw.success && raw.error_code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
-        assert(close(fd) == 0);
+        TEST_REQUIRE(close(fd) == 0);
     }
     assert(msconnector_response_companion_transport_stop(&transport, &error));
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(directory) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(directory) == 0);
 }
 
 static void run_response_header_wire_capacity_test(void)
@@ -1069,7 +1082,7 @@ static void run_response_header_wire_capacity_test(void)
     memset(&response, 0, sizeof(response));
     memset(headers, 0, sizeof(headers));
     for (size_t index = 0U; index < MSCONNECTOR_MAX_HEADER_COUNT; ++index) {
-        assert(snprintf(names[index], sizeof(names[index]), "X-%03zu", index) > 0);
+        TEST_REQUIRE(snprintf(names[index], sizeof(names[index]), "X-%03zu", index) > 0);
         headers[index].name = names[index];
         headers[index].name_size = strlen(names[index]);
         header_bytes += headers[index].name_size;
@@ -1092,7 +1105,7 @@ static void run_response_header_wire_capacity_test(void)
     response.headers = headers;
     response.header_count = MSCONNECTOR_MAX_HEADER_COUNT;
     msconnector_error_init(&error);
-    assert(msconnector_response_companion_client_open(&client, socket_path, 1000U,
+    TEST_REQUIRE(msconnector_response_companion_client_open(&client, socket_path, 1000U,
         geteuid(), getegid(), &error));
     assert(msconnector_response_companion_client_claim(&client, handle, &result,
         &error));
@@ -1112,9 +1125,9 @@ static void run_response_header_wire_capacity_test(void)
     msconnector_response_companion_result_destroy(&result);
     assert(msconnector_response_companion_client_close(&client, &error));
     assert(msconnector_response_companion_transport_stop(&transport, &error));
-    assert(access(socket_path, F_OK) != 0);
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(access(socket_path, F_OK) != 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 }
 
 static void run_response_header_count_contract_test(void)
@@ -1195,7 +1208,7 @@ static void run_response_header_count_contract_test(void)
     memset(&client, 0, sizeof(client));
     memset(&result, 0, sizeof(result));
     msconnector_error_init(&error);
-    assert(msconnector_response_companion_client_open(&client, socket_path, 1000U,
+    TEST_REQUIRE(msconnector_response_companion_client_open(&client, socket_path, 1000U,
         geteuid(), getegid(), &error));
     assert(msconnector_response_companion_client_claim(&client, handle, &result,
         &error));
@@ -1220,7 +1233,7 @@ static void run_response_header_count_contract_test(void)
     assert(exchange(socket_fd, TEST_RESPONSE_HEADERS, oversized_headers,
         oversized_header_size, &raw_result));
     assert(!raw_result.success && raw_result.error_code == MSCONNECTOR_ERROR_PROTOCOL);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     mock_backend_snapshot(&backend, &observation);
     assert(observation.claims == 2U);
     assert(observation.response_headers == 0U);
@@ -1237,7 +1250,7 @@ static void run_response_header_count_contract_test(void)
     assert(exchange(socket_fd, TEST_RESPONSE_HEADERS, oversized_aggregate,
         oversized_aggregate_size, &raw_result));
     assert(!raw_result.success && raw_result.error_code == MSCONNECTOR_ERROR_HEADER_TOO_LARGE);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     mock_backend_snapshot(&backend, &observation);
     assert(observation.claims == 3U);
     assert(observation.response_headers == 0U);
@@ -1246,9 +1259,9 @@ static void run_response_header_count_contract_test(void)
 
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
-    assert(access(socket_path, F_OK) != 0);
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(access(socket_path, F_OK) != 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 }
 
 static void run_explicit_backend_contract_test(void)
@@ -1272,7 +1285,7 @@ static void run_explicit_backend_contract_test(void)
     setup_mock_transport(&transport, &backend_vtable, &backend,
         TEST_MOCK_TRANSPORT_SETUP(handle, "mrb.XXXXXX", "backend-test", 100U, NULL),
         socket_directory, socket_path);
-    assert((fcntl(transport.listener.listener_fd, F_GETFD) & FD_CLOEXEC) != 0);
+    TEST_REQUIRE((fcntl(transport.listener.listener_fd, F_GETFD) & FD_CLOEXEC) != 0);
 
     /* CLAIM has only a provisional allow. A raw peer cannot turn it into a
      * host action before P3 has produced a real response decision. */
@@ -1281,7 +1294,7 @@ static void run_explicit_backend_contract_test(void)
     assert(exchange(socket_fd, TEST_OUTCOME,
         (const unsigned char *)"\0\0\0\310", 4U, &result));
     assert(!result.success && result.error_code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     mock_backend_snapshot(&backend, &observation);
     assert(observation.outcomes == 0U);
 
@@ -1299,7 +1312,7 @@ static void run_explicit_backend_contract_test(void)
     assert(exchange(socket_fd, TEST_OUTCOME,
         (const unsigned char *)"\0\0\0\310", 4U, &result));
     assert(!result.success && result.error_code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     /* Even an acknowledged Allow OUTCOME cannot authorize early RELEASE. */
     socket_fd = connect_client(socket_path);
@@ -1312,7 +1325,7 @@ static void run_explicit_backend_contract_test(void)
     assert(result.success);
     assert(exchange(socket_fd, TEST_RELEASE, NULL, 0U, &result));
     assert(!result.success && result.error_code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     socket_fd = connect_client(socket_path);
     assert(claim(socket_fd, handle));
@@ -1334,21 +1347,21 @@ static void run_explicit_backend_contract_test(void)
      * stream can make a fresh claim without retaining a native transaction. */
     assert(claim(socket_fd, handle));
     assert(finish_normal(socket_fd));
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     socket_fd = connect_client(socket_path);
     assert(claim(socket_fd, handle));
     assert(exchange(socket_fd, TEST_RESPONSE_BODY,
         (const unsigned char *)"invalid", 7U, &result));
     assert(!result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     socket_fd = connect_client(socket_path);
     assert(claim(socket_fd, handle));
     assert(exchange(socket_fd, TEST_CANCEL, (const unsigned char *)"\0", 1U,
         &result));
     assert(result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     socket_fd = connect_client(socket_path);
     assert(claim(socket_fd, handle));
@@ -1361,11 +1374,11 @@ static void run_explicit_backend_contract_test(void)
     assert(exchange(socket_fd, TEST_RESPONSE_BODY, too_large_body,
         sizeof(too_large_body), &result));
     assert(!result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
-    assert(access(socket_path, F_OK) != 0);
+    TEST_REQUIRE(access(socket_path, F_OK) != 0);
     mock_backend_snapshot(&backend, &observation);
     assert(observation.claims == 8U);
     assert(observation.response_headers == 5U);
@@ -1379,8 +1392,8 @@ static void run_explicit_backend_contract_test(void)
     assert(observation.failures == 5U);
     assert(observation.last_failure == MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
     assert(!observation.active);
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 }
 
 static void run_backend_fault_claim_race_test(void)
@@ -1416,7 +1429,7 @@ static void run_backend_fault_claim_race_test(void)
     cancel_call.opcode = TEST_CANCEL;
     cancel_call.payload = (const unsigned char *)"\0";
     cancel_call.payload_size = 1U;
-    assert(pthread_create(&cancel_thread, NULL, transport_exchange_in_thread,
+    TEST_REQUIRE(pthread_create(&cancel_thread, NULL, transport_exchange_in_thread,
         &cancel_call) == 0);
     while (!atomic_load_explicit(&backend.cancel_started, memory_order_acquire)) {
         sleep_milliseconds(1L);
@@ -1427,12 +1440,12 @@ static void run_backend_fault_claim_race_test(void)
     claim_call.opcode = TEST_CLAIM;
     claim_call.payload = (const unsigned char *)handle;
     claim_call.payload_size = strlen(handle);
-    assert(pthread_create(&claim_thread, NULL, transport_exchange_in_thread,
+    TEST_REQUIRE(pthread_create(&claim_thread, NULL, transport_exchange_in_thread,
         &claim_call) == 0);
     sleep_milliseconds(20L);
     atomic_store_explicit(&backend.pause_cancel, 0, memory_order_release);
-    assert(pthread_join(cancel_thread, NULL) == 0);
-    assert(pthread_join(claim_thread, NULL) == 0);
+    TEST_REQUIRE(pthread_join(cancel_thread, NULL) == 0);
+    TEST_REQUIRE(pthread_join(claim_thread, NULL) == 0);
     assert(!cancel_call.result.success &&
         cancel_call.result.error_code == MSCONNECTOR_ERROR_INTERNAL);
     assert(!claim_call.result.success &&
@@ -1445,8 +1458,8 @@ static void run_backend_fault_claim_race_test(void)
     assert(observation.cancels == 1U);
     assert(observation.failures == 1U);
     assert(!observation.active);
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 }
 
 static void run_typed_cancel_cause_test(void)
@@ -1509,7 +1522,7 @@ static void run_typed_cancel_cause_test(void)
         assert(exchange(socket_fd, TEST_CANCEL, &malformed_cause, 1U, &result));
         assert(!result.success && result.error_code == MSCONNECTOR_ERROR_PROTOCOL);
     }
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
     mock_backend_snapshot(&backend, &observation);
@@ -1518,8 +1531,8 @@ static void run_typed_cancel_cause_test(void)
     assert(observation.failures == sizeof(cases) / sizeof(cases[0]) + 1U);
     assert(observation.last_failure == MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
     assert(!observation.active);
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 }
 
 static void run_transport_security_regression_test(void)
@@ -1554,8 +1567,8 @@ static void run_transport_security_regression_test(void)
     malformed[4] = MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_PROTOCOL_VERSION + 1U;
     malformed[5] = TEST_RESPONSE_HEADERS;
     assert(write_all(socket_fd, malformed, sizeof(malformed)));
-    assert(recv(socket_fd, &byte, sizeof(byte), 0) == 0);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(recv(socket_fd, &byte, sizeof(byte), 0) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
     mock_backend_snapshot(&backend, &observation);
@@ -1563,8 +1576,8 @@ static void run_transport_security_regression_test(void)
     assert(observation.failures == 1U);
     assert(observation.last_failure == MSCONNECTOR_TRANSACTION_ERROR_PROTOCOL);
     assert(!observation.active);
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 
     /* Decision fields returned by a backend are borrowed. Once P3 returns,
      * later outcome reporting must use the transport's bounded copy, not the
@@ -1587,15 +1600,15 @@ static void run_transport_security_regression_test(void)
     assert(exchange(socket_fd, TEST_CANCEL, (const unsigned char *)"\0", 1U,
         &result));
     assert(result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
     mock_backend_snapshot(&backend, &observation);
     assert(observation.outcomes == 1U);
     assert(observation.cancels == 1U);
     assert(observation.failures == 0U);
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 
     /* A backend that falsely acknowledges a terminal cancel is quarantined;
      * it receives fail() while its opaque session is still available, and no
@@ -1610,12 +1623,12 @@ static void run_transport_security_regression_test(void)
     assert(exchange(socket_fd, TEST_CANCEL, (const unsigned char *)"\0", 1U,
         &result));
     assert(!result.success && result.error_code == MSCONNECTOR_ERROR_INTERNAL);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     socket_fd = connect_client(socket_path);
     assert(exchange(socket_fd, TEST_CLAIM, (const unsigned char *)handle,
         strlen(handle), &result));
     assert(!result.success && result.error_code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
     mock_backend_snapshot(&backend, &observation);
@@ -1624,8 +1637,8 @@ static void run_transport_security_regression_test(void)
     assert(observation.failures == 1U);
     assert(observation.last_failure == MSCONNECTOR_TRANSACTION_ERROR_CONNECTOR);
     assert(!observation.active);
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 }
 
 static void run_listener_stop_regression_test(void)
@@ -1649,24 +1662,24 @@ static void run_listener_stop_regression_test(void)
     socket_fd = connect_client(socket_path);
     memset(&stop_call, 0, sizeof(stop_call));
     stop_call.transport = &transport;
-    assert(pthread_create(&stop_thread, NULL, stop_transport_in_thread,
+    TEST_REQUIRE(pthread_create(&stop_thread, NULL, stop_transport_in_thread,
         &stop_call) == 0);
     for (size_t index = 0U; index < sizeof(descriptors) / sizeof(descriptors[0]);
          ++index) {
         descriptors[index] = open("/dev/null", O_RDONLY);
         assert(descriptors[index] >= 0);
     }
-    assert(pthread_join(stop_thread, NULL) == 0);
+    TEST_REQUIRE(pthread_join(stop_thread, NULL) == 0);
     assert(stop_call.result);
     for (size_t index = 0U; index < sizeof(descriptors) / sizeof(descriptors[0]);
          ++index) {
-        assert(fcntl(descriptors[index], F_GETFD) >= 0);
-        assert(close(descriptors[index]) == 0);
+        TEST_REQUIRE(fcntl(descriptors[index], F_GETFD) >= 0);
+        TEST_REQUIRE(close(descriptors[index]) == 0);
     }
-    assert(close(socket_fd) == 0);
-    assert(access(socket_path, F_OK) != 0);
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
+    TEST_REQUIRE(access(socket_path, F_OK) != 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 }
 
 static void run_expire_serialization_regression_test(void)
@@ -1704,14 +1717,14 @@ static void run_expire_serialization_regression_test(void)
     assert(exchange(socket_fd, TEST_CANCEL, (const unsigned char *)"\0", 1U,
         &result));
     assert(result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
     assert(atomic_load_explicit(&backend.expires, memory_order_acquire) >= 2U);
     assert(!atomic_load_explicit(&backend.expire_during_callback,
         memory_order_acquire));
-    assert(pthread_mutex_destroy(&backend.lock) == 0);
-    assert(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&backend.lock) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
 }
 
 static void run_transport_startup_helper_contract_test(void)
@@ -1744,16 +1757,16 @@ static void run_transport_startup_helper_contract_test(void)
     memset(&failed_transport, 0, sizeof(failed_transport));
     memset(&unsafe_ancestor_transport, 0, sizeof(unsafe_ancestor_transport));
     msconnector_runtime_response_companion_registry_init(&registry);
-    assert(snprintf(socket_directory, sizeof(socket_directory), "%s/mrs.XXXXXX",
+    TEST_REQUIRE(snprintf(socket_directory, sizeof(socket_directory), "%s/mrs.XXXXXX",
         test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
-    assert(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
-    assert(snprintf(blocked_directory, sizeof(blocked_directory), "%s/mrb.XXXXXX",
+    TEST_REQUIRE(mkdtemp(socket_directory) != NULL);
+    TEST_REQUIRE(chmod(socket_directory, 0700) == 0);
+    TEST_REQUIRE(snprintf(socket_path, sizeof(socket_path), "%s/s", socket_directory) > 0);
+    TEST_REQUIRE(snprintf(blocked_directory, sizeof(blocked_directory), "%s/mrb.XXXXXX",
         test_private_directory()) > 0);
-    assert(mkdtemp(blocked_directory) != NULL);
-    assert(chmod(blocked_directory, 0700) == 0);
-    assert(snprintf(blocked_socket_path, sizeof(blocked_socket_path), "%s/s",
+    TEST_REQUIRE(mkdtemp(blocked_directory) != NULL);
+    TEST_REQUIRE(chmod(blocked_directory, 0700) == 0);
+    TEST_REQUIRE(snprintf(blocked_socket_path, sizeof(blocked_socket_path), "%s/s",
         blocked_directory) > 0);
 
     msconnector_error_init(&error);
@@ -1788,21 +1801,21 @@ static void run_transport_startup_helper_contract_test(void)
     /* A terminal poll path leaves the old descriptor invalid and ends the
      * listener thread.  No descriptor is opened here before Common joins the
      * dead thread, so the test cannot accidentally reuse the stale number. */
-    assert(close(listener_fd) == 0);
+    TEST_REQUIRE(close(listener_fd) == 0);
     wait_for_listener_stop(&transport);
     assert(msconnector_response_companion_transport_ensure_started(&transport, &registry,
         &initialized, &ready, TEST_TRANSPORT_OPTIONS("startup-test", socket_path,
             32U, 64U, 100U), &error));
     assert(atomic_load_explicit(&transport.listener.running, memory_order_acquire));
     recovery_fd = connect_client(socket_path);
-    assert(close(recovery_fd) == 0);
+    TEST_REQUIRE(close(recovery_fd) == 0);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
-    assert(access(socket_path, F_OK) != 0);
+    TEST_REQUIRE(access(socket_path, F_OK) != 0);
 
     blocked_fd = open(blocked_socket_path, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC,
         0600);
     assert(blocked_fd >= 0);
-    assert(close(blocked_fd) == 0);
+    TEST_REQUIRE(close(blocked_fd) == 0);
     assert(!msconnector_response_companion_transport_ensure_started(&failed_transport,
         &registry, &failed_initialized, &failed_ready,
         TEST_TRANSPORT_OPTIONS("startup-failed", blocked_socket_path,
@@ -1810,17 +1823,17 @@ static void run_transport_startup_helper_contract_test(void)
     assert(error.code == MSCONNECTOR_ERROR_RUNTIME_UNAVAILABLE);
     assert(failed_initialized && !failed_ready);
     assert(msconnector_response_companion_transport_stop(&failed_transport, &error));
-    assert(unlink(blocked_socket_path) == 0);
+    TEST_REQUIRE(unlink(blocked_socket_path) == 0);
 
     /* A mode-0700 leaf must not excuse a writable, non-sticky ancestor. */
-    assert(snprintf(unsafe_ancestor, sizeof(unsafe_ancestor), "%s/mru.XXXXXX",
+    TEST_REQUIRE(snprintf(unsafe_ancestor, sizeof(unsafe_ancestor), "%s/mru.XXXXXX",
         test_private_directory()) > 0);
-    assert(mkdtemp(unsafe_ancestor) != NULL);
-    assert(chmod(unsafe_ancestor, 0777) == 0);
-    assert(snprintf(unsafe_parent, sizeof(unsafe_parent), "%s/child",
+    TEST_REQUIRE(mkdtemp(unsafe_ancestor) != NULL);
+    TEST_REQUIRE(chmod(unsafe_ancestor, 0777) == 0);
+    TEST_REQUIRE(snprintf(unsafe_parent, sizeof(unsafe_parent), "%s/child",
         unsafe_ancestor) > 0);
-    assert(mkdir(unsafe_parent, 0700) == 0);
-    assert(snprintf(unsafe_socket_path, sizeof(unsafe_socket_path), "%s/s",
+    TEST_REQUIRE(mkdir(unsafe_parent, 0700) == 0);
+    TEST_REQUIRE(snprintf(unsafe_socket_path, sizeof(unsafe_socket_path), "%s/s",
         unsafe_parent) > 0);
     assert(!msconnector_response_companion_transport_ensure_started(
         &unsafe_ancestor_transport, &registry, &unsafe_initialized, &unsafe_ready,
@@ -1830,13 +1843,13 @@ static void run_transport_startup_helper_contract_test(void)
     assert(unsafe_initialized && !unsafe_ready);
     assert(msconnector_response_companion_transport_stop(
         &unsafe_ancestor_transport, &error));
-    assert(chmod(unsafe_ancestor, 0700) == 0);
-    assert(rmdir(unsafe_parent) == 0);
-    assert(rmdir(unsafe_ancestor) == 0);
+    TEST_REQUIRE(chmod(unsafe_ancestor, 0700) == 0);
+    TEST_REQUIRE(rmdir(unsafe_parent) == 0);
+    TEST_REQUIRE(rmdir(unsafe_ancestor) == 0);
 
     assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
-    assert(rmdir(socket_directory) == 0);
-    assert(rmdir(blocked_directory) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(rmdir(blocked_directory) == 0);
 }
 
 int main(void)
@@ -1875,11 +1888,11 @@ int main(void)
     assert(msconnector_runtime_set_transaction_profile(runtime,
         msconnector_profile_registry_find("envoy-ext-authz")));
     msconnector_runtime_response_companion_registry_init(&registry);
-    assert(snprintf(socket_directory, sizeof(socket_directory),
+    TEST_REQUIRE(snprintf(socket_directory, sizeof(socket_directory),
         "%s/mrc.XXXXXX",
         test_private_directory()) > 0);
-    assert(mkdtemp(socket_directory) != NULL);
-    assert(chmod(socket_directory, 0700) == 0);
+    TEST_REQUIRE(mkdtemp(socket_directory) != NULL);
+    TEST_REQUIRE(chmod(socket_directory, 0700) == 0);
     {
         const int socket_path_size = snprintf(socket_path, sizeof(socket_path),
             "%s/s", socket_directory);
@@ -1901,12 +1914,12 @@ int main(void)
      * RELEASE must fully detach the first one before the next CLAIM. */
     assert(claim(socket_fd, second_handle));
     assert(finish_normal(socket_fd));
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     socket_fd = connect_client(socket_path);
     assert(exchange(socket_fd, TEST_CLAIM, (const unsigned char *)first_handle,
         strlen(first_handle), &result));
     assert(!result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     /* Envoy sends :status as a response pseudoheader.  MRC1 accepts only
      * this one controlled pseudoheader, validates it against the framed
@@ -1924,7 +1937,7 @@ int main(void)
     assert(result.success);
     assert(exchange(socket_fd, TEST_RELEASE, NULL, 0U, &result));
     assert(result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "invalid-status-pseudoheader", eighth_handle);
     socket_fd = connect_client(socket_path);
@@ -1932,7 +1945,7 @@ int main(void)
     assert(exchange(socket_fd, TEST_RESPONSE_HEADERS, headers,
         build_headers(headers, sizeof(headers), 200, ":status", "201"), &result));
     assert(!result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "invalid-pseudoheader", ninth_handle);
     socket_fd = connect_client(socket_path);
@@ -1940,14 +1953,14 @@ int main(void)
     assert(exchange(socket_fd, TEST_RESPONSE_HEADERS, headers,
         build_headers(headers, sizeof(headers), 200, ":path", "/"), &result));
     assert(!result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "invalid-order", third_handle);
     socket_fd = connect_client(socket_path);
     assert(claim(socket_fd, third_handle));
     assert(exchange(socket_fd, TEST_RESPONSE_EOS, NULL, 0U, &result));
     assert(!result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "header-limit", fourth_handle);
     socket_fd = connect_client(socket_path);
@@ -1957,7 +1970,7 @@ int main(void)
             "this-response-header-value-is-deliberately-longer-than-the-"
             "configured-sixty-four-byte-transport-limit"), &result));
     assert(!result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "body-limit", fifth_handle);
     socket_fd = connect_client(socket_path);
@@ -1972,7 +1985,7 @@ int main(void)
     assert(result.success);
     assert(exchange(socket_fd, TEST_RESPONSE_BODY, body + 5U, 4U, &result));
     assert(result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "timeout", sixth_handle);
     socket_fd = connect_client(socket_path);
@@ -1980,7 +1993,7 @@ int main(void)
     sleep_milliseconds(125L);
     assert(!exchange(socket_fd, TEST_RESPONSE_HEADERS, headers,
         build_headers(headers, sizeof(headers), 200, NULL, NULL), &result));
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "cancel", third_handle);
     socket_fd = connect_client(socket_path);
@@ -1993,7 +2006,7 @@ int main(void)
      * reserved ERROR kind; adapters must accept it only for those opcodes. */
     assert(result.decision == MSCONNECTOR_DECISION_KIND_ERROR);
     assert(result.status == 0U);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     /* Raw peers cannot RELEASE a CLAIM, P3 Allow, or unacknowledged P3 deny.
      * These are independently enforced server obligations. */
@@ -2010,7 +2023,7 @@ int main(void)
         }
         assert(exchange(socket_fd, TEST_RELEASE, NULL, 0U, &result));
         assert(!result.success);
-        assert(close(socket_fd) == 0);
+        TEST_REQUIRE(close(socket_fd) == 0);
     }
 
     /* A P3 deny is terminal before its actual host outcome. OUTCOME followed
@@ -2031,12 +2044,12 @@ int main(void)
     assert(result.success);
     assert(result.decision == MSCONNECTOR_DECISION_KIND_ERROR);
     assert(result.status == 0U);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
     socket_fd = connect_client(socket_path);
     assert(exchange(socket_fd, TEST_CLAIM, (const unsigned char *)sixth_handle,
         strlen(sixth_handle), &result));
     assert(!result.success);
-    assert(close(socket_fd) == 0);
+    TEST_REQUIRE(close(socket_fd) == 0);
 
     handoff(runtime, &registry, "parallel-a", first_handle);
     handoff(runtime, &registry, "parallel-b", second_handle);
@@ -2046,16 +2059,16 @@ int main(void)
     second_client.socket_path = socket_path;
     second_client.handle = second_handle;
     second_client.result = 0;
-    assert(pthread_create(&first_thread, NULL, parallel_normal, &first_client) == 0);
-    assert(pthread_create(&second_thread, NULL, parallel_normal, &second_client) == 0);
-    assert(pthread_join(first_thread, NULL) == 0);
-    assert(pthread_join(second_thread, NULL) == 0);
+    TEST_REQUIRE(pthread_create(&first_thread, NULL, parallel_normal, &first_client) == 0);
+    TEST_REQUIRE(pthread_create(&second_thread, NULL, parallel_normal, &second_client) == 0);
+    TEST_REQUIRE(pthread_join(first_thread, NULL) == 0);
+    TEST_REQUIRE(pthread_join(second_thread, NULL) == 0);
     assert(first_client.result && second_client.result);
 
     run_client_transport_interop_test(runtime, &registry, socket_path);
     msconnector_error_init(&error);
     assert(msconnector_response_companion_transport_stop(&transport, &error));
-    assert(access(socket_path, F_OK) != 0);
+    TEST_REQUIRE(access(socket_path, F_OK) != 0);
     assert(msconnector_runtime_response_companion_registry_shutdown(&registry, &error));
     msconnector_runtime_destroy(&runtime);
     assert_metadata_only_events(event_path);
@@ -2068,10 +2081,10 @@ int main(void)
     run_transport_security_regression_test();
     run_listener_stop_regression_test();
     run_expire_serialization_regression_test();
-    assert(unlink(config_path) == 0);
-    assert(unlink(event_path) == 0);
-    assert(unlink(rules_path) == 0);
-    assert(rmdir(socket_directory) == 0);
-    assert(rmdir(test_private_root) == 0);
+    TEST_REQUIRE(unlink(config_path) == 0);
+    TEST_REQUIRE(unlink(event_path) == 0);
+    TEST_REQUIRE(unlink(rules_path) == 0);
+    TEST_REQUIRE(rmdir(socket_directory) == 0);
+    TEST_REQUIRE(rmdir(test_private_root) == 0);
     return 0;
 }

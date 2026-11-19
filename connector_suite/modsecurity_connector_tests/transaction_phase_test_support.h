@@ -1,3 +1,6 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #ifndef MSCONNECTOR_TRANSACTION_PHASE_TEST_SUPPORT_H
 #define MSCONNECTOR_TRANSACTION_PHASE_TEST_SUPPORT_H
 

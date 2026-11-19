@@ -1,3 +1,6 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #include "traefik_forwardauth_response_companion.h"
 
 #include <assert.h>

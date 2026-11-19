@@ -1,6 +1,20 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#undef NDEBUG
 #define _POSIX_C_SOURCE 200809L
 
 #include <assert.h>
+#include <stdio.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,7 +47,7 @@ static void assert_delayed_owner_cannot_use_callback_storage(
         command.response = &response;
     }
     msconnector_error_init(&error);
-    assert(prepare_spop_bridge_context(&context, &command, &error) == 0);
+    TEST_REQUIRE(prepare_spop_bridge_context(&context, &command, &error) == 0);
     assert(context.command.decision_storage == &context.decision_storage);
     assert(context.command.decision_storage != callback_storage);
 
@@ -48,7 +62,7 @@ static void assert_delayed_owner_cannot_use_callback_storage(
            sizeof("/delayed-owner"));
     memcpy(native_decision.log_message, "delayed owner decision",
            sizeof("delayed owner decision"));
-    assert(set_bridge_native_decision(&context, &native_decision) == 1);
+    TEST_REQUIRE(set_bridge_native_decision(&context, &native_decision) == 1);
     assert(context.decision.redirect_url != NULL);
     assert(strcmp(context.decision.redirect_url, "/delayed-owner") == 0);
     context.success = 1;
@@ -62,7 +76,7 @@ static void assert_delayed_owner_cannot_use_callback_storage(
     callback_storage = calloc(1U, sizeof(*callback_storage));
     assert(callback_storage != NULL);
     msconnector_error_init(&error);
-    assert(copy_spop_bridge_decision(&callback_decision, callback_storage,
+    TEST_REQUIRE(copy_spop_bridge_decision(&callback_decision, callback_storage,
         &result.decision, &error) == 1);
     assert(callback_decision.redirect_url == callback_storage->redirect_url);
     assert(callback_decision.reason == callback_storage->log_message);
