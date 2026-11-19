@@ -2,7 +2,9 @@
  */
 /* Test assertions may carry required side effects; keep assert() active
  * even when a build defines NDEBUG. */
+#ifdef NDEBUG
 #undef NDEBUG
+#endif
 #define _GNU_SOURCE
 #include "common/runtime/msconnector_runtime.h"
 #include <assert.h>

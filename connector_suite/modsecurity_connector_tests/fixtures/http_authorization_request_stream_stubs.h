@@ -1,6 +1,8 @@
 /* Test assertions may carry required side effects; keep assert() active
  * even when a build defines NDEBUG. */
+#ifdef NDEBUG
 #undef NDEBUG
+#endif
 #ifndef MSCONNECTOR_TEST_HTTP_AUTHORIZATION_REQUEST_STREAM_STUBS_H
 #define MSCONNECTOR_TEST_HTTP_AUTHORIZATION_REQUEST_STREAM_STUBS_H
 

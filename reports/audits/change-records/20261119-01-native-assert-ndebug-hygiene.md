@@ -50,7 +50,9 @@ and no connector runtime behaviour is changed by this record.
 ## Implementation decision
 
 - 28 non-I12 sources/headers received an `#undef NDEBUG` guard before the first
-  preprocessor include. The 16 sources/headers with side-effect assertions received a
+  preprocessor include, written as `#ifdef NDEBUG` / `#undef NDEBUG` / `#endif` so it only
+  acts when `NDEBUG` is defined (the first pull-request head failed the Sonar Quality Gate
+  with 28 `c:S959` findings for an unconditional `#undef`). The 16 sources/headers with side-effect assertions received a
   guarded `TEST_REQUIRE()` definition (`fprintf` to `stderr` and `abort()` on failure).
 - 419 assertion sites were converted to `TEST_REQUIRE()`: the sites from the original
   whole-checkout scan plus those found by a realistic scan with real include paths. Only
@@ -93,6 +95,7 @@ task-owned external run root `cppcheck-audit-20261119T095825Z`.
 | SPOP `rule_id` regression test: base Parent vs fixed Parent | 1 / 0 | `'0' != ''`, `'4294967289' != ''` on base; OK with fix | `cppcheck-audit-20261119T095825Z` |
 | `update-test-archive.py`, then `--check` | 0 | archive matches inventory and sources | `cppcheck-audit-20261119T095825Z` |
 | Parent `rtk make check-active-inventory` | 0 | `active_case_count` 100, `hard_limit` 100 | `cppcheck-audit-20261119T095825Z` |
+| Recipe compile flags for the 25 changed units, with and without `-DNDEBUG`, after the `#ifdef` guard | 0 | 25 of 25 in both variants | `cppcheck-audit-20261119T095825Z` |
 
 ## Security impact
 

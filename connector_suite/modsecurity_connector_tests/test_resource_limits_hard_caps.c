@@ -11,7 +11,9 @@
  */
 /* Test assertions may carry required side effects; keep assert() active
  * even when a build defines NDEBUG. */
+#ifdef NDEBUG
 #undef NDEBUG
+#endif
 #include "msconnector/config.h"
 #include "msconnector/limits.h"
 #include "msconnector/resource_limits.h"

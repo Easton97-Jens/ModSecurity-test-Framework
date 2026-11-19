@@ -1,6 +1,8 @@
 /* Test assertions may carry required side effects; keep assert() active
  * even when a build defines NDEBUG. */
+#ifdef NDEBUG
 #undef NDEBUG
+#endif
 #define _GNU_SOURCE
 #include "msconnector/event_jsonl.h"
 #include "msconnector/event_protocol.h"

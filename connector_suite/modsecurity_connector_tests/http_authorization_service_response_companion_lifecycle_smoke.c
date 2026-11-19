@@ -7,7 +7,9 @@
  */
 /* Test assertions may carry required side effects; keep assert() active
  * even when a build defines NDEBUG. */
+#ifdef NDEBUG
 #undef NDEBUG
+#endif
 #define main detached_worker_smoke_main
 #include "http_authorization_service_detached_worker_smoke.c"
 #undef main

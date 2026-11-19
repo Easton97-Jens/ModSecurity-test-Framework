@@ -1,7 +1,9 @@
 /* Exercise Traefik worker-slot ownership with real detached worker threads. */
 /* Test assertions may carry required side effects; keep assert() active
  * even when a build defines NDEBUG. */
+#ifdef NDEBUG
 #undef NDEBUG
+#endif
 #define _GNU_SOURCE
 
 #include <assert.h>

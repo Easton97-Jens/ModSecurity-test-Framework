@@ -957,7 +957,7 @@
     {
       "framework_path": "connector_suite/adapters/envoy/src/envoy_ext_authz_response_companion_test.c",
       "source": "connectors/envoy/src/envoy_ext_authz_response_companion_test.c",
-      "source_sha256": "96743066dfff37bee1859568c7c0d0062bb5a15c3921e75ae2d70ad9e6c348e5"
+      "source_sha256": "d03a0dbd1a15911d704b463d0f792eaf90bd8d2998fc4aaae26cf1dcc8ffb257"
     },
     {
       "framework_path": "connector_suite/adapters/haproxy/harness/i12_request_scope_observer.c",
@@ -997,7 +997,7 @@
     {
       "framework_path": "connector_suite/adapters/traefik/src/traefik_forwardauth_response_companion_test.c",
       "source": "connectors/traefik/src/traefik_forwardauth_response_companion_test.c",
-      "source_sha256": "c6336e82df6d7d327d36fc88e338e3453343c00486a662dd2d21318a89b09df6"
+      "source_sha256": "292beed658e1021b89ff854efa21d44cc5ff9ecd7a68b3f3269f26a117baae57"
     },
     {
       "framework_path": "connector_suite/common/scripts/modsecurity_targeted_eval.cc",
@@ -1027,12 +1027,12 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_ci/checks/connectors/apache/apache_request_transaction_cleanup.c",
       "source": "ci/checks/connectors/apache/apache_request_transaction_cleanup.c",
-      "source_sha256": "218caf7f5f078b2e2b3ca33124c32b4876b724cca80ecc4939d21418fbcf677f"
+      "source_sha256": "b75f8899353a25a8e91731bc9e07970a368e6abaeb5c20f0e4f04fe7bc383350"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_ci/checks/connectors/apache/apache_rules_set_cleanup.c",
       "source": "ci/checks/connectors/apache/apache_rules_set_cleanup.c",
-      "source_sha256": "0fa74fbda28a23a731b33f9829b26d7f9db231dc9b0f552e5432d5bf8faaca48"
+      "source_sha256": "5dba18e2ca1549c610c5392fe7ba28130327dbd6d01266d16c28cb28ca2e26f2"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_ci/runtime/lifecycle/apache-i12/acceptance/common_sink_boundary.c",
@@ -1127,17 +1127,17 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/engine_http_request_stream_test.c",
       "source": "tests/engine_http_request_stream_test.c",
-      "source_sha256": "9c8198926bdd6c0c4f76138506b5bb356afa629b93d7d8e8890b6670eea20974"
+      "source_sha256": "f4d9f51db35a0203e18ff8fca061e47b0cea80fdbd18bab238ba75feb5e56e70"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/engine_response_limit_test.c",
       "source": "tests/engine_response_limit_test.c",
-      "source_sha256": "b1c859fbd9c7ea87996c915d367735e266aeb6ce2ed69e322eaa00f2e66f5e9d"
+      "source_sha256": "6e3781faa28202f9a0f3cc6c69a2e0ac25bea1c8eea0eb4a8037fbcdddf097d6"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/event_json_query_redaction_test.c",
       "source": "tests/event_json_query_redaction_test.c",
-      "source_sha256": "8ce0f679ffa86f89dc1aba276c92e04c6d633b3d02b79f0e438632b1fee74276"
+      "source_sha256": "cce6ffc09f7d96e265333332a201fe7003f171d73f5aeef898b23d2ba6de1342"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/event_json_utf8_smoke.c",
@@ -1147,12 +1147,12 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/lighttpd_i10_native.c",
       "source": "tests/fixtures/lighttpd_i10_native.c",
-      "source_sha256": "f499d37c5512bbb5f8f376dcd145d6f2474faf3587bb621ef88da0275f589234"
+      "source_sha256": "0bee7e89d84f3709404f16b99df28f6e20007fe3d8be43a8a9450416c7682301"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/lighttpd_i10_sidecar.c",
       "source": "tests/fixtures/lighttpd_i10_sidecar.c",
-      "source_sha256": "f44331e886f9089257b5e6ec9cf32acefbba022665f487b40a1b2a825367ae6f"
+      "source_sha256": "6a70d7e60d877f6f5e9327f8f7d29eb319bfdf18d2e6249f8adec3cf3c9aad54"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/fixtures/nginx_common_input_fault.c",
@@ -1207,27 +1207,27 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_common_event_stream_test.c",
       "source": "tests/haproxy_common_event_stream_test.c",
-      "source_sha256": "82c6ece59224c593954c97ac56733544d339134550f28f74bccddacc6688e313"
+      "source_sha256": "12ed4d1f4c0c260b0ff66239ee2f2f0e9207729f519b33dfac35c68ea621c173"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_i10_binding_caller_test.c",
       "source": "tests/haproxy_i10_binding_caller_test.c",
-      "source_sha256": "416eac2fdd6f39c2c7c7317b821032cf0ad74aba980609044d63aa3d65129459"
+      "source_sha256": "79be0664730de2983bf3ab5bf283a1c6b62a9e5c65a723eb8d8fdf8aa7be56c0"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_i10_host_caller_test.c",
       "source": "tests/haproxy_i10_host_caller_test.c",
-      "source_sha256": "04921501efaf046cb0ce3682278b01140bbb8b15aa30fc241cae264a2e183311"
+      "source_sha256": "a1236ac2865ad4f419709c8e1de869f4a3be0e29fa4730f66b8d3011dfd78500"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_i10_spop_caller_test.c",
       "source": "tests/haproxy_i10_spop_caller_test.c",
-      "source_sha256": "bea58f049c7924142eee457dda14601dabfb58701e8a52bc9b34f6d00e074ba5"
+      "source_sha256": "e918e7c4c10f6f02b09ad1295a705787062f51681b1994224c8229cfcf4a104a"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_request_authorization_contract_test.c",
       "source": "tests/haproxy_request_authorization_contract_test.c",
-      "source_sha256": "739e5db1aef192471a9fc46d904575c8589ee9598c8704e0dd7f18ba97b1922a"
+      "source_sha256": "d91435ccddf4602c1929ef16da6f779bd52d6517ed97b897317937c4917f5261"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_spop_request_target_test.c",
@@ -1237,12 +1237,12 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_spop_response_companion_backend_test.c",
       "source": "tests/haproxy_spop_response_companion_backend_test.c",
-      "source_sha256": "59b9a94ceaaf926596cbc7567ee48142855998595f4085549a2ff38a2ec6d654"
+      "source_sha256": "e0f39ce0ee32a3e3e4417e99f2a74b86bfc4e30500356b422c0d4eade3c87f65"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/haproxy_spop_response_companion_lifetime_test.c",
       "source": "tests/haproxy_spop_response_companion_lifetime_test.c",
-      "source_sha256": "48784caec8378732bf72e285b69e97dea0a8c6e2fa9aab35344ba7fd252bea2e"
+      "source_sha256": "c2108dbe06edf9a079db0c71bd8f7e95b9e57dc344aa5fd3560c5fdcbbf4eca7"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/http_authorization_service_detached_worker_smoke.c",
@@ -1257,7 +1257,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/http_authorization_service_response_companion_lifecycle_smoke.c",
       "source": "tests/http_authorization_service_response_companion_lifecycle_smoke.c",
-      "source_sha256": "96a318ba403cd6d08a6d5a37706a3435d31a85681ceb3992c037a5acf3ca2e3c"
+      "source_sha256": "889515e0218d16248ee53f4a9720161faff3f3a7033dce3b2237ea198a7e3f20"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/http_authorization_service_trusted_binding_smoke.c",
@@ -1292,42 +1292,42 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/request_body_telemetry_test.c",
       "source": "tests/request_body_telemetry_test.c",
-      "source_sha256": "f352e23249cc5cd4f35961e06526cbc1b0cec2c4a3f024dc4b8170d46f54ae43"
+      "source_sha256": "d43e4e3b5b588d326c0551fcd1b6a728b5ac02f4c4f645b44fb05bc2fd2df1b2"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/response_companion_client_test.c",
       "source": "tests/response_companion_client_test.c",
-      "source_sha256": "c22198a83666ea467f805426d51d60a4221ff27b90d284a3780c8c33e045a836"
+      "source_sha256": "904bf6b1d95290072350a347ce8a96791b3c862347c458b39c9e923b6be2235e"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/response_companion_transport_test.c",
       "source": "tests/response_companion_transport_test.c",
-      "source_sha256": "6d5fc8eaf521d53b65647b2740342d16ad8191da96153293d5a8f460b8072f4e"
+      "source_sha256": "2f0069783351743b9bcfe81e3a59cae797c80a777a04119a738f0f6d74f851ba"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_cleanup_observation.c",
       "source": "tests/test_nginx_cleanup_observation.c",
-      "source_sha256": "6db20cdf378c17722f3e1b38651f39a41b2e721c0f31b1798e067688788cfd8a"
+      "source_sha256": "fe2532ecd7854ee69cb86a44870937c5434b73649a7b474273f17253da545522"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/test_nginx_engine_call_budget.c",
       "source": "tests/test_nginx_engine_call_budget.c",
-      "source_sha256": "e382ccc3127ba098534db074cfd3d5cfb4e07af354694450059eed7784fbc0a9"
+      "source_sha256": "8a350b171bad2f9e6fff94be088d8eead91615b8dd07bc1ed5d75448f182138a"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/test_resource_limits_hard_caps.c",
       "source": "tests/test_resource_limits_hard_caps.c",
-      "source_sha256": "0497459ed26f0ce91842f5de8e8969fde8e864676b71b726307e33d866b46463"
+      "source_sha256": "e8598c5494f05460a23c99f708d0fcf86dcf1dce797c7c7e4516d863df723eda"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/traefik_engine_worker_lifecycle_test.c",
       "source": "tests/traefik_engine_worker_lifecycle_test.c",
-      "source_sha256": "7601aeac327aba373e9659e4e843948d9218a9c2ad4f5bf79d2f0aff65afa2cf"
+      "source_sha256": "9230d8acf57893b51a7e1ea259cea36b18cadaddd8213e88c55e10863daa3abb"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/traefik_i10_dispatcher_test.c",
       "source": "tests/traefik_i10_dispatcher_test.c",
-      "source_sha256": "cd64d9c6ce431a02bb0a43b7296425deb5e89f91e426988405274f4e8763c80c"
+      "source_sha256": "3b65ed975d281dfba6c03760bb8af0f1f1da3fb0d184885b44b6103434bcec26"
     },
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/traefik_i12_companion_invalid_outcome_probe.c",
@@ -1352,7 +1352,7 @@
     {
       "framework_path": "connector_suite/modsecurity_connector_tests/transaction_phase_runtime_companion_test.c",
       "source": "tests/transaction_phase_runtime_companion_test.c",
-      "source_sha256": "a9333d97479c8dcea933483723ef80a19e5fb5c65cb8afd4df501856c3c329bb"
+      "source_sha256": "33340a883fa7724a83802f89004f747a74f2ec0a714ab3607833bf54db3cc110"
     }
   ],
   "on_demand_definition_count": 8479,

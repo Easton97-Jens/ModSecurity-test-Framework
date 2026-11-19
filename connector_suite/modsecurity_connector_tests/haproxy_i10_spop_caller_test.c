@@ -1,6 +1,8 @@
 /* Test assertions may carry required side effects; keep assert() active
  * even when a build defines NDEBUG. */
+#ifdef NDEBUG
 #undef NDEBUG
+#endif
 #define _GNU_SOURCE
 #define main haproxy_spop_program_main
 #include "PRODUCT_RUNTIME"

@@ -56,7 +56,9 @@ Record ändert weder Produktcode noch Connector-Laufzeitverhalten.
 ## Implementierungsentscheidung
 
 - 28 nicht-I12-Quellen/-Header erhielten einen `#undef NDEBUG`-Schutz vor dem ersten
-  Präprozessor-Include. Die 16 Quellen/Header mit Seiteneffekt-Assertions erhielten eine
+  Präprozessor-Include, geschrieben als `#ifdef NDEBUG` / `#undef NDEBUG` / `#endif`, damit er
+  nur bei gesetztem `NDEBUG` wirkt (der erste Pull-Request-Head scheiterte am Sonar Quality
+  Gate mit 28 `c:S959`-Befunden für ein unbedingtes `#undef`). Die 16 Quellen/Header mit Seiteneffekt-Assertions erhielten eine
   geschützte `TEST_REQUIRE()`-Definition (`fprintf` nach `stderr` und `abort()` bei Fehler).
 - 419 Assertion-Stellen wurden auf `TEST_REQUIRE()` umgestellt: die Stellen aus dem
   ursprünglichen Scan des gesamten Checkouts plus die, die ein realistischer Scan mit echten
@@ -99,6 +101,7 @@ externen Run-Root `cppcheck-audit-20261119T095825Z`.
 | SPOP-`rule_id`-Regressionstest: Basis-Parent gegen gefixten Parent | 1 / 0 | `'0' != ''`, `'4294967289' != ''` auf der Basis; OK mit Fix | `cppcheck-audit-20261119T095825Z` |
 | `update-test-archive.py`, danach `--check` | 0 | Archiv stimmt mit Inventar und Quellen überein | `cppcheck-audit-20261119T095825Z` |
 | Parent `rtk make check-active-inventory` | 0 | `active_case_count` 100, `hard_limit` 100 | `cppcheck-audit-20261119T095825Z` |
+| Rezept-Compile-Flags für die 25 geänderten Units, mit und ohne `-DNDEBUG`, nach dem `#ifdef`-Schutz | 0 | 25 von 25 in beiden Varianten | `cppcheck-audit-20261119T095825Z` |
 
 ## Sicherheitsauswirkung
 
