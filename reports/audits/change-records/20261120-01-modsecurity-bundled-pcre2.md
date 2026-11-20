@@ -38,6 +38,7 @@ Adding the PCRE2 prefix to each harness library path would touch five adapters a
 - `connector_suite/modsecurity_connector_ci/provisioning/components/prepare-runtime-components.py`: bundled PCRE2 build, run-path verification, identity and fail-closed error paths.
 - `connector_suite/modsecurity_connector_tests/test_runtime_component_cache_contract.py`: eight new on-demand tests (identity binding, configure and environment flags including the compiler prefix and `LDFLAGS` order, `$ORIGIN` verification against missing, staging and legacy run paths, failed ELF inspection, archive layout, unreadable archive, unexecutable PCRE2 and ModSecurity build tools, persisted verification failure); the staged-build test simulates the new PCRE2 stage; the layout-version test patches the current version plus one.
 - `connector_suite/config/testing/active-cases.json`: source digest refreshed through `update-inventory-bindings.py --apply`; no active case was added or removed.
+- `connector_suite/reports/testing/test-selection-archive.generated.json`: native generator refresh (`update-test-archive.py`) for the eight new on-demand tests; on-demand definitions 8476 to 8484, and `inventory_sha256` changes with the refreshed source digest.
 - `docs/reference/variables.md`, `docs/reference/variables.de.md`: the PCRE2 row documents the bundled prefix and the run-path contract.
 - `reports/audits/change-records/20261120-01-modsecurity-bundled-pcre2.md` and `.de.md`: this paired record.
 
@@ -48,6 +49,7 @@ Adding the PCRE2 prefix to each harness library path would touch five adapters a
 | `readelf -d` / `ldd` on the existing layout-1 prefix | 0 | No `RUNPATH`; NGINX, its module and libModSecurity resolved `libpcre2-8.so.0` to the distribution library. | Local diagnosis `devtest-20261119T093840Z` |
 | `update-inventory-bindings.py --check`, then `--apply`, then `--check` | 1, 0, 0 | One drift (`prepare-runtime-components.py`), updated, then `INVENTORY_BINDINGS_VERIFIED`. | Local Framework validation |
 | `ON_DEMAND_TESTS=1 python -P -m unittest` on `test_runtime_component_cache_contract` and `test_runtime_component_cache_identity` | 0 | 64 tests passed; an earlier run failed one staged-build test that did not yet simulate the PCRE2 stage. Explicit user approval for exactly these two archived modules. | Local Framework validation |
+| `update-test-archive.py --check`, native generator, `--check` | 1, 0, 0 | Hosted `scaffold-lint` on the first push reported the stale archive; regenerated, then `Specialist archive matches current inventory and retained source definitions`. | Local Framework validation |
 | `make check-variable-documentation`, `make check-doc-links` | 0, 0 | Variable documentation and links passed. | Local Framework validation |
 | `sonar analyze secrets --stdin` on every changed file | 0 | All selected inputs passed; raw scanner output suppressed. | Local Framework validation |
 | `make prepare-runtime-components RUNTIME_COMPONENT_TARGET=all`, intermediate revision | 2 | PCRE2 10.49 built into the staging prefix; ModSecurity `configure` detected `PCRE2_VERSION=10.49` there and `libmodsecurity.so` linked; the bundled `modsec-rules-check` failed with undefined `pcre2_*@PCRE2_10.47` because `-L/usr/lib/<triplet>` preceded the bundle. This led to the `LDFLAGS` ordering. | Local run `pcre2-bundle-20261119` |
@@ -75,4 +77,4 @@ NGINX and HAProxy binaries load the bundled PCRE2 only through `MODSECURITY_LIB_
 
 ## Final diff and review status
 
-The final diff contains the five changed files and this record pair. Unit tests, inventory bindings, documentation checks, Secrets scans and the whitespace check passed. Framework delivery remains separate from Parent and MRTS delivery; the Parent Framework gitlink is unchanged and no merge is claimed.
+The final diff contains the six changed files and this record pair. Unit tests, inventory bindings, documentation checks, Secrets scans and the whitespace check passed. Framework delivery remains separate from Parent and MRTS delivery; the Parent Framework gitlink is unchanged and no merge is claimed.
