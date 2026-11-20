@@ -1013,6 +1013,29 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                     "bundled_pcre2_library_missing",
                 )
 
+    def test_elf_dynamic_entries_parses_readelf_output(self) -> None:
+        output = (
+            "\nDynamic section at offset 0x5a8d40 contains 31 entries:\n"
+            "  Tag        Type                         Name/Value\n"
+            " 0x0000000000000001 (NEEDED)             Shared library: [libpcre2-8.so.0]\n"
+            " 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]\n"
+            " 0x000000000000000e (SONAME)             Library soname: [libmodsecurity.so.3]\n"
+            " 0x000000000000001d (RUNPATH)            Library runpath: [$ORIGIN]\n"
+            " 0x000000000000000c (INIT)               0x3a000\n"
+        )
+        completed = subprocess.CompletedProcess(["readelf"], 0, output, "")
+        with mock.patch.object(components, "run_env", return_value=completed):
+            entries = components.elf_dynamic_entries(Path("libmodsecurity.so.3"))
+        self.assertEqual(
+            entries,
+            {"NEEDED": ["libpcre2-8.so.0", "libc.so.6"], "RUNPATH": ["$ORIGIN"]},
+        )
+        with mock.patch.object(
+            components, "run_env", return_value=subprocess.CompletedProcess(["readelf"], 1, "", "not an ELF file")
+        ):
+            with self.assertRaisesRegex(RuntimeError, "readelf_failed"):
+                components.elf_dynamic_entries(Path("libmodsecurity.so.3"))
+
     def test_bundled_pcre2_archive_extraction_rejects_unexpected_layouts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
             root = Path(temporary)

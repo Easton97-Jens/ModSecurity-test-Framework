@@ -5708,7 +5708,8 @@ def elf_dynamic_entries(path: Path) -> dict[str, list[str]]:
         raise RuntimeError(f"readelf_failed:{path.name}")
     entries: dict[str, list[str]] = {}
     for line in proc.stdout.splitlines():
-        match = re.search(r"\((NEEDED|RPATH|RUNPATH)\)\s+[^\[]*\[(.*)\]\s*$", line)
+        # Disjoint character classes keep the match linear (no backtracking).
+        match = re.search(r"\((NEEDED|RPATH|RUNPATH)\)[^\[]*\[([^\]]*)\]", line)
         if match:
             entries.setdefault(match.group(1), []).append(match.group(2))
     return entries
