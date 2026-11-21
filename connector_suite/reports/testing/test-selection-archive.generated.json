@@ -1531,7 +1531,7 @@
         "TestCleanupBoundSweepSkipsEntryHeldByOperation"
       ],
       "source": "connectors/envoy/ext_proc/internal/composite/cleanup_bounds_test.go",
-      "source_sha256": "c8e30eb4bf318cbb9ba1054a03da457f8af22bfdca7c7c112f74f8afc8f8d9ab"
+      "source_sha256": "c991602623eaeab497bf72efaf8cb0a58d963769e81e85560e1075dd1e8c7aa2"
     },
     {
       "contains_selected_definitions": [],
@@ -1687,7 +1687,7 @@
         "TestCompanionRealEngineClientDisconnectKeepsEngineUsable"
       ],
       "source": "connectors/envoy/ext_proc/internal/compositetraefik/companion_runtime_test.go",
-      "source_sha256": "ff49d7f79f926f0e6371d8ea910e97ff29af49b137d9445ae24a37d702b29a8b"
+      "source_sha256": "8280c51e7a3156430543a961fa6fda83d1c9f97ee1b5b3a92e6b9d5220a85efd"
     },
     {
       "contains_selected_definitions": [],

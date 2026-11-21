@@ -26,6 +26,11 @@ const (
 	boundReturnWithin = 2 * time.Second
 	// boundDefaultWithin exceeds the 5s default cleanup timeout.
 	boundDefaultWithin = 10 * time.Second
+	// boundCapacity keeps the event queue (8 events per slot) well above the
+	// events of the lifecycles in one test.
+	boundCapacity = 4
+	// boundLongTTL keeps entries from expiring while a test controls them.
+	boundLongTTL = time.Minute
 )
 
 // boundKey is a non-secret 256-bit test fixture.
@@ -192,7 +197,7 @@ func awaitBegin(t *testing.T, results <-chan beginResult) beginResult {
 
 func TestCleanupBoundBeginRequestAfterFaultUsesCleanupBudget(t *testing.T) {
 	engine := newBoundEngine(t, boundCloseGateHeld)
-	c := newBoundCoordinator(t, Limits{Capacity: 4, CleanupTimeout: boundCleanupTimeout}, engine)
+	c := newBoundCoordinator(t, Limits{Capacity: boundCapacity, CleanupTimeout: boundCleanupTimeout}, engine)
 	release, results := startBeginRequestBehindOpen(t, c, engine)
 	// The fault is published between a successful Open and registration.
 	c.setFault(errBoundTestFault)
@@ -218,7 +223,7 @@ func TestCleanupBoundBeginRequestAfterFaultUsesCleanupBudget(t *testing.T) {
 
 func TestCleanupBoundBeginRequestAfterCloseUsesCleanupBudget(t *testing.T) {
 	engine := newBoundEngine(t, boundCloseGateHeld)
-	c, err := New(boundConnector, boundKey, Limits{Capacity: 4, CleanupTimeout: boundCleanupTimeout}, engine, nil)
+	c, err := New(boundConnector, boundKey, Limits{Capacity: boundCapacity, CleanupTimeout: boundCleanupTimeout}, engine, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +246,7 @@ func TestCleanupBoundBeginRequestAfterFaultClosesNormalTransactionOnce(t *testin
 	// Legitimate control: a cleanup that can acquire the gate completes and
 	// records no cleanup failure; the request still fails with the fault.
 	engine := newBoundEngine(t, boundCloseNormal)
-	c := newBoundCoordinator(t, Limits{Capacity: 4, CleanupTimeout: boundCleanupTimeout}, engine)
+	c := newBoundCoordinator(t, Limits{Capacity: boundCapacity, CleanupTimeout: boundCleanupTimeout}, engine)
 	release, results := startBeginRequestBehindOpen(t, c, engine)
 	c.setFault(errBoundTestFault)
 	close(release)
@@ -270,7 +275,7 @@ func finishWithin(t *testing.T, ctx context.Context, r *Response, why string, wi
 func TestCleanupBoundGateHeldFinishFailsClosedAtDefaultBudget(t *testing.T) {
 	// Default limits on purpose: the 5s default must bound the cleanup.
 	engine := newBoundEngine(t, boundCloseGateHeld)
-	c := newBoundCoordinator(t, Limits{Capacity: 4}, engine)
+	c := newBoundCoordinator(t, Limits{Capacity: boundCapacity}, engine)
 	r := claimedResponse(t, c, "bound-session")
 	finishWithin(t, context.Background(), r, "disconnect", boundDefaultWithin)
 	if c.Err() == nil {
@@ -284,7 +289,7 @@ func TestCleanupBoundGateHeldFinishFailsClosedAtDefaultBudget(t *testing.T) {
 func TestCleanupBoundBudgetStartsAtCleanupForLongLivedEntry(t *testing.T) {
 	const budget = 40 * time.Millisecond
 	engine := newBoundEngine(t, boundCloseNormal)
-	c := newBoundCoordinator(t, Limits{Capacity: 4, CleanupTimeout: budget, TTL: time.Minute, IdleTTL: time.Minute}, engine)
+	c := newBoundCoordinator(t, Limits{Capacity: boundCapacity, CleanupTimeout: budget, TTL: boundLongTTL, IdleTTL: boundLongTTL}, engine)
 	r := claimedResponse(t, c, "bound-session")
 	// The entry outlives its cleanup budget before it is finished. A budget
 	// created at session start would already be spent at Close.
@@ -304,7 +309,7 @@ func TestCleanupBoundBudgetStartsAtCleanupForLongLivedEntry(t *testing.T) {
 
 func TestCleanupBoundCanceledCallerContextIsDetached(t *testing.T) {
 	engine := newBoundEngine(t, boundCloseNormal)
-	c := newBoundCoordinator(t, Limits{Capacity: 4, CleanupTimeout: boundCleanupTimeout}, engine)
+	c := newBoundCoordinator(t, Limits{Capacity: boundCapacity, CleanupTimeout: boundCleanupTimeout}, engine)
 	r := claimedResponse(t, c, "bound-session")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -319,7 +324,7 @@ func TestCleanupBoundCanceledCallerContextIsDetached(t *testing.T) {
 
 func TestCleanupBoundNilCallerContextAndEmptyReason(t *testing.T) {
 	engine := newBoundEngine(t, boundCloseNormal)
-	c := newBoundCoordinator(t, Limits{Capacity: 4, CleanupTimeout: boundCleanupTimeout}, engine)
+	c := newBoundCoordinator(t, Limits{Capacity: boundCapacity, CleanupTimeout: boundCleanupTimeout}, engine)
 	r := claimedResponse(t, c, "bound-session")
 	//nolint:staticcheck // A nil context is the boundary case under test.
 	finishWithin(t, nil, r, "", boundReturnWithin)
@@ -378,8 +383,12 @@ func TestCleanupBoundSweepSkipsEntryHeldByOperation(t *testing.T) {
 			close(busy.release)
 		}
 	})
-	c := newBoundCoordinator(t, Limits{Capacity: 4, CleanupTimeout: boundCleanupTimeout, TTL: time.Minute, IdleTTL: time.Minute}, busy)
-	go func() { _, _, _ = c.BeginRequest(context.Background(), metadata(), nil, true) }()
+	c := newBoundCoordinator(t, Limits{Capacity: boundCapacity, CleanupTimeout: boundCleanupTimeout, TTL: boundLongTTL, IdleTTL: boundLongTTL}, busy)
+	begun := make(chan error, 1)
+	go func() {
+		_, _, err := c.BeginRequest(context.Background(), metadata(), nil, true)
+		begun <- err
+	}()
 	<-busy.entered
 	swept := make(chan struct{})
 	go func() {
@@ -393,4 +402,12 @@ func TestCleanupBoundSweepSkipsEntryHeldByOperation(t *testing.T) {
 	}
 	close(busy.release)
 	released = true
+	select {
+	case err := <-begun:
+		if err != nil {
+			t.Fatalf("held request after release: %v", err)
+		}
+	case <-time.After(boundReturnWithin):
+		t.Fatal("held request did not complete after release")
+	}
 }

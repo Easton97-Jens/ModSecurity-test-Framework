@@ -19,6 +19,13 @@ import (
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/processor"
 )
 
+const (
+	// companionRuntimeCapacity leaves room for the disconnect cases and the
+	// follow-up request on one coordinator.
+	companionRuntimeCapacity = 4
+	companionRuntimeShutdown = 2 * time.Second
+)
+
 func companionRealEngine(t *testing.T) *processor.CommonRuntimeEngine {
 	t.Helper()
 	frameworkRoot := os.Getenv("TEST_ROOT")
@@ -55,7 +62,7 @@ event_path=%s
 		t.Fatalf("NewCommonRuntimeEngine: %v", err)
 	}
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), companionRuntimeShutdown)
 		defer cancel()
 		if err := engine.Close(ctx); err != nil {
 			t.Errorf("closing the real Common runtime engine: %v", err)
@@ -66,7 +73,7 @@ event_path=%s
 
 func TestCompanionRealEngineClientDisconnectKeepsEngineUsable(t *testing.T) {
 	engine := companionRealEngine(t)
-	c, err := composite.New(companionConnector, companionKey, composite.Limits{Capacity: 4}, engine, nil)
+	c, err := composite.New(companionConnector, companionKey, composite.Limits{Capacity: companionRuntimeCapacity}, engine, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
