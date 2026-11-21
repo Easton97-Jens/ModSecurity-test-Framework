@@ -161,13 +161,25 @@ class CanonicalGoToolPinsTest(unittest.TestCase):
         )
 
     def test_incomplete_group_fails_closed(self) -> None:
-        text = "".join(line + "\n" for line in GO_TOOL_LINES.splitlines() if "_MODULE_SUM=" not in line)
-        with self.assertRaisesRegex(ValueError, "incomplete or invalid Go tool pin group STATICCHECK"):
+        text = "".join(
+            line + "\n"
+            for line in GO_TOOL_LINES.splitlines()
+            if "_MODULE_SUM=" not in line
+        )
+        with self.assertRaisesRegex(
+            ValueError, "incomplete or invalid Go tool pin group STATICCHECK"
+        ):
             self.load(text)
 
     def test_range_version_and_foreign_package_are_rejected(self) -> None:
-        for old, new in (('"v0.8.2"', '">=v0.8"'), ("honnef.co/go/tools/cmd", "example.com/other/cmd")):
-            with self.subTest(new=new), self.assertRaisesRegex(ValueError, "invalid Go tool pin group"):
+        for old, new in (
+            ('"v0.8.2"', '">=v0.8"'),
+            ("honnef.co/go/tools/cmd", "example.com/other/cmd"),
+        ):
+            with (
+                self.subTest(new=new),
+                self.assertRaisesRegex(ValueError, "invalid Go tool pin group"),
+            ):
                 self.load(GO_TOOL_LINES.replace(old, new))
 
     def test_shell_expressions_and_duplicates_are_rejected(self) -> None:
@@ -178,7 +190,9 @@ class CanonicalGoToolPinsTest(unittest.TestCase):
 
     def test_group_must_name_its_executable(self) -> None:
         with self.assertRaisesRegex(ValueError, "does not name its executable"):
-            self.load(GO_TOOL_LINES.replace("CI_GO_TOOL_STATICCHECK_", "CI_GO_TOOL_LINTER_"))
+            self.load(
+                GO_TOOL_LINES.replace("CI_GO_TOOL_STATICCHECK_", "CI_GO_TOOL_LINTER_")
+            )
 
     def test_repository_common_pins_both_go_tools(self) -> None:
         tools = PINS.load_canonical_go_tools(ROOT)
@@ -201,7 +215,11 @@ class CanonicalGoToolInventoryTest(unittest.TestCase):
         self.assertEqual(self.checker["unassigned_provenance_variables"](entries), [])
 
     def test_incomplete_go_tool_group_is_reported(self) -> None:
-        text = "".join(line + "\n" for line in GO_TOOL_LINES.splitlines() if "_PACKAGE=" not in line)
+        text = "".join(
+            line + "\n"
+            for line in GO_TOOL_LINES.splitlines()
+            if "_PACKAGE=" not in line
+        )
         self.assertIn(
             "incomplete go tool group STATICCHECK; missing: PACKAGE",
             self.inventory_errors(text),
