@@ -84,6 +84,17 @@ func TestCompanionRealEngineClientDisconnectKeepsEngineUsable(t *testing.T) {
 			t.Fatalf("disconnect after %d body bytes faulted the composite coordinator: %v", len(first), err)
 		}
 	}
+	// Boundary: the client is already gone before ForwardAuth reaches P1.
+	gone, cancelGone := context.WithCancel(context.Background())
+	cancelGone()
+	const gonePath = "/real-gone-before-p1"
+	if rec := companionForwardAuth(c, gone, companionReserve(t, c, "real-gone-session", http.MethodGet, gonePath), http.MethodGet, gonePath, nil); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("request canceled before P1: status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if err := c.Err(); err != nil {
+		t.Fatalf("a request canceled before P1 faulted the composite coordinator: %v", err)
+	}
+
 	const nextPath = "/real-after-disconnect"
 	if next := companionForwardAuth(c, context.Background(), companionReserve(t, c, "real-next-session", http.MethodGet, nextPath), http.MethodGet, nextPath, nil); next.Code != http.StatusOK {
 		t.Fatalf("request after a client disconnect status = %d, want %d (engine unusable)", next.Code, http.StatusOK)

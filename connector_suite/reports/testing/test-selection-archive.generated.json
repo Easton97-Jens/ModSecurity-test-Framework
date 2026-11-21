@@ -1540,7 +1540,7 @@
         "TestCleanupRuntimeBeginRequestFaultAfterOpenClosesRealTransaction"
       ],
       "source": "connectors/envoy/ext_proc/internal/composite/cleanup_runtime_test.go",
-      "source_sha256": "d44dbd8c997e6450cc065af1423066f189b0c92d95ede12064c98518a25c4644"
+      "source_sha256": "5ad5411cc7f01c824c34bd9b1feb4111b5f7c3dc0f442023ac99bbc584a23c02"
     },
     {
       "contains_selected_definitions": [],
@@ -1687,7 +1687,7 @@
         "TestCompanionRealEngineClientDisconnectKeepsEngineUsable"
       ],
       "source": "connectors/envoy/ext_proc/internal/compositetraefik/companion_runtime_test.go",
-      "source_sha256": "fa7cb9686e1666d5cefd3c273e93c67ea7858eb27f9a8e9851975b670919d97f"
+      "source_sha256": "ff49d7f79f926f0e6371d8ea910e97ff29af49b137d9445ae24a37d702b29a8b"
     },
     {
       "contains_selected_definitions": [],

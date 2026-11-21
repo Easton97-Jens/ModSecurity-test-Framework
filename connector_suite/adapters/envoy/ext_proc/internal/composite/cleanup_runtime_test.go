@@ -21,6 +21,18 @@ import (
 	"github.com/Easton97-Jens/ModSecurity-conector/connectors/envoy/ext_proc/internal/processor"
 )
 
+const (
+	// cleanupRuntimeCapacity and cleanupRuntimeBudget leave ample headroom for
+	// a real native close; the bound itself is covered by cleanup_bounds_test.go.
+	cleanupRuntimeCapacity = 4
+	cleanupRuntimeBudget   = time.Second
+	cleanupRuntimeShutdown = 2 * time.Second
+)
+
+// cleanupRuntimeConfig mirrors the runtime configuration of the existing
+// composite Envoy integration tests; %s are the rules file and event path.
+const cleanupRuntimeConfig = "enabled=on\nrules_file=%s\ntransaction_id_header=x-request-id\nrequest_body_mode=streaming\nresponse_body_mode=streaming\nphase4_mode=safe\ndefault_block_status=403\ndefault_error_status=500\nuse_error_log=off\nmax_header_count=128\nmax_header_name_size=256\nmax_header_value_size=8192\nmax_total_header_bytes=32768\nmax_event_json_bytes=16384\nevent_path=%s\n"
+
 func cleanupRuntimeEngine(t *testing.T) *processor.CommonRuntimeEngine {
 	t.Helper()
 	frameworkRoot := os.Getenv("TEST_ROOT")
@@ -33,8 +45,7 @@ func cleanupRuntimeEngine(t *testing.T) *processor.CommonRuntimeEngine {
 	}
 	dir := t.TempDir()
 	config := filepath.Join(dir, "runtime.conf")
-	content := fmt.Sprintf("enabled=on\nrules_file=%s\ntransaction_id_header=x-request-id\nrequest_body_mode=streaming\nresponse_body_mode=streaming\nphase4_mode=safe\ndefault_block_status=403\ndefault_error_status=500\nuse_error_log=off\nmax_header_count=128\nmax_header_name_size=256\nmax_header_value_size=8192\nmax_total_header_bytes=32768\nmax_event_json_bytes=16384\nevent_path=%s\n",
-		rules, filepath.Join(dir, "events.jsonl"))
+	content := fmt.Sprintf(cleanupRuntimeConfig, rules, filepath.Join(dir, "events.jsonl"))
 	if err := os.WriteFile(config, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +54,7 @@ func cleanupRuntimeEngine(t *testing.T) *processor.CommonRuntimeEngine {
 		t.Fatalf("NewCommonRuntimeEngine: %v", err)
 	}
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), cleanupRuntimeShutdown)
 		defer cancel()
 		if err := engine.Close(ctx); err != nil {
 			t.Errorf("closing the real Common runtime engine: %v", err)
@@ -74,9 +85,20 @@ func (o *faultAfterOpen) Open(ctx context.Context, meta processor.StreamMetadata
 
 func TestCleanupRuntimeBeginRequestFaultAfterOpenClosesRealTransaction(t *testing.T) {
 	engine := cleanupRuntimeEngine(t)
-	for _, cancelRequest := range []bool{false, true} {
+	// The fault path closes before any request phase, so nil headers are a
+	// valid boundary input next to the normal host header.
+	for _, tc := range []struct {
+		name          string
+		cancelRequest bool
+		headers       []processor.Header
+	}{
+		{"active request", false, cleanupRuntimeHeaders()},
+		{"canceled request", true, cleanupRuntimeHeaders()},
+		{"canceled request without headers", true, nil},
+	} {
+		cancelRequest := tc.cancelRequest
 		opener := &faultAfterOpen{engine: engine}
-		c, err := New(boundConnector, boundKey, Limits{Capacity: 4, CleanupTimeout: time.Second}, opener, nil)
+		c, err := New(boundConnector, boundKey, Limits{Capacity: cleanupRuntimeCapacity, CleanupTimeout: cleanupRuntimeBudget}, opener, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,17 +107,17 @@ func TestCleanupRuntimeBeginRequestFaultAfterOpenClosesRealTransaction(t *testin
 		if cancelRequest {
 			opener.cancel = cancel
 		}
-		_, _, err = c.BeginRequest(ctx, cleanupRuntimeMetadata(), cleanupRuntimeHeaders(), true)
+		_, _, err = c.BeginRequest(ctx, cleanupRuntimeMetadata(), tc.headers, true)
 		cancel()
 		c.Close()
 		if !errors.Is(err, errBoundTestFault) {
-			t.Fatalf("canceled request=%v: BeginRequest error = %v, want the coordinator fault, not a native cleanup failure", cancelRequest, err)
+			t.Fatalf("%s: BeginRequest error = %v, want the coordinator fault, not a native cleanup failure", tc.name, err)
 		}
 	}
 
 	// The real engine must still be healthy: a fresh coordinator completes a
 	// request and its cleanup without a cleanup failure.
-	fresh, err := New(boundConnector, boundKey, Limits{Capacity: 4}, engine, nil)
+	fresh, err := New(boundConnector, boundKey, Limits{Capacity: cleanupRuntimeCapacity}, engine, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
