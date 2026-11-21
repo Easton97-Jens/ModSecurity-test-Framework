@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "c584a7053ee497978bbd96b0505792ecb30ef52a4eb060c0317cb7ef97f00fe5",
+  "inventory_sha256": "20d9322bc2fdf48b4b2758c155f19b6a510e1193ae2c447b02d04c937fa0ec38",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -922,7 +922,7 @@
     {
       "framework_path": "connector_native_tests/connectors/haproxy/src/haproxy_spop_diagnostic_runtime.inc",
       "source": "framework/connector_native_tests/connectors/haproxy/src/haproxy_spop_diagnostic_runtime.inc",
-      "source_sha256": "ddde9b0d985875f27c2ad693e20243b375d00fbb120d765a00a5341e5cc625be"
+      "source_sha256": "757c098ddaf9ed1536116b9cbf3a35b026198de4f9d14dc662943cdb1413e7b1"
     },
     {
       "framework_path": "connector_native_tests/connectors/lighttpd/src/lighttpd_bridge.inc",
@@ -1355,7 +1355,7 @@
       "source_sha256": "c4b5192448e9045e6b1255fefa549ed45f470c30390ec58c611782069ad58449"
     }
   ],
-  "on_demand_definition_count": 8476,
+  "on_demand_definition_count": 8496,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -1518,6 +1518,32 @@
     },
     {
       "contains_selected_definitions": [],
+      "framework_path": "connector_suite/adapters/envoy/ext_proc/internal/composite/cleanup_bounds_test.go",
+      "on_demand_definitions": [
+        "TestCleanupBoundBeginRequestAfterFaultUsesCleanupBudget",
+        "TestCleanupBoundBeginRequestAfterCloseUsesCleanupBudget",
+        "TestCleanupBoundBeginRequestAfterFaultClosesNormalTransactionOnce",
+        "TestCleanupBoundGateHeldFinishFailsClosedAtDefaultBudget",
+        "TestCleanupBoundBudgetStartsAtCleanupForLongLivedEntry",
+        "TestCleanupBoundCanceledCallerContextIsDetached",
+        "TestCleanupBoundNilCallerContextAndEmptyReason",
+        "TestCleanupBoundSequentialLifecyclesReleaseCapacity",
+        "TestCleanupBoundSweepSkipsEntryHeldByOperation"
+      ],
+      "source": "connectors/envoy/ext_proc/internal/composite/cleanup_bounds_test.go",
+      "source_sha256": "c991602623eaeab497bf72efaf8cb0a58d963769e81e85560e1075dd1e8c7aa2"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/adapters/envoy/ext_proc/internal/composite/cleanup_runtime_test.go",
+      "on_demand_definitions": [
+        "TestCleanupRuntimeBeginRequestFaultAfterOpenClosesRealTransaction"
+      ],
+      "source": "connectors/envoy/ext_proc/internal/composite/cleanup_runtime_test.go",
+      "source_sha256": "5ad5411cc7f01c824c34bd9b1feb4111b5f7c3dc0f442023ac99bbc584a23c02"
+    },
+    {
+      "contains_selected_definitions": [],
       "framework_path": "connector_suite/adapters/envoy/ext_proc/internal/composite/coordinator_test.go",
       "on_demand_definitions": [
         "TestLeaseTamperReplayAndSessionBinding",
@@ -1556,6 +1582,18 @@
       ],
       "source": "connectors/envoy/ext_proc/internal/composite/coordinator_test.go",
       "source_sha256": "98a8627d754e2d4384f3603e6c7ec7012e6b1399632a71eead0f3bc34f60beda"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/adapters/envoy/ext_proc/internal/composite/entry_wait_bounds_test.go",
+      "on_demand_definitions": [
+        "TestEntryWaitClaimContextReturnsBusyWhileRequestPhaseHoldsEntry",
+        "TestEntryWaitAbortWhileHeldPreventsLateActivation",
+        "TestEntryWaitAbortOfIdleReservationFinishesImmediately",
+        "TestEntryWaitBoundedCallsRejectInvalidInputsWithoutWaiting"
+      ],
+      "source": "connectors/envoy/ext_proc/internal/composite/entry_wait_bounds_test.go",
+      "source_sha256": "9f2e961b70daaa62cf5547d89b2496f11efeb1aa37551347044c405b465237c8"
     },
     {
       "contains_selected_definitions": [],
@@ -1628,6 +1666,28 @@
       ],
       "source": "connectors/envoy/ext_proc/internal/compositeenvoy/technical_error_test.go",
       "source_sha256": "bb8bb200cd6a3fbe469dc4e50b178f48d9c7ec5466013fc15cee998273bea0c7"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/adapters/envoy/ext_proc/internal/compositetraefik/companion_bounds_test.go",
+      "on_demand_definitions": [
+        "TestCompanionClaimDuringHeldRequestPhaseReleasesHandler",
+        "TestCompanionResponseEngineWorkIsBoundedByFrameDeadline",
+        "TestCompanionNormalLifecycleWithShortFrameDeadline",
+        "TestCompanionForwardAuthRedirectLocationIsValidated",
+        "TestCompanionClientDisconnectDetachesCleanup"
+      ],
+      "source": "connectors/envoy/ext_proc/internal/compositetraefik/companion_bounds_test.go",
+      "source_sha256": "338bcb732bc409c20d88480c0daabaf3e62962a850c7424ccbfda054259bd1da"
+    },
+    {
+      "contains_selected_definitions": [],
+      "framework_path": "connector_suite/adapters/envoy/ext_proc/internal/compositetraefik/companion_runtime_test.go",
+      "on_demand_definitions": [
+        "TestCompanionRealEngineClientDisconnectKeepsEngineUsable"
+      ],
+      "source": "connectors/envoy/ext_proc/internal/compositetraefik/companion_runtime_test.go",
+      "source_sha256": "8280c51e7a3156430543a961fa6fda83d1c9f97ee1b5b3a92e6b9d5220a85efd"
     },
     {
       "contains_selected_definitions": [],
