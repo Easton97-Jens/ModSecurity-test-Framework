@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "c584a7053ee497978bbd96b0505792ecb30ef52a4eb060c0317cb7ef97f00fe5",
+  "inventory_sha256": "1539193e7335572198e91474f4f63e70ab3a4f6759edc3de586ce093c0dfab76",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "c4b5192448e9045e6b1255fefa549ed45f470c30390ec58c611782069ad58449"
     }
   ],
-  "on_demand_definition_count": 8476,
+  "on_demand_definition_count": 8484,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -12507,10 +12507,18 @@
         "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CommonCanonicalPinsPathTest.test_symlinked_ci_lib_cannot_redirect_pin_reads_outside_root",
         "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.DiagnosticSourceProvenanceTest.test_dedicated_source_owner_and_namespace_identity_are_distinct",
         "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.DiagnosticSourceProvenanceTest.test_source_tuple_corruption_and_unregistered_fields_fail",
-        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.DiagnosticSourceProvenanceTest.test_namespace_mentions_do_not_hide_executable_or_ordinary_pins"
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.DiagnosticSourceProvenanceTest.test_namespace_mentions_do_not_hide_executable_or_ordinary_pins",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_complete_group_is_returned_by_executable",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_incomplete_group_fails_closed",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_range_version_and_foreign_package_are_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_shell_expressions_and_duplicates_are_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_group_must_name_its_executable",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_repository_common_pins_both_go_tools",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolInventoryTest.test_complete_go_tool_group_is_owned_and_valid",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolInventoryTest.test_incomplete_go_tool_group_is_reported"
       ],
       "source": "framework/tests/ci_security/test_common_canonical_pins.py",
-      "source_sha256": "6607058d6651204af46d92907742978979751c2299a778aefed341e292a618fd"
+      "source_sha256": "bae1ceed50689e62f00346e74d71e8fe81c4ae2ad2ee9bbe291bece5ef0fd8ea"
     },
     {
       "contains_selected_definitions": [],

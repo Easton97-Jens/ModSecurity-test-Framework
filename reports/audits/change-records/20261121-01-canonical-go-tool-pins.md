@@ -40,6 +40,8 @@ Reusing `CI_SECURITY_TOOL_*` would require placeholder asset fields or weakening
 - `ci/tools/check-common-versions.py`: Go tool field recognition, group shape and ownership.
 - `tests/ci_security/test_common_canonical_pins.py`: eight new tests (reader result, incomplete group, range version and foreign package, shell expression and duplicate, executable naming, repository pins, inventory shape and ownership, incomplete group reporting).
 - `docs/security/ci-security-tooling.md`, `docs/security/ci-security-tooling.de.md`: new section on Go tool pins.
+- `connector_suite/config/testing/active-cases.json`: refreshed `common.sh` source digest through `update-inventory-bindings.py --apply`; execution selection unchanged.
+- `connector_suite/reports/testing/test-selection-archive.generated.json`: regenerated through `update-test-archive.py`; on-demand definitions 8476 to 8484 (the eight new tests), new `inventory_sha256` and test source digest.
 - `reports/audits/change-records/20261121-01-canonical-go-tool-pins.md` and `reports/audits/change-records/20261121-01-canonical-go-tool-pins.de.md`.
 
 ## Commands and results
@@ -53,6 +55,8 @@ Reusing `CI_SECURITY_TOOL_*` would require placeholder asset fields or weakening
 | `python -m unittest tests.ci_security.test_canonical_maintenance` | 0 | passed | `fwgo-20261121T093506Z` |
 | `make test-ci-security-contract` | 0 | 421 tests passed in about 300 s | `fwgo-20261121T093506Z` |
 | `check-common-versions.py --check`, before and after the change | 2 / 2 | identical upstream review status lines; no new finding | `fwgo-20261121T093506Z` |
+| Hosted `scaffold-lint` on the first PR head, reproduced locally with `update-inventory-bindings.py --check` | 1 | `SOURCE_DIGEST_DRIFT …/ci/lib/common.sh`, `INVENTORY_BINDINGS_DRIFT`; archive check also stale | PR #182 run `44915812649` |
+| `update-inventory-bindings.py --apply`, `update-test-archive.py`, then both with `--check` | 0 | `INVENTORY_BINDINGS_VERIFIED`; archive matches inventory and sources | `fwgo-20261121T093506Z` |
 | Parent `make security-tools` with the same pins (Parent PR #456 helper) | 0 | `staticcheck 2026.2.2 (0.8.2)` and `govulncheck v1.10.0` built with Go 1.27.4; module sum and build information verified | Parent run `pyenv-20261119T191308Z` |
 
 Checks used the Framework-owned virtual environment on Python `3.15.2`.

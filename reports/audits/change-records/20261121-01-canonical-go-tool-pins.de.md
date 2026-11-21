@@ -40,6 +40,8 @@ Eine Wiederverwendung von `CI_SECURITY_TOOL_*` hätte Platzhalter-Asset-Felder o
 - `ci/tools/check-common-versions.py`: Erkennung der Go-Werkzeugfelder, Gruppenform und Zuordnung.
 - `tests/ci_security/test_common_canonical_pins.py`: acht neue Tests (Leserergebnis, unvollständige Gruppe, Versionsbereich und fremdes Paket, Shell-Ausdruck und Duplikat, Executable-Benennung, Repository-Pins, Inventarform und Zuordnung, Meldung unvollständiger Gruppen).
 - `docs/security/ci-security-tooling.md`, `docs/security/ci-security-tooling.de.md`: neuer Abschnitt zu Go-Werkzeug-Pins.
+- `connector_suite/config/testing/active-cases.json`: Quell-Digest von `common.sh` über `update-inventory-bindings.py --apply` aktualisiert; Auswahl der Ausführungen unverändert.
+- `connector_suite/reports/testing/test-selection-archive.generated.json`: über `update-test-archive.py` neu erzeugt; On-Demand-Definitionen 8476 auf 8484 (die acht neuen Tests), neuer `inventory_sha256` und Quell-Digest der Testdatei.
 - `reports/audits/change-records/20261121-01-canonical-go-tool-pins.md` und `reports/audits/change-records/20261121-01-canonical-go-tool-pins.de.md`.
 
 ## Befehle und Ergebnisse
@@ -53,6 +55,8 @@ Eine Wiederverwendung von `CI_SECURITY_TOOL_*` hätte Platzhalter-Asset-Felder o
 | `python -m unittest tests.ci_security.test_canonical_maintenance` | 0 | bestanden | `fwgo-20261121T093506Z` |
 | `make test-ci-security-contract` | 0 | 421 Tests in etwa 300 s bestanden | `fwgo-20261121T093506Z` |
 | `check-common-versions.py --check`, vor und nach der Änderung | 2 / 2 | identische Upstream-Review-Statuszeilen; kein neuer Befund | `fwgo-20261121T093506Z` |
+| Gehostetes `scaffold-lint` am ersten PR-Head, lokal mit `update-inventory-bindings.py --check` reproduziert | 1 | `SOURCE_DIGEST_DRIFT …/ci/lib/common.sh`, `INVENTORY_BINDINGS_DRIFT`; Archivprüfung ebenfalls veraltet | PR #182 Lauf `44915812649` |
+| `update-inventory-bindings.py --apply`, `update-test-archive.py`, danach beide mit `--check` | 0 | `INVENTORY_BINDINGS_VERIFIED`; Archiv passt zu Inventar und Quellen | `fwgo-20261121T093506Z` |
 | Parent `make security-tools` mit denselben Pins (Helper aus Parent-PR #456) | 0 | `staticcheck 2026.2.2 (0.8.2)` und `govulncheck v1.10.0` mit Go 1.27.4 gebaut; Modulsumme und Build-Informationen geprüft | Parent-Lauf `pyenv-20261119T191308Z` |
 
 Die Prüfungen nutzten die Framework-eigene virtuelle Umgebung mit Python `3.15.2`.
