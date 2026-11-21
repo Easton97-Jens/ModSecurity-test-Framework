@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "c584a7053ee497978bbd96b0505792ecb30ef52a4eb060c0317cb7ef97f00fe5",
+  "inventory_sha256": "6cce5083f537a75a8d6aaa2ef3d2ae46e1a8c633b8d58110ac7011667f9c8e25",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "c4b5192448e9045e6b1255fefa549ed45f470c30390ec58c611782069ad58449"
     }
   ],
-  "on_demand_definition_count": 8476,
+  "on_demand_definition_count": 8485,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -10618,6 +10618,15 @@
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_required_pcre2_digest_verifies_before_cache_publication",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_blocked_modsecurity_manifest_claims_fresh_entry_before_writing",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_output_layout_version_changes_the_cache_identity",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_identity_binds_the_bundled_pcre2_pin",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_build_links_the_bundled_pcre2_with_origin_runpath",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_bundled_pcre2_verification_rejects_a_system_or_staging_runpath",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_elf_dynamic_entries_parses_readelf_output",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_bundled_pcre2_archive_extraction_rejects_unexpected_layouts",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_bundled_pcre2_build_reports_an_unreadable_archive_without_running_commands",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_build_persists_the_bundled_pcre2_verification_failure",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_build_records_an_unexecutable_build_tool_as_failure",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_bundled_pcre2_build_reports_an_unexecutable_build_tool",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_materialize_a_regular_runtime_soname",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_require_all_public_headers",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_reject_unsafe_or_ambiguous_libtool_chains",
@@ -10644,7 +10653,7 @@
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_moving_git_ref_uses_resolved_commit_and_never_fetches_final_checkout"
       ],
       "source": "tests/test_runtime_component_cache_contract.py",
-      "source_sha256": "d80a90dc80592b0c071d57908ed73fad8f99c3185172568273a1b30ede455dcf"
+      "source_sha256": "a501b01c40ea61450388bafa2a1914f044dbcda22f5466f9bfbd1026424ca0eb"
     },
     {
       "contains_selected_definitions": [],

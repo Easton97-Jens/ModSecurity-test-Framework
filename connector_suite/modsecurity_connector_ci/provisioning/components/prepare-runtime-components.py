@@ -259,7 +259,14 @@ MODSECURITY_REQUIRED_PUBLIC_HEADERS = (
     "rules_set.h",
     "transaction.h",
 )
-MODSECURITY_OUTPUT_LAYOUT_VERSION = 1
+# Layout 2 bundles the Framework-pinned PCRE2 (common.sh PCRE2_*) into the
+# shared ModSecurity prefix and links libmodsecurity with DT_RUNPATH=$ORIGIN.
+# Every host harness puts MODSECURITY_LIB_DIR first on its library path, so no
+# host process silently falls back to the distribution PCRE2 at runtime.
+MODSECURITY_OUTPUT_LAYOUT_VERSION = 2
+MODSECURITY_BUNDLED_PCRE2_RUNPATH = "$ORIGIN"
+MODSECURITY_BUNDLED_PCRE2_LIBRARY = "libpcre2-8.so.0"
+MODSECURITY_BUNDLED_PCRE2_HEADER = "pcre2.h"
 NGINX_MODULE_FILENAME = "ngx_http_modsecurity_module.so"
 NATIVE_NGINX_OVERRIDE_ENV = "MRTS_NATIVE_NGINX_BIN/MRTS_NATIVE_NGINX_MODULE_DIR"
 NGINX_REQUIRE_PINNED_PROVENANCE_ENV = "NGINX_REQUIRE_PINNED_PROVENANCE"
@@ -4513,11 +4520,22 @@ def modsecurity_cache_identity(
         configuration_flags=build_flags,
         toolchain=toolchain,
         extra_inputs={
+            "bundled_pcre2": modsecurity_bundled_pcre2_identity(env),
             "dependency_hash": dependency_hash,
             "modsecurity_output_layout_version": MODSECURITY_OUTPUT_LAYOUT_VERSION,
             "recursive_submodule_status": git_record.get("submodule_status", ""),
         },
     )
+
+
+def modsecurity_bundled_pcre2_identity(env: dict[str, str]) -> dict[str, str]:
+    """Return the pinned PCRE2 tuple that the shared ModSecurity prefix bundles."""
+    return {
+        "version": env.get("PCRE2_VERSION", ""),
+        "source_url": env.get("PCRE2_SOURCE_URL", ""),
+        "sha256": env.get("PCRE2_SHA256", ""),
+        "runpath": MODSECURITY_BUNDLED_PCRE2_RUNPATH,
+    }
 
 
 def modsecurity_build_inputs(
@@ -5460,7 +5478,9 @@ def modsecurity_cache_is_ready(
 
 
 def missing_modsecurity_build_dependency(env: dict[str, str]) -> str:
-    missing = first_missing_tool([("make", "missing_make"), ("git", "missing_git")])
+    missing = first_missing_tool(
+        [("make", "missing_make"), ("git", "missing_git"), ("readelf", "missing_readelf")]
+    )
     if not resolve_compiler(env):
         return "missing_compiler"
     return missing
@@ -5530,6 +5550,7 @@ def modsecurity_build_environment(
     env: dict[str, str],
     inputs: dict[str, Any],
     expat: dict[str, Any],
+    bundled_pcre2_prefix: Path | None = None,
 ) -> dict[str, str]:
     build_env_vars = dict(os.environ)
     build_env_vars.update(env)
@@ -5537,16 +5558,51 @@ def modsecurity_build_environment(
     for key in ("CPPFLAGS", "CFLAGS", "CXXFLAGS", "LDFLAGS", "LIBS", "PKG_CONFIG_PATH"):
         if flag_payload.get(key):
             build_env_vars[key] = str(flag_payload[key])
+    if bundled_pcre2_prefix is not None:
+        # Dependency flags such as -L/usr/lib/<triplet> (curl, maxminddb) would
+        # otherwise make the bundled tools, examples and test programs resolve
+        # -lpcre2-8 to the distribution PCRE2, whose unversioned symbols cannot
+        # satisfy the PCRE2_10.47+ symbol versions libmodsecurity needs.
+        # Automake places per-target *_LDFLAGS before $(LDFLAGS), so only the
+        # compiler command itself is guaranteed to come first in every link.
+        # The compilers are the ones toolchain_identity() records; the staging
+        # path stays out of the cache identity: it is build environment only.
+        bundled_lib_flag = f"-L{bundled_pcre2_prefix / 'lib'}"
+        cc_command, cxx_command = modsecurity_compiler_commands(env)
+        if cc_command:
+            build_env_vars["CC"] = f"{cc_command} {bundled_lib_flag}"
+        if cxx_command:
+            build_env_vars["CXX"] = f"{cxx_command} {bundled_lib_flag}"
+        build_env_vars["LDFLAGS"] = " ".join(
+            part for part in (bundled_lib_flag, build_env_vars.get("LDFLAGS", "")) if part
+        ).strip()
     expat_lib_dir = expat.get("lib_dir")
     if expat_lib_dir:
         build_env_vars["LD_LIBRARY_PATH"] = (
             f"{expat_lib_dir}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep)
         )
+    # The linker reads LD_RUN_PATH only when no explicit -rpath is given.  It
+    # passes through make, the shell and libtool unexpanded, unlike $ORIGIN in
+    # LDFLAGS.  The published library is verified against this exact value.
+    build_env_vars["LD_RUN_PATH"] = MODSECURITY_BUNDLED_PCRE2_RUNPATH
     return build_env_vars
 
 
+def modsecurity_compiler_commands(env: dict[str, str]) -> tuple[str, str]:
+    """Return the C and C++ compiler commands that compiler_identity() records."""
+    configured_cc = env.get("CC", "").strip()
+    cc = configured_cc if configured_cc and resolve_compiler(env) else resolve_compiler(env)
+    configured_cxx = env.get("CXX", "").strip()
+    if configured_cxx and shutil.which(configured_cxx.split()[0]):
+        cxx = configured_cxx
+    else:
+        cxx = shutil.which("c++") or shutil.which("g++") or ""
+    return cc, cxx
+
+
 def modsecurity_build_commands(env: dict[str, str], staging_prefix: Path) -> list[tuple[str, list[str]]]:
-    configure_command = ["./configure", f"--prefix={staging_prefix}"]
+    # The bundled PCRE2 is installed into the staging prefix before configure.
+    configure_command = ["./configure", f"--prefix={staging_prefix}", f"--with-pcre2={staging_prefix}"]
     configure_command.extend(env.get("MODSECURITY_CONFIGURE_ARGS", "").split())
     return [
         ("modsecurity-build-sh", ["sh", "./build.sh"]),
@@ -5570,6 +5626,116 @@ def record_modsecurity_build_failure(
     write_cache_manifest(staging_build / CACHE_MANIFEST_FILENAME, record)
 
 
+def prepare_modsecurity_bundled_pcre2_archive(env: dict[str, str], cache_root: Path) -> dict[str, Any]:
+    """Fetch the pinned PCRE2 archive through the digest-verifying archive cache."""
+    return prepare_archive(
+        "pcre2",
+        env.get("PCRE2_SOURCE_URL", ""),
+        env.get("PCRE2_SHA256", ""),
+        env.get("PCRE2_SHA256_URL", ""),
+        cache_root / "archives" / "modsecurity",
+        cache_root,
+        required_literal_sha256=True,
+    )
+
+
+def modsecurity_bundled_pcre2_archive_blocker(archive: dict[str, Any]) -> str:
+    if archive.get("status") != "present":
+        return str(archive.get("blocker_reason") or "pcre2_archive_not_present")
+    if archive.get("checksum_status") != "PASS":
+        return "pcre2_archive_checksum_not_pass"
+    return ""
+
+
+def extract_single_root_tar_archive(archive: Path, destination: Path) -> Path:
+    """Extract a release archive with the safe data filter; return its one root directory."""
+    destination.mkdir(parents=True, exist_ok=False)
+    with tarfile.open(archive) as handle:
+        handle.extractall(destination, filter="data")
+    roots = list(destination.iterdir())
+    if len(roots) != 1 or roots[0].is_symlink() or not roots[0].is_dir():
+        raise RuntimeError("bundled_pcre2_archive_layout_unexpected")
+    return roots[0]
+
+
+def build_modsecurity_bundled_pcre2(
+    env: dict[str, str],
+    archive: Path,
+    staging_build: Path,
+    staging_prefix: Path,
+    log_parts: list[str],
+) -> int:
+    """Install the pinned PCRE2 into the ModSecurity staging prefix; return a command exit code."""
+    try:
+        source = extract_single_root_tar_archive(archive, staging_build / "pcre2-source")
+    except (OSError, tarfile.TarError, RuntimeError) as error:
+        log_parts.append(f"pcre2-extract: {type(error).__name__}: {error}")
+        return 1
+    pcre2_env = dict(os.environ)
+    pcre2_env.update(env)
+    pcre2_env.pop("LD_RUN_PATH", None)
+    for label, command in (
+        # Same configuration as the Apache source build of the identical pin.
+        ("pcre2-configure", ["./configure", f"--prefix={staging_prefix}"]),
+        ("pcre2-make", ["make", f"-j{runtime_make_jobs(env)}"]),
+        ("pcre2-make-install", ["make", "install"]),
+    ):
+        try:
+            proc = run_env(command, cwd=source, env=pcre2_env)
+        except OSError as error:
+            log_parts.append(f"{label}: {type(error).__name__}: {error}")
+            return 127
+        append_command_log(log_parts, label, proc)
+        if proc.returncode != 0:
+            return proc.returncode
+    # libtool would hardcode the staging directory as RUNPATH when it finds a
+    # .la file for -lpcre2-8; the staging path no longer exists after publish.
+    try:
+        for libtool_archive in (staging_prefix / "lib").glob("*.la"):
+            libtool_archive.unlink()
+    except OSError as error:
+        log_parts.append(f"pcre2-remove-libtool-archives: {type(error).__name__}: {error}")
+        return 1
+    return 0
+
+
+def elf_dynamic_entries(path: Path) -> dict[str, list[str]]:
+    try:
+        proc = run_env(["readelf", "-d", str(path)], errors="replace")
+    except OSError as error:
+        raise RuntimeError(f"readelf_unavailable:{path.name}:{error}") from error
+    if proc.returncode != 0:
+        raise RuntimeError(f"readelf_failed:{path.name}")
+    entries: dict[str, list[str]] = {}
+    for line in proc.stdout.splitlines():
+        # Disjoint character classes keep the match linear (no backtracking).
+        match = re.search(r"\((NEEDED|RPATH|RUNPATH)\)[^\[]*\[([^\]]*)\]", line)
+        if match:
+            entries.setdefault(match.group(1), []).append(match.group(2))
+    return entries
+
+
+def modsecurity_bundled_pcre2_blocker(prefix: Path) -> str:
+    """Return why the prefix would not load its bundled PCRE2, or an empty string."""
+    lib_dir = prefix / "lib"
+    if not (prefix / "include" / MODSECURITY_BUNDLED_PCRE2_HEADER).is_file():
+        return "bundled_pcre2_header_missing"
+    pcre2_library = lib_dir / MODSECURITY_BUNDLED_PCRE2_LIBRARY
+    if not pcre2_library.is_file() or pcre2_library.resolve().parent != lib_dir.resolve():
+        return "bundled_pcre2_library_missing"
+    try:
+        entries = elf_dynamic_entries(lib_dir / MODSECURITY_RUNTIME_LIBRARY_FILENAME)
+    except RuntimeError:
+        return "libmodsecurity_elf_inspection_failed"
+    if MODSECURITY_BUNDLED_PCRE2_LIBRARY not in entries.get("NEEDED", []):
+        return "libmodsecurity_does_not_need_pcre2"
+    if entries.get("RPATH"):
+        return "libmodsecurity_has_legacy_rpath"
+    if entries.get("RUNPATH") != [MODSECURITY_BUNDLED_PCRE2_RUNPATH]:
+        return "libmodsecurity_runpath_not_origin"
+    return ""
+
+
 def build_modsecurity_staging_entry(
     env: dict[str, str],
     inputs: dict[str, Any],
@@ -5579,6 +5745,7 @@ def build_modsecurity_staging_entry(
     staging_prefix: Path,
     log_path: Path,
     record: dict[str, Any],
+    pcre2_archive: Path,
 ) -> bool:
     build_source = staging_build / "source"
     shutil.copytree(
@@ -5588,20 +5755,41 @@ def build_modsecurity_staging_entry(
             ".git", ".github", "__pycache__", "autom4te.cache", "*.o", "*.lo", "*.la", "*.log"
         ),
     )
-    build_env_vars = modsecurity_build_environment(env, inputs, expat)
     log_parts: list[str] = []
+    pcre2_exit = build_modsecurity_bundled_pcre2(env, pcre2_archive, staging_build, staging_prefix, log_parts)
+    if pcre2_exit != 0:
+        write_component_log(log_path, log_parts)
+        record_modsecurity_build_failure(record, staging_build, log_path, pcre2_exit)
+        return False
+    build_env_vars = modsecurity_build_environment(env, inputs, expat, staging_prefix)
     for label, command in modsecurity_build_commands(env, staging_prefix):
-        proc = run_env(command, cwd=build_source, env=build_env_vars)
+        try:
+            proc = run_env(command, cwd=build_source, env=build_env_vars)
+        except OSError as error:
+            log_parts.append(f"{label}: {type(error).__name__}: {error}")
+            write_component_log(log_path, log_parts)
+            record_modsecurity_build_failure(record, staging_build, log_path, 127)
+            return False
         append_command_log(log_parts, label, proc)
         if proc.returncode != 0:
             write_component_log(log_path, log_parts)
             record_modsecurity_build_failure(record, staging_build, log_path, proc.returncode)
             return False
     copy_modsecurity_outputs(build_source, staging_prefix)
+    bundled_blocker = modsecurity_bundled_pcre2_blocker(staging_prefix)
+    if bundled_blocker:
+        log_parts.append(f"bundled-pcre2-verification: {bundled_blocker}")
     write_component_log(log_path, log_parts)
-    if not modsecurity_ready(staging_prefix):
+    if bundled_blocker or not modsecurity_ready(staging_prefix):
+        if bundled_blocker:
+            # Set before the failure manifest is written, so the reason persists.
+            record["bundled_pcre2_blocker"] = bundled_blocker
         record_modsecurity_build_failure(record, staging_build, log_path, 0)
         return False
+    record["bundled_pcre2"] = {
+        **modsecurity_bundled_pcre2_identity(env),
+        "library": MODSECURITY_BUNDLED_PCRE2_LIBRARY,
+    }
     record.update(
         status="built",
         build_log=str(log_path),
@@ -5681,6 +5869,13 @@ def build_shared_modsecurity_cache(
             if cache_error:
                 record.update(status="blocked", blocker_reason=cache_error)
                 return record
+            pcre2_archive = prepare_modsecurity_bundled_pcre2_archive(env, cache_root)
+            record["bundled_pcre2_archive"] = pcre2_archive
+            pcre2_blocker = modsecurity_bundled_pcre2_archive_blocker(pcre2_archive)
+            if pcre2_blocker:
+                record.update(status="blocked", blocker_reason=f"bundled_pcre2_{pcre2_blocker}")
+                write_cache_manifest(paths["manifest"], record)
+                return record
             staging_build, staging_prefix = modsecurity_staging_paths(paths, cache_root, str(inputs["cache_key"]))
             if not build_modsecurity_staging_entry(
                 env,
@@ -5691,6 +5886,7 @@ def build_shared_modsecurity_cache(
                 staging_prefix,
                 log_path,
                 record,
+                Path(str(pcre2_archive["path"])),
             ):
                 return record
             publish_modsecurity_staging_entries(
