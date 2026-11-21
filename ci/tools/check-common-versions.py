@@ -87,6 +87,14 @@ RELEVANT_PROVENANCE_VARIABLE_RE = re.compile(
     r")$"
 )
 TRACKED_NAME_RE = RELEVANT_PROVENANCE_VARIABLE_RE
+# Go tool pin fields that the generic suffixes above do not name.
+CI_GO_TOOL_FIELD_RE = re.compile(r"^CI_GO_TOOL_[A-Z0-9_]+_(?:MODULE|PACKAGE|MODULE_SUM)$")
+
+
+def is_provenance_name(name: str) -> bool:
+    """Return whether an assignment name is a reviewed provenance input."""
+
+    return bool(RELEVANT_PROVENANCE_VARIABLE_RE.search(name) or CI_GO_TOOL_FIELD_RE.fullmatch(name))
 PARAM_EXPANSION_RE = re.compile(r"\$\{((?!\d)\w+):?[-=]([^{}]*)\}", re.ASCII)
 BRACED_VAR_RE = re.compile(r"\$\{((?!\d)\w+)\}", re.ASCII)
 PLAIN_VAR_RE = re.compile(r"\$((?!\d)\w+)", re.ASCII)
@@ -326,6 +334,8 @@ CI_ACTION_REQUIRED_FIELDS = frozenset({"REPOSITORY", "VERSION", "COMMIT"})
 CI_SECURITY_TOOL_REQUIRED_FIELDS = frozenset(
     {"REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256"}
 )
+# Go tools have no release asset: exact module version and h1 module sum.
+CI_GO_TOOL_REQUIRED_FIELDS = frozenset({"MODULE", "PACKAGE", "VERSION", "MODULE_SUM"})
 
 
 def _diagnostic_source_name_errors(names: set[str]) -> list[str]:
@@ -358,6 +368,7 @@ def canonical_ci_group_inventory(
         tail = name[len(prefix) :]
         fields = set(CI_ACTION_REQUIRED_FIELDS)
         fields.update(CI_SECURITY_TOOL_REQUIRED_FIELDS)
+        fields.update(CI_GO_TOOL_REQUIRED_FIELDS)
         fields.update(
             field
             for group_fields in CI_CANONICAL_REQUIRED_FIELDS.values()
@@ -404,7 +415,9 @@ def canonical_ci_group_inventory(
     expected_names = set(CI_CANONICAL_PIN_VARIABLES)
     expected_names.update(name for name in entries if name.startswith("CI_ACTION_"))
     expected_names.update(
-        name for name in entries if name.startswith("CI_SECURITY_TOOL_")
+        name
+        for name in entries
+        if name.startswith(("CI_SECURITY_TOOL_", "CI_GO_TOOL_"))
     )
     return tuple(sorted(expected_names)), errors
 
@@ -413,6 +426,7 @@ def _canonical_group_prefix(name: str) -> tuple[str, str] | None:
     for prefix, label in (
         ("CI_ACTION_", "action"),
         ("CI_SECURITY_TOOL_", "security tool"),
+        ("CI_GO_TOOL_", "go tool"),
         ("CI_CANONICAL_", "canonical"),
     ):
         if name.startswith(prefix):
@@ -427,6 +441,8 @@ def _canonical_required_fields(
         return set(CI_ACTION_REQUIRED_FIELDS)
     if key[0] == "security tool":
         return set(CI_SECURITY_TOOL_REQUIRED_FIELDS)
+    if key[0] == "go tool":
+        return set(CI_GO_TOOL_REQUIRED_FIELDS)
     return expected.get(key)
 
 
@@ -1072,7 +1088,9 @@ def canonical_component_selection(requested: list[str] | None) -> tuple[str, ...
 def component_definition_for_variable(variable: str) -> ComponentDefinition | None:
     """Return the sole declared component owner for a provenance variable."""
 
-    if variable.startswith(("CI_CANONICAL_", "CI_ACTION_", "CI_SECURITY_TOOL_")):
+    if variable.startswith(
+        ("CI_CANONICAL_", "CI_ACTION_", "CI_SECURITY_TOOL_", "CI_GO_TOOL_")
+    ):
         return COMPONENT_DEFINITION_BY_NAME[CANONICAL_CI_PINS_LABEL]
     if variable == "HAPROXY_RELEASE_ROOT_URL":
         return COMPONENT_DEFINITION_BY_NAME["HAProxy"]
@@ -1297,10 +1315,7 @@ def parse_common_assignment(line: str) -> tuple[str, str, str] | None:
     # Canonical pins are intentionally literal assignments.  Accept only
     # names covered by the provenance inventory (or the small legacy allowlist)
     # so arbitrary shell configuration is still ignored and never evaluated.
-    if (
-        name not in APPROVED_LITERAL_VARIABLES
-        and not RELEVANT_PROVENANCE_VARIABLE_RE.search(name)
-    ):
+    if name not in APPROVED_LITERAL_VARIABLES and not is_provenance_name(name):
         return None
     return "literal-assignment", name, match.group(2)
 
@@ -1321,7 +1336,7 @@ def parse_common_lines(lines: list[str]) -> dict[str, VariableEntry]:
         # A runtime path may interpolate a version (for example
         # ``ENVOY_SOURCE_ROOT``).  That does not make the path itself an
         # upstream-provenance input, so classify only the assignment name.
-        tracked = bool(TRACKED_NAME_RE.search(name)) or name in CI_DIAGNOSTIC_SOURCE_VARIABLES
+        tracked = is_provenance_name(name) or name in CI_DIAGNOSTIC_SOURCE_VARIABLES
         entries[name] = VariableEntry(
             name=name,
             line=line_no,
@@ -1358,7 +1373,7 @@ def provenance_assignment_occurrences(
         if assignment is None:
             continue
         _, name, _ = assignment
-        if (RELEVANT_PROVENANCE_VARIABLE_RE.search(name)
+        if (is_provenance_name(name)
                 or name in CI_DIAGNOSTIC_SOURCE_VARIABLES or name == "DEFAULT_BRANCH"):
             occurrences.setdefault(name, []).append(line_no)
     return occurrences

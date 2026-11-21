@@ -123,3 +123,59 @@ def canonical_action(values: dict[str, str], suffix: str) -> str:
     if not value:
         raise ValueError(f"common.sh: missing canonical pin {name}")
     return value
+
+
+_GO_TOOL_ASSIGNMENT = re.compile(r'^CI_GO_TOOL_([A-Z0-9_]+)="([^"`$\\]*)"\s*$')
+GO_TOOL_FIELDS = ("MODULE", "PACKAGE", "VERSION", "MODULE_SUM")
+_GO_MODULE_PATH = re.compile(r"^[a-z0-9.-]+(?:/[A-Za-z0-9_.-]+)+$")
+_GO_RELEASE = re.compile(r"^v\d+\.\d+\.\d+$")
+_GO_MODULE_SUM = re.compile(r"^h1:[A-Za-z0-9+/]{43}=$")
+
+
+def _go_tool_field(remainder: str, line_number: int) -> tuple[str, str]:
+    for field in sorted(GO_TOOL_FIELDS, key=len, reverse=True):
+        if remainder.endswith("_" + field) and len(remainder) > len(field) + 1:
+            return remainder[: -(len(field) + 1)], field
+    raise ValueError(f"common.sh:{line_number}: unsupported Go tool pin CI_GO_TOOL_{remainder}")
+
+
+def _valid_go_tool(record: dict[str, str]) -> bool:
+    module, package = record["MODULE"], record["PACKAGE"]
+    return bool(
+        _GO_MODULE_PATH.fullmatch(module)
+        and (package == module or package.startswith(module + "/"))
+        and _GO_RELEASE.fullmatch(record["VERSION"])
+        and _GO_MODULE_SUM.fullmatch(record["MODULE_SUM"])
+    )
+
+
+def load_canonical_go_tools(root: Path) -> dict[str, dict[str, str]]:
+    """Return the reviewed Go tool pins from ``common.sh`` keyed by tool name.
+
+    Each ``CI_GO_TOOL_<NAME>_*`` group must define exactly the module, package,
+    exact release version and ``h1:`` module sum; the executable is the last
+    package path element. The file is parsed, never sourced.
+    """
+    groups: dict[str, dict[str, str]] = {}
+    for line_number, line in enumerate(_read_common(root), start=1):
+        if not line.startswith("CI_GO_TOOL_"):
+            continue
+        match = _GO_TOOL_ASSIGNMENT.fullmatch(line)
+        if match is None:
+            raise ValueError(f"common.sh:{line_number}: unsafe Go tool pin expression")
+        name, field = _go_tool_field(match.group(1), line_number)
+        record = groups.setdefault(name, {})
+        if field in record:
+            raise ValueError(f"common.sh:{line_number}: duplicate Go tool pin {name}_{field}")
+        record[field] = match.group(2)
+    tools: dict[str, dict[str, str]] = {}
+    for name, record in sorted(groups.items()):
+        if set(record) != set(GO_TOOL_FIELDS) or not _valid_go_tool(record):
+            raise ValueError(f"common.sh: incomplete or invalid Go tool pin group {name}")
+        executable = record["PACKAGE"].rsplit("/", 1)[-1]
+        if executable.upper() != name:
+            raise ValueError(f"common.sh: Go tool pin group {name} does not name its executable")
+        tools[executable] = {"module": record["MODULE"], "package": record["PACKAGE"],
+                             "version": record["VERSION"], "module_sum": record["MODULE_SUM"],
+                             "executable": executable}
+    return tools
