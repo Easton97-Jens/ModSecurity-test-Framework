@@ -1678,7 +1678,7 @@
         "TestCompanionClientDisconnectDetachesCleanup"
       ],
       "source": "connectors/envoy/ext_proc/internal/compositetraefik/companion_bounds_test.go",
-      "source_sha256": "42305e278705b632e8cb6e86b3b26391a0468b78398af40d8551993b0df4012c"
+      "source_sha256": "338bcb732bc409c20d88480c0daabaf3e62962a850c7424ccbfda054259bd1da"
     },
     {
       "contains_selected_definitions": [],

@@ -139,7 +139,11 @@ func TestCompanionClaimDuringHeldRequestPhaseReleasesHandler(t *testing.T) {
 	companionReserve(t, c, "unrelated-session", http.MethodGet, "/unrelated")
 
 	server, client := net.Pipe()
-	t.Cleanup(func() { _ = client.Close() })
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("closing the companion pipe: %v", err)
+		}
+	})
 	handled := make(chan struct{})
 	go func() { (&UDS{Coordinator: c, Timeout: companionFrameTimeout}).handle(server); close(handled) }()
 
@@ -252,7 +256,11 @@ func TestCompanionResponseEngineWorkIsBoundedByFrameDeadline(t *testing.T) {
 	t.Cleanup(func() { close(engine.release) })
 	c := newCompanionCoordinator(t, 2, engine)
 	server, client := net.Pipe()
-	t.Cleanup(func() { _ = client.Close() })
+	t.Cleanup(func() {
+		if err := client.Close(); err != nil {
+			t.Errorf("closing the companion pipe: %v", err)
+		}
+	})
 	handled := make(chan struct{})
 	go func() { (&UDS{Coordinator: c, Timeout: companionFrameTimeout}).handle(server); close(handled) }()
 
