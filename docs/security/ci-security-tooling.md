@@ -98,6 +98,21 @@ reference recursively and binds it to that lock's action name and exact
 and release-comment checks remain defense in depth. Regression fixtures prove
 that quoted keys and flow mappings carrying a different full SHA are rejected.
 
+### Go analysis tool pins
+
+Go analysis tools have no release asset, so they are pinned only in
+`ci/lib/common.sh` as the groups `CI_GO_TOOL_STATICCHECK_*` and
+`CI_GO_TOOL_GOVULNCHECK_*`, each with the fields `MODULE`, `PACKAGE`, `VERSION`
+and `MODULE_SUM`: `staticcheck` (`honnef.co/go/tools` `v0.8.2`) and
+`govulncheck` (`golang.org/x/vuln` `v1.10.0`), each with its `h1:` module sum. A consumer
+builds the exact package version with its own pinned Go toolchain and verifies
+the module sum before and the binary's build information after the build.
+`load_canonical_go_tools()` in `ci/tools/common_canonical_pins.py` parses these
+assignments without sourcing the file and rejects incomplete groups, version
+ranges, foreign package paths and shell expressions;
+`check-common-versions.py --validate-canonical` enforces the same group shape
+and ownership as for the other canonical CI pins.
+
 Every Action record also fixes its `release_resolution`. Most Actions use the
 official `latest-release` endpoint. `github/codeql-action` instead uses the
 reviewed `same-major-release` mode because its `releases/latest` response may
