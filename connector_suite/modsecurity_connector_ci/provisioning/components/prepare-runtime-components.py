@@ -5455,6 +5455,7 @@ def modsecurity_cache_is_ready(
     cache_identity = inputs["cache_identity"]
     if not (
         modsecurity_ready(prefix)
+        and not modsecurity_bundled_pcre2_blocker(prefix)
         and cache_manifest_complete(paths["manifest"], cache_identity)
         and cache_entry_complete(
             paths["build_root"],

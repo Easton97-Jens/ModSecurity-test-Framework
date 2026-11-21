@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "6cce5083f537a75a8d6aaa2ef3d2ae46e1a8c633b8d58110ac7011667f9c8e25",
+  "inventory_sha256": "7ab4da07fa40a1378229020531a26cfe284439697a843ffd147d0ecf5bb99721",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -10653,7 +10653,7 @@
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_moving_git_ref_uses_resolved_commit_and_never_fetches_final_checkout"
       ],
       "source": "tests/test_runtime_component_cache_contract.py",
-      "source_sha256": "a501b01c40ea61450388bafa2a1914f044dbcda22f5466f9bfbd1026424ca0eb"
+      "source_sha256": "9e91ab0cb3bd0a87363286914764451b90f727fec76f53ae6310aaba6f485b82"
     },
     {
       "contains_selected_definitions": [],

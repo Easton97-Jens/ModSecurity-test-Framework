@@ -89,3 +89,9 @@ HAProxy linkt PCRE2 nicht selbst und lädt das mitgelieferte PCRE2 über libModS
 ## Finaler Diff- und Review-Status
 
 Der finale Diff enthält die acht geänderten Dateien und dieses Record-Paar. Unit-Tests, Inventarbindungen, Dokumentationsprüfungen, Secrets-Scans und die Whitespace-Prüfung bestanden. Die Framework-Auslieferung bleibt von Parent- und MRTS-Auslieferung getrennt; der Parent-Framework-Gitlink bleibt unverändert, und ein Merge wird nicht behauptet.
+
+## Nacharbeit zur Cache-Wiederverwendung
+
+Die Cache-Wiederverwendung führt jetzt den vorhandenen Prüfer für das mitgelieferte PCRE2 aus, bevor sie einen vollständigen Eintrag akzeptiert. Fehlende PCRE2-Header oder die Runtime-Bibliothek, ein ungültiger Abhängigkeitseintrag, eine unlesbare ELF-Datei oder ein falscher Run-Path erzwingen einen Cache-Miss.
+
+Der bestehende Staging-Build-Test entfernt jetzt sowohl `include/pcre2.h` als auch `lib/libpcre2-8.so.0` nach einem erfolgreichen Cache-Treffer und verlangt für jeden Fall einen neuen Staging-Build. Vor der Korrektur lieferten beide Fälle fälschlich `reused`. Nach der Korrektur bestand die explizit auf Abruf ausgewählte Klasse `RuntimeComponentCacheContractTest` alle 54 Tests mit der konfigurierten Framework-Python-3.15.2-Umgebung und externem temporärem Speicher. Die vorhandenen Generatoren für Inventarbindungen und Testarchiv aktualisierten ihre Quell-Digests. Diese Nacharbeit liefert Evidenz für den Cache-Vertrag. Ein zusätzlicher Runtime-Build wurde nicht ausgeführt.

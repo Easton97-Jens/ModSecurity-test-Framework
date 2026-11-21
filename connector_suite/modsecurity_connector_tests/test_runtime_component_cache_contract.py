@@ -1424,11 +1424,17 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             self.assertEqual(reused["status"], "reused")
             self.assertEqual(make_calls, 1)
 
-            for expected_make_calls, missing_header in enumerate(
-                ("rules_set.h", "transaction.h"), start=2
+            for expected_make_calls, missing_artifact in enumerate(
+                (
+                    "include/modsecurity/rules_set.h",
+                    "include/modsecurity/transaction.h",
+                    "include/pcre2.h",
+                    "lib/libpcre2-8.so.0",
+                ),
+                start=2,
             ):
-                with self.subTest(missing_header=missing_header):
-                    (prefix / "include/modsecurity" / missing_header).unlink()
+                with self.subTest(missing_artifact=missing_artifact):
+                    (prefix / missing_artifact).unlink()
                     with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
                         components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
                     ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
@@ -1460,7 +1466,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             ), bundled_pcre2_patches():
                 rebuilt = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
             self.assertEqual(rebuilt["status"], "built")
-            self.assertEqual(make_calls, 4)
+            self.assertEqual(make_calls, 6)
 
             # A lost prefix sidecar can be recovered only because the complete
             # build manifest binds this exact prefix.  It authorizes deletion
@@ -1476,7 +1482,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 rebuilt_prefix = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
             self.assertEqual(rebuilt_prefix["status"], "built")
             self.assertEqual(rebuilt_prefix["invalidation_reason"], "missing_modsecurity_prefix_registry_marker")
-            self.assertEqual(make_calls, 5)
+            self.assertEqual(make_calls, 7)
 
     def test_modsecurity_ready_requires_all_public_headers(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:

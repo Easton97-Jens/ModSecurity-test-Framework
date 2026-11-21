@@ -89,3 +89,9 @@ HAProxy does not link PCRE2 itself and loads the bundle through libModSecurity. 
 ## Final diff and review status
 
 The final diff contains the eight changed files and this record pair. Unit tests, inventory bindings, documentation checks, Secrets scans and the whitespace check passed. Framework delivery remains separate from Parent and MRTS delivery; the Parent Framework gitlink is unchanged and no merge is claimed.
+
+## Cache reuse review follow-up
+
+Cache reuse now runs the existing bundled-PCRE2 verifier before accepting a complete entry. Missing PCRE2 headers or the runtime library, an invalid dependency entry, an unreadable ELF file, or an incorrect run path force a cache miss.
+
+The existing staged-build test now removes both `include/pcre2.h` and `lib/libpcre2-8.so.0` after a successful cache hit and requires a fresh staged build for each. Before the correction, both cases incorrectly returned `reused`. After the correction, the explicit on-demand `RuntimeComponentCacheContractTest` class passed all 54 tests using the configured Framework Python 3.15.2 environment with external temporary storage. The native inventory-binding and test-archive generators refreshed their source digests. This follow-up provides cache-contract evidence. No additional runtime build was executed.
