@@ -126,21 +126,28 @@ require_command() {
 
 # elf_runpath <object>: the DT_RUNPATH value, or nothing.
 elf_runpath() {
-    readelf -d "$1" | sed -n 's/.*(RUNPATH)[^[]*\[\([^]]*\)\].*/\1/p'
+    elf_object=$1
+    readelf -d "$elf_object" | sed -n 's/.*(RUNPATH)[^[]*\[\([^]]*\)\].*/\1/p'
 }
 
 # require_runpath_entry <object> <entry> <purpose>: fail unless DT_RUNPATH lists <entry>.
 require_runpath_entry() {
-    runpath=$(elf_runpath "$1")
+    runpath_object=$1
+    runpath_entry=$2
+    runpath_purpose=$3
+    runpath=$(elf_runpath "$runpath_object")
     case ":$runpath:" in
-        *":$2:"*) ;;
-        *) fail "$3: $1 lacks run path entry $2 (has: ${runpath:-none})" ;;
+        *":$runpath_entry:"*) ;;
+        *) fail "$runpath_purpose: $runpath_object lacks run path entry $runpath_entry (has: ${runpath:-none})" ;;
     esac
 }
 
 # relative_path <from-dir> <to-path>: portable relative path (no realpath --relative-to).
 relative_path() {
-    "${PYTHON:-python3}" -I -c 'import os, sys; print(os.path.relpath(sys.argv[2], sys.argv[1]))' "$1" "$2"
+    relative_from=$1
+    relative_to=$2
+    "${PYTHON:-python3}" -I -c 'import os, sys; print(os.path.relpath(sys.argv[2], sys.argv[1]))' \
+        "$relative_from" "$relative_to"
 }
 
 require_c_header() {

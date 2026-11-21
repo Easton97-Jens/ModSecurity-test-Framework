@@ -449,7 +449,8 @@ require_command() {
 
 # elf_runpath <object>: the DT_RUNPATH value, or nothing.
 elf_runpath() {
-    readelf -d "$1" | sed -n 's/.*(RUNPATH)[^[]*\[\([^]]*\)\].*/\1/p'
+    elf_object=$1
+    readelf -d "$elf_object" | sed -n 's/.*(RUNPATH)[^[]*\[\([^]]*\)\].*/\1/p'
 }
 
 verify_nginx_bundled_pcre2() {
