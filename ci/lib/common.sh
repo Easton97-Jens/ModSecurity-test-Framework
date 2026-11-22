@@ -1832,6 +1832,10 @@ framework_prepare_runtime_components() {
     if ! is_local_run; then
         return 77
     fi
+    if [ "${ALLOW_RUNTIME_DOWNLOADS:-0}" != "1" ] || [ "${ALLOW_RUNTIME_BUILDS:-0}" != "1" ]; then
+        skip_blocked "automatic runtime provisioning requires ALLOW_RUNTIME_DOWNLOADS=1 and ALLOW_RUNTIME_BUILDS=1"
+        return $?
+    fi
 
     ci_prepare_script="$FRAMEWORK_ROOT/connector_suite/modsecurity_connector_ci/provisioning/components/prepare-runtime-components.py"
     if [ ! -f "$ci_prepare_script" ]; then
@@ -1846,7 +1850,8 @@ framework_prepare_runtime_components() {
         --cache-root "$CONNECTOR_COMPONENT_CACHE" \
         --output-root "$BUILD_ROOT/runtime-component-reports" \
         --build-root "$BUILD_ROOT" \
-        --native-root "${MRTS_NATIVE_ROOT:-$BUILD_ROOT/mrts-native}" >&2
+        --native-root "${MRTS_NATIVE_ROOT:-$BUILD_ROOT/mrts-native}" \
+        --target-connector "${1:?runtime component target is required}" >&2
 }
 
 ci_runtime_version_matches() {
@@ -2095,10 +2100,11 @@ require_or_provision_apxs() {
     fi
 
     ci_provision_rc=0
-    if framework_prepare_runtime_components; then
+    if framework_prepare_runtime_components apache; then
         :
     else
         ci_provision_rc=$?
+        [ "$ci_provision_rc" -ne 77 ] || return 77
     fi
     ci_apxs_path=$(framework_find_apxs 2>/dev/null || true)
     if [ -n "$ci_apxs_path" ]; then
@@ -2178,10 +2184,11 @@ modsecurity_include_flags_or_provision() {
     fi
 
     ci_provision_rc=0
-    if framework_prepare_runtime_components; then
+    if framework_prepare_runtime_components shared; then
         :
     else
         ci_provision_rc=$?
+        [ "$ci_provision_rc" -ne 77 ] || return 77
     fi
     ci_modsecurity_flags=$(ci_modsecurity_include_flags 2>/dev/null || true)
     if [ -n "$ci_modsecurity_flags" ]; then
@@ -2301,10 +2308,11 @@ require_or_provision_nginx_headers() {
     fi
 
     ci_provision_rc=0
-    if framework_prepare_runtime_components; then
+    if framework_prepare_runtime_components nginx; then
         :
     else
         ci_provision_rc=$?
+        [ "$ci_provision_rc" -ne 77 ] || return 77
     fi
     ci_nginx_flags=$(ci_nginx_include_flags 2>/dev/null || true)
     if [ -n "$ci_nginx_flags" ]; then
@@ -2417,10 +2425,11 @@ require_or_provision_haproxy_headers() {
     fi
 
     ci_provision_rc=0
-    if framework_prepare_runtime_components; then
+    if framework_prepare_runtime_components haproxy; then
         :
     else
         ci_provision_rc=$?
+        [ "$ci_provision_rc" -ne 77 ] || return 77
     fi
     ci_haproxy_flags=$(ci_haproxy_include_flags 2>/dev/null || true)
     if [ -n "$ci_haproxy_flags" ]; then

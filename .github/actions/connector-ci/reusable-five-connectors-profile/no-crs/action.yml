@@ -146,9 +146,32 @@ runs:
       run: |
         set -euo pipefail
         case "$CONNECTOR" in
-          apache|haproxy)
-            RUNTIME_COMPONENT_TARGET="$CONNECTOR" make prepare-runtime-components
+          apache|haproxy) component_target="$CONNECTOR" ;;
+          envoy|traefik|lighttpd) component_target=shared ;;
+          *)
+            echo "FAIL: connector is outside the fixed profile: $CONNECTOR" >&2
+            exit 2
             ;;
+        esac
+
+        component_cache="$CONNECTOR_COMPONENT_CACHE"
+        snapshot=$(sh modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/reserve-runtime-env-snapshot.sh "$RUNTIME_REPORT_OUTPUT_ROOT")
+        RUNTIME_COMPONENT_TARGET="$component_target" RUNTIME_COMPONENT_ENV_SNAPSHOT="$snapshot" make prepare-runtime-components
+        test -s "$snapshot"
+        test ! -L "$snapshot"
+        # shellcheck disable=SC1090
+        source "$snapshot"
+        test "$RUNTIME_COMPONENT_ENV_SNAPSHOT_TARGET" = "$component_target"
+        test "$RUNTIME_COMPONENT_ENV_SNAPSHOT_CACHE" = "$component_cache"
+        : "${MODSECURITY_PREFIX:?pinned libModSecurity prefix unavailable}"
+        : "${MODSECURITY_INCLUDE_DIR:?pinned libModSecurity headers unavailable}"
+        : "${MODSECURITY_LIB_DIR:?pinned libModSecurity library unavailable}"
+        printf '%s\n' \
+          "MODSECURITY_PREFIX=$MODSECURITY_PREFIX" \
+          "MODSECURITY_INCLUDE_DIR=$MODSECURITY_INCLUDE_DIR" \
+          "MODSECURITY_LIB_DIR=$MODSECURITY_LIB_DIR" >> "$GITHUB_ENV"
+
+        case "$CONNECTOR" in
           envoy)
             make prepare-envoy-runtime
             ;;
@@ -157,10 +180,6 @@ runs:
             ;;
           lighttpd)
             make prepare-lighttpd-runtime-build
-            ;;
-          *)
-            echo "FAIL: connector is outside the fixed profile: $CONNECTOR" >&2
-            exit 2
             ;;
         esac
 

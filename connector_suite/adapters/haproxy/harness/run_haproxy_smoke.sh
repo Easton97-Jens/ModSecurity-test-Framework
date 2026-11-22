@@ -45,6 +45,8 @@ MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
 MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
 HAPROXY_EVIDENCE_RECEIPT="${HAPROXY_EVIDENCE_RECEIPT:-0}"
 HAPROXY_EVIDENCE_RECEIPT_PROJECTOR="${HAPROXY_EVIDENCE_RECEIPT_PROJECTOR:-}"
+CASE_RESULT_RUN_ID="${NO_CRS_RUN_ID:-}"
+CASE_REQUEST_WINDOW=
 BACKEND_PID=
 AGENT_PID=
 HAPROXY_PID=
@@ -248,27 +250,71 @@ write_case_result() {
     case_status=$2
     actual_status=${3:-}
     output=$4
+    set -- "$PYTHON_BIN" "$CASE_CLI" case-info \
+        --case "$case_path" --connector haproxy --status "$case_status" \
+        --output "$output" --output-root "$LOG_DIR"
     if [ -n "$actual_status" ]; then
-        if ! "$PYTHON_BIN" "$CASE_CLI" case-info \
-            --case "$case_path" \
-            --connector haproxy \
-            --status "$case_status" \
-            --actual-status "$actual_status" \
-            --output "$output"; then
-            return 1
-        fi
-    else
-        if ! "$PYTHON_BIN" "$CASE_CLI" case-info \
-            --case "$case_path" \
-            --connector haproxy \
-            --status "$case_status" \
-            --output "$output"; then
-            return 1
-        fi
+        set -- "$@" --actual-status "$actual_status"
+    fi
+    if [ "$case_status" = pass ] && [ -n "$CASE_REQUEST_WINDOW" ]; then
+        transaction_id=$(observed_case_transaction "$case_path") || return 1
+        set -- "$@" --run-id "$CASE_RESULT_RUN_ID" \
+            --source-revision "$CONNECTOR_REVISION" \
+            --request-id "$transaction_id" --transaction-id "$transaction_id"
+    fi
+    if ! "$@"; then
+        return 1
     fi
     [ -f "$output" ] || return 1
     enrich_case_result "$output"
     [ -f "$output" ] || return 1
+}
+
+case_request_window() {
+    "$PYTHON_BIN" "$CASE_CLI" request-window \
+        --phase "$1" --case "$TEST_CASE" \
+        --event-log "$LOG_DIR/decision.jsonl" --receipt "$CASE_REQUEST_WINDOW" \
+        --output-root "$LOG_DIR" --run-id "$CASE_RESULT_RUN_ID" \
+        --source-revision "$CONNECTOR_REVISION"
+}
+
+observed_case_transaction() {
+    "$PYTHON_BIN" - "$FRAMEWORK_ROOT" "$1" "$LOG_DIR" "$CASE_REQUEST_WINDOW" \
+        "$CASE_RESULT_RUN_ID" "$CONNECTOR_REVISION" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+framework, case_path, root, receipt_path = map(Path, sys.argv[1:5])
+sys.path.insert(0, str(framework / "tests" / "runners"))
+import case_cli
+from modsecurity_test_framework.result_identity import validate_result_binding
+
+case = case_cli.load_case(case_path)
+context = {"run_id": sys.argv[5], "source_revision": sys.argv[6], "case_id": case["name"]}
+window = json.loads(case_cli._request_artifact(receipt_path, root, 16384))
+case_cli._validate_request_window(window, receipt_path, root, context, case_path, completed=True)
+log = root / "decision.jsonl"
+data = case_cli._request_artifact(log, root, 16 * 1024 * 1024)
+interval = case_cli._request_window_data(data, log, window)
+transactions = set()
+for line in interval.decode("utf-8").splitlines():
+    if not line.strip():
+        continue
+    event = json.loads(line)
+    if not isinstance(event, dict) or event.get("case") != case["name"]:
+        raise ValueError("HAProxy request interval contains a foreign case")
+    if any(field in event and event[field] != value for field, value in context.items()):
+        raise ValueError("HAProxy request interval contains a foreign result identity")
+    binding = validate_result_binding({**context, "request_id": event.get("request_id"),
+                                       "transaction_id": event.get("transaction_id")})
+    if binding["request_id"] != binding["transaction_id"]:
+        raise ValueError("HAProxy request and transaction identities differ")
+    transactions.add(binding["transaction_id"])
+if len(transactions) != 1:
+    raise ValueError("HAProxy request interval requires one observed transaction")
+print(transactions.pop())
+PY
 }
 
 enrich_case_result() {
@@ -1277,6 +1323,8 @@ cleanup_startup_artifacts() {
         "$LOG_DIR/response-body.txt" \
         "$LOG_DIR/audit.log" \
         "$LOG_DIR/decision.jsonl" \
+        "$LOG_DIR/request-window.json" \
+        "$LOG_DIR/request-window.json.start.json" \
         "$LOG_DIR/spoa-agent.log" \
         "$RUNTIME_ROOT/conf/"*.conf \
         "$RUNTIME_ROOT/conf/"*.txt \
@@ -1415,10 +1463,17 @@ if [ "$MSCONNECTOR_SMOKE_STAGE" = "start_smoke" ]; then
     exit 0
 fi
 
+if [ -n "$CASE_RESULT_RUN_ID" ] && [ -n "${CONNECTOR_REVISION:-}" ]; then
+    CASE_REQUEST_WINDOW="$LOG_DIR/request-window.json"
+    case_request_window begin || fail "failed to begin HAProxy request identity window"
+fi
 set +e
 http_status=$(send_case_request)
 curl_rc=$?
 set -e
+if [ "$curl_rc" -eq 0 ] && [ -n "$CASE_REQUEST_WINDOW" ]; then
+    case_request_window end || fail "failed to complete HAProxy request identity window"
+fi
 printf '%s\n' "$http_status" > "$LOG_DIR/observed-status.txt"
 
 if [ "$curl_rc" -ne 0 ]; then
