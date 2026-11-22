@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "1c9ff0d0bcaeed717ba2d8b314842b1495bf4e8186d7a29a868366047dc237cb",
+  "inventory_sha256": "d5a6741e6d4b903ba5b0a8a6402046d2577384dc9fb679ce15fad183bc31747e",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "c4b5192448e9045e6b1255fefa549ed45f470c30390ec58c611782069ad58449"
     }
   ],
-  "on_demand_definition_count": 8493,
+  "on_demand_definition_count": 8494,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -10383,6 +10383,7 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_result_identity_contract.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_result_identity_contract.ResultIdentityContractTests.test_haproxy_result_binds_only_its_completed_request_interval",
         "modsecurity_connector_tests.test_result_identity_contract.ResultIdentityContractTests.test_different_cases_cannot_union_capabilities_across_runs_or_revisions",
         "modsecurity_connector_tests.test_result_identity_contract.ResultIdentityContractTests.test_summary_context_cannot_relabel_a_bound_run_or_revision",
         "modsecurity_connector_tests.test_result_identity_contract.ResultIdentityContractTests.test_bound_and_unbound_cases_keep_results_without_promoting_either",
@@ -10421,7 +10422,7 @@
         "modsecurity_connector_tests.test_result_identity_contract.RequestObservationContractTests.test_request_observation_marker_cannot_authorize_partial_or_promoting_rows"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_result_identity_contract.py",
-      "source_sha256": "b5dd0f7f2ef9479e274d990528555dfed010645cc88bb711f96fbb4224d851a1"
+      "source_sha256": "1ed450fc3887fee4ec4d44ea4f49f956559dfb2c674ea8fbead06cf7d053b6fe"
     },
     {
       "contains_selected_definitions": [],
@@ -12611,13 +12612,13 @@
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_coordinated_workflow_and_lock_rewrite_cannot_reauthorize_itself",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_protected_runner_and_permission_changes_are_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_unknown_source_path_cannot_borrow_the_integration_authority",
-        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendment_retains_one_exact_immutable_migration_anchor",
+        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendments_retain_exact_immutable_migration_anchors",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_amended_source_cannot_return_to_baseline_without_diagnostics",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_amendment_cannot_broaden_paths_or_change_security_boundaries",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendment_rejects_wrong_immutable_baseline_anchor"
       ],
       "source": "framework/tests/ci_security/test_connector_action_pins.py",
-      "source_sha256": "561a27a8cf3ce9a74efaf09edc717c709e97c282ee7ac56da2cae49f14955a2d"
+      "source_sha256": "dd534733308302410aab7950d340ce1fbf8215fc8e14b24682ac062723039b83"
     },
     {
       "contains_selected_definitions": [],

@@ -15,6 +15,9 @@ PINS = runpy.run_path(str(ROOT / "ci/checks/security/connector_action_pins.py"))
 CANONICAL = runpy.run_path(str(ROOT / "ci/tools/check-common-versions.py"))
 SOURCE = ".github/workflows/connector-protected-nginx-exact-head.yml"
 AMENDED = ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml"
+NO_CRS_AMENDED = (
+    ".github/actions/connector-ci/reusable-five-connectors-profile/no-crs/action.yml"
+)
 
 
 class ConnectorActionPinsTests(unittest.TestCase):
@@ -152,23 +155,27 @@ class ConnectorActionPinsTests(unittest.TestCase):
             )
         )
 
-    def test_current_amendment_retains_one_exact_immutable_migration_anchor(self):
+    def test_current_amendments_retain_exact_immutable_migration_anchors(self):
+        reviewed = {
+            AMENDED: (
+                "748352eec501d6c8220cb64b405ebbd5ba1e6e2aa10d265d59610894685372c3",
+                "44f207ba4d8d1b7e4e8a51a351c16613a566a21bb4a0c8ad00a0ebe24bb6654a",
+            ),
+            NO_CRS_AMENDED: (
+                "8e3b30d2fadb3ff858dd2d75dc55f0af48109696f6786c2fbdbcf3e27812cd41",
+                "4eef31eb7b0958777c01684025c28d66c324914d77fe70f8dd39eb324c378793",
+            ),
+        }
         amendments = PINS["REVIEWED_CURRENT_SOURCE_AMENDMENTS"]
-        self.assertEqual(set(amendments), {AMENDED})
+        self.assertEqual(set(amendments), set(reviewed))
         lock = PINS["load_lock"](ROOT)
         self.assertEqual(len(lock["sources"]), 24)
-        self.assertEqual(
-            lock["sources"][AMENDED],
-            "748352eec501d6c8220cb64b405ebbd5ba1e6e2aa10d265d59610894685372c3",
-        )
-        self.assertEqual(
-            amendments[AMENDED]["baseline_sha256"], lock["sources"][AMENDED]
-        )
-        self.assertEqual(
-            amendments[AMENDED]["current_sha256"],
-            "44f207ba4d8d1b7e4e8a51a351c16613a566a21bb4a0c8ad00a0ebe24bb6654a",
-        )
-        self.assertEqual(PINS["validate_source"](ROOT, AMENDED), [])
+        for relative, (baseline, current) in reviewed.items():
+            with self.subTest(source=relative):
+                self.assertEqual(lock["sources"][relative], baseline)
+                self.assertEqual(amendments[relative]["baseline_sha256"], baseline)
+                self.assertEqual(amendments[relative]["current_sha256"], current)
+                self.assertEqual(PINS["validate_source"](ROOT, relative), [])
 
     def test_amended_source_cannot_return_to_baseline_without_diagnostics(self):
         root = self.fixture()
@@ -220,16 +227,20 @@ class ConnectorActionPinsTests(unittest.TestCase):
     def test_current_amendment_rejects_wrong_immutable_baseline_anchor(self):
         root = self.fixture()
         namespace = PINS["validate_source"].__globals__
-        wrong = dict(
-            PINS["REVIEWED_CURRENT_SOURCE_AMENDMENTS"][AMENDED],
-            baseline_sha256="0" * 64,
-        )
-        with patch.dict(
-            namespace["REVIEWED_CURRENT_SOURCE_AMENDMENTS"], {AMENDED: wrong}
-        ):
-            self.assertTrue(
-                any(
-                    "amendment baseline" in error
-                    for error in PINS["validate_source"](root, AMENDED)
-                )
+        for relative in (AMENDED, NO_CRS_AMENDED):
+            wrong = dict(
+                PINS["REVIEWED_CURRENT_SOURCE_AMENDMENTS"][relative],
+                baseline_sha256="0" * 64,
             )
+            with (
+                self.subTest(source=relative),
+                patch.dict(
+                    namespace["REVIEWED_CURRENT_SOURCE_AMENDMENTS"], {relative: wrong}
+                ),
+            ):
+                self.assertTrue(
+                    any(
+                        "amendment baseline" in error
+                        for error in PINS["validate_source"](root, relative)
+                    )
+                )
