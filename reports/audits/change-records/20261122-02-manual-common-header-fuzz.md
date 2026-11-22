@@ -31,6 +31,8 @@ A pull-request trigger would add randomized work to the fixed test selection. Ma
 
 The selected Framework revision supplies the harness. The separately checked out Connector fixture is pinned to `d21e34eb42b7e12793f670e318954798293bb897`. The workflow checks the fixture HEAD before invoking the Connector Makefile against the selected Framework.
 
+Before invoking Make, the job provisions the reviewed interpreter from the Framework's `.python-version`.
+
 On the default branch, use **Actions → Common HTTP header fuzzing → Run workflow**.
 
 ## Changed files and tests
@@ -43,7 +45,7 @@ On the default branch, use **Actions → Common HTTP header fuzzing → Run work
 
 Repository-pinned `actionlint` with the repository's configuration and `bash -n` both exited `0`. The exact workflow shell step, exercised locally with Clang 19.1.7, exited `0`.
 
-The initial CI lint identified the missing registration for centrally generated Action pins. After registration, the canonical-pin checker, pin synchronizer in check mode, focused workflow checker and full Framework CI security contract all passed with Python 3.15.2.
+CI identified a missing registration for centrally generated Action pins and required canonical Python setup before Make. After those updates, the canonical-pin checker, pin synchronizer in check mode, focused workflow checker, full Framework CI security contract and Python version contract all passed with Python 3.15.2.
 
 With Clang available and `BUILD_ROOT` set to a writable absolute path outside the worktrees, run:
 

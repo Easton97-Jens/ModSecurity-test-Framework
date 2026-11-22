@@ -31,6 +31,8 @@ Ein Pull-Request-Trigger würde die feste Testauswahl um zufallsgesteuerte Ausf�
 
 Die ausgewählte Framework-Revision liefert den Test. Der separat ausgecheckte Connector-Stand ist auf `d21e34eb42b7e12793f670e318954798293bb897` festgelegt. Der Workflow prüft den ausgecheckten Commit und ruft das Connector-Makefile mit dem ausgewählten Framework auf.
 
+Vor dem Make-Aufruf richtet der Job den geprüften Interpreter aus `.python-version` des Frameworks ein.
+
 Auf dem Standardbranch steht **Actions → Common HTTP header fuzzing → Run workflow** zur Verfügung.
 
 ## Geänderte Dateien und Tests
@@ -43,7 +45,7 @@ Auf dem Standardbranch steht **Actions → Common HTTP header fuzzing → Run wo
 
 Das im Repository festgelegte `actionlint` mit der Repository-Konfiguration und `bash -n` lieferten jeweils Exitcode `0`. Der unveränderte Shell-Schritt des Workflows lieferte bei der lokalen Ausführung mit Clang 19.1.7 Exitcode `0`.
 
-Die erste CI-Lint-Prüfung meldete die fehlende Registrierung für zentral generierte Action-Pins. Nach der Registrierung bestanden die Prüfung der kanonischen Pins, die Prüfung des Pin-Synchronisierers, die Workflow-Einzelprüfung und der vollständige Framework-CI-Sicherheitsvertrag mit Python 3.15.2.
+Die CI meldete die fehlende Registrierung für zentral generierte Action-Pins und verlangte die kanonische Python-Einrichtung vor Make. Nach diesen Änderungen bestanden die Prüfung der kanonischen Pins, die Prüfung des Pin-Synchronisierers, die Workflow-Einzelprüfung, der vollständige Framework-CI-Sicherheitsvertrag und der Python-Versionsvertrag mit Python 3.15.2.
 
 Mit verfügbarem Clang und einem beschreibbaren absoluten Pfad außerhalb der Worktrees für `BUILD_ROOT` lautet der lokale Aufruf:
 
