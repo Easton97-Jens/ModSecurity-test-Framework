@@ -1260,9 +1260,65 @@ static int run_client_self_test(unsigned int port, FILE *log) {
     return 0;
 }
 
+/* Phase-4 event rule_id: a positive signed rule ID is written with %d; a
+ * missing (0) or invalid (negative) ID is the empty string, never an unsigned
+ * reinterpretation. The event is serialized into memory only. */
+static int expect_phase4_event_rule_id(int rule_id, const char *expected)
+{
+    notify_request request;
+    haproxy_modsecurity_decision decision;
+    msconnector_error error;
+    char needle[64];
+    char *buffer = 0;
+    size_t length = 0;
+    FILE *stream;
+    int written;
+    int result = 0;
+
+    memset(&request, 0, sizeof(request));
+    memset(&decision, 0, sizeof(decision));
+    msconnector_error_init(&error);
+    (void)snprintf(request.request_id, sizeof(request.request_id), "%s", "phase4-rule-id-self-test");
+    request.has_request_id = 1;
+    decision.status = 403;
+    decision.rule_id = rule_id;
+    stream = open_memstream(&buffer, &length);
+    if (stream == 0) {
+        fprintf(stderr, "phase4 rule_id self-test: memory stream unavailable\n");
+        return -1;
+    }
+    written = phase4_common_event_write(stream, &request, &decision,
+        "deny", "deny", "phase4_rule_id_self_test", &error);
+    if (fclose(stream) != 0) {
+        written = 0;
+    }
+    (void)snprintf(needle, sizeof(needle), "\"rule_id\":\"%s\"", expected);
+    if (!written || buffer == 0 || length == 0 || strstr(buffer, needle) == 0) {
+        fprintf(stderr, "phase4 rule_id self-test: rule_id=%d did not serialize as %s\n",
+            rule_id, needle);
+        result = -1;
+    }
+    free(buffer);
+    return result;
+}
+
+static int run_spop_phase4_rule_id_self_test(void)
+{
+    if (expect_phase4_event_rule_id(12345, "12345") != 0 ||
+            expect_phase4_event_rule_id(1, "1") != 0 ||
+            expect_phase4_event_rule_id(INT_MAX, "2147483647") != 0 ||
+            expect_phase4_event_rule_id(0, "") != 0 ||
+            expect_phase4_event_rule_id(-5, "") != 0 ||
+            expect_phase4_event_rule_id(INT_MIN, "") != 0) {
+        return -1;
+    }
+    return 0;
+}
+
 static int run_spop_protocol_self_tests(void)
 {
     if (self_test_rejects_oversized_endpoint_port() != 0 ||
+            run_spop_phase4_rule_id_self_test() != 0 ||
             self_test_rejects_fin_unset_frame() != 0 ||
             run_spop_owner_queue_self_test() != 0 ||
             run_spop_request_id_validation_self_test() != 0 ||
