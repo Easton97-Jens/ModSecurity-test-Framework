@@ -1,0 +1,50 @@
+name: Common HTTP header fuzzing
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  common-http-header-fuzz:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    env:
+      CONNECTOR_FIXTURE_REVISION: d21e34eb42b7e12793f670e318954798293bb897
+    steps:
+      - name: Run the bounded header fuzz test
+        run: |
+          checkout_revision() {
+            local repository="$1" revision="$2" directory="$3"
+            git init --quiet "$directory"
+            git -C "$directory" fetch --quiet --depth=1 --no-tags "$repository" "$revision"
+            git -C "$directory" checkout --quiet --detach "$revision"
+            test "$(git -C "$directory" rev-parse HEAD)" = "$revision"
+          }
+
+          command -v clang >/dev/null
+          run_root=$(mktemp -d "$RUNNER_TEMP/fuzz-common.XXXXXX")
+          export TEST_ROOT="$run_root/framework" CONNECTOR_ROOT="$run_root/connector"
+          export CONNECTOR_REVISION="$CONNECTOR_FIXTURE_REVISION" BUILD_ROOT="$run_root/build" TMPDIR="$run_root"
+          checkout_revision https://github.com/Easton97-Jens/ModSecurity-test-Framework.git "$GITHUB_SHA" "$TEST_ROOT"
+          checkout_revision https://github.com/Easton97-Jens/ModSecurity-conector.git "$CONNECTOR_REVISION" "$CONNECTOR_ROOT"
+
+          if sh "$TEST_ROOT/connector_suite/modsecurity_connector_ci/checks/common/check-common-http-header-fuzz.sh" \
+            > "$run_root/fuzz.log" 2>&1; then
+            echo "Common HTTP header fuzz test passed."
+          else
+            status=$?
+            echo "::error::Common HTTP header fuzz test failed (exit $status). See the Change Record for the local command."
+            exit "$status"
+          fi
