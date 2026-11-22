@@ -1,8 +1,25 @@
 /* Productive Traefik dispatcher: invalid Common returns and terminal reentry.
  */
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #define _GNU_SOURCE
 #include "common/runtime/msconnector_runtime.h"
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 static int calls;
 static int native_result;
 static int typed_decision;
@@ -250,7 +267,7 @@ static void run_dispatch_case(msconnector_runtime *runtime,
   msconnector_decision decision;
   uint8_t code;
   unsigned char payload[256] = {0};
-  assert(pthread_mutex_init(&service.runtime_lock, NULL) == 0);
+  TEST_REQUIRE(pthread_mutex_init(&service.runtime_lock, NULL) == 0);
   service.request_body_mode = MSCONNECTOR_BODY_MODE_BUFFERED;
   service.response_body_mode = MSCONNECTOR_BODY_MODE_BUFFERED;
   session.response_headers_sent = committed > 0;
@@ -270,20 +287,20 @@ static void run_dispatch_case(msconnector_runtime *runtime,
     native_result = 2;
   calls = 0;
   if (invalid == 3) {
-    assert(traefik_engine_dispatch(&session, &frame, &decision, &code) == 1);
+    TEST_REQUIRE(traefik_engine_dispatch(&session, &frame, &decision, &code) == 1);
     assert(code == TRAEFIK_ENGINE_PROTOCOL_RESULT_OK && calls == 1 &&
            !session.failed);
   } else {
-    assert(traefik_engine_dispatch(&session, &frame, &decision, &code) == -1);
+    TEST_REQUIRE(traefik_engine_dispatch(&session, &frame, &decision, &code) == -1);
     assert(code != TRAEFIK_ENGINE_PROTOCOL_RESULT_OK && calls == 1 &&
            session.failed);
     assert(!session.pending_result.pending_disruptive && decision.rule_id == NULL);
     uint8_t first = code;
     frame.opcode = TRAEFIK_ENGINE_PROTOCOL_RESPONSE_CHUNK;
-    assert(traefik_engine_dispatch(&session, &frame, &decision, &code) == -1);
+    TEST_REQUIRE(traefik_engine_dispatch(&session, &frame, &decision, &code) == -1);
     assert(code == first && calls == 1);
   }
-  assert(pthread_mutex_destroy(&service.runtime_lock) == 0);
+  TEST_REQUIRE(pthread_mutex_destroy(&service.runtime_lock) == 0);
 }
 
 static void run_dispatch_states(msconnector_runtime *runtime,
@@ -308,8 +325,8 @@ static void run_framed_failure(msconnector_runtime *runtime) {
     traefik_engine_frame result = {0};
     unsigned char payload[64] = {0};
     size_t offset = 0;
-    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
-    assert(pthread_mutex_init(&service.runtime_lock, NULL) == 0);
+    TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    TEST_REQUIRE(pthread_mutex_init(&service.runtime_lock, NULL) == 0);
     service.runtime = runtime;
     session.service = &service;
     session.begun = 1;
@@ -327,7 +344,7 @@ static void run_framed_failure(msconnector_runtime *runtime) {
                                      TRAEFIK_ENGINE_PROTOCOL_RESPONSE_HEADERS,
                                      payload, offset) == 1);
     assert(traefik_engine_process_frame(&session, sockets[1], &frame) == 0);
-    assert(traefik_engine_receive_frame(sockets[0], &result) == 1);
+    TEST_REQUIRE(traefik_engine_receive_frame(sockets[0], &result) == 1);
     assert(result.opcode == TRAEFIK_ENGINE_PROTOCOL_RESULT &&
            result.payload_size >= 14);
     assert(result.payload[1] == TRAEFIK_ENGINE_PROTOCOL_RESULT_RUNTIME);
@@ -335,9 +352,9 @@ static void run_framed_failure(msconnector_runtime *runtime) {
            0); /* no stale rule */
     traefik_engine_frame_reset(&frame);
     traefik_engine_frame_reset(&result);
-    assert(close(sockets[0]) == 0);
-    assert(close(sockets[1]) == 0);
-    assert(pthread_mutex_destroy(&service.runtime_lock) == 0);
+    TEST_REQUIRE(close(sockets[0]) == 0);
+    TEST_REQUIRE(close(sockets[1]) == 0);
+    TEST_REQUIRE(pthread_mutex_destroy(&service.runtime_lock) == 0);
   }
 }
 
@@ -360,7 +377,7 @@ static void acknowledge_native_response_rule(traefik_engine_session *session) {
       .payload = outcome,
       .payload_size = sizeof(outcome)};
   session->transaction = (msconnector_runtime_transaction *)session;
-  assert(traefik_engine_dispatch(session, &acknowledged, &decision, &code) == 1);
+  TEST_REQUIRE(traefik_engine_dispatch(session, &acknowledged, &decision, &code) == 1);
   assert(code == TRAEFIK_ENGINE_PROTOCOL_RESULT_OK && decision.late_intervention);
   assert(decision.kind == MSCONNECTOR_DECISION_KIND_LOG_ONLY && calls == 2);
   session->transaction = NULL;
@@ -387,8 +404,8 @@ static void run_native_response_case(msconnector_runtime *runtime,
   traefik_engine_session session = {0};
   traefik_engine_frame frame = {0};
   traefik_engine_frame result = {0};
-  assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
-  assert(pthread_mutex_init(&service.runtime_lock, NULL) == 0);
+  TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+  TEST_REQUIRE(pthread_mutex_init(&service.runtime_lock, NULL) == 0);
   service.runtime = runtime;
   session.service = &service;
   session.begun = 1;
@@ -406,7 +423,7 @@ static void run_native_response_case(msconnector_runtime *runtime,
                                    NULL, 0U) == 1);
   assert(traefik_engine_process_frame(&session, sockets[1], &frame) ==
          (kind == 2 || !committed));
-  assert(traefik_engine_receive_frame(sockets[0], &result) == 1);
+  TEST_REQUIRE(traefik_engine_receive_frame(sockets[0], &result) == 1);
   assert(result.opcode == TRAEFIK_ENGINE_PROTOCOL_RESULT &&
          result.payload_size >= 14);
   if (kind == 1 && committed)
@@ -415,8 +432,8 @@ static void run_native_response_case(msconnector_runtime *runtime,
     verify_native_response_deny(&session, &result, kind, committed);
   traefik_engine_frame_reset(&frame);
   traefik_engine_frame_reset(&result);
-  assert(close(sockets[0]) == 0 && close(sockets[1]) == 0);
-  assert(pthread_mutex_destroy(&service.runtime_lock) == 0);
+  TEST_REQUIRE(close(sockets[0]) == 0 && close(sockets[1]) == 0);
+  TEST_REQUIRE(pthread_mutex_destroy(&service.runtime_lock) == 0);
 }
 
 static void run_native_response_results(msconnector_runtime *runtime) {

@@ -1,5 +1,20 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #define _POSIX_C_SOURCE 200809L
 #include <assert.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,23 +51,23 @@ typedef struct {
 } telemetry_fixture;
 
 static void write_fixture(telemetry_fixture *fixture, const char *directory) {
-    assert(snprintf(fixture->rules, sizeof(fixture->rules), "%s/rules", directory) > 0);
-    assert(snprintf(fixture->config, sizeof(fixture->config), "%s/config", directory) > 0);
-    assert(snprintf(fixture->events, sizeof(fixture->events), "%s/events", directory) > 0);
+    TEST_REQUIRE(snprintf(fixture->rules, sizeof(fixture->rules), "%s/rules", directory) > 0);
+    TEST_REQUIRE(snprintf(fixture->config, sizeof(fixture->config), "%s/config", directory) > 0);
+    TEST_REQUIRE(snprintf(fixture->events, sizeof(fixture->events), "%s/events", directory) > 0);
     FILE *file = fopen(fixture->rules, "w");
     assert(file);
-    assert(fprintf(file, "SecRuleEngine On\nSecRequestBodyAccess %s\n"
+    TEST_REQUIRE(fprintf(file, "SecRuleEngine On\nSecRequestBodyAccess %s\n"
         "SecRequestBodyLimit %d\nSecRequestBodyNoFilesLimit %d\n"
         "SecRequestBodyLimitAction %s\n"
         "SecAction \"id:77301,phase:2,pass,nolog\"\n",
         fixture->disabled ? "Off" : "On", fixture->reject || fixture->partial ? 16 : 64,
         fixture->reject || fixture->partial ? 16 : 64, fixture->reject ? "Reject" : "ProcessPartial") > 0);
-    assert(fclose(file) == 0);
+    TEST_REQUIRE(fclose(file) == 0);
     file = fopen(fixture->config, "w");
     assert(file);
-    assert(fprintf(file, "enabled=on\nrules_file=%s\nrequest_body_mode=streaming\n"
+    TEST_REQUIRE(fprintf(file, "enabled=on\nrules_file=%s\nrequest_body_mode=streaming\n"
         "response_body_mode=none\nevent_path=%s\n", fixture->rules, fixture->events) > 0);
-    assert(fclose(file) == 0);
+    TEST_REQUIRE(fclose(file) == 0);
 }
 
 static void verify_finish(msconnector_runtime_transaction *transaction,
@@ -111,8 +126,8 @@ static void verify_events(const telemetry_fixture *fixture) {
     assert(file);
     char evidence[16384];
     size_t count = fread(evidence, 1U, sizeof(evidence)-1U, file);
-    assert(!ferror(file));
-    assert(fclose(file) == 0);
+    TEST_REQUIRE(!ferror(file));
+    TEST_REQUIRE(fclose(file) == 0);
     evidence[count] = '\0';
     if (fixture->reject || fixture->partial) {
         const char *limit_event = strstr(evidence, "MSCONN_EVENT_BODY_LIMIT");

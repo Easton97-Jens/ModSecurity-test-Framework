@@ -1,4 +1,21 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <pthread.h>
 #include <string.h>
 
@@ -431,8 +448,8 @@ int main(void) {
   owner.backend = &backend;
   haproxy_spop_response_companion_backend_vtable(&backend, &vtable);
   assert(vtable.allow_parallel_callbacks == 1);
-  assert(pthread_mutex_init(&owner.lock, NULL) == 0);
-  assert(pthread_cond_init(&owner.changed, NULL) == 0);
+  TEST_REQUIRE(pthread_mutex_init(&owner.lock, NULL) == 0);
+  TEST_REQUIRE(pthread_cond_init(&owner.changed, NULL) == 0);
   owner.transaction_a = (haproxy_modsecurity_transaction *)(uintptr_t)0x1234U;
   owner.transaction_b = (haproxy_modsecurity_transaction *)(uintptr_t)0x5678U;
   assert(haproxy_spop_response_companion_handoff(&backend, owner.transaction_a,
@@ -799,7 +816,7 @@ int main(void) {
     parallel_a_lease = slots[0].lease;
     first_claim.vtable = &vtable;
     first_claim.handle = parallel_a;
-    assert(pthread_create(&thread, NULL, run_claim_thread, &first_claim) == 0);
+    TEST_REQUIRE(pthread_create(&thread, NULL, run_claim_thread, &first_claim) == 0);
     pthread_mutex_lock(&owner.lock);
     while (!owner.control.blocking.a_started) {
       pthread_cond_wait(&owner.changed, &owner.lock);
@@ -816,7 +833,7 @@ int main(void) {
     owner.control.blocking.release_a = 1;
     pthread_cond_broadcast(&owner.changed);
     pthread_mutex_unlock(&owner.lock);
-    assert(pthread_join(thread, NULL) == 0);
+    TEST_REQUIRE(pthread_join(thread, NULL) == 0);
     assert(!first_claim.result);
     assert(first_claim.error.code == MSCONNECTOR_ERROR_CORRELATION_EXPIRED);
     assert(first_claim.session.opaque == NULL);
@@ -856,7 +873,7 @@ int main(void) {
     body_context.body = body;
     body_context.body_size = sizeof(body) - 1U;
     owner.control.blocking.block_a_body = 1;
-    assert(pthread_create(&thread, NULL, run_body_thread, &body_context) == 0);
+    TEST_REQUIRE(pthread_create(&thread, NULL, run_body_thread, &body_context) == 0);
     pthread_mutex_lock(&owner.lock);
     while (!owner.control.blocking.body_started) {
       pthread_cond_wait(&owner.changed, &owner.lock);
@@ -869,7 +886,7 @@ int main(void) {
     owner.control.blocking.release_body = 1;
     pthread_cond_broadcast(&owner.changed);
     pthread_mutex_unlock(&owner.lock);
-    assert(pthread_join(thread, NULL) == 0);
+    TEST_REQUIRE(pthread_join(thread, NULL) == 0);
     assert(!body_context.result);
     assert(body_context.error.code == MSCONNECTOR_ERROR_CORRELATION_EXPIRED);
     /* Read-only response callbacks cannot rewrite the caller capability;
