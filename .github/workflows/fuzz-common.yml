@@ -23,34 +23,25 @@ jobs:
     env:
       CONNECTOR_FIXTURE_REVISION: d21e34eb42b7e12793f670e318954798293bb897
     steps:
-      - name: Checkout the selected Framework revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          submodules: false
-          persist-credentials: false
-      - name: Set up the reviewed Python version
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version-file: .python-version
-          check-latest: false
-      - name: Checkout the pinned Connector fixture
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: Easton97-Jens/ModSecurity-conector
-          ref: ${{ env.CONNECTOR_FIXTURE_REVISION }}
-          path: connector
-          submodules: false
-          persist-credentials: false
       - name: Run the bounded header fuzz test
         run: |
-          connector_root="$GITHUB_WORKSPACE/connector"
-          test "$(git -C "$connector_root" rev-parse HEAD)" = "$CONNECTOR_FIXTURE_REVISION"
+          checkout_revision() {
+            local repository="$1" revision="$2" directory="$3"
+            git init --quiet "$directory"
+            git -C "$directory" fetch --quiet --depth=1 --no-tags "$repository" "$revision"
+            git -C "$directory" checkout --quiet --detach "$revision"
+            test "$(git -C "$directory" rev-parse HEAD)" = "$revision"
+          }
+
           command -v clang >/dev/null
           run_root=$(mktemp -d "$RUNNER_TEMP/fuzz-common.XXXXXX")
-          export TMPDIR="$run_root"
-          if make -C "$connector_root" ON_DEMAND_TESTS=1 FRAMEWORK_ROOT="$GITHUB_WORKSPACE" \
-            BUILD_ROOT="$run_root/build" check-common-http-header-fuzz > "$run_root/fuzz.log" 2>&1; then
+          export TEST_ROOT="$run_root/framework" CONNECTOR_ROOT="$run_root/connector"
+          export CONNECTOR_REVISION="$CONNECTOR_FIXTURE_REVISION" BUILD_ROOT="$run_root/build" TMPDIR="$run_root"
+          checkout_revision https://github.com/Easton97-Jens/ModSecurity-test-Framework.git "$GITHUB_SHA" "$TEST_ROOT"
+          checkout_revision https://github.com/Easton97-Jens/ModSecurity-conector.git "$CONNECTOR_REVISION" "$CONNECTOR_ROOT"
+
+          if sh "$TEST_ROOT/connector_suite/modsecurity_connector_ci/checks/common/check-common-http-header-fuzz.sh" \
+            > "$run_root/fuzz.log" 2>&1; then
             echo "Common HTTP header fuzz test passed."
           else
             status=$?

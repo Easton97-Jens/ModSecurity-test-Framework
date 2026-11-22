@@ -152,7 +152,6 @@ GENERATED_CANONICAL_VIEW_PATHS = frozenset(
                 "ci-security-workflow-lint.yml",
                 "cleanup-artifacts.yml",
                 "five-connectors-with-crs-no-mrts-contract.yml",
-                "fuzz-common.yml",
                 "lint.yml",
                 "sonarqube.yml",
                 "test-common.yml",

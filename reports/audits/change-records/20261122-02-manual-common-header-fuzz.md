@@ -29,23 +29,20 @@ A pull-request trigger would add randomized work to the fixed test selection. Ma
 
 ## Implementation decision
 
-The selected Framework revision supplies the harness. The separately checked out Connector fixture is pinned to `d21e34eb42b7e12793f670e318954798293bb897`. The workflow checks the fixture HEAD before invoking the Connector Makefile against the selected Framework.
-
-Before invoking Make, the job provisions the reviewed interpreter from the Framework's `.python-version`.
+The selected Framework revision supplies the harness. The separately checked out Connector fixture is pinned to `d21e34eb42b7e12793f670e318954798293bb897`. The job fetches both commits anonymously, verifies both checkouts and invokes the existing C fuzz runner with explicit roots.
 
 On the default branch, use **Actions → Common HTTP header fuzzing → Run workflow**.
 
 ## Changed files and tests
 
 - `.github/workflows/fuzz-common.yml`
-- `ci/tools/check-common-versions.py` registers the workflow as a generated Action pin consumer.
 - This English and German Change Record pair.
 
 ## Commands and results
 
 Repository-pinned `actionlint` with the repository's configuration and `bash -n` both exited `0`. The exact workflow shell step, exercised locally with Clang 19.1.7, exited `0`.
 
-CI identified a missing registration for centrally generated Action pins and required canonical Python setup before Make. After those updates, the canonical-pin checker, pin synchronizer in check mode, focused workflow checker, full Framework CI security contract and Python version contract all passed with Python 3.15.2.
+The focused workflow checker, CI security and Python-version contracts, and both Action-pin updater regression tests passed with Python 3.15.2.
 
 With Clang available and `BUILD_ROOT` set to a writable absolute path outside the worktrees, run:
 
@@ -71,4 +68,4 @@ The checks cover the shared HTTP header helper against the fixed Connector revis
 
 ## Final diff and review status
 
-The diff adds the manual workflow, registers its generated Action pins, and adds the paired Change Record. The current pull-request test inventory stays in effect.
+The diff adds the manual workflow and the paired Change Record. The current pull-request inventory stays in effect.

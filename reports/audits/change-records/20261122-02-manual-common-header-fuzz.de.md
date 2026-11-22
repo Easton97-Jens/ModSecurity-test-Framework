@@ -29,23 +29,20 @@ Ein Pull-Request-Trigger würde die feste Testauswahl um zufallsgesteuerte Ausf�
 
 ## Implementierungsentscheidung
 
-Die ausgewählte Framework-Revision liefert den Test. Der separat ausgecheckte Connector-Stand ist auf `d21e34eb42b7e12793f670e318954798293bb897` festgelegt. Der Workflow prüft den ausgecheckten Commit und ruft das Connector-Makefile mit dem ausgewählten Framework auf.
-
-Vor dem Make-Aufruf richtet der Job den geprüften Interpreter aus `.python-version` des Frameworks ein.
+Die ausgewählte Framework-Revision liefert den Test. Der separat ausgecheckte Connector-Stand ist auf `d21e34eb42b7e12793f670e318954798293bb897` festgelegt. Der Job lädt beide Commits anonym, prüft beide Checkouts und ruft den vorhandenen C-Fuzz-Runner mit expliziten Verzeichnissen auf.
 
 Auf dem Standardbranch steht **Actions → Common HTTP header fuzzing → Run workflow** zur Verfügung.
 
 ## Geänderte Dateien und Tests
 
 - `.github/workflows/fuzz-common.yml`
-- `ci/tools/check-common-versions.py` registriert den Workflow für zentral generierte Action-Pins.
 - Dieses englische und deutsche Change-Record-Paar.
 
 ## Befehle und Ergebnisse
 
 Das im Repository festgelegte `actionlint` mit der Repository-Konfiguration und `bash -n` lieferten jeweils Exitcode `0`. Der unveränderte Shell-Schritt des Workflows lieferte bei der lokalen Ausführung mit Clang 19.1.7 Exitcode `0`.
 
-Die CI meldete die fehlende Registrierung für zentral generierte Action-Pins und verlangte die kanonische Python-Einrichtung vor Make. Nach diesen Änderungen bestanden die Prüfung der kanonischen Pins, die Prüfung des Pin-Synchronisierers, die Workflow-Einzelprüfung, der vollständige Framework-CI-Sicherheitsvertrag und der Python-Versionsvertrag mit Python 3.15.2.
+Die Workflow-Einzelprüfung, der CI-Sicherheitsvertrag und der Python-Versionsvertrag sowie beide Regressionstests für den Action-Pin-Updater bestanden mit Python 3.15.2.
 
 Mit verfügbarem Clang und einem beschreibbaren absoluten Pfad außerhalb der Worktrees für `BUILD_ROOT` lautet der lokale Aufruf:
 
@@ -71,4 +68,4 @@ Die Prüfung deckt die gemeinsamen HTTP-Header-Helfer am festgelegten Connector-
 
 ## Finaler Diff- und Review-Status
 
-Der Diff ergänzt den manuellen Workflow, registriert seine generierten Action-Pins und enthält das Change-Record-Paar. Das aktuelle Pull-Request-Testinventar gilt weiter.
+Der Diff ergänzt den manuellen Workflow und das Change-Record-Paar. Das aktuelle Pull-Request-Testinventar gilt weiter.
