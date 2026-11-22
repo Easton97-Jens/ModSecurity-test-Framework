@@ -36,11 +36,14 @@ On the default branch, use **Actions → Common HTTP header fuzzing → Run work
 ## Changed files and tests
 
 - `.github/workflows/fuzz-common.yml`
+- `ci/tools/check-common-versions.py` registers the workflow as a generated Action pin consumer.
 - This English and German Change Record pair.
 
 ## Commands and results
 
 Repository-pinned `actionlint` with the repository's configuration and `bash -n` both exited `0`. The exact workflow shell step, exercised locally with Clang 19.1.7, exited `0`.
+
+The initial CI lint identified the missing registration for centrally generated Action pins. After registration, the canonical-pin checker, pin synchronizer in check mode, focused workflow checker and full Framework CI security contract all passed with Python 3.15.2.
 
 With Clang available and `BUILD_ROOT` set to a writable absolute path outside the worktrees, run:
 
@@ -66,4 +69,4 @@ The checks cover the shared HTTP header helper against the fixed Connector revis
 
 ## Final diff and review status
 
-The diff adds the manual workflow and the paired Change Record. The current pull-request test inventory stays in effect.
+The diff adds the manual workflow, registers its generated Action pins, and adds the paired Change Record. The current pull-request test inventory stays in effect.

@@ -36,11 +36,14 @@ Auf dem Standardbranch steht **Actions → Common HTTP header fuzzing → Run wo
 ## Geänderte Dateien und Tests
 
 - `.github/workflows/fuzz-common.yml`
+- `ci/tools/check-common-versions.py` registriert den Workflow für zentral generierte Action-Pins.
 - Dieses englische und deutsche Change-Record-Paar.
 
 ## Befehle und Ergebnisse
 
 Das im Repository festgelegte `actionlint` mit der Repository-Konfiguration und `bash -n` lieferten jeweils Exitcode `0`. Der unveränderte Shell-Schritt des Workflows lieferte bei der lokalen Ausführung mit Clang 19.1.7 Exitcode `0`.
+
+Die erste CI-Lint-Prüfung meldete die fehlende Registrierung für zentral generierte Action-Pins. Nach der Registrierung bestanden die Prüfung der kanonischen Pins, die Prüfung des Pin-Synchronisierers, die Workflow-Einzelprüfung und der vollständige Framework-CI-Sicherheitsvertrag mit Python 3.15.2.
 
 Mit verfügbarem Clang und einem beschreibbaren absoluten Pfad außerhalb der Worktrees für `BUILD_ROOT` lautet der lokale Aufruf:
 
@@ -66,4 +69,4 @@ Die Prüfung deckt die gemeinsamen HTTP-Header-Helfer am festgelegten Connector-
 
 ## Finaler Diff- und Review-Status
 
-Der Diff ergänzt den manuellen Workflow und das Change-Record-Paar. Das aktuelle Pull-Request-Testinventar gilt weiter.
+Der Diff ergänzt den manuellen Workflow, registriert seine generierten Action-Pins und enthält das Change-Record-Paar. Das aktuelle Pull-Request-Testinventar gilt weiter.
