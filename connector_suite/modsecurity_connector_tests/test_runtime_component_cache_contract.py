@@ -2,7 +2,9 @@ from __future__ import annotations
 from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
 
 from collections.abc import Callable
+import contextlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -902,7 +904,11 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
         current = components.modsecurity_cache_identity(
             {}, git_record, build_flags, "c" * 64, patchset, toolchain
         )
-        with mock.patch.object(components, "MODSECURITY_OUTPUT_LAYOUT_VERSION", 2):
+        with mock.patch.object(
+            components,
+            "MODSECURITY_OUTPUT_LAYOUT_VERSION",
+            components.MODSECURITY_OUTPUT_LAYOUT_VERSION + 1,
+        ):
             changed = components.modsecurity_cache_identity(
                 {}, git_record, build_flags, "c" * 64, patchset, toolchain
             )
@@ -911,6 +917,236 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             current["extra_inputs"]["modsecurity_output_layout_version"],
             components.MODSECURITY_OUTPUT_LAYOUT_VERSION,
         )
+
+    def test_modsecurity_identity_binds_the_bundled_pcre2_pin(self) -> None:
+        git_record = {
+            "url": "https://github.com/example/modsecurity",
+            "expected_ref": "v3.0.15",
+            "actual_head": "a" * 40,
+            "submodule_status": "",
+        }
+        toolchain = {"cc": "cc", "cc_version": "test", "cxx": "", "cxx_version": ""}
+        pinned = {
+            "PCRE2_VERSION": "10.49",
+            "PCRE2_SOURCE_URL": "https://example.invalid/pcre2-10.49.tar.bz2",
+            "PCRE2_SHA256": "d" * 64,
+        }
+        current = components.modsecurity_cache_identity(
+            pinned, git_record, {}, "c" * 64, {"sha256": "b" * 64}, toolchain
+        )
+        changed = components.modsecurity_cache_identity(
+            {**pinned, "PCRE2_SHA256": "e" * 64}, git_record, {}, "c" * 64, {"sha256": "b" * 64}, toolchain
+        )
+        self.assertNotEqual(current["cache_key"], changed["cache_key"])
+        self.assertEqual(
+            current["extra_inputs"]["bundled_pcre2"],
+            {
+                "version": "10.49",
+                "source_url": pinned["PCRE2_SOURCE_URL"],
+                "sha256": "d" * 64,
+                "runpath": "$ORIGIN",
+            },
+        )
+
+    def test_modsecurity_build_links_the_bundled_pcre2_with_origin_runpath(self) -> None:
+        prefix = Path("/cache/prefix/.staging")
+        configure = dict(components.modsecurity_build_commands({}, prefix))["modsecurity-configure"]
+        self.assertEqual(configure[:3], ["./configure", f"--prefix={prefix}", f"--with-pcre2={prefix}"])
+        inputs = {"build_flags_text": json.dumps({"LDFLAGS": "-L/expat/lib"})}
+        with mock.patch.object(components.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"):
+            environment = components.modsecurity_build_environment(
+                {"LDFLAGS": "-L/usr/lib/x86_64-linux-gnu", "CC": "gcc", "CXX": "g++ -O2"}, inputs, {}, prefix
+            )
+            defaults = components.modsecurity_build_environment({}, inputs, {}, prefix)
+            without_bundle = components.modsecurity_build_environment({"CC": "gcc"}, inputs, {})
+        self.assertEqual(environment["LD_RUN_PATH"], "$ORIGIN")
+        # The bundled PCRE2 must precede every distribution library directory,
+        # including automake per-target *_LDFLAGS, which only the compiler
+        # command itself is guaranteed to precede.
+        self.assertEqual(environment["LDFLAGS"], f"-L{prefix / 'lib'} -L/expat/lib")
+        self.assertEqual(environment["CC"], f"gcc -L{prefix / 'lib'}")
+        self.assertEqual(environment["CXX"], f"g++ -O2 -L{prefix / 'lib'}")
+        self.assertEqual(defaults["CC"], f"/usr/bin/cc -L{prefix / 'lib'}")
+        self.assertEqual(defaults["CXX"], f"/usr/bin/c++ -L{prefix / 'lib'}")
+        self.assertEqual(without_bundle["LDFLAGS"], "-L/expat/lib")
+        self.assertEqual(without_bundle["CC"], "gcc")
+        identity_inputs = components.modsecurity_build_flags({}, "", "")
+        self.assertNotIn(str(prefix), json.dumps(identity_inputs))
+
+    def test_bundled_pcre2_verification_rejects_a_system_or_staging_runpath(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            prefix = Path(temporary)
+            (prefix / "include").mkdir()
+            (prefix / "lib").mkdir()
+            (prefix / "include/pcre2.h").write_text("/* pcre2 */\n", encoding="utf-8")
+            (prefix / "lib/libpcre2-8.so.0").write_text("library\n", encoding="utf-8")
+            (prefix / "lib/libmodsecurity.so.3").write_text("library\n", encoding="utf-8")
+            cases = (
+                ({"NEEDED": ["libpcre2-8.so.0"], "RUNPATH": ["$ORIGIN"]}, ""),
+                ({"NEEDED": ["libpcre2-8.so.0"]}, "libmodsecurity_runpath_not_origin"),
+                (
+                    {"NEEDED": ["libpcre2-8.so.0"], "RUNPATH": [str(prefix.parent / ".staging/lib")]},
+                    "libmodsecurity_runpath_not_origin",
+                ),
+                ({"NEEDED": ["libpcre2-8.so.0"], "RPATH": ["$ORIGIN"]}, "libmodsecurity_has_legacy_rpath"),
+                ({"NEEDED": ["libxml2.so.16"], "RUNPATH": ["$ORIGIN"]}, "libmodsecurity_does_not_need_pcre2"),
+            )
+            for entries, expected in cases:
+                with self.subTest(entries=entries):
+                    with mock.patch.object(components, "elf_dynamic_entries", return_value=entries):
+                        self.assertEqual(components.modsecurity_bundled_pcre2_blocker(prefix), expected)
+            with mock.patch.object(
+                components, "elf_dynamic_entries", side_effect=RuntimeError("readelf_failed:libmodsecurity.so.3")
+            ):
+                self.assertEqual(
+                    components.modsecurity_bundled_pcre2_blocker(prefix),
+                    "libmodsecurity_elf_inspection_failed",
+                )
+            (prefix / "lib/libpcre2-8.so.0").unlink()
+            with mock.patch.object(
+                components,
+                "elf_dynamic_entries",
+                return_value={"NEEDED": ["libpcre2-8.so.0"], "RUNPATH": ["$ORIGIN"]},
+            ):
+                self.assertEqual(
+                    components.modsecurity_bundled_pcre2_blocker(prefix),
+                    "bundled_pcre2_library_missing",
+                )
+
+    def test_elf_dynamic_entries_parses_readelf_output(self) -> None:
+        output = (
+            "\nDynamic section at offset 0x5a8d40 contains 31 entries:\n"
+            "  Tag        Type                         Name/Value\n"
+            " 0x0000000000000001 (NEEDED)             Shared library: [libpcre2-8.so.0]\n"
+            " 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]\n"
+            " 0x000000000000000e (SONAME)             Library soname: [libmodsecurity.so.3]\n"
+            " 0x000000000000001d (RUNPATH)            Library runpath: [$ORIGIN]\n"
+            " 0x000000000000000c (INIT)               0x3a000\n"
+        )
+        completed = subprocess.CompletedProcess(["readelf"], 0, output, "")
+        with mock.patch.object(components, "run_env", return_value=completed):
+            entries = components.elf_dynamic_entries(Path("libmodsecurity.so.3"))
+        self.assertEqual(
+            entries,
+            {"NEEDED": ["libpcre2-8.so.0", "libc.so.6"], "RUNPATH": ["$ORIGIN"]},
+        )
+        with mock.patch.object(
+            components, "run_env", return_value=subprocess.CompletedProcess(["readelf"], 1, "", "not an ELF file")
+        ):
+            with self.assertRaisesRegex(RuntimeError, "readelf_failed"):
+                components.elf_dynamic_entries(Path("libmodsecurity.so.3"))
+
+    def test_bundled_pcre2_archive_extraction_rejects_unexpected_layouts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            archive = root / "two-roots.tar"
+            with tarfile.open(archive, "w") as handle:
+                for name in ("first", "second"):
+                    member = tarfile.TarInfo(f"{name}/README")
+                    payload = b"x\n"
+                    member.size = len(payload)
+                    handle.addfile(member, io.BytesIO(payload))
+            with self.assertRaisesRegex(RuntimeError, "bundled_pcre2_archive_layout_unexpected"):
+                components.extract_single_root_tar_archive(archive, root / "out")
+
+    def test_bundled_pcre2_build_reports_an_unreadable_archive_without_running_commands(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            corrupt = root / "pcre2-10.49.tar.bz2"
+            corrupt.write_bytes(b"not a tar archive\n")
+            log_parts: list[str] = []
+            with mock.patch.object(components, "run_env") as run_env:
+                exit_code = components.build_modsecurity_bundled_pcre2(
+                    {}, corrupt, root / "build", root / "prefix", log_parts
+                )
+            self.assertEqual(exit_code, 1)
+            run_env.assert_not_called()
+            self.assertEqual(len(log_parts), 1)
+            self.assertTrue(log_parts[0].startswith("pcre2-extract: "))
+
+    def test_modsecurity_build_persists_the_bundled_pcre2_verification_failure(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "modsecurity-source"
+            source.mkdir()
+            staging_build = root / "staging-build"
+            staging_build.mkdir()
+            record: dict[str, object] = {}
+            with mock.patch.object(components, "build_modsecurity_bundled_pcre2", return_value=0), mock.patch.object(
+                components, "run_env", return_value=subprocess.CompletedProcess(["make"], 0, "", "")
+            ), mock.patch.object(components, "copy_modsecurity_outputs"), mock.patch.object(
+                components, "modsecurity_bundled_pcre2_blocker", return_value="libmodsecurity_runpath_not_origin"
+            ):
+                built = components.build_modsecurity_staging_entry(
+                    {},
+                    {"build_flags_text": json.dumps({})},
+                    {},
+                    source,
+                    staging_build,
+                    root / "staging-prefix",
+                    root / "logs/modsecurity-build.log",
+                    record,
+                    root / "pcre2-10.49.tar.bz2",
+                )
+            self.assertFalse(built)
+            self.assertEqual(record["status"], "failed")
+            persisted = json.loads((staging_build / components.CACHE_MANIFEST_FILENAME).read_text(encoding="utf-8"))
+            self.assertEqual(persisted["bundled_pcre2_blocker"], "libmodsecurity_runpath_not_origin")
+            self.assertIn(
+                "bundled-pcre2-verification: libmodsecurity_runpath_not_origin",
+                (root / "logs/modsecurity-build.log").read_text(encoding="utf-8"),
+            )
+
+    def test_modsecurity_build_records_an_unexecutable_build_tool_as_failure(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            source = root / "modsecurity-source"
+            source.mkdir()
+            (source / "build.sh").write_text("#!/bin/sh\n", encoding="utf-8")
+            staging_build = root / "staging-build"
+            staging_build.mkdir()
+            log_path = root / "logs/modsecurity-build.log"
+            record: dict[str, object] = {}
+            inputs = {"build_flags_text": json.dumps({})}
+            with mock.patch.object(components, "build_modsecurity_bundled_pcre2", return_value=0), mock.patch.object(
+                components, "run_env", side_effect=FileNotFoundError(2, "No such file or directory", "sh")
+            ):
+                built = components.build_modsecurity_staging_entry(
+                    {},
+                    inputs,
+                    {},
+                    source,
+                    staging_build,
+                    root / "staging-prefix",
+                    log_path,
+                    record,
+                    root / "pcre2-10.49.tar.bz2",
+                )
+            self.assertFalse(built)
+            self.assertEqual(record["status"], "failed")
+            self.assertEqual(record["build_exit_code"], 127)
+            self.assertIn("modsecurity-build-sh: FileNotFoundError: ", log_path.read_text(encoding="utf-8"))
+
+    def test_bundled_pcre2_build_reports_an_unexecutable_build_tool(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
+            root = Path(temporary)
+            archive = root / "pcre2-10.49.tar"
+            with tarfile.open(archive, "w") as handle:
+                member = tarfile.TarInfo("pcre2-10.49/configure")
+                payload = b"#!/bin/sh\n"
+                member.size = len(payload)
+                handle.addfile(member, io.BytesIO(payload))
+            log_parts: list[str] = []
+            with mock.patch.object(
+                components, "run_env", side_effect=FileNotFoundError(2, "No such file or directory", "./configure")
+            ) as run_env:
+                exit_code = components.build_modsecurity_bundled_pcre2(
+                    {}, archive, root / "build", root / "prefix", log_parts
+                )
+            self.assertEqual(exit_code, 127)
+            self.assertEqual(run_env.call_count, 1)
+            self.assertEqual(len(log_parts), 1)
+            self.assertTrue(log_parts[0].startswith("pcre2-configure: FileNotFoundError: "))
 
     def test_modsecurity_outputs_materialize_a_regular_runtime_soname(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:
@@ -1089,6 +1325,44 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
             toolchain = {"cc": "cc", "cc_version": "cc test", "cxx": "", "cxx_version": ""}
             make_calls = 0
 
+            def fake_bundled_pcre2(
+                _env: dict[str, str],
+                _archive: Path,
+                _staging_build: Path,
+                staging_prefix: Path,
+                _log_parts: list[str],
+            ) -> int:
+                (staging_prefix / "include").mkdir(parents=True, exist_ok=True)
+                (staging_prefix / "lib").mkdir(parents=True, exist_ok=True)
+                (staging_prefix / "include/pcre2.h").write_text("/* pcre2 */\n", encoding="utf-8")
+                (staging_prefix / "lib/libpcre2-8.so.0").write_text("library\n", encoding="utf-8")
+                return 0
+
+            def bundled_pcre2_patches() -> contextlib.ExitStack:
+                stack = contextlib.ExitStack()
+                stack.enter_context(
+                    mock.patch.object(
+                        components,
+                        "prepare_modsecurity_bundled_pcre2_archive",
+                        return_value={
+                            "status": "present",
+                            "checksum_status": "PASS",
+                            "path": str(root / "pcre2-10.49.tar.bz2"),
+                        },
+                    )
+                )
+                stack.enter_context(
+                    mock.patch.object(components, "build_modsecurity_bundled_pcre2", side_effect=fake_bundled_pcre2)
+                )
+                stack.enter_context(
+                    mock.patch.object(
+                        components,
+                        "elf_dynamic_entries",
+                        return_value={"NEEDED": ["libpcre2-8.so.0"], "RUNPATH": ["$ORIGIN"]},
+                    )
+                )
+                return stack
+
             def fake_run_env(command: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
                 nonlocal make_calls
                 if command and command[0] == "make":
@@ -1110,7 +1384,7 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 components,
                 "verify_framework_approved_modsecurity_v3_checkout",
                 return_value={"status": "passed"},
-            ):
+            ), bundled_pcre2_patches():
                 record = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
 
             build_entry = cache_root / "builds/modsecurity" / record["cache_key"]
@@ -1145,23 +1419,29 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 components,
                 "verify_framework_approved_modsecurity_v3_checkout",
                 return_value={"status": "passed"},
-            ):
+            ), bundled_pcre2_patches():
                 reused = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
             self.assertEqual(reused["status"], "reused")
             self.assertEqual(make_calls, 1)
 
-            for expected_make_calls, missing_header in enumerate(
-                ("rules_set.h", "transaction.h"), start=2
+            for expected_make_calls, missing_artifact in enumerate(
+                (
+                    "include/modsecurity/rules_set.h",
+                    "include/modsecurity/transaction.h",
+                    "include/pcre2.h",
+                    "lib/libpcre2-8.so.0",
+                ),
+                start=2,
             ):
-                with self.subTest(missing_header=missing_header):
-                    (prefix / "include/modsecurity" / missing_header).unlink()
+                with self.subTest(missing_artifact=missing_artifact):
+                    (prefix / missing_artifact).unlink()
                     with mock.patch.object(components, "toolchain_identity", return_value=toolchain), mock.patch.object(
                         components.shutil, "which", side_effect=lambda _name: "/usr/bin/tool"
                     ), mock.patch.object(components, "run_env", side_effect=fake_run_env), mock.patch.object(
                         components,
                         "verify_framework_approved_modsecurity_v3_checkout",
                         return_value={"status": "passed"},
-                    ):
+                    ), bundled_pcre2_patches():
                         rebuilt_headers = components.prepare_shared_modsecurity(
                             {}, cache_root, root / "work", git_record, {}
                         )
@@ -1183,10 +1463,10 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 components,
                 "verify_framework_approved_modsecurity_v3_checkout",
                 return_value={"status": "passed"},
-            ):
+            ), bundled_pcre2_patches():
                 rebuilt = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
             self.assertEqual(rebuilt["status"], "built")
-            self.assertEqual(make_calls, 4)
+            self.assertEqual(make_calls, 6)
 
             # A lost prefix sidecar can be recovered only because the complete
             # build manifest binds this exact prefix.  It authorizes deletion
@@ -1198,11 +1478,11 @@ class RuntimeComponentCacheContractTest(unittest.TestCase):
                 components,
                 "verify_framework_approved_modsecurity_v3_checkout",
                 return_value={"status": "passed"},
-            ):
+            ), bundled_pcre2_patches():
                 rebuilt_prefix = components.prepare_shared_modsecurity({}, cache_root, root / "work", git_record, {})
             self.assertEqual(rebuilt_prefix["status"], "built")
             self.assertEqual(rebuilt_prefix["invalidation_reason"], "missing_modsecurity_prefix_registry_marker")
-            self.assertEqual(make_calls, 5)
+            self.assertEqual(make_calls, 7)
 
     def test_modsecurity_ready_requires_all_public_headers(self) -> None:
         with tempfile.TemporaryDirectory(prefix="runtime-cache-contract-") as temporary:

@@ -124,6 +124,32 @@ require_command() {
     fi
 }
 
+# elf_runpath <object>: the DT_RUNPATH value, or nothing.
+elf_runpath() {
+    elf_object=$1
+    readelf -d "$elf_object" | sed -n 's/.*(RUNPATH)[^[]*\[\([^]]*\)\].*/\1/p'
+}
+
+# require_runpath_entry <object> <entry> <purpose>: fail unless DT_RUNPATH lists <entry>.
+require_runpath_entry() {
+    runpath_object=$1
+    runpath_entry=$2
+    runpath_purpose=$3
+    runpath=$(elf_runpath "$runpath_object")
+    case ":$runpath:" in
+        *":$runpath_entry:"*) ;;
+        *) fail "$runpath_purpose: $runpath_object lacks run path entry $runpath_entry (has: ${runpath:-none})" ;;
+    esac
+}
+
+# relative_path <from-dir> <to-path>: portable relative path (no realpath --relative-to).
+relative_path() {
+    relative_from=$1
+    relative_to=$2
+    "${PYTHON:-python3}" -I -c 'import os, sys; print(os.path.relpath(sys.argv[2], sys.argv[1]))' \
+        "$relative_from" "$relative_to"
+}
+
 require_c_header() {
     header=$1
     purpose=$2
@@ -631,7 +657,23 @@ build_httpd_from_source() {
     extract_tar_strip apr "$apr_archive" "$HTTPD_SOURCE_DIR/srclib/apr"
     extract_tar_strip apr-util "$apr_util_archive" "$HTTPD_SOURCE_DIR/srclib/apr-util"
 
-    run_logged httpd-configure "$HTTPD_BUILD_DIR" "$HTTPD_SOURCE_DIR/configure" \
+    # The build runs in a staging tree that is renamed on publication, so the
+    # absolute run paths libtool records for the bundled APR and the source
+    # PCRE2 would dangle and httpd would load the distribution libraries.
+    # Prepend $ORIGIN-relative entries; "\$$" survives make, the shell and
+    # libtool as a literal "$" and is verified after installation below.
+    require_command readelf "verify the httpd library run path"
+    # shellcheck disable=SC2016  # literal \$$ORIGIN for make/libtool, not a shell expansion
+    httpd_runpath_ldflags='-Wl,-rpath,\$$ORIGIN/../lib'
+    httpd_pcre2_relative=""
+    if [ "$PCRE2_SOURCE_BUILT" = "1" ]; then
+        httpd_pcre2_relative=$(relative_path "$HTTPD_PREFIX/bin" "$PCRE2_PREFIX/lib") || \
+            blocked "could not derive the relative PCRE2 run path"
+        # shellcheck disable=SC2016  # literal \$$ORIGIN for make/libtool
+        httpd_runpath_ldflags="$httpd_runpath_ldflags "'-Wl,-rpath,\$$ORIGIN/'"$httpd_pcre2_relative"
+    fi
+    run_logged httpd-configure "$HTTPD_BUILD_DIR" env "LDFLAGS=$httpd_runpath_ldflags${LDFLAGS:+ $LDFLAGS}" \
+        "$HTTPD_SOURCE_DIR/configure" \
         "--prefix=$HTTPD_PREFIX" \
         "--with-included-apr" \
         "--with-pcre=$PCRE_CONFIG_BIN" \
@@ -650,6 +692,13 @@ build_httpd_from_source() {
     if [ ! -x "$APACHE_HTTPD_BIN" ]; then
         blocked "httpd source build completed without executable httpd: $APACHE_HTTPD_BIN"
     fi
+    # shellcheck disable=SC2016  # literal $ORIGIN run path entries
+    require_runpath_entry "$APACHE_HTTPD_BIN" '$ORIGIN/../lib' "httpd APR binding"
+    if [ -n "$httpd_pcre2_relative" ]; then
+        # shellcheck disable=SC2016
+        require_runpath_entry "$APACHE_HTTPD_BIN" '$ORIGIN/'"$httpd_pcre2_relative" "httpd PCRE2 binding"
+    fi
+    echo "httpd_runpath=$(elf_runpath "$APACHE_HTTPD_BIN")" >> "$ARTIFACTS_FILE"
     HTTPD_SOURCE_BUILT=1
 }
 
@@ -827,11 +876,24 @@ stage_modsecurity
 
 run_logged apache-autogen "$APACHE_CONNECTOR_BUILD_DIR" ./autogen.sh
 run_logged apache-configure "$APACHE_CONNECTOR_BUILD_DIR" ./configure "--with-libmodsecurity=$MODSECURITY_STAGE" "--with-apxs=$APXS_BIN" "--with-apache=$APACHE_HTTPD_BIN"
-run_logged apache-make "$APACHE_CONNECTOR_BUILD_DIR" make
+# The shared libModSecurity prefix is already published, so its library path
+# is a stable run path; the module then loads the pinned libModSecurity (and,
+# through its $ORIGIN run path, the bundled PCRE2) without a harness path.
+# The connector's apxs wrapper passes no LDFLAGS and its link carries no
+# -rpath, so the linker takes the run path from LD_RUN_PATH.
+if [ -n "$MODSECURITY_SHARED_PREFIX" ]; then
+    run_logged apache-make "$APACHE_CONNECTOR_BUILD_DIR" env "LD_RUN_PATH=$MODSECURITY_STAGE/lib" make
+else
+    run_logged apache-make "$APACHE_CONNECTOR_BUILD_DIR" make
+fi
 
 module_candidate="$APACHE_CONNECTOR_BUILD_DIR/src/.libs/mod_security3.so"
 if [ ! -f "$module_candidate" ]; then
     fail "Apache connector build completed without expected module: $module_candidate"
+fi
+if [ -n "$MODSECURITY_SHARED_PREFIX" ]; then
+    require_command readelf "verify the Apache module run path"
+    require_runpath_entry "$module_candidate" "$MODSECURITY_STAGE/lib" "Apache module libModSecurity binding"
 fi
 
 mkdir -p "$OUTPUT_DIR/apache"
