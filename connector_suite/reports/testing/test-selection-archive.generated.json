@@ -12609,7 +12609,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendment_rejects_wrong_immutable_baseline_anchor"
       ],
       "source": "framework/tests/ci_security/test_connector_action_pins.py",
-      "source_sha256": "4195a3a313e5ab264c24244fca0a566121efe25b62e8f9266155471cb3c76a81"
+      "source_sha256": "d8387f7c9515c12cf097213c9b25d89e584df9c9e66af42975c6ec3c4c049f3f"
     },
     {
       "contains_selected_definitions": [],

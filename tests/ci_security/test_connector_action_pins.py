@@ -15,7 +15,9 @@ PINS = runpy.run_path(str(ROOT / "ci/checks/security/connector_action_pins.py"))
 CANONICAL = runpy.run_path(str(ROOT / "ci/tools/check-common-versions.py"))
 SOURCE = ".github/workflows/connector-protected-nginx-exact-head.yml"
 AMENDED = ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml"
-NO_CRS_AMENDED = ".github/actions/connector-ci/reusable-five-connectors-profile/no-crs/action.yml"
+NO_CRS_AMENDED = (
+    ".github/actions/connector-ci/reusable-five-connectors-profile/no-crs/action.yml"
+)
 
 
 class ConnectorActionPinsTests(unittest.TestCase):
@@ -161,7 +163,7 @@ class ConnectorActionPinsTests(unittest.TestCase):
             ),
             NO_CRS_AMENDED: (
                 "8e3b30d2fadb3ff858dd2d75dc55f0af48109696f6786c2fbdbcf3e27812cd41",
-                "967185d2d32869ddb04650d421591c4fe33e116a49006374c0e43a7f846f35ec",
+                "1ba7110943406aec71b5429468a142827b1a6f7c179aec1472edc6e99dbe879e",
             ),
         }
         amendments = PINS["REVIEWED_CURRENT_SOURCE_AMENDMENTS"]
@@ -230,8 +232,11 @@ class ConnectorActionPinsTests(unittest.TestCase):
                 PINS["REVIEWED_CURRENT_SOURCE_AMENDMENTS"][relative],
                 baseline_sha256="0" * 64,
             )
-            with self.subTest(source=relative), patch.dict(
-                namespace["REVIEWED_CURRENT_SOURCE_AMENDMENTS"], {relative: wrong}
+            with (
+                self.subTest(source=relative),
+                patch.dict(
+                    namespace["REVIEWED_CURRENT_SOURCE_AMENDMENTS"], {relative: wrong}
+                ),
             ):
                 self.assertTrue(
                     any(

@@ -157,6 +157,7 @@ runs:
         component_cache="$CONNECTOR_COMPONENT_CACHE"
         snapshot=$(sh modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/runtime/lifecycle/reserve-runtime-env-snapshot.sh "$RUNTIME_REPORT_OUTPUT_ROOT")
         RUNTIME_COMPONENT_TARGET="$component_target" RUNTIME_COMPONENT_ENV_SNAPSHOT="$snapshot" make prepare-runtime-components
+        test -f "$snapshot"
         test -s "$snapshot"
         test ! -L "$snapshot"
         # shellcheck disable=SC1090
@@ -166,10 +167,19 @@ runs:
         : "${MODSECURITY_PREFIX:?pinned libModSecurity prefix unavailable}"
         : "${MODSECURITY_INCLUDE_DIR:?pinned libModSecurity headers unavailable}"
         : "${MODSECURITY_LIB_DIR:?pinned libModSecurity library unavailable}"
-        printf '%s\n' \
-          "MODSECURITY_PREFIX=$MODSECURITY_PREFIX" \
-          "MODSECURITY_INCLUDE_DIR=$MODSECURITY_INCLUDE_DIR" \
-          "MODSECURITY_LIB_DIR=$MODSECURITY_LIB_DIR" >> "$GITHUB_ENV"
+        for runtime_path in "$MODSECURITY_PREFIX" "$MODSECURITY_INCLUDE_DIR" "$MODSECURITY_LIB_DIR"; do
+          case "$runtime_path" in
+            *$'\r'*|*$'\n'*)
+              echo "FAIL: libModSecurity build paths must occupy one line" >&2
+              exit 1
+              ;;
+          esac
+        done
+        {
+          echo "MODSECURITY_PREFIX=$MODSECURITY_PREFIX"
+          echo "MODSECURITY_INCLUDE_DIR=$MODSECURITY_INCLUDE_DIR"
+          echo "MODSECURITY_LIB_DIR=$MODSECURITY_LIB_DIR"
+        } >> "$GITHUB_ENV"
 
         case "$CONNECTOR" in
           envoy)

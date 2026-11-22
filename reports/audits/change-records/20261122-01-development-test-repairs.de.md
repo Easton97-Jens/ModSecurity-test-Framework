@@ -47,7 +47,8 @@ Testfall und Ereignis untergraben.
 Die Action wählt das Provisionierungsziel für den Connector oder gemeinsame
 Komponenten und exportiert Engine-Präfix, Header- und Bibliothekspfad. Die
 Validierung bindet die exakten aktuellen Action-Bytes an die unveränderliche
-Migrationsbasis. Der HAProxy-Harness bindet für einen erfolgreichen No-CRS-Testfall eine
+Migrationsbasis. CI prüft einzeilige Build-Pfade vor dem Schreiben der
+festgelegten Umgebungsvariablen. Der HAProxy-Harness bindet für einen erfolgreichen No-CRS-Testfall eine
 beobachtete Kennung an das abgeschlossene Anfragefenster. Envoy und Traefik
 beachten die explizite Konfiguration des Aufrufers. Optionales C17-Lint meldet
 BLOCKED bei fehlendem SDK. Automatische lokale Bereitstellung erfordert beide
@@ -73,6 +74,7 @@ vorhandenen Opt-ins und ein auf den Bedarf begrenztes Ziel.
 | `update-inventory-bindings.py --apply` und `update-test-archive.py` | 0 | Sieben Quell-Digests aktualisiert und Archiv neu generiert |
 | `make check-active-inventory` | 0 | 100 aktive Fälle zugelassen. Das Spezialtestarchiv entspricht den Quellen |
 | `make check-canonical-common-pins` und drei gezielte Action-Integritätstests | 0 | Exakte Action akzeptiert. Falsche Basis und veränderte Checkout-/Bootstrap-Prüfungen abgelehnt |
+| Ruff-Lint und -Format, Offline-zizmor und Offline-Bereitstellung | 0 | Action- und Testformatprüfungen bestanden. Alle fünf Zeilen akzeptieren gültige Pfade und lehnen CR/LF in Pfaden ab |
 
 ## Sicherheitsauswirkung
 
