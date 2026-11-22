@@ -1,10 +1,25 @@
 
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #define _POSIX_C_SOURCE 200809L
 #include "common/runtime/msconnector_runtime.h"
 #include "connectors/profile_registry.h"
 #include "msconnector/late_intervention.h"
 #include <arpa/inet.h>
 #include <assert.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -273,7 +288,7 @@ int fixture_msconnector_runtime_transaction_finish_response_body(
 static void fixture_body(sidecar_exchange_state *state, const int *client,
                          const int *upstream, int committed) {
 
-  assert(send(upstream[1], "x", 1, 0) == 1);
+  TEST_REQUIRE(send(upstream[1], "x", 1, 0) == 1);
   int result = sidecar_read_response_body(state);
   if (fault) {
     assert(result == 0);
@@ -296,7 +311,7 @@ static void fixture_body(sidecar_exchange_state *state, const int *client,
   } else {
     assert(result == 1);
     char byte = 0;
-    assert(recv(client[1], &byte, 1, 0) == 1 && byte == 'x');
+    TEST_REQUIRE(recv(client[1], &byte, 1, 0) == 1 && byte == 'x');
   }
 }
 
@@ -354,7 +369,7 @@ static void fixture_phases(sidecar_exchange_state *state, const int *client,
   (void)committed;
 
   phase_upstream = upstream[0];
-  assert(send(upstream[1], "x", 1, 0) == 1);
+  TEST_REQUIRE(send(upstream[1], "x", 1, 0) == 1);
   int result = sidecar_exchange_response(state);
   assert(result == 0);
   sidecar_exchange_error(state);
@@ -369,7 +384,7 @@ static void fixture_phases(sidecar_exchange_state *state, const int *client,
     assert(fault == 6);
     assert(n == 1 && output[0] == 'x');
     assert(native_calls == 3);
-    assert(recv(client[1], output, sizeof(output), 0) == 0);
+    TEST_REQUIRE(recv(client[1], output, sizeof(output), 0) == 0);
   }
   close(state->upstream);
 }
@@ -380,7 +395,7 @@ static void fixture_exchange(const int *client, const int *upstream,
   exchange_allowed = fault == 0;
   phase_upstream = upstream[0];
   if (exchange_allowed)
-    assert(send(upstream[1], "x", 1, 0) == 1);
+    TEST_REQUIRE(send(upstream[1], "x", 1, 0) == 1);
   sidecar_spool_budget budget = {
       .lock = PTHREAD_MUTEX_INITIALIZER, .reserved = 4096U,
       .capacity = 8192U, .free_reserve = 4096U};
@@ -388,8 +403,8 @@ static void fixture_exchange(const int *client, const int *upstream,
   assert(fixture_spool_fd >= 0);
   int result = sidecar_exchange(client[0], options, runtime, &budget);
   assert(budget.reserved == 0U);
-  assert(fcntl(fixture_spool_fd, F_GETFD) < 0 && errno == EBADF);
-  assert(pthread_mutex_destroy(&budget.lock) == 0);
+  TEST_REQUIRE(fcntl(fixture_spool_fd, F_GETFD) < 0 && errno == EBADF);
+  TEST_REQUIRE(pthread_mutex_destroy(&budget.lock) == 0);
   assert(result == exchange_allowed);
   assert(cleanup_calls == 1);
   assert(receipt_calls == 1);
@@ -402,8 +417,8 @@ int main(int argc, char **argv) {
   int operation = atoi(argv[4]);
   int client[2];
   int upstream[2];
-  assert(socketpair(AF_UNIX, SOCK_STREAM, 0, client) == 0);
-  assert(socketpair(AF_UNIX, SOCK_STREAM, 0, upstream) == 0);
+  TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, client) == 0);
+  TEST_REQUIRE(socketpair(AF_UNIX, SOCK_STREAM, 0, upstream) == 0);
   sidecar_options options = {.timeout_ms = 1000};
   sidecar_exchange_state state;
   sidecar_exchange_state_init(&state, client[0], &options, &runtime);

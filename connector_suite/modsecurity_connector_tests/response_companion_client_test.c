@@ -1,7 +1,22 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
 #include <assert.h>
+
+/* TEST_REQUIRE() always evaluates its argument (unlike assert() under
+ * NDEBUG), so fixture I/O, resource release and the operation under test
+ * still run and are checked. */
+#ifndef TEST_REQUIRE
+#define TEST_REQUIRE(condition) do { if (!(condition)) { \
+    (void)fprintf(stderr, "%s:%d: requirement failed: %s\n", \
+        __FILE__, __LINE__, #condition); \
+    abort(); } } while (0)
+#endif
 #include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -187,20 +202,20 @@ static int start_server(test_server *server, const char *path)
     memset(&address, 0, sizeof(address));
     address.sun_family = AF_UNIX;
     assert(path_size < sizeof(address.sun_path));
-    assert(snprintf(address.sun_path, sizeof(address.sun_path), "%s", path) > 0);
+    TEST_REQUIRE(snprintf(address.sun_path, sizeof(address.sun_path), "%s", path) > 0);
     server->listener = socket(AF_UNIX, SOCK_STREAM, 0);
     assert(server->listener >= 0);
-    assert(bind(server->listener, (const struct sockaddr *)&address, sizeof(address)) == 0);
-    assert(listen(server->listener, 4) == 0);
-    assert(pthread_create(&server->thread, NULL, server_main, server) == 0);
+    TEST_REQUIRE(bind(server->listener, (const struct sockaddr *)&address, sizeof(address)) == 0);
+    TEST_REQUIRE(listen(server->listener, 4) == 0);
+    TEST_REQUIRE(pthread_create(&server->thread, NULL, server_main, server) == 0);
     return 1;
 }
 
 static void stop_server(const test_server *server, const char *path)
 {
-    assert(pthread_join(server->thread, NULL) == 0);
-    assert(close(server->listener) == 0);
-    assert(unlink(path) == 0);
+    TEST_REQUIRE(pthread_join(server->thread, NULL) == 0);
+    TEST_REQUIRE(close(server->listener) == 0);
+    TEST_REQUIRE(unlink(path) == 0);
 }
 
 static void test_normal_lifecycle(const char *path)
@@ -216,7 +231,7 @@ static void test_normal_lifecycle(const char *path)
     memset(&client, 0, sizeof(client));
     memset(&result, 0, sizeof(result));
     msconnector_error_init(&error);
-    assert(msconnector_response_companion_client_open(&client, path, 2000U,
+    TEST_REQUIRE(msconnector_response_companion_client_open(&client, path, 2000U,
         getuid(), getgid(), &error));
     assert(msconnector_response_companion_client_claim(&client, handle, &result, &error));
     msconnector_response_companion_result_destroy(&result);
@@ -262,7 +277,7 @@ static void test_rejects_malformed_result(const char *path)
     memset(&client, 0, sizeof(client));
     memset(&result, 0, sizeof(result));
     msconnector_error_init(&error);
-    assert(msconnector_response_companion_client_open(&client, path, 2000U,
+    TEST_REQUIRE(msconnector_response_companion_client_open(&client, path, 2000U,
         getuid(), getgid(), &error));
     assert(!msconnector_response_companion_client_claim(&client, handle, &result, &error));
     assert(error.code == MSCONNECTOR_ERROR_PROTOCOL);
@@ -282,7 +297,7 @@ static void test_body_bound(const char *path)
     memset(&result, 0, sizeof(result));
     msconnector_error_init(&error);
     assert(body != NULL);
-    assert(msconnector_response_companion_client_open(&client, path, 2000U,
+    TEST_REQUIRE(msconnector_response_companion_client_open(&client, path, 2000U,
         getuid(), getgid(), &error));
     assert(!msconnector_response_companion_client_body_chunk(&client, body,
         MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK + 1U, &result, &error));
@@ -310,7 +325,7 @@ static void test_rejects_untrusted_peer(const char *path)
 
     memset(&client, 0, sizeof(client));
     msconnector_error_init(&error);
-    assert(!msconnector_response_companion_client_open(&client, path, 2000U,
+    TEST_REQUIRE(!msconnector_response_companion_client_open(&client, path, 2000U,
         wrong_uid, getgid(), &error));
     assert(error.code == MSCONNECTOR_ERROR_PROTOCOL);
     assert(msconnector_response_companion_client_close(&client, &error));
@@ -324,10 +339,10 @@ static void test_rejects_reopen(const char *path)
 
     memset(&client, 0, sizeof(client));
     msconnector_error_init(&error);
-    assert(msconnector_response_companion_client_open(&client, path, 2000U,
+    TEST_REQUIRE(msconnector_response_companion_client_open(&client, path, 2000U,
         getuid(), getgid(), &error));
     first_fd = client.socket_fd;
-    assert(!msconnector_response_companion_client_open(&client, path, 2000U,
+    TEST_REQUIRE(!msconnector_response_companion_client_open(&client, path, 2000U,
         getuid(), getgid(), &error));
     assert(error.code == MSCONNECTOR_ERROR_PHASE_SEQUENCE);
     assert(client.opened && !client.closed && client.socket_fd == first_fd);
@@ -344,7 +359,7 @@ static void test_times_out_waiting_for_result(const char *path)
     memset(&client, 0, sizeof(client));
     memset(&result, 0, sizeof(result));
     msconnector_error_init(&error);
-    assert(msconnector_response_companion_client_open(&client, path, 25U,
+    TEST_REQUIRE(msconnector_response_companion_client_open(&client, path, 25U,
         getuid(), getgid(), &error));
     assert(!msconnector_response_companion_client_claim(&client, handle, &result,
         &error));
@@ -369,9 +384,9 @@ static void test_exchange_uses_one_deadline(const char *path)
     msconnector_error_init(&error);
     body = calloc(MSCONNECTOR_RESPONSE_COMPANION_TRANSPORT_MAX_BODY_CHUNK, 1U);
     assert(body != NULL);
-    assert(msconnector_response_companion_client_open(&client, path, 120U,
+    TEST_REQUIRE(msconnector_response_companion_client_open(&client, path, 120U,
         getuid(), getgid(), &error));
-    assert(setsockopt(client.socket_fd, SOL_SOCKET, SO_SNDBUF, &send_buffer,
+    TEST_REQUIRE(setsockopt(client.socket_fd, SOL_SOCKET, SO_SNDBUF, &send_buffer,
         sizeof(send_buffer)) == 0);
     response.status = 200;
     response.http_version = "HTTP/1.1";
@@ -398,12 +413,12 @@ int main(void)
     struct stat directory_stat;
     int path_size;
 
-    assert(snprintf(directory, sizeof(directory),
+    TEST_REQUIRE(snprintf(directory, sizeof(directory),
         "%s/mrc1-client-test-XXXXXX", tmpdir) > 0);
     assert(strlen(directory) < sizeof(directory));
-    assert(mkdtemp(directory) != NULL);
+    TEST_REQUIRE(mkdtemp(directory) != NULL);
     assert(stat(directory, &directory_stat) == 0);
-    assert(directory_stat.st_uid == geteuid());
+    TEST_REQUIRE(directory_stat.st_uid == geteuid());
     assert((directory_stat.st_mode & 0777U) == 0700U);
     path_size = snprintf(path, sizeof(path), "%s/s", directory);
     assert(path_size > 0 && (size_t)path_size < sizeof(path));
@@ -452,7 +467,7 @@ int main(void)
     start_server(&server, path);
     test_exchange_uses_one_deadline(path);
     stop_server(&server, path);
-    assert(rmdir(directory) == 0);
+    TEST_REQUIRE(rmdir(directory) == 0);
     puts("response companion client tests: PASS");
     return 0;
 }

@@ -236,6 +236,13 @@ int main(int argc, char **argv) {
             code = error.code;
             again = first;
             size = ftell(file);
+        } else if (strncmp(argv[1], "rule-id=", 8U) == 0) {
+            decision.rule_id = (int)strtol(argv[1] + 8, NULL, 10);
+            first = phase4_common_event_write(file, &request, &decision,
+                "deny", "deny", "fixture", &error);
+            code = error.code;
+            again = first;
+            size = ftell(file);
         } else {
             if (strcmp(argv[1], "request-ownership") == 0 || fail_finish) {
                 int processed = 0;
@@ -497,6 +504,23 @@ class HaproxySpopEventSinkFailureTests(unittest.TestCase):
         self.assertEqual(result["caller"], -1)
         self.assertEqual(result["ack_calls"], 0)
         self.assertEqual(path.stat().st_size, 0)
+
+    def test_phase4_event_renders_only_positive_signed_rule_ids(self) -> None:
+        # rule_id is a signed int: "no rule" (0) and invalid negative values
+        # stay empty, matching the canonical HAProxy binding contract.
+        for value, expected in (("0", ""), ("-7", ""), ("949110", "949110"),
+                                ("2147483647", "2147483647")):
+            with self.subTest(rule_id=value):
+                result, path = self.case("rule-id=" + value,
+                                         self.directory / f"rule-id-{value}.jsonl")
+                self.assertEqual(result["first"], 1)
+                self.assertEqual(result["code"], 0)
+                records = [json.loads(line) for line in path.read_text().splitlines()]
+                # The scenario writes exactly one phase-4 Common event.
+                self.assertEqual(len(records), 1, records)
+                self.assertEqual(records[0]["phase"], "response_body")
+                self.assertEqual(records[0]["requested_action"], "deny")
+                self.assertEqual(records[0]["rule_id"], expected)
 
     def test_direct_common_event_stdio_failures_remain_physical_io(self) -> None:
         for scenario in ("direct-write", "direct-flush"):

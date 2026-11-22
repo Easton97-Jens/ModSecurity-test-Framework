@@ -1,3 +1,8 @@
+/* Test assertions may carry required side effects; keep assert() active
+ * even when a build defines NDEBUG. */
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #define _POSIX_C_SOURCE 200809L
 /* Real Common runtime + libModSecurity response policy test. Arguments are
  * required; this executable never supplies engine policy defaults. */
