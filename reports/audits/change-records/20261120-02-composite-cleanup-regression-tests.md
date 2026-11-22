@@ -118,9 +118,9 @@ process was started, so no host runtime evidence is claimed.
 
 ## Checks not run
 
-- Hosted Framework CI and SonarQube Cloud: pending for the pull request head;
-  the SonarQube coverage job is expected to fail compilation until the
-  Connector pin is updated (see the merge order below).
+- Hosted Framework CI and SonarCloud results are tracked for the
+  conflict-resolved head of [Framework PR #181](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/181).
+  The specialist Go overlays were not rerun during conflict resolution.
 - The real-engine variants run only with `-tags libmodsecurity` and CGo flags
   for the Connector Common archive; plain `ON_DEMAND_TESTS=1 make
   framework-go-test` compiles them out.
@@ -133,15 +133,14 @@ process was started, so no host runtime evidence is claimed.
   after it.
 - A native call that never returns cannot be produced with the real engine;
   that bound is covered by test doubles that model `commonRuntimeTransaction.Close`.
-- **Merge order.** `cleanup_bounds_test.go` uses `Limits.CleanupTimeout` and
-  `entry_wait_bounds_test.go` uses `ClaimContext`/`AbortWithReasonContext`.
-  The SonarQube workflow compiles `./...` of `connectors/envoy/ext_proc`
-  against its pinned `CONNECTOR_REVISION`
-  (`cfd5e49cada3fc793ef50993147e3796a0907443`), which predates these APIs,
-  so that job cannot compile this change until the pin selects a Connector
-  revision that contains the updated PR #454. This pull request must
-  therefore stay a draft until PR #454 is merged and the pin is updated here;
-  the pin is not changed now because no such Connector revision exists yet.
+- **Specialist Go prerequisite.** `cleanup_bounds_test.go` uses
+  `Limits.CleanupTimeout` and `entry_wait_bounds_test.go` uses
+  `ClaimContext`/`AbortWithReasonContext`. Running the full specialist Go
+  overlay requires a Connector revision containing the APIs from PR #454.
+  The active inventory selects the existing Envoy `responseobserver` and
+  `processor` tests. The current SonarCloud workflow compiles the C-family
+  inputs and runs security analysis. Go coverage is outside that workflow's
+  scope. The resolved Framework branch keeps the new Go cases on demand.
 - Until a Connector gitlink update selects a Framework revision containing
   these tests, the Connector keeps pinning this Framework base revision.
 

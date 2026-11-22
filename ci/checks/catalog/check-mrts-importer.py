@@ -96,7 +96,8 @@ def main() -> int:
         try:
             run_import(Path(tmp) / "bad-cases", bad_overlay)
         except subprocess.CalledProcessError as exc:
-            assert_case("expected_status" in (exc.stderr or ""), "forbidden overlay key error should mention expected_status")
+            error_output = exc.stderr or ""
+            assert_case("expected_status" in error_output, "forbidden overlay key error should mention expected_status")
         else:
             raise AssertionError("forbidden overlay key should fail import")
 

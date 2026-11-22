@@ -519,7 +519,7 @@ def validate(root: Path) -> list[str]:
             r"(?P<release>v[0-9]+(?:\.[0-9]+){1,3})\s*$"
         )
     except ValueError as exc:
-        if (root / "ci" / "lib" / "common.sh").exists():
+        if root.joinpath("ci", "lib", "common.sh").exists():
             errors.append(str(exc))
             return errors
     paths, path_errors = workflow_paths(root)

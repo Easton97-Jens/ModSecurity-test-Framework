@@ -23,6 +23,12 @@ AUTHORITY = {"repository": "Easton97-Jens/ModSecurity-conector",
 ACTION_RECORDS_SHA256 = "3830ab9e7242edf449b834f83b08b0e862e601d7ac7ec6586bf4ea1490b9b240"
 SOURCES_SHA256 = "1c60cb8a19bd8bf3d810ca8392626f30b938b05bbdeab2219222d61833712b8e"
 REVIEWED_CURRENT_SOURCE_AMENDMENTS = {
+    ".github/actions/connector-ci/reusable-five-connectors-profile/no-crs/action.yml": {
+        "baseline_sha256": "8e3b30d2fadb3ff858dd2d75dc55f0af48109696f6786c2fbdbcf3e27812cd41",
+        "current_sha256": "4eef31eb7b0958777c01684025c28d66c324914d77fe70f8dd39eb324c378793",
+        "reason": "Export pinned libModSecurity paths from the invocation-local No-CRS provisioning snapshot.",
+        "change_record": "20261122-01-development-test-repairs",
+    },
     ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml": {
         "baseline_sha256": "748352eec501d6c8220cb64b405ebbd5ba1e6e2aa10d265d59610894685372c3",
         "current_sha256": "44f207ba4d8d1b7e4e8a51a351c16613a566a21bb4a0c8ad00a0ebe24bb6654a",

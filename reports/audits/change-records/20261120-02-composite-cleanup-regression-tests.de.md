@@ -121,10 +121,9 @@ keine Host-Runtime-Evidenz beansprucht.
 
 ## Nicht ausgeführte Prüfungen
 
-- Gehostete Framework-CI und SonarQube Cloud: für den Head des Pull Requests
-  ausstehend; der SonarQube-Coverage-Job wird erwartbar beim Kompilieren
-  scheitern, bis der Connector-Pin aktualisiert ist (siehe Merge-Reihenfolge
-  unten).
+- Framework-CI und SonarCloud werden für den konfliktbereinigten Head von
+  [Framework PR #181](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/181) geprüft.
+  Die Go-Spezialoverlays wurden bei der Konfliktlösung nicht erneut ausgeführt.
 - Die Varianten mit echter Engine laufen nur mit `-tags libmodsecurity` und
   CGo-Flags für das Common-Archiv des Connectors; ein einfaches
   `ON_DEMAND_TESTS=1 make framework-go-test` kompiliert sie nicht mit.
@@ -138,16 +137,15 @@ keine Host-Runtime-Evidenz beansprucht.
 - Ein nativer Aufruf, der nicht zurückkehrt, lässt sich mit der echten Engine
   nicht erzeugen; diese Grenze decken Test-Doubles ab, die
   `commonRuntimeTransaction.Close` nachbilden.
-- **Merge-Reihenfolge.** `cleanup_bounds_test.go` nutzt
-  `Limits.CleanupTimeout` und `entry_wait_bounds_test.go` nutzt
-  `ClaimContext`/`AbortWithReasonContext`. Der SonarQube-Workflow kompiliert
-  `./...` von `connectors/envoy/ext_proc` gegen seinen gepinnten
-  `CONNECTOR_REVISION` (`cfd5e49cada3fc793ef50993147e3796a0907443`), der älter
-  als diese APIs ist; dieser Job kann die Änderung daher erst kompilieren, wenn
-  der Pin eine Connector-Revision mit dem aktualisierten PR #454 auswählt.
-  Dieser Pull Request muss deshalb Draft bleiben, bis PR #454 gemergt und der
-  Pin hier aktualisiert ist; der Pin wird jetzt nicht geändert, weil es eine
-  solche Connector-Revision noch nicht gibt.
+- **Voraussetzung für Go-Spezialtests.** `cleanup_bounds_test.go` nutzt
+  `Limits.CleanupTimeout`, und `entry_wait_bounds_test.go` nutzt
+  `ClaimContext`/`AbortWithReasonContext`. Das vollständige Go-Spezialoverlay
+  benötigt eine Connector-Revision mit den APIs aus PR #454. Das aktive
+  Inventar wählt die vorhandenen Envoy-Tests für `responseobserver` und
+  `processor` aus. Der aktuelle SonarCloud-Workflow kompiliert die
+  C-Familien-Quellen und führt eine Sicherheitsanalyse aus. Go-Coverage liegt
+  außerhalb dieses Workflow-Umfangs. Die neuen Go-Fälle bleiben im
+  konfliktbereinigten Framework-Branch auf Abruf verfügbar.
 - Bis ein Connector-Gitlink-Update eine Framework-Revision mit diesen Tests
   auswählt, pinnt der Connector weiterhin diese Framework-Basisrevision.
 

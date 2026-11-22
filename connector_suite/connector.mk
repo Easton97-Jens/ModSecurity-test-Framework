@@ -1375,7 +1375,7 @@ check-remaining-connectors-c17:
 	CONNECTOR_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/all/check-remaining-connectors-c-standards.sh
 
 check-remaining-connectors-c17-lint:
-	@CONNECTOR_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/all/check-remaining-connectors-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: remaining connector C17 check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
+	@CONNECTOR_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/all/check-remaining-connectors-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "BLOCKED: remaining connector C17 check not executed (optional in lint environment)"; exit 0; fi; exit "$$rc"; }
 
 check-remaining-connectors-c23:
 	CONNECTOR_C_STD_PROFILE=c23 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/all/check-remaining-connectors-c-standards.sh
@@ -1447,7 +1447,7 @@ else
 endif
 
 check-apache-c17-lint:
-	@APACHE_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/apache/check-apache-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: apache C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
+	@APACHE_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/apache/check-apache-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "BLOCKED: apache C17 compile check not executed (optional in lint environment)"; exit 0; fi; exit "$$rc"; }
 
 check-apache-request-transaction-cleanup:
 ifeq ($(ON_DEMAND_TESTS),1)
@@ -1530,7 +1530,7 @@ check-nginx-c17:
 	NGINX_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/nginx/check-nginx-c-standards.sh
 
 check-nginx-c17-lint:
-	@NGINX_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/nginx/check-nginx-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: nginx C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
+	@NGINX_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/nginx/check-nginx-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "BLOCKED: nginx C17 compile check not executed (optional in lint environment)"; exit 0; fi; exit "$$rc"; }
 
 check-nginx-c23:
 	NGINX_C_STD_PROFILE=c23 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/nginx/check-nginx-c-standards.sh
@@ -1560,7 +1560,7 @@ check-haproxy-c17:
 	HAPROXY_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/haproxy/check-haproxy-c-standards.sh
 
 check-haproxy-c17-lint:
-	@HAPROXY_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/haproxy/check-haproxy-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "SKIPPED: haproxy C17 compile check blocked in lint environment"; exit 0; fi; exit "$$rc"; }
+	@HAPROXY_C_STD_PROFILE=c17 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/haproxy/check-haproxy-c-standards.sh || { rc="$$?"; if [ "$$rc" = "77" ]; then echo "BLOCKED: haproxy C17 compile check not executed (optional in lint environment)"; exit 0; fi; exit "$$rc"; }
 
 check-haproxy-c23:
 	HAPROXY_C_STD_PROFILE=c23 sh $(TEST_ROOT)/connector_suite/modsecurity_connector_ci/checks/connectors/haproxy/check-haproxy-c-standards.sh
