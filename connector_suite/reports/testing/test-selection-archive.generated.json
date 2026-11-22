@@ -12518,7 +12518,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolInventoryTest.test_incomplete_go_tool_group_is_reported"
       ],
       "source": "framework/tests/ci_security/test_common_canonical_pins.py",
-      "source_sha256": "421c5d9ba71c45b96332f32cf4a4dbaedd5b3f6ad7494d0334addfa1ddd3ad20"
+      "source_sha256": "b6c89e5db204d3bac8f249daace0d7bb78c9394b3da8cce6e42d11fe88da5c70"
     },
     {
       "contains_selected_definitions": [],

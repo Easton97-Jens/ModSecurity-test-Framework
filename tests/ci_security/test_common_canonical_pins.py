@@ -176,23 +176,23 @@ class CanonicalGoToolPinsTest(unittest.TestCase):
             ('"v0.8.2"', '">=v0.8"'),
             ("honnef.co/go/tools/cmd", "example.com/other/cmd"),
         ):
-            with (
-                self.subTest(new=new),
-                self.assertRaisesRegex(ValueError, "invalid Go tool pin group"),
-            ):
-                self.load(GO_TOOL_LINES.replace(old, new))
+            with self.subTest(new=new):
+                text = GO_TOOL_LINES.replace(old, new)
+                with self.assertRaisesRegex(ValueError, "invalid Go tool pin group"):
+                    self.load(text)
 
     def test_shell_expressions_and_duplicates_are_rejected(self) -> None:
+        shell_expression = GO_TOOL_LINES.replace('"v0.8.2"', '"$(curl example)"')
         with self.assertRaisesRegex(ValueError, "unsafe Go tool pin expression"):
-            self.load(GO_TOOL_LINES.replace('"v0.8.2"', '"$(curl example)"'))
+            self.load(shell_expression)
+        duplicate = GO_TOOL_LINES + 'CI_GO_TOOL_STATICCHECK_VERSION="v0.8.2"\n'
         with self.assertRaisesRegex(ValueError, "duplicate Go tool pin"):
-            self.load(GO_TOOL_LINES + 'CI_GO_TOOL_STATICCHECK_VERSION="v0.8.2"\n')
+            self.load(duplicate)
 
     def test_group_must_name_its_executable(self) -> None:
+        text = GO_TOOL_LINES.replace("CI_GO_TOOL_STATICCHECK_", "CI_GO_TOOL_LINTER_")
         with self.assertRaisesRegex(ValueError, "does not name its executable"):
-            self.load(
-                GO_TOOL_LINES.replace("CI_GO_TOOL_STATICCHECK_", "CI_GO_TOOL_LINTER_")
-            )
+            self.load(text)
 
     def test_repository_common_pins_both_go_tools(self) -> None:
         tools = PINS.load_canonical_go_tools(ROOT)
