@@ -191,7 +191,7 @@ SERVICE_BIN="$SERVICE_BIN" BUILD_ROOT="$BUILD_ROOT" CONFIG_FILE="$CONFIG_FILE" \
     RULES_FILE="$RULES_FILE" EVENT_LOG_PATH="$EVENT_LOG_PATH" \
     MSCONNECTOR_ENVOY_EXT_AUTHZ_COMPANION_SOCKET="$COMPANION_SOCKET" \
     LISTEN_ADDRESS=127.0.0.1 LISTEN_PORT="$authz_port" \
-    sh "$SCRIPT_DIR/serve_envoy_connector.sh" >"$SERVICE_STDOUT" 2>"$SERVICE_STDERR" &
+    sh "$CONNECTOR_DIR/scripts/serve_envoy_connector.sh" >"$SERVICE_STDOUT" 2>"$SERVICE_STDERR" &
 service_pid=$!
 
 "$ENVOY_BIN" -c "$ENVOY_CONFIG" --base-id "$base_id" --disable-hot-restart \

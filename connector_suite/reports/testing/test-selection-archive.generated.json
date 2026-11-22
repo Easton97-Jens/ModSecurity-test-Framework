@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "c584a7053ee497978bbd96b0505792ecb30ef52a4eb060c0317cb7ef97f00fe5",
+  "inventory_sha256": "d5a6741e6d4b903ba5b0a8a6402046d2577384dc9fb679ce15fad183bc31747e",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1355,7 +1355,7 @@
       "source_sha256": "33340a883fa7724a83802f89004f747a74f2ec0a714ab3607833bf54db3cc110"
     }
   ],
-  "on_demand_definition_count": 8479,
+  "on_demand_definition_count": 8497,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -10394,6 +10394,7 @@
       "contains_selected_definitions": [],
       "framework_path": "connector_suite/modsecurity_connector_tests/test_result_identity_contract.py",
       "on_demand_definitions": [
+        "modsecurity_connector_tests.test_result_identity_contract.ResultIdentityContractTests.test_haproxy_result_binds_only_its_completed_request_interval",
         "modsecurity_connector_tests.test_result_identity_contract.ResultIdentityContractTests.test_different_cases_cannot_union_capabilities_across_runs_or_revisions",
         "modsecurity_connector_tests.test_result_identity_contract.ResultIdentityContractTests.test_summary_context_cannot_relabel_a_bound_run_or_revision",
         "modsecurity_connector_tests.test_result_identity_contract.ResultIdentityContractTests.test_bound_and_unbound_cases_keep_results_without_promoting_either",
@@ -10432,7 +10433,7 @@
         "modsecurity_connector_tests.test_result_identity_contract.RequestObservationContractTests.test_request_observation_marker_cannot_authorize_partial_or_promoting_rows"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_result_identity_contract.py",
-      "source_sha256": "b5dd0f7f2ef9479e274d990528555dfed010645cc88bb711f96fbb4224d851a1"
+      "source_sha256": "1ed450fc3887fee4ec4d44ea4f49f956559dfb2c674ea8fbead06cf7d053b6fe"
     },
     {
       "contains_selected_definitions": [],
@@ -10629,6 +10630,15 @@
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_required_pcre2_digest_verifies_before_cache_publication",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_blocked_modsecurity_manifest_claims_fresh_entry_before_writing",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_output_layout_version_changes_the_cache_identity",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_identity_binds_the_bundled_pcre2_pin",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_build_links_the_bundled_pcre2_with_origin_runpath",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_bundled_pcre2_verification_rejects_a_system_or_staging_runpath",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_elf_dynamic_entries_parses_readelf_output",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_bundled_pcre2_archive_extraction_rejects_unexpected_layouts",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_bundled_pcre2_build_reports_an_unreadable_archive_without_running_commands",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_build_persists_the_bundled_pcre2_verification_failure",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_build_records_an_unexecutable_build_tool_as_failure",
+        "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_bundled_pcre2_build_reports_an_unexecutable_build_tool",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_materialize_a_regular_runtime_soname",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_require_all_public_headers",
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_modsecurity_outputs_reject_unsafe_or_ambiguous_libtool_chains",
@@ -10655,7 +10665,7 @@
         "modsecurity_connector_tests.test_runtime_component_cache_contract.RuntimeComponentCacheContractTest.test_moving_git_ref_uses_resolved_commit_and_never_fetches_final_checkout"
       ],
       "source": "tests/test_runtime_component_cache_contract.py",
-      "source_sha256": "d80a90dc80592b0c071d57908ed73fad8f99c3185172568273a1b30ede455dcf"
+      "source_sha256": "9e91ab0cb3bd0a87363286914764451b90f727fec76f53ae6310aaba6f485b82"
     },
     {
       "contains_selected_definitions": [],
@@ -12518,10 +12528,18 @@
         "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CommonCanonicalPinsPathTest.test_symlinked_ci_lib_cannot_redirect_pin_reads_outside_root",
         "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.DiagnosticSourceProvenanceTest.test_dedicated_source_owner_and_namespace_identity_are_distinct",
         "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.DiagnosticSourceProvenanceTest.test_source_tuple_corruption_and_unregistered_fields_fail",
-        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.DiagnosticSourceProvenanceTest.test_namespace_mentions_do_not_hide_executable_or_ordinary_pins"
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.DiagnosticSourceProvenanceTest.test_namespace_mentions_do_not_hide_executable_or_ordinary_pins",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_complete_group_is_returned_by_executable",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_incomplete_group_fails_closed",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_range_version_and_foreign_package_are_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_shell_expressions_and_duplicates_are_rejected",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_group_must_name_its_executable",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolPinsTest.test_repository_common_pins_both_go_tools",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolInventoryTest.test_complete_go_tool_group_is_owned_and_valid",
+        "modsecurity_test_framework.selftests.ci_security.test_common_canonical_pins.CanonicalGoToolInventoryTest.test_incomplete_go_tool_group_is_reported"
       ],
       "source": "framework/tests/ci_security/test_common_canonical_pins.py",
-      "source_sha256": "6607058d6651204af46d92907742978979751c2299a778aefed341e292a618fd"
+      "source_sha256": "b6c89e5db204d3bac8f249daace0d7bb78c9394b3da8cce6e42d11fe88da5c70"
     },
     {
       "contains_selected_definitions": [],
@@ -12605,13 +12623,13 @@
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_coordinated_workflow_and_lock_rewrite_cannot_reauthorize_itself",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_protected_runner_and_permission_changes_are_rejected",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_unknown_source_path_cannot_borrow_the_integration_authority",
-        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendment_retains_one_exact_immutable_migration_anchor",
+        "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendments_retain_exact_immutable_migration_anchors",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_amended_source_cannot_return_to_baseline_without_diagnostics",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_amendment_cannot_broaden_paths_or_change_security_boundaries",
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendment_rejects_wrong_immutable_baseline_anchor"
       ],
       "source": "framework/tests/ci_security/test_connector_action_pins.py",
-      "source_sha256": "561a27a8cf3ce9a74efaf09edc717c709e97c282ee7ac56da2cae49f14955a2d"
+      "source_sha256": "dd534733308302410aab7950d340ce1fbf8215fc8e14b24682ac062723039b83"
     },
     {
       "contains_selected_definitions": [],

@@ -10,6 +10,8 @@ import io
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -30,6 +32,53 @@ BINDING = {
 
 
 class ResultIdentityContractTests(unittest.TestCase):
+    def test_haproxy_result_binds_only_its_completed_request_interval(self) -> None:
+        framework = test_root()
+        harness = framework / "connector_suite/adapters/haproxy/harness/run_haproxy_smoke.sh"
+        helpers = harness.read_text().split("write_case_result() {", 1)[1]
+        helpers = "write_case_result() {" + helpers.split("enrich_summary_metadata() {", 1)[0]
+        case = framework / "tests/cases/no-crs-baseline/allow_without_marker.yaml"
+        name = case_cli.load_case(case)["name"]
+        variants = {
+            "own": [{"case": name, "request_id": "own", "transaction_id": "own"}],
+            "foreign-case": [{"case": "another-case", "request_id": "own", "transaction_id": "own"}],
+            "ambiguous": [{"case": name, "request_id": tx, "transaction_id": tx} for tx in ("one", "two")],
+        }
+        for label, events in variants.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                log = root / "decision.jsonl"
+                # A same-case record preceding the actual call cannot supply its ID.
+                log.write_text(json.dumps({"case": name, "request_id": "stale", "transaction_id": "stale"}) + "\n")
+                window = root / "request-window.json"
+                command = ["request-window", "--case", str(case), "--event-log", str(log),
+                           "--receipt", str(window), "--output-root", str(root),
+                           "--run-id", BINDING["run_id"], "--source-revision", BINDING["source_revision"]]
+                self.assertEqual(case_cli.main([*command, "--phase", "begin"]), 0)
+                with log.open("a") as stream:
+                    for event in events:
+                        stream.write(json.dumps(event) + "\n")
+                self.assertEqual(case_cli.main([*command, "--phase", "end"]), 0)
+                env = {**os.environ, "PYTHON_BIN": sys.executable, "FRAMEWORK_ROOT": str(framework),
+                       "CASE_CLI": str(framework / "tests/runners/case_cli.py"), "LOG_DIR": str(root),
+                       "CASE_REQUEST_WINDOW": str(window), "CASE_RESULT_RUN_ID": BINDING["run_id"],
+                       "CONNECTOR_REVISION": BINDING["source_revision"], "TEST_CASE": str(case),
+                       "PYTHONPATH": str(framework)}
+                completed = subprocess.run(["sh", "-c", helpers + '\nwrite_case_result "$TEST_CASE" pass 200 "$LOG_DIR/result.json"'],
+                                           env=env, capture_output=True, text=True, check=False)
+                if label != "own":
+                    self.assertNotEqual(completed.returncode, 0)
+                    self.assertFalse((root / "result.json").exists())
+                    continue
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                result = json.loads((root / "result.json").read_text())
+                self.assertEqual(result["transaction_ids"], ["own"])
+                self.assertEqual(result["request_id"], "own")
+                self.assertEqual(result["run_id"], BINDING["run_id"])
+                self.assertEqual(result["source_revision"], BINDING["source_revision"])
+                self.assertEqual(result["evidence_identity"], "bound")
+                self.assertNotEqual(result.get("promotion_allowed"), False)
+
     def test_different_cases_cannot_union_capabilities_across_runs_or_revisions(self) -> None:
         first = self.entry(capabilities=["query-args"])
         for changes in ({"run_id": "run-two"}, {"source_revision": "b" * 40}):

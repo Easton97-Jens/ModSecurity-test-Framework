@@ -1225,7 +1225,7 @@ def validate(root: Path) -> list[str]:
         global CODEQL_ACTION
         CODEQL_ACTION = canonical_action(values, "CODEQL")
     except ValueError as exc:
-        if (root / "ci" / "lib" / "common.sh").exists():
+        if root.joinpath("ci", "lib", "common.sh").exists():
             return [str(exc)]
     workflows = root / ".github" / "workflows"
     for name in WORKFLOW_NAMES:

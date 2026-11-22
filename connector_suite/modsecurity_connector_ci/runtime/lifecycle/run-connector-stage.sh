@@ -311,9 +311,47 @@ case "$connector:$stage" in
         run_remaining_connector build-lighttpd-connector
         ;;
     envoy:config_load)
+        RULES_FILE=${RULES_FILE:-${MSCONNECTOR_RULES_FILE:-$FRAMEWORK_ROOT/connector_suite/common/rules/modsecurity_targeted_smoke.conf}}
+        EXT_PROC_RULES_FILE=${EXT_PROC_RULES_FILE:-${MSCONNECTOR_RULES_FILE:-$RULES_FILE}}
+        export RULES_FILE EXT_PROC_RULES_FILE
         run_remaining_connector check-envoy-config
         ;;
     traefik:config_load)
+        if [ -z "${TRAEFIK_CONNECTOR_CONFIG:-}" ]; then
+            TRAEFIK_CONNECTOR_CONFIG=$("$PYTHON" - "$FRAMEWORK_ROOT" "$CONNECTOR_ROOT" "$BUILD_ROOT" "${RULES_FILE:-${MSCONNECTOR_RULES_FILE:-$FRAMEWORK_ROOT/connector_suite/common/rules/modsecurity_targeted_smoke.conf}}" <<'PY'
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(sys.argv[1]) / "connector_suite"))
+sys.path.insert(0, sys.argv[1])
+from modsecurity_connector_ci.lib.runtime_path_utils import ensure_safe_runtime_directory
+
+parent_root = Path(sys.argv[2])
+build_root = Path(sys.argv[3])
+rules_file = Path(sys.argv[4]).resolve(strict=True)
+config_parent = ensure_safe_runtime_directory(build_root / "stages/traefik/config_load")
+config_root = Path(tempfile.mkdtemp(prefix="config-", dir=config_parent))
+event_path = config_root / "events.jsonl"
+if any("\n" in str(path) or "\r" in str(path) for path in (rules_file, event_path)):
+    raise SystemExit("FAIL: config smoke paths must occupy one line")
+source = parent_root / "connectors/traefik/config/traefik-forwardauth.conf"
+lines = source.read_text(encoding="utf-8").splitlines()
+values = {"rules_file": str(rules_file), "event_path": str(event_path)}
+for index, line in enumerate(lines):
+    key = line.partition("=")[0].strip()
+    if key in values:
+        lines[index] = f"{key}={values.pop(key)}"
+if values:
+    raise SystemExit("FAIL: Traefik smoke template lacks required config keys")
+config_path = config_root / "traefik-forwardauth.conf"
+with config_path.open("x", encoding="utf-8") as stream:
+    stream.write("\n".join(lines) + "\n")
+print(config_path)
+PY
+            )
+            export TRAEFIK_CONNECTOR_CONFIG
+        fi
         run_remaining_connector check-traefik-config
         ;;
     lighttpd:config_load)

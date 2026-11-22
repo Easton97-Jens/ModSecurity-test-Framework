@@ -127,3 +127,100 @@ class DiagnosticSourceProvenanceTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+GO_TOOL_LINES = (
+    'CI_GO_TOOL_STATICCHECK_MODULE="honnef.co/go/tools"\n'
+    'CI_GO_TOOL_STATICCHECK_PACKAGE="honnef.co/go/tools/cmd/staticcheck"\n'
+    'CI_GO_TOOL_STATICCHECK_VERSION="v0.8.2"\n'
+    'CI_GO_TOOL_STATICCHECK_MODULE_SUM="h1:+jPbCzuYxYrcoOvCecYUFDj+XJQRmzIhJmlbpps21Zk="\n'
+)
+
+
+class CanonicalGoToolPinsTest(unittest.TestCase):
+    def load(self, text: str) -> dict[str, dict[str, str]]:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            common = root / "ci/lib/common.sh"
+            common.parent.mkdir(parents=True)
+            common.write_text(text, encoding="utf-8")
+            return PINS.load_canonical_go_tools(root)
+
+    def test_complete_group_is_returned_by_executable(self) -> None:
+        self.assertEqual(
+            self.load(GO_TOOL_LINES),
+            {
+                "staticcheck": {
+                    "module": "honnef.co/go/tools",
+                    "package": "honnef.co/go/tools/cmd/staticcheck",
+                    "version": "v0.8.2",
+                    "module_sum": "h1:+jPbCzuYxYrcoOvCecYUFDj+XJQRmzIhJmlbpps21Zk=",
+                    "executable": "staticcheck",
+                }
+            },
+        )
+
+    def test_incomplete_group_fails_closed(self) -> None:
+        text = "".join(
+            line + "\n"
+            for line in GO_TOOL_LINES.splitlines()
+            if "_MODULE_SUM=" not in line
+        )
+        with self.assertRaisesRegex(
+            ValueError, "incomplete or invalid Go tool pin group STATICCHECK"
+        ):
+            self.load(text)
+
+    def test_range_version_and_foreign_package_are_rejected(self) -> None:
+        for old, new in (
+            ('"v0.8.2"', '">=v0.8"'),
+            ("honnef.co/go/tools/cmd", "example.com/other/cmd"),
+        ):
+            with self.subTest(new=new):
+                text = GO_TOOL_LINES.replace(old, new)
+                with self.assertRaisesRegex(ValueError, "invalid Go tool pin group"):
+                    self.load(text)
+
+    def test_shell_expressions_and_duplicates_are_rejected(self) -> None:
+        shell_expression = GO_TOOL_LINES.replace('"v0.8.2"', '"$(curl example)"')
+        with self.assertRaisesRegex(ValueError, "unsafe Go tool pin expression"):
+            self.load(shell_expression)
+        duplicate = GO_TOOL_LINES + 'CI_GO_TOOL_STATICCHECK_VERSION="v0.8.2"\n'
+        with self.assertRaisesRegex(ValueError, "duplicate Go tool pin"):
+            self.load(duplicate)
+
+    def test_group_must_name_its_executable(self) -> None:
+        text = GO_TOOL_LINES.replace("CI_GO_TOOL_STATICCHECK_", "CI_GO_TOOL_LINTER_")
+        with self.assertRaisesRegex(ValueError, "does not name its executable"):
+            self.load(text)
+
+    def test_repository_common_pins_both_go_tools(self) -> None:
+        tools = PINS.load_canonical_go_tools(ROOT)
+        self.assertEqual(sorted(tools), ["govulncheck", "staticcheck"])
+
+
+class CanonicalGoToolInventoryTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.checker = runpy.run_path(str(ROOT / "ci/tools/check-common-versions.py"))
+
+    def inventory_errors(self, text: str) -> list[str]:
+        entries = self.checker["parse_common_lines"](text.splitlines())
+        _names, errors = self.checker["canonical_ci_group_inventory"](entries)
+        return errors
+
+    def test_complete_go_tool_group_is_owned_and_valid(self) -> None:
+        self.assertEqual(self.inventory_errors(GO_TOOL_LINES), [])
+        entries = self.checker["parse_common_lines"](GO_TOOL_LINES.splitlines())
+        self.assertEqual(self.checker["unassigned_provenance_variables"](entries), [])
+
+    def test_incomplete_go_tool_group_is_reported(self) -> None:
+        text = "".join(
+            line + "\n"
+            for line in GO_TOOL_LINES.splitlines()
+            if "_PACKAGE=" not in line
+        )
+        self.assertIn(
+            "incomplete go tool group STATICCHECK; missing: PACKAGE",
+            self.inventory_errors(text),
+        )

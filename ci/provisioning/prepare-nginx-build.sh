@@ -447,6 +447,25 @@ require_command() {
     fi
 }
 
+# elf_runpath <object>: the DT_RUNPATH value, or nothing.
+elf_runpath() {
+    elf_object=$1
+    readelf -d "$elf_object" | sed -n 's/.*(RUNPATH)[^[]*\[\([^]]*\)\].*/\1/p'
+}
+
+verify_nginx_bundled_pcre2() {
+    [ "$NGINX_BUNDLED_PCRE2" = "1" ] || return 0
+    require_command readelf "verify the NGINX PCRE2 binding"
+    if ! readelf -d "$NGINX_BINARY" | grep -F '(NEEDED)' | grep -Fq '[libpcre2-8.so.0]'; then
+        fail "NGINX binary does not link PCRE2: $NGINX_BINARY"
+    fi
+    nginx_runpath=$(elf_runpath "$NGINX_BINARY")
+    case ":$nginx_runpath:" in
+        *":$MODSECURITY_STAGE/lib:"*) ;;
+        *) fail "NGINX binary does not carry the bundled PCRE2 run path ($MODSECURITY_STAGE/lib): ${nginx_runpath:-none}" ;;
+    esac
+}
+
 run_logged_kind() {
     kind=$1
     label=$2
@@ -847,6 +866,17 @@ build_nginx_from_source() {
             blocked "unsupported NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE"
             ;;
     esac
+    # The shared libModSecurity prefix bundles the common.sh PCRE2 pin.  Bind
+    # NGINX to it at compile and link time; the prefix is already published,
+    # so its absolute library path is a stable DT_RUNPATH and NGINX never
+    # falls back to the distribution PCRE2, with or without a harness path.
+    NGINX_BUNDLED_PCRE2=0
+    if [ -f "$MODSECURITY_STAGE/include/pcre2.h" ] && [ -f "$MODSECURITY_STAGE/lib/libpcre2-8.so.0" ]; then
+        NGINX_BUNDLED_PCRE2=1
+        set -- "$@" \
+            "--with-cc-opt=-I$MODSECURITY_STAGE/include" \
+            "--with-ld-opt=-L$MODSECURITY_STAGE/lib -Wl,-rpath,$MODSECURITY_STAGE/lib"
+    fi
     run_blocked nginx-configure "$NGINX_SOURCE_DIR" env \
         "MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include" \
         "MODSECURITY_INC=$MODSECURITY_STAGE/include" \
@@ -869,10 +899,12 @@ build_nginx_from_source() {
         fail "NGINX install completed without dynamic module: $NGINX_MODULE"
     fi
     verify_nginx_protocol_build
+    verify_nginx_bundled_pcre2
 
     {
         echo "[nginx-build]"
         echo "nginx_binary=$NGINX_BINARY"
+        echo "nginx_bundled_pcre2=$NGINX_BUNDLED_PCRE2"
         echo "nginx_protocol_profile=$NGINX_PROTOCOL_PROFILE"
         cat "$NGINX_VERSION_LOG"
         echo "nginx_module=$NGINX_MODULE"

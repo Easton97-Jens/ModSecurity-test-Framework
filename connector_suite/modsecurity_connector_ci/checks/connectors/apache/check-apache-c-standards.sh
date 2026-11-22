@@ -23,7 +23,7 @@ fi
 
 PROFILE=${APACHE_C_STD_PROFILE:-all}
 CC_BIN=${CC:-cc}
-OUT=${APACHE_C_STANDARDS_OUT:-/var/tmp/ModSecurity-conector-verified/build/apache-c-standards}
+OUT=${APACHE_C_STANDARDS_OUT:-$BUILD_ROOT/apache-c-standards}
 
 blocked() {
     if is_local_run; then

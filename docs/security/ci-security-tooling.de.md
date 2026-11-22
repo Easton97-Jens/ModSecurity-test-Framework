@@ -105,6 +105,22 @@ Source-Prüfungen für immutable Pins und Release-Kommentare bleiben Defense in
 Depth. Regression-Fixtures beweisen die Zurückweisung von Quoted-Keys und
 Flow-Mappings mit einer abweichenden Voll-SHA.
 
+### Pins der Go-Analysewerkzeuge
+
+Go-Analysewerkzeuge haben kein Release-Asset; sie sind daher nur in
+`ci/lib/common.sh` als Gruppen `CI_GO_TOOL_STATICCHECK_*` und
+`CI_GO_TOOL_GOVULNCHECK_*` gepinnt, jeweils mit den Feldern `MODULE`,
+`PACKAGE`, `VERSION` und `MODULE_SUM`: `staticcheck` (`honnef.co/go/tools`
+`v0.8.2`) und `govulncheck` (`golang.org/x/vuln` `v1.10.0`), jeweils mit ihrer
+`h1:`-Modulsumme. Ein Verbraucher baut die exakte Paketversion mit seiner
+eigenen gepinnten Go-Toolchain und prüft die Modulsumme vor und die
+Build-Informationen der Binary nach dem Build. `load_canonical_go_tools()` in
+`ci/tools/common_canonical_pins.py` parst diese Zuweisungen, ohne die Datei
+auszuführen, und weist unvollständige Gruppen, Versionsbereiche, fremde
+Paketpfade und Shell-Ausdrücke zurück; `check-common-versions.py
+--validate-canonical` erzwingt dieselbe Gruppenform und Zuordnung wie für die
+übrigen kanonischen CI-Pins.
+
 Jeder Action-Record legt zusätzlich seine `release_resolution` fest. Die
 meisten Actions verwenden den offiziellen Endpunkt `latest-release`.
 `github/codeql-action` verwendet stattdessen den überprüften Modus
