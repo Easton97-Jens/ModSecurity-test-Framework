@@ -173,6 +173,7 @@ runs:
               echo "FAIL: libModSecurity build paths must occupy one line" >&2
               exit 1
               ;;
+            *) : ;;
           esac
         done
         {
@@ -190,6 +191,11 @@ runs:
             ;;
           lighttpd)
             make prepare-lighttpd-runtime-build
+            ;;
+          apache|haproxy) : ;;
+          *)
+            echo "FAIL: connector is outside the fixed profile: $CONNECTOR" >&2
+            exit 2
             ;;
         esac
 

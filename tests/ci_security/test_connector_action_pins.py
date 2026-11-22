@@ -163,7 +163,7 @@ class ConnectorActionPinsTests(unittest.TestCase):
             ),
             NO_CRS_AMENDED: (
                 "8e3b30d2fadb3ff858dd2d75dc55f0af48109696f6786c2fbdbcf3e27812cd41",
-                "1ba7110943406aec71b5429468a142827b1a6f7c179aec1472edc6e99dbe879e",
+                "4eef31eb7b0958777c01684025c28d66c324914d77fe70f8dd39eb324c378793",
             ),
         }
         amendments = PINS["REVIEWED_CURRENT_SOURCE_AMENDMENTS"]

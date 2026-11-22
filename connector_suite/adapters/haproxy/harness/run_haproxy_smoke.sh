@@ -271,15 +271,17 @@ write_case_result() {
 }
 
 case_request_window() {
+    request_window_phase=${1:?request window phase is required}
     "$PYTHON_BIN" "$CASE_CLI" request-window \
-        --phase "$1" --case "$TEST_CASE" \
+        --phase "$request_window_phase" --case "$TEST_CASE" \
         --event-log "$LOG_DIR/decision.jsonl" --receipt "$CASE_REQUEST_WINDOW" \
         --output-root "$LOG_DIR" --run-id "$CASE_RESULT_RUN_ID" \
         --source-revision "$CONNECTOR_REVISION"
 }
 
 observed_case_transaction() {
-    "$PYTHON_BIN" - "$FRAMEWORK_ROOT" "$1" "$LOG_DIR" "$CASE_REQUEST_WINDOW" \
+    observed_case_path=${1:?case path is required}
+    "$PYTHON_BIN" - "$FRAMEWORK_ROOT" "$observed_case_path" "$LOG_DIR" "$CASE_REQUEST_WINDOW" \
         "$CASE_RESULT_RUN_ID" "$CONNECTOR_REVISION" <<'PY'
 import json
 import sys

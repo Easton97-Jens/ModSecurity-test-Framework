@@ -54,6 +54,9 @@ beachten die explizite Konfiguration des Aufrufers. Optionales C17-Lint meldet
 BLOCKED bei fehlendem SDK. Automatische lokale Bereitstellung erfordert beide
 vorhandenen Opt-ins und ein auf den Bedarf begrenztes Ziel.
 
+Die No-CRS-Action behandelt beide Default-Zweige ausdrücklich. Die
+HAProxy-Helfer validieren und benennen ihre erforderlichen Argumente.
+
 ## Geänderte Dateien und Tests
 
 - No-CRS Composite Action, exakte Quelländerungsbindung und gemeinsame Framework-CI-Bibliothek.
@@ -74,6 +77,7 @@ vorhandenen Opt-ins und ein auf den Bedarf begrenztes Ziel.
 | `update-inventory-bindings.py --apply` und `update-test-archive.py` | 0 | Sieben Quell-Digests aktualisiert und Archiv neu generiert |
 | `make check-active-inventory` | 0 | 100 aktive Fälle zugelassen. Das Spezialtestarchiv entspricht den Quellen |
 | `make check-canonical-common-pins` und drei gezielte Action-Integritätstests | 0 | Exakte Action akzeptiert. Falsche Basis und veränderte Checkout-/Bootstrap-Prüfungen abgelehnt |
+| Gezielte Prüfungen zur SonarCloud-Korrektur | 0 | Zizmor, Ruff, Action-Integrität, Bereitstellungsmatrix und HAProxy-Anfragefenster-Regression bestanden |
 | Ruff-Lint und -Format, Offline-zizmor und Offline-Bereitstellung | 0 | Action- und Testformatprüfungen bestanden. Alle fünf Zeilen akzeptieren gültige Pfade und lehnen CR/LF in Pfaden ab |
 
 ## Sicherheitsauswirkung

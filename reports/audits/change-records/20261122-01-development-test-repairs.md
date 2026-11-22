@@ -49,6 +49,9 @@ successful No-CRS case. The Envoy and Traefik stages preserve explicit caller
 configuration. Optional C17 lint reports BLOCKED for an unavailable SDK.
 Automatic local setup requires both existing opt-ins and uses a scoped target.
 
+The No-CRS action explicitly handles both default branches. The HAProxy
+helpers validate and name their required arguments.
+
 ## Changed files and tests
 
 - No-CRS composite action, exact source amendment and Framework CI common library.
@@ -69,6 +72,7 @@ Automatic local setup requires both existing opt-ins and uses a scoped target.
 | `update-inventory-bindings.py --apply` and `update-test-archive.py` | 0 | Seven source digests refreshed and archive regenerated |
 | `make check-active-inventory` | 0 | Admitted 100 active cases. The specialist archive matches the source inputs |
 | `make check-canonical-common-pins` and three focused action-integrity tests | 0 | Exact action accepted. Wrong baseline and modified checkout/bootstrap checks rejected |
+| Targeted SonarCloud remediation checks | 0 | Zizmor, Ruff, action authority, provisioning matrix and HAProxy request-window regression passed |
 | Ruff lint and format, offline zizmor, and offline provisioning | 0 | Action and test formatting checks passed. All five rows accept valid paths and reject CR/LF in paths |
 
 ## Security impact

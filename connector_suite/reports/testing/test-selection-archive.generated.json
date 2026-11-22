@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "e3003fcdc6dce921fd4812cef3a4d310a3fd081a82454ac3a949487cb8b9894a",
+  "inventory_sha256": "d5a6741e6d4b903ba5b0a8a6402046d2577384dc9fb679ce15fad183bc31747e",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -12618,7 +12618,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_current_amendment_rejects_wrong_immutable_baseline_anchor"
       ],
       "source": "framework/tests/ci_security/test_connector_action_pins.py",
-      "source_sha256": "d8387f7c9515c12cf097213c9b25d89e584df9c9e66af42975c6ec3c4c049f3f"
+      "source_sha256": "dd534733308302410aab7950d340ce1fbf8215fc8e14b24682ac062723039b83"
     },
     {
       "contains_selected_definitions": [],

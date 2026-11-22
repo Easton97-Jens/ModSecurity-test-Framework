@@ -25,7 +25,7 @@ SOURCES_SHA256 = "1c60cb8a19bd8bf3d810ca8392626f30b938b05bbdeab2219222d61833712b
 REVIEWED_CURRENT_SOURCE_AMENDMENTS = {
     ".github/actions/connector-ci/reusable-five-connectors-profile/no-crs/action.yml": {
         "baseline_sha256": "8e3b30d2fadb3ff858dd2d75dc55f0af48109696f6786c2fbdbcf3e27812cd41",
-        "current_sha256": "1ba7110943406aec71b5429468a142827b1a6f7c179aec1472edc6e99dbe879e",
+        "current_sha256": "4eef31eb7b0958777c01684025c28d66c324914d77fe70f8dd39eb324c378793",
         "reason": "Export pinned libModSecurity paths from the invocation-local No-CRS provisioning snapshot.",
         "change_record": "20261122-01-development-test-repairs",
     },
